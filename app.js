@@ -837,12 +837,14 @@ function renderAbout() {
         </div>
       </div>
       <div class="card">
+        <p>Purpose: a public, read-only arena to benchmark strategies under a unified rulebook and daily refreshes.</p>
         <p>Quant Arena exists to keep strategy research transparent and repeatable. Every model is measured under the same rules so the leaderboard remains fair across assets and time windows.</p>
         <ul>
           <li>Unified data source and backtest assumptions.</li>
           <li>Clear methodology for scores and rankings.</li>
           <li>Readable pseudocode for every strategy.</li>
         </ul>
+        <p>Have a strategy to add? Contact <a class="link" href="mailto:chenpeihao1997@gmail.com">chenpeihao1997@gmail.com</a>.</p>
         <p>Disclaimer: this site is for research and education only, not investment advice.</p>
       </div>
     </section>
