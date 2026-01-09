@@ -740,6 +740,7 @@ function renderMetricTabs(metrics) {
     <div class="tab-content" data-panel="trades">
       <div class="metric-grid">
         ${metricTile("Trades", formatNumber(metrics.trades))}
+        ${metricTile("Turnover (avg daily)", formatMetric(metrics.turnover, "turnover"))}
         ${metricTile("Win Rate", formatMetric(metrics.winRate, "totalReturn"))}
         ${metricTile("Profit Factor", formatMetric(metrics.profitFactor, "ratio"))}
       </div>
@@ -1281,6 +1282,7 @@ function calcMetrics(series) {
     : 0;
   const profitFactor = profitFactorFromReturns(returns);
   const trades = Math.max(6, Math.round(returns.length / 8));
+  const turnover = returns.length ? trades / returns.length : 0;
 
   return {
     totalReturn,
@@ -1295,7 +1297,8 @@ function calcMetrics(series) {
     ulcer,
     winRate,
     profitFactor,
-    trades
+    trades,
+    turnover
   };
 }
 
@@ -1388,7 +1391,8 @@ function formatMetric(value, key) {
     key === "totalReturn" ||
     key === "cagr" ||
     key === "maxDrawdown" ||
-    key === "winRate"
+    key === "winRate" ||
+    key === "turnover"
   ) {
     return `${(value * 100).toFixed(2)}%`;
   }
