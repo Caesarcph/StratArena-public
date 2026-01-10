@@ -50,16 +50,54 @@ async function fetchJson(path) {
 }
 
 function bindGlobal() {
+  // Mobile nav toggle
   const toggle = document.querySelector(".nav-toggle");
-  if (!toggle) return;
-  toggle.addEventListener("click", () => {
-    document.body.classList.toggle("nav-open");
-  });
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      document.body.classList.toggle("nav-open");
+    });
+  }
   document.querySelectorAll(".site-nav a").forEach((link) => {
     link.addEventListener("click", () => {
       document.body.classList.remove("nav-open");
     });
   });
+
+  // Theme toggle
+  initTheme();
+  const themeToggle = document.getElementById("theme-toggle");
+  if (themeToggle) {
+    themeToggle.addEventListener("click", toggleTheme);
+  }
+}
+
+function initTheme() {
+  const savedTheme = localStorage.getItem("theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const theme = savedTheme || (prefersDark ? "dark" : "light");
+  setTheme(theme);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute("data-theme");
+  const next = current === "dark" ? "light" : "dark";
+  setTheme(next);
+  localStorage.setItem("theme", next);
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  const icon = document.getElementById("theme-icon");
+  const label = document.getElementById("theme-label");
+  if (icon && label) {
+    if (theme === "dark") {
+      icon.textContent = "☀️";
+      label.textContent = "Light";
+    } else {
+      icon.textContent = "🌙";
+      label.textContent = "Dark";
+    }
+  }
 }
 
 function destroyCharts() {
@@ -749,6 +787,29 @@ function renderStrategyDetail(route) {
         </div>
       </div>
 
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>Drawdown</strong>
+              <div class="muted">Peak-to-trough decline over time</div>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="drawdown-chart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card heatmap-card">
+          <div class="chart-header">
+            <div>
+              <strong>Monthly Returns Heatmap</strong>
+              <div class="muted">Green = positive, Red = negative</div>
+            </div>
+          </div>
+          <div class="heatmap-body" id="monthly-heatmap"></div>
+        </div>
+      </div>
+
       <div class="tabs">
         <button class="tab-button active" data-tab="performance">Performance</button>
         <button class="tab-button" data-tab="risk">Risk</button>
@@ -1144,6 +1205,181 @@ function drawStrategyCharts(route) {
         }
       })
     );
+  }
+
+  // Drawdown Chart
+  const drawdownCtx = document.getElementById("drawdown-chart");
+  if (drawdownCtx) {
+    const drawdownSeries = calcDrawdownSeries(windowed.strategy);
+    registerChart(
+      new Chart(drawdownCtx, {
+        type: "line",
+        data: {
+          labels: windowed.dates,
+          datasets: [
+            {
+              label: "Drawdown",
+              data: drawdownSeries,
+              borderColor: "#c94c4c",
+              backgroundColor: "rgba(201, 76, 76, 0.3)",
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.25,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => `Drawdown: ${(context.raw * 100).toFixed(2)}%`
+              }
+            }
+          },
+          scales: {
+            y: {
+              type: "linear",
+              max: 0,
+              ticks: {
+                callback: (value) => `${(value * 100).toFixed(0)}%`
+              }
+            }
+          }
+        }
+      })
+    );
+  }
+
+  // Monthly Returns Heatmap
+  const heatmapContainer = document.getElementById("monthly-heatmap");
+  if (heatmapContainer) {
+    const fullSeries = getSeries(strategy.id, instrument);
+    renderMonthlyHeatmap(heatmapContainer, fullSeries);
+  }
+}
+
+function calcDrawdownSeries(values) {
+  let peak = values[0] || 1;
+  return values.map((value) => {
+    if (value > peak) peak = value;
+    return value / peak - 1;
+  });
+}
+
+function renderMonthlyHeatmap(container, series) {
+  const monthlyData = calcMonthlyReturnsMatrix(series.dates, series.strategy);
+
+  if (!monthlyData.years.length) {
+    container.innerHTML = "<div class='muted'>No data available</div>";
+    return;
+  }
+
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  let html = "<table class='heatmap-table'><thead><tr><th>Year</th>";
+  months.forEach((m) => {
+    html += `<th>${m}</th>`;
+  });
+  html += "<th>Annual</th></tr></thead><tbody>";
+
+  monthlyData.years.forEach((year) => {
+    html += `<tr><td class="year-cell">${year}</td>`;
+    let yearTotal = 1;
+    months.forEach((_, monthIndex) => {
+      const value = monthlyData.matrix[year]?.[monthIndex];
+      if (value !== undefined) {
+        yearTotal *= (1 + value);
+        const color = getHeatmapColor(value);
+        const displayValue = (value * 100).toFixed(1);
+        html += `<td class="heatmap-cell" style="background:${color}">${displayValue}%</td>`;
+      } else {
+        html += `<td class="heatmap-cell empty">-</td>`;
+      }
+    });
+    const annualReturn = yearTotal - 1;
+    const annualColor = getHeatmapColor(annualReturn);
+    html += `<td class="heatmap-cell annual" style="background:${annualColor}">${(annualReturn * 100).toFixed(1)}%</td>`;
+    html += "</tr>";
+  });
+
+  html += "</tbody></table>";
+  container.innerHTML = html;
+}
+
+function calcMonthlyReturnsMatrix(dates, values) {
+  const matrix = {};
+  const yearsSet = new Set();
+
+  for (let i = 1; i < dates.length; i++) {
+    const prevDate = dates[i - 1];
+    const currDate = dates[i];
+    const prevYM = prevDate.slice(0, 7);
+    const currYM = currDate.slice(0, 7);
+
+    if (prevYM !== currYM) {
+      const year = parseInt(currDate.slice(0, 4));
+      const month = parseInt(currDate.slice(5, 7)) - 1;
+
+      // Find last value of previous month and first value of current month
+      let prevMonthEnd = values[i - 1];
+      let currMonthStart = values[i - 1];
+
+      // Calculate return for the ending month
+      const prevYear = parseInt(prevDate.slice(0, 4));
+      const prevMonth = parseInt(prevDate.slice(5, 7)) - 1;
+
+      if (!matrix[prevYear]) matrix[prevYear] = {};
+      yearsSet.add(prevYear);
+    }
+  }
+
+  // Recalculate using bucket approach
+  const buckets = {};
+  for (let i = 0; i < dates.length; i++) {
+    const ym = dates[i].slice(0, 7);
+    if (!buckets[ym]) {
+      buckets[ym] = { start: values[i], end: values[i] };
+    } else {
+      buckets[ym].end = values[i];
+    }
+  }
+
+  Object.keys(buckets).forEach((ym) => {
+    const year = parseInt(ym.slice(0, 4));
+    const month = parseInt(ym.slice(5, 7)) - 1;
+    const ret = buckets[ym].end / buckets[ym].start - 1;
+
+    if (!matrix[year]) matrix[year] = {};
+    matrix[year][month] = ret;
+    yearsSet.add(year);
+  });
+
+  const years = Array.from(yearsSet).sort((a, b) => b - a);
+  return { years, matrix };
+}
+
+function getHeatmapColor(value) {
+  if (value === undefined || value === null) return "transparent";
+
+  const intensity = Math.min(Math.abs(value) * 5, 1);
+
+  if (value >= 0) {
+    // Green for positive
+    const r = Math.round(255 - intensity * 100);
+    const g = Math.round(255 - intensity * 30);
+    const b = Math.round(255 - intensity * 100);
+    return `rgb(${r}, ${g}, ${b})`;
+  } else {
+    // Red for negative
+    const r = Math.round(255 - intensity * 30);
+    const g = Math.round(255 - intensity * 100);
+    const b = Math.round(255 - intensity * 100);
+    return `rgb(${r}, ${g}, ${b})`;
   }
 }
 
