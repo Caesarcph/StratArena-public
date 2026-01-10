@@ -244,19 +244,54 @@ function renderHome() {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Top Strategy Overlay</h2>
-          <p>Top 10 by Arena Score (${window}, ${instrument}). Normalized to 1.0.</p>
+          <h2>Top Strategy Leaderboards</h2>
+          <p>Top 5 strategies by Arena Score across different instruments and time windows.</p>
         </div>
       </div>
-      <div class="chart-card">
-        <div class="chart-header">
-          <div>
-            <strong>Top 10 Strategy Curves</strong>
-            <div class="muted">Legend shows strategy ID.</div>
+      <div class="home-chart-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>SPY - 1 Year</strong>
+              <div class="muted">S&P 500 ETF</div>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="home-chart-spy-1y"></canvas>
           </div>
         </div>
-        <div class="chart-body">
-          <canvas id="home-top-chart"></canvas>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>SPY - 5 Year</strong>
+              <div class="muted">Long-term performance</div>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="home-chart-spy-5y"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>GLD - 1 Year</strong>
+              <div class="muted">Gold ETF</div>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="home-chart-gld-1y"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>EURUSD - 1 Year</strong>
+              <div class="muted">Euro/US Dollar</div>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="home-chart-eurusd-1y"></canvas>
+          </div>
         </div>
       </div>
     </section>
@@ -264,16 +299,27 @@ function renderHome() {
 }
 
 function bindHome() {
-  drawHomeTopChart();
+  drawHomeCharts();
 }
 
-function drawHomeTopChart() {
-  const instrument = defaultInstrument();
-  const window = defaultWindow();
+function drawHomeCharts() {
+  const chartConfigs = [
+    { id: "home-chart-spy-1y", instrument: "SPY", window: "1Y" },
+    { id: "home-chart-spy-5y", instrument: "SPY", window: "5Y" },
+    { id: "home-chart-gld-1y", instrument: "GLD", window: "1Y" },
+    { id: "home-chart-eurusd-1y", instrument: "EURUSD=X", window: "1Y" }
+  ];
+
+  chartConfigs.forEach((config) => {
+    drawHomeChart(config.id, config.instrument, config.window);
+  });
+}
+
+function drawHomeChart(canvasId, instrument, window) {
   const leaderboard = buildLeaderboard(instrument, window)
     .sort((a, b) => b.metrics.arenaScore - a.metrics.arenaScore)
-    .slice(0, 10);
-  const ctx = document.getElementById("home-top-chart");
+    .slice(0, 5);
+  const ctx = document.getElementById(canvasId);
   if (!ctx || !leaderboard.length) return;
 
   const baseSeries = sliceSeries(
@@ -304,9 +350,24 @@ function drawHomeTopChart() {
         maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
         plugins: {
-          legend: { position: "bottom", labels: { boxWidth: 12 } }
+          legend: {
+            position: "bottom",
+            labels: {
+              boxWidth: 10,
+              font: { size: 10 },
+              padding: 8
+            }
+          }
         },
-        scales: { y: { type: "linear" } }
+        scales: {
+          y: { type: "linear" },
+          x: {
+            ticks: {
+              maxTicksLimit: 6,
+              font: { size: 9 }
+            }
+          }
+        }
       }
     })
   );
