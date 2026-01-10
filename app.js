@@ -3,6 +3,7 @@ const DATA_FILES = {
   performance: "data/performance.json",
   changelog: "data/changelog.json"
 };
+const FAVORITES_KEY = "favorites";
 
 const charts = [];
 const seriesCache = new Map();
@@ -12,6 +13,7 @@ const store = {
   performance: null,
   changelog: []
 };
+let favorites = new Set();
 
 document.addEventListener("DOMContentLoaded", () => {
   init().catch((err) => {
@@ -24,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function init() {
   await loadData();
+  initFavorites();
   bindGlobal();
   render();
   window.addEventListener("popstate", render);
@@ -100,6 +103,89 @@ function setTheme(theme) {
   }
 }
 
+function initFavorites() {
+  favorites = new Set(loadFavorites());
+  updateFavoriteCount();
+}
+
+function loadFavorites() {
+  const raw = localStorage.getItem(FAVORITES_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((id) => typeof id === "string");
+    }
+  } catch (error) {
+    return [];
+  }
+  return [];
+}
+
+function saveFavorites() {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(favorites)));
+}
+
+function isFavorite(strategyId) {
+  return favorites.has(strategyId);
+}
+
+function toggleFavorite(strategyId) {
+  if (favorites.has(strategyId)) {
+    favorites.delete(strategyId);
+  } else {
+    favorites.add(strategyId);
+  }
+  saveFavorites();
+}
+
+function updateFavoriteCount() {
+  const count = favorites.size;
+  document.querySelectorAll("[data-favorite-count]").forEach((badge) => {
+    badge.textContent = count ? String(count) : "";
+    badge.classList.toggle("hidden", count === 0);
+  });
+}
+
+function refreshFavoriteButtons() {
+  document.querySelectorAll("[data-favorite]").forEach((button) => {
+    const id = button.dataset.favorite;
+    const active = isFavorite(id);
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+    button.setAttribute(
+      "title",
+      active ? "Remove from favorites" : "Add to favorites"
+    );
+    const label = button.querySelector("[data-favorite-label]");
+    if (label) {
+      label.textContent = active ? "Saved" : "Save";
+    }
+    const icon = button.querySelector("[data-favorite-icon]");
+    if (icon) {
+      icon.innerHTML = active ? "&#9733;" : "&#9734;";
+    }
+  });
+}
+
+function handleFavoriteToggle(strategyId) {
+  toggleFavorite(strategyId);
+  updateFavoriteCount();
+  if (getRoute().page === "favorites") {
+    render();
+    return;
+  }
+  refreshFavoriteButtons();
+}
+
+function bindFavoriteButtons() {
+  document.querySelectorAll("[data-favorite]").forEach((button) => {
+    button.addEventListener("click", () => {
+      handleFavoriteToggle(button.dataset.favorite);
+    });
+  });
+}
+
 function destroyCharts() {
   while (charts.length) {
     charts.pop().destroy();
@@ -134,9 +220,17 @@ function render() {
       app.innerHTML = renderStrategies(route);
       bindStrategies(route);
       break;
+    case "favorites":
+      app.innerHTML = renderFavorites(route);
+      bindFavorites(route);
+      break;
     case "strategy":
       app.innerHTML = renderStrategyDetail(route);
       bindStrategyDetail(route);
+      break;
+    case "compare":
+      app.innerHTML = renderCompare(route);
+      bindCompare(route);
       break;
     case "methodology":
       app.innerHTML = renderMethodology();
@@ -577,6 +671,22 @@ function renderArena(route) {
   `;
 }
 
+function renderFavoriteButton(strategyId, variant = "card") {
+  const active = isFavorite(strategyId);
+  const label = active ? "Saved" : "Save";
+  const icon = active ? "&#9733;" : "&#9734;";
+  const classes =
+    variant === "action"
+      ? "button ghost favorite-action"
+      : "favorite-toggle";
+  return `
+    <button class="${classes} ${active ? "active" : ""}" data-favorite="${strategyId}" type="button" aria-pressed="${active ? "true" : "false"}" title="${active ? "Remove from favorites" : "Add to favorites"}">
+      <span class="favorite-icon" data-favorite-icon>${icon}</span>
+      <span class="favorite-label" data-favorite-label>${label}</span>
+    </button>
+  `;
+}
+
 function renderStrategies(route) {
   const state = strategiesState(route.params);
   const tags = uniqueTags(store.strategies);
@@ -631,6 +741,7 @@ function renderStrategies(route) {
           .map(
             (strategy) => `
           <div class="strategy-card">
+            ${renderFavoriteButton(strategy.id, "card")}
             <div class="eyebrow">${strategy.id}</div>
             <h3>${strategy.name}</h3>
             <p>${strategy.summary}</p>
@@ -651,9 +762,66 @@ function renderStrategies(route) {
   `;
 }
 
+function renderFavorites(route) {
+  const state = favoritesState(route.params);
+  const saved = store.strategies.filter((strategy) => favorites.has(strategy.id));
+
+  return `
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>Favorites</h2>
+          <p>${saved.length} strategies saved for quick access.</p>
+        </div>
+        <div class="chip-group">
+          <button class="chip ${state.view === "grid" ? "active" : ""}" data-view="grid">Grid</button>
+          <button class="chip ${state.view === "list" ? "active" : ""}" data-view="list">List</button>
+        </div>
+      </div>
+
+      ${
+        saved.length
+          ? `
+        <div class="strategy-grid ${state.view}">
+          ${saved
+            .map(
+              (strategy) => `
+            <div class="strategy-card">
+              ${renderFavoriteButton(strategy.id, "card")}
+              <div class="eyebrow">${strategy.id}</div>
+              <h3>${strategy.name}</h3>
+              <p>${strategy.summary}</p>
+              <div class="tag-row">
+                ${strategy.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
+              </div>
+              <div class="strategy-meta">
+                <span class="badge">${strategy.bestOn}</span>
+              </div>
+              <div class="hero-actions">
+                <a class="button ghost" href="?page=strategy&id=${strategy.id}">View Strategy</a>
+              </div>
+            </div>`
+            )
+            .join("")}
+        </div>
+      `
+          : `
+        <div class="card">
+          <h3>No favorites yet</h3>
+          <p>Save strategies from the library to build your watchlist.</p>
+          <div class="hero-actions">
+            <a class="button ghost" href="?page=strategies">Browse Strategies</a>
+          </div>
+        </div>
+      `
+      }
+    </section>
+  `;
+}
+
 function renderStrategyDetail(route) {
   const strategyId = route.params.get("id") || store.strategies[0].id;
-  const strategy = store.strategies.find((item) => item.id === strategyId);
+  const strategy = store.strategies.find((item) => item.id === strategyId);     
   if (!strategy) {
     return "<section class=\"section\"><h2>Strategy not found.</h2></section>";
   }
@@ -678,13 +846,16 @@ function renderStrategyDetail(route) {
           <div class="tag-row">
             ${strategy.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
           </div>
-          ${
-            returnTo
-              ? `<div class="hero-actions"><a class="button ghost" href="?${decodeURIComponent(
-                  returnTo
-                )}">Back to Arena</a></div>`
-              : ""
-          }
+          <div class="hero-actions">
+            ${
+              returnTo
+                ? `<a class="button ghost" href="?${decodeURIComponent(
+                    returnTo
+                  )}">Back to Arena</a>`
+                : ""
+            }
+            ${renderFavoriteButton(strategy.id, "action")}
+          </div>
         </div>
         <div class="info-grid">
           <div class="info-card">
@@ -973,6 +1144,274 @@ function renderAbout() {
   `;
 }
 
+function renderCompare(route) {
+  const selectedParam = route.params.get("strategies") || "";
+  const selected = selectedParam ? selectedParam.split(",").filter(Boolean) : [];
+  const instrument = route.params.get("instrument") || defaultInstrument();
+  const window = route.params.get("window") || defaultWindow();
+  const instruments = store.performance.instruments || [];
+  const windows = store.performance.windows || [];
+
+  const selectedStrategies = selected
+    .map((id) => store.strategies.find((s) => s.id === id))
+    .filter(Boolean);
+
+  return `
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>Strategy Comparator</h2>
+          <p>Select up to 5 strategies to compare side-by-side.</p>
+        </div>
+      </div>
+
+      <div class="compare-controls">
+        <div class="filter-bar">
+          <div class="filter-group">
+            <label>Instrument</label>
+            <select id="compare-instrument">
+              ${instruments
+                .map(
+                  (item) => `
+                <option value="${item.symbol}" ${
+                    item.symbol === instrument ? "selected" : ""
+                  }>${item.symbol}</option>`
+                )
+                .join("")}
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Window</label>
+            <div class="chip-group">
+              ${windows
+                .map(
+                  (item) => `
+                <button class="chip ${
+                  item === window ? "active" : ""
+                }" data-window="${item}">${item}</button>`
+                )
+                .join("")}
+            </div>
+          </div>
+        </div>
+
+        <div class="strategy-selector">
+          <label>Select Strategies (max 5)</label>
+          <div class="strategy-selector-grid">
+            ${store.strategies
+              .filter((s) => s.instruments.includes(instrument))
+              .map(
+                (strategy) => `
+              <label class="strategy-checkbox ${
+                selected.includes(strategy.id) ? "selected" : ""
+              }">
+                <input type="checkbox" data-strategy="${strategy.id}" ${
+                  selected.includes(strategy.id) ? "checked" : ""
+                } />
+                <span class="strategy-checkbox-label">
+                  <strong>${strategy.id}</strong>
+                  <span>${strategy.name}</span>
+                </span>
+              </label>`
+              )
+              .join("")}
+          </div>
+        </div>
+      </div>
+
+      ${
+        selectedStrategies.length > 0
+          ? `
+        <div class="chart-card compare-chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>Equity Curves Comparison</strong>
+              <div class="muted">${instrument} - ${window} (Normalized to 1.0)</div>
+            </div>
+          </div>
+          <div class="chart-body compare-chart-body">
+            <canvas id="compare-main-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="compare-table-card">
+          <h3>Performance Metrics</h3>
+          <div class="table-scroll">
+            <table class="compare-table">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  ${selectedStrategies.map((s) => `<th>${s.id}</th>`).join("")}
+                </tr>
+              </thead>
+              <tbody>
+                ${renderCompareMetricRows(selectedStrategies, instrument, window)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `
+          : `
+        <div class="compare-empty">
+          <p>Select strategies above to compare their performance.</p>
+        </div>
+      `
+      }
+    </section>
+  `;
+}
+
+function renderCompareMetricRows(strategies, instrument, window) {
+  const metricsConfig = [
+    { key: "totalReturn", label: "Total Return", format: "percent" },
+    { key: "cagr", label: "CAGR", format: "percent" },
+    { key: "sharpe", label: "Sharpe Ratio", format: "ratio" },
+    { key: "sortino", label: "Sortino Ratio", format: "ratio" },
+    { key: "calmar", label: "Calmar Ratio", format: "ratio" },
+    { key: "maxDrawdown", label: "Max Drawdown", format: "percent" },
+    { key: "volatility", label: "Volatility", format: "percent" },
+    { key: "winRate", label: "Win Rate", format: "percent" },
+    { key: "trades", label: "Trades", format: "number" }
+  ];
+
+  const metricsData = strategies.map((s) => getMetricsFor(s.id, instrument, window));
+
+  return metricsConfig
+    .map((config) => {
+      const values = metricsData.map((m) => m[config.key]);
+      const best =
+        config.key === "maxDrawdown"
+          ? Math.max(...values)
+          : Math.max(...values);
+      const worst =
+        config.key === "maxDrawdown"
+          ? Math.min(...values)
+          : Math.min(...values);
+
+      return `
+        <tr>
+          <td>${config.label}</td>
+          ${values
+            .map((value) => {
+              let formatted;
+              if (config.format === "percent") {
+                formatted = `${(value * 100).toFixed(2)}%`;
+              } else if (config.format === "ratio") {
+                formatted = value.toFixed(2);
+              } else {
+                formatted = Math.round(value);
+              }
+
+              const isBest =
+                config.key === "maxDrawdown" ? value === best : value === best;
+              const isWorst =
+                config.key === "maxDrawdown" ? value === worst : value === worst;
+
+              let className = "";
+              if (strategies.length > 1) {
+                if (isBest && value !== worst) className = "best";
+                else if (isWorst && value !== best) className = "worst";
+              }
+
+              return `<td class="${className}">${formatted}</td>`;
+            })
+            .join("")}
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function bindCompare(route) {
+  const selectedParam = route.params.get("strategies") || "";
+  const selected = selectedParam ? selectedParam.split(",").filter(Boolean) : [];
+  const instrument = route.params.get("instrument") || defaultInstrument();
+  const window = route.params.get("window") || defaultWindow();
+
+  // Instrument select
+  const instrumentSelect = document.getElementById("compare-instrument");
+  if (instrumentSelect) {
+    instrumentSelect.addEventListener("change", (event) => {
+      updateQuery({ page: "compare", instrument: event.target.value, strategies: "" });
+    });
+  }
+
+  // Window buttons
+  document.querySelectorAll("[data-window]").forEach((button) => {
+    button.addEventListener("click", () => {
+      updateQuery({ page: "compare", window: button.dataset.window });
+    });
+  });
+
+  // Strategy checkboxes
+  document.querySelectorAll("[data-strategy]").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const currentSelected = Array.from(
+        document.querySelectorAll("[data-strategy]:checked")
+      ).map((el) => el.dataset.strategy);
+
+      if (currentSelected.length > 5) {
+        checkbox.checked = false;
+        return;
+      }
+
+      updateQuery({ page: "compare", strategies: currentSelected.join(",") });
+    });
+  });
+
+  // Draw chart if strategies selected
+  if (selected.length > 0) {
+    drawCompareChart(selected, instrument, window);
+  }
+}
+
+function drawCompareChart(strategyIds, instrument, window) {
+  const ctx = document.getElementById("compare-main-chart");
+  if (!ctx) return;
+
+  const strategies = strategyIds
+    .map((id) => store.strategies.find((s) => s.id === id))
+    .filter(Boolean);
+
+  if (!strategies.length) return;
+
+  const baseSeries = sliceSeries(getSeries(strategies[0].id, instrument), window);
+  const labels = baseSeries.dates;
+
+  const datasets = strategies.map((strategy, index) => {
+    const series = sliceSeries(getSeries(strategy.id, instrument), window);
+    const normalized = normalizeSeries(series).strategy;
+    return {
+      label: `${strategy.id} - ${strategy.name}`,
+      data: normalized,
+      borderColor: palette(index),
+      backgroundColor: "transparent",
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.25
+    };
+  });
+
+  registerChart(
+    new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: {
+            position: "bottom",
+            labels: { boxWidth: 12, padding: 15 }
+          }
+        },
+        scales: { y: { type: "linear" } }
+      }
+    })
+  );
+}
+
 function bindArena(route) {
   const state = arenaState(route.params);
   const instrumentSelect = document.getElementById("arena-instrument");
@@ -1044,6 +1483,18 @@ function bindStrategies(route) {
       updateQuery({ page: "strategies", view: button.dataset.view });
     });
   });
+
+  bindFavoriteButtons();
+}
+
+function bindFavorites(route) {
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      updateQuery({ page: "favorites", view: button.dataset.view });
+    });
+  });
+
+  bindFavoriteButtons();
 }
 
 function bindStrategyDetail(route) {
@@ -1115,6 +1566,8 @@ function bindStrategyDetail(route) {
       }, 1500);
     });
   }
+
+  bindFavoriteButtons();
 
   drawStrategyCharts(route);
 }
@@ -1399,6 +1852,12 @@ function strategiesState(params) {
   return {
     query: params.get("q") ? params.get("q").toLowerCase() : "",
     tags: parseList(params.get("tags")),
+    view: params.get("view") || "grid"
+  };
+}
+
+function favoritesState(params) {
+  return {
     view: params.get("view") || "grid"
   };
 }
