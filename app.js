@@ -15,6 +15,17 @@ const CATEGORY_GROUPS = [
   { id: "portfolio", label: "Portfolio", tag: "Portfolio" },
   { id: "regime", label: "Regime", tag: "Regime" }
 ];
+const COMPARE_METRICS = [
+  { key: "totalReturn", label: "Total Return", format: "percent" },
+  { key: "cagr", label: "CAGR", format: "percent" },
+  { key: "sharpe", label: "Sharpe Ratio", format: "ratio" },
+  { key: "sortino", label: "Sortino Ratio", format: "ratio" },
+  { key: "calmar", label: "Calmar Ratio", format: "ratio" },
+  { key: "maxDrawdown", label: "Max Drawdown", format: "percent" },
+  { key: "volatility", label: "Volatility", format: "percent" },
+  { key: "winRate", label: "Win Rate", format: "percent" },
+  { key: "trades", label: "Trades", format: "number" }
+];
 
 const charts = [];
 const seriesCache = new Map();
@@ -1369,6 +1380,10 @@ function renderStrategyDetail(route) {
               <strong>Equity vs Benchmark</strong>
               <div class="muted">${instrument} - ${window}</div>
             </div>
+            <div class="chart-actions">
+              <button class="button ghost small" data-export-csv="strategy">Export CSV</button>
+              <button class="button ghost small" data-export-chart="equity-chart" data-export-name="equity">Export PNG</button>
+            </div>
           </div>
           <div class="chart-body">
             <canvas id="equity-chart"></canvas>
@@ -1379,6 +1394,9 @@ function renderStrategyDetail(route) {
             <div>
               <strong>Cross-asset comparison</strong>
               <div class="muted">Normalized to 1.0</div>
+            </div>
+            <div class="chart-actions">
+              <button class="button ghost small" data-export-chart="compare-chart" data-export-name="cross-asset">Export PNG</button>
             </div>
           </div>
           <div class="chart-body">
@@ -1393,6 +1411,9 @@ function renderStrategyDetail(route) {
             <div>
               <strong>Drawdown</strong>
               <div class="muted">Peak-to-trough decline over time</div>
+            </div>
+            <div class="chart-actions">
+              <button class="button ghost small" data-export-chart="drawdown-chart" data-export-name="drawdown">Export PNG</button>
             </div>
           </div>
           <div class="chart-body">
@@ -1417,6 +1438,9 @@ function renderStrategyDetail(route) {
               <strong>Rolling Sharpe Ratio</strong>
               <div class="muted">${ROLLING_WINDOW}-day window</div>
             </div>
+            <div class="chart-actions">
+              <button class="button ghost small" data-export-chart="rolling-sharpe" data-export-name="rolling-sharpe">Export PNG</button>
+            </div>
           </div>
           <div class="chart-body">
             <canvas id="rolling-sharpe"></canvas>
@@ -1428,6 +1452,9 @@ function renderStrategyDetail(route) {
               <strong>Rolling Volatility</strong>
               <div class="muted">${ROLLING_WINDOW}-day annualized</div>
             </div>
+            <div class="chart-actions">
+              <button class="button ghost small" data-export-chart="rolling-vol" data-export-name="rolling-volatility">Export PNG</button>
+            </div>
           </div>
           <div class="chart-body">
             <canvas id="rolling-vol"></canvas>
@@ -1438,6 +1465,9 @@ function renderStrategyDetail(route) {
             <div>
               <strong>Rolling Beta</strong>
               <div class="muted">vs Buy & Hold</div>
+            </div>
+            <div class="chart-actions">
+              <button class="button ghost small" data-export-chart="rolling-beta" data-export-name="rolling-beta">Export PNG</button>
             </div>
           </div>
           <div class="chart-body">
@@ -1699,6 +1729,9 @@ function renderCompare(route) {
               <strong>Equity Curves Comparison</strong>
               <div class="muted">${instrument} - ${window} (Normalized to 1.0)</div>
             </div>
+            <div class="chart-actions">
+              <button class="button ghost small" data-export-chart="compare-main-chart" data-export-name="comparison">Export PNG</button>
+            </div>
           </div>
           <div class="chart-body compare-chart-body">
             <canvas id="compare-main-chart"></canvas>
@@ -1706,7 +1739,13 @@ function renderCompare(route) {
         </div>
 
         <div class="compare-table-card">
-          <h3>Performance Metrics</h3>
+          <div class="compare-table-header">
+            <h3>Performance Metrics</h3>
+            <div class="chart-actions">
+              <button class="button ghost small" data-export-compare="csv">Export CSV</button>
+              <button class="button ghost small" data-export-compare="report">Export Report</button>
+            </div>
+          </div>
           <div class="table-scroll">
             <table class="compare-table">
               <thead>
@@ -1743,50 +1782,23 @@ function renderCompare(route) {
 }
 
 function renderCompareMetricRows(strategies, instrument, window) {
-  const metricsConfig = [
-    { key: "totalReturn", label: "Total Return", format: "percent" },
-    { key: "cagr", label: "CAGR", format: "percent" },
-    { key: "sharpe", label: "Sharpe Ratio", format: "ratio" },
-    { key: "sortino", label: "Sortino Ratio", format: "ratio" },
-    { key: "calmar", label: "Calmar Ratio", format: "ratio" },
-    { key: "maxDrawdown", label: "Max Drawdown", format: "percent" },
-    { key: "volatility", label: "Volatility", format: "percent" },
-    { key: "winRate", label: "Win Rate", format: "percent" },
-    { key: "trades", label: "Trades", format: "number" }
-  ];
-
   const metricsData = strategies.map((s) => getMetricsFor(s.id, instrument, window));
 
-  return metricsConfig
+  return COMPARE_METRICS
     .map((config) => {
       const values = metricsData.map((m) => m[config.key]);
-      const best =
-        config.key === "maxDrawdown"
-          ? Math.max(...values)
-          : Math.max(...values);
-      const worst =
-        config.key === "maxDrawdown"
-          ? Math.min(...values)
-          : Math.min(...values);
+      const numericValues = values.filter((value) => Number.isFinite(value));
+      const best = numericValues.length ? Math.max(...numericValues) : null;
+      const worst = numericValues.length ? Math.min(...numericValues) : null;
 
       return `
         <tr>
           <td>${config.label}</td>
           ${values
             .map((value) => {
-              let formatted;
-              if (config.format === "percent") {
-                formatted = `${(value * 100).toFixed(2)}%`;
-              } else if (config.format === "ratio") {
-                formatted = value.toFixed(2);
-              } else {
-                formatted = Math.round(value);
-              }
-
-              const isBest =
-                config.key === "maxDrawdown" ? value === best : value === best;
-              const isWorst =
-                config.key === "maxDrawdown" ? value === worst : value === worst;
+              const formatted = formatCompareValue(value, config.format);
+              const isBest = best !== null && value === best;
+              const isWorst = worst !== null && value === worst;
 
               let className = "";
               if (strategies.length > 1) {
@@ -1808,6 +1820,9 @@ function bindCompare(route) {
   const selected = selectedParam ? selectedParam.split(",").filter(Boolean) : [];
   const instrument = route.params.get("instrument") || defaultInstrument();
   const window = route.params.get("window") || defaultWindow();
+  const selectedStrategies = selected
+    .map((id) => store.strategies.find((strategy) => strategy.id === id))
+    .filter(Boolean);
 
   // Instrument select
   const instrumentSelect = document.getElementById("compare-instrument");
@@ -1844,6 +1859,28 @@ function bindCompare(route) {
   if (selected.length > 0) {
     drawCompareChart(selected, instrument, window);
   }
+
+  document.querySelectorAll("[data-export-chart]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const chartId = button.dataset.exportChart;
+      if (!chartId) return;
+      const exportName = button.dataset.exportName || chartId;
+      const filename = `compare-${instrument}-${window}-${exportName}.png`;
+      downloadCanvasAsPng(chartId, filename);
+    });
+  });
+
+  document.querySelectorAll("[data-export-compare]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!selectedStrategies.length) return;
+      const action = button.dataset.exportCompare;
+      if (action === "csv") {
+        downloadCompareCsv(selectedStrategies, instrument, window);
+      } else if (action === "report") {
+        downloadCompareReport(selectedStrategies, instrument, window);
+      }
+    });
+  });
 
   bindPortfolioBuilder(route);
 }
@@ -2189,6 +2226,30 @@ function bindStrategyDetail(route) {
       }, 1500);
     });
   }
+
+  const strategy = store.strategies.find((item) => item.id === strategyId);
+  const exportInstrument =
+    route.params.get("instrument") ||
+    strategy?.instruments?.[0] ||
+    defaultInstrument();
+  const exportWindow = route.params.get("window") || defaultWindow();
+
+  const exportCsvButton = document.querySelector("[data-export-csv='strategy']");
+  if (exportCsvButton && strategy) {
+    exportCsvButton.addEventListener("click", () => {
+      downloadStrategyCsv(strategyId, exportInstrument, exportWindow);
+    });
+  }
+
+  document.querySelectorAll("[data-export-chart]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const chartId = button.dataset.exportChart;
+      if (!chartId) return;
+      const exportName = button.dataset.exportName || chartId;
+      const filename = `${strategyId}-${exportInstrument}-${exportWindow}-${exportName}.png`;
+      downloadCanvasAsPng(chartId, filename);
+    });
+  });
 
   bindFavoriteButtons();
 
@@ -2939,6 +3000,175 @@ function formatMetric(value, key) {
 function formatNumber(value) {
   if (!Number.isFinite(value)) return "--";
   return value.toFixed(0);
+}
+
+function formatCompareValue(value, format) {
+  if (!Number.isFinite(value)) return "--";
+  if (format === "percent") {
+    return `${(value * 100).toFixed(2)}%`;
+  }
+  if (format === "ratio") {
+    return value.toFixed(2);
+  }
+  return Math.round(value).toString();
+}
+
+function csvEscape(value) {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, "\"\"")}"`;
+  }
+  return text;
+}
+
+function buildCsv(rows) {
+  return rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+}
+
+function downloadFile(filename, content, type = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadCanvasAsPng(canvasId, filename) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const link = document.createElement("a");
+  link.href = canvas.toDataURL("image/png");
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function buildStrategyCsv(strategyId, instrument, window) {
+  const series = getSeries(strategyId, instrument);
+  const windowed = sliceSeries(series, window);
+  const rows = [["Date", "Strategy", "Benchmark"]];
+  for (let i = 0; i < windowed.dates.length; i += 1) {
+    const strategyValue = Number.isFinite(windowed.strategy[i])
+      ? windowed.strategy[i].toFixed(6)
+      : "";
+    const benchmarkValue = Number.isFinite(windowed.benchmark[i])
+      ? windowed.benchmark[i].toFixed(6)
+      : "";
+    rows.push([windowed.dates[i], strategyValue, benchmarkValue]);
+  }
+  return buildCsv(rows);
+}
+
+function downloadStrategyCsv(strategyId, instrument, window) {
+  const csv = buildStrategyCsv(strategyId, instrument, window);
+  const filename = `${strategyId}-${instrument}-${window}-equity.csv`;
+  downloadFile(filename, csv, "text/csv;charset=utf-8");
+}
+
+function buildCompareMetricsCsv(strategies, instrument, window) {
+  const metricsData = strategies.map((s) => getMetricsFor(s.id, instrument, window));
+  const rows = [["Metric", ...strategies.map((s) => s.id)]];
+  COMPARE_METRICS.forEach((config) => {
+    const values = metricsData.map((metrics) =>
+      formatCompareValue(metrics[config.key], config.format)
+    );
+    rows.push([config.label, ...values]);
+  });
+  return buildCsv(rows);
+}
+
+function downloadCompareCsv(strategies, instrument, window) {
+  if (!strategies.length) return;
+  const csv = buildCompareMetricsCsv(strategies, instrument, window);
+  const filename = `compare-${instrument}-${window}.csv`;
+  downloadFile(filename, csv, "text/csv;charset=utf-8");
+}
+
+function buildCompareReportHtml(strategies, instrument, window) {
+  const metricsData = strategies.map((s) => getMetricsFor(s.id, instrument, window));
+  const headerCells = strategies
+    .map((strategy) => `<th>${escapeHtml(strategy.id)}</th>`)
+    .join("");
+  const rows = COMPARE_METRICS.map((config) => {
+    const values = metricsData
+      .map((metrics) => formatCompareValue(metrics[config.key], config.format))
+      .map((value) => `<td>${escapeHtml(value)}</td>`)
+      .join("");
+    return `<tr><th>${escapeHtml(config.label)}</th>${values}</tr>`;
+  }).join("");
+  const strategyList = strategies
+    .map((strategy) => `${strategy.id} - ${strategy.name}`)
+    .join(", ");
+  const generated = new Date().toISOString().slice(0, 19).replace("T", " ");
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Strategy Comparison Report</title>
+    <style>
+      body {
+        font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+        margin: 40px;
+        color: #1f1f1f;
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+      }
+      .meta {
+        color: #555;
+        margin: 0.2rem 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1.5rem;
+        font-size: 0.95rem;
+      }
+      th,
+      td {
+        border: 1px solid #d9d9d9;
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+      }
+      thead th {
+        background: #f5f5f5;
+      }
+      tbody tr:nth-child(odd) {
+        background: #fafafa;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Strategy Comparison Report</h1>
+    <p class="meta">Instrument: ${escapeHtml(instrument)} | Window: ${escapeHtml(window)}</p>
+    <p class="meta">Strategies: ${escapeHtml(strategyList)}</p>
+    <p class="meta">Generated: ${escapeHtml(generated)}</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          ${headerCells}
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>
+  </body>
+</html>`;
+}
+
+function downloadCompareReport(strategies, instrument, window) {
+  if (!strategies.length) return;
+  const html = buildCompareReportHtml(strategies, instrument, window);
+  const filename = `compare-${instrument}-${window}-report.html`;
+  downloadFile(filename, html, "text/html;charset=utf-8");
 }
 
 function parseList(value) {
