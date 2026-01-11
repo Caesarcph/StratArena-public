@@ -401,6 +401,40 @@ function renderHome() {
     <section class="section">
       <div class="section-header">
         <div>
+          <h2>Future Updates</h2>
+          <p>Planned membership rollout and priority roadmap items.</p>
+        </div>
+      </div>
+      <div class="card-grid">
+        <div class="card">
+          <div class="eyebrow">Membership (Planned)</div>
+          <h3>Research Membership</h3>
+          <p>Unlock member-only exports and deeper strategy research.</p>
+          <div class="list">
+            <div><span class="badge">Planned</span> CSV/PNG exports and comparison reports</div>
+            <div><span class="badge">Planned</span> Strategy source downloads and research notes</div>
+            <div><span class="badge">Planned</span> Saved comparisons and watchlists</div>
+            <div><span class="badge">Planned</span> Early access to new strategies</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="eyebrow">Roadmap</div>
+          <h3>Priority Upgrades</h3>
+          <p>Highlights from the current TODO backlog.</p>
+          <div class="list">
+            <div><span class="badge">Planned</span> Benchmark selector for comparisons</div>
+            <div><span class="badge">Planned</span> Similar strategy recommendations</div>
+            <div><span class="badge">Planned</span> Risk contribution and attribution views</div>
+            <div><span class="badge">Planned</span> Parameter sensitivity heatmaps</div>
+            <div><span class="badge">Planned</span> Real-time pricing snapshots</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
           <h2>Top Strategy Leaderboards</h2>
           <p>Top 5 strategies by Arena Score across different instruments and time windows.</p>
         </div>
