@@ -4,6 +4,15 @@ const DATA_FILES = {
   changelog: "data/changelog.json"
 };
 const FAVORITES_KEY = "favorites";
+const CATEGORY_TOP_COUNT = 5;
+const CATEGORY_GROUPS = [
+  { id: "trend", label: "Trend Following", tag: "Trend" },
+  { id: "momentum", label: "Momentum", tag: "Momentum" },
+  { id: "mean-reversion", label: "Mean Reversion", tag: "Mean Reversion" },
+  { id: "volatility", label: "Volatility", tag: "Volatility" },
+  { id: "portfolio", label: "Portfolio", tag: "Portfolio" },
+  { id: "regime", label: "Regime", tag: "Regime" }
+];
 
 const charts = [];
 const seriesCache = new Map();
@@ -678,6 +687,8 @@ function renderFavoriteButton(strategyId, variant = "card") {
   const classes =
     variant === "action"
       ? "button ghost favorite-action"
+      : variant === "inline"
+      ? "favorite-inline"
       : "favorite-toggle";
   return `
     <button class="${classes} ${active ? "active" : ""}" data-favorite="${strategyId}" type="button" aria-pressed="${active ? "true" : "false"}" title="${active ? "Remove from favorites" : "Add to favorites"}">
@@ -685,6 +696,136 @@ function renderFavoriteButton(strategyId, variant = "card") {
       <span class="favorite-label" data-favorite-label>${label}</span>
     </button>
   `;
+}
+
+function renderCategoryControls(state) {
+  const instruments = store.performance.instruments || [];
+  const windows = store.performance.windows || [];
+  return `
+    <div class="category-controls">
+      <div class="filter-group">
+        <label>Instrument</label>
+        <select id="category-instrument">
+          ${instruments
+            .map(
+              (item) => `
+            <option value="${item.symbol}" ${
+                item.symbol === state.instrument ? "selected" : ""
+              }>${item.symbol}</option>`
+            )
+            .join("")}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Window</label>
+        <div class="chip-group">
+          ${windows
+            .map(
+              (item) => `
+            <button class="chip ${
+              item === state.window ? "active" : ""
+            }" data-category-window="${item}">${item}</button>`
+            )
+            .join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function matchesCategory(strategy, group) {
+  if (group.id === "portfolio") {
+    return strategy.mode === "portfolio" || strategy.tags.includes(group.tag);
+  }
+  return strategy.tags.includes(group.tag);
+}
+
+function getScoredMetrics(strategyId, instrument, window) {
+  const metrics = getMetricsFor(strategyId, instrument, window);
+  const arenaScore =
+    metrics.arenaScore !== undefined && metrics.arenaScore !== null
+      ? metrics.arenaScore
+      : calcArenaScore(metrics);
+  return { ...metrics, arenaScore };
+}
+
+function renderCategoryRow(entry, index, instrument, window) {
+  const { strategy, metrics } = entry;
+  return `
+    <div class="category-row">
+      <div class="category-rank">${index + 1}</div>
+      <div class="category-name">
+        <a class="link" href="?page=strategy&id=${strategy.id}&instrument=${instrument}&window=${window}">
+          ${strategy.id} ${strategy.name}
+        </a>
+        <div class="tag-row">
+          ${strategy.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
+        </div>
+      </div>
+      <div class="category-score">
+        <span class="muted">Arena Score</span>
+        <strong>${formatMetric(metrics.arenaScore, "score")}</strong>
+      </div>
+      ${renderFavoriteButton(strategy.id, "inline")}
+    </div>
+  `;
+}
+
+function renderCategoryView(strategies, state) {
+  const instrument = state.instrument;
+  const window = state.window;
+  const metricsById = new Map();
+  const getMetrics = (strategyId) => {
+    if (!metricsById.has(strategyId)) {
+      metricsById.set(strategyId, getScoredMetrics(strategyId, instrument, window));
+    }
+    return metricsById.get(strategyId);
+  };
+
+  const cards = CATEGORY_GROUPS.map((group) => {
+    const groupStrategies = strategies.filter(
+      (strategy) =>
+        matchesCategory(strategy, group) &&
+        strategy.instruments.includes(instrument)
+    );
+    if (!groupStrategies.length) return "";
+    const scored = groupStrategies
+      .map((strategy) => ({
+        strategy,
+        metrics: getMetrics(strategy.id)
+      }))
+      .sort((a, b) => b.metrics.arenaScore - a.metrics.arenaScore);
+    const top = scored.slice(0, CATEGORY_TOP_COUNT);
+    return `
+      <div class="card category-card">
+        <div class="category-header">
+          <div>
+            <h3>${group.label}</h3>
+            <p class="muted">${scored.length} strategies • ${instrument} ${window} ranking</p>
+          </div>
+          <a class="link" href="?page=strategies&tags=${encodeURIComponent(
+            group.tag
+          )}&view=list">View all</a>
+        </div>
+        <div class="category-list">
+          ${top
+            .map((entry, index) => renderCategoryRow(entry, index, instrument, window))
+            .join("")}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  if (!cards) {
+    return `
+      <div class="card">
+        <h3>No matching categories</h3>
+        <p>Try adjusting tags or search filters.</p>
+      </div>
+    `;
+  }
+
+  return `<div class="category-grid">${cards}</div>`;
 }
 
 function renderStrategies(route) {
@@ -711,6 +852,7 @@ function renderStrategies(route) {
         <div class="chip-group">
           <button class="chip ${state.view === "grid" ? "active" : ""}" data-view="grid">Grid</button>
           <button class="chip ${state.view === "list" ? "active" : ""}" data-view="list">List</button>
+          <button class="chip ${state.view === "category" ? "active" : ""}" data-view="category">Category</button>
         </div>
       </div>
 
@@ -736,6 +878,12 @@ function renderStrategies(route) {
         </div>
       </div>
 
+      ${state.view === "category" ? renderCategoryControls(state) : ""}
+
+      ${
+        state.view === "category"
+          ? renderCategoryView(filtered, state)
+          : `
       <div class="strategy-grid ${state.view}">
         ${filtered
           .map(
@@ -758,6 +906,8 @@ function renderStrategies(route) {
           )
           .join("")}
       </div>
+      `
+      }
     </section>
   `;
 }
@@ -1484,6 +1634,19 @@ function bindStrategies(route) {
     });
   });
 
+  const categoryInstrument = document.getElementById("category-instrument");
+  if (categoryInstrument) {
+    categoryInstrument.addEventListener("change", (event) => {
+      updateQuery({ page: "strategies", instrument: event.target.value });
+    });
+  }
+
+  document.querySelectorAll("[data-category-window]").forEach((button) => {
+    button.addEventListener("click", () => {
+      updateQuery({ page: "strategies", window: button.dataset.categoryWindow });
+    });
+  });
+
   bindFavoriteButtons();
 }
 
@@ -1852,7 +2015,9 @@ function strategiesState(params) {
   return {
     query: params.get("q") ? params.get("q").toLowerCase() : "",
     tags: parseList(params.get("tags")),
-    view: params.get("view") || "grid"
+    view: params.get("view") || "grid",
+    instrument: params.get("instrument") || defaultInstrument(),
+    window: params.get("window") || defaultWindow()
   };
 }
 
