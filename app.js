@@ -5,6 +5,8 @@ const DATA_FILES = {
 };
 const FAVORITES_KEY = "favorites";
 const CATEGORY_TOP_COUNT = 5;
+const TRADING_DAYS = 252;
+const ROLLING_WINDOW = 252;
 const CATEGORY_GROUPS = [
   { id: "trend", label: "Trend Following", tag: "Trend" },
   { id: "momentum", label: "Momentum", tag: "Momentum" },
@@ -23,6 +25,8 @@ const store = {
   changelog: []
 };
 let favorites = new Set();
+let portfolioWeights = new Map();
+let portfolioChart = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   init().catch((err) => {
@@ -199,6 +203,7 @@ function destroyCharts() {
   while (charts.length) {
     charts.pop().destroy();
   }
+  portfolioChart = null;
 }
 
 function registerChart(chart) {
@@ -828,6 +833,280 @@ function renderCategoryView(strategies, state) {
   return `<div class="category-grid">${cards}</div>`;
 }
 
+function topStrategiesForInstrument(instrument, window, count) {
+  return buildLeaderboard(instrument, window)
+    .sort((a, b) => b.metrics.arenaScore - a.metrics.arenaScore)
+    .slice(0, count)
+    .map((entry) => entry.strategy);
+}
+
+function buildCorrelationMatrix(strategies, instrument, window) {
+  const ids = strategies.map((strategy) => strategy.id);
+  if (ids.length < 2) {
+    return { ids, matrix: [] };
+  }
+  const seriesList = strategies.map((strategy) =>
+    sliceSeries(getSeries(strategy.id, instrument), window)
+  );
+  const returnsList = seriesList.map((series) => pctChange(series.strategy));
+  const minLen = Math.min(...returnsList.map((returns) => returns.length));
+  if (!minLen || minLen < 2) {
+    return { ids, matrix: ids.map(() => ids.map(() => null)) };
+  }
+  const trimmed = returnsList.map((returns) => returns.slice(-minLen));
+  const matrix = trimmed.map((row) =>
+    trimmed.map((col) => correlation(row, col))
+  );
+  return { ids, matrix };
+}
+
+function getCorrelationColor(value) {
+  if (!Number.isFinite(value)) return "transparent";
+  const intensity = Math.min(Math.abs(value), 1);
+  if (value >= 0) {
+    const r = Math.round(255 - intensity * 140);
+    const g = Math.round(255 - intensity * 70);
+    const b = Math.round(255 - intensity * 140);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+  const r = Math.round(255 - intensity * 70);
+  const g = Math.round(255 - intensity * 140);
+  const b = Math.round(255 - intensity * 140);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function renderCorrelationMatrix(strategies, instrument, window) {
+  if (strategies.length < 2) {
+    return `
+      <div class="card">
+        <h3>Not enough strategies selected</h3>
+        <p>Select at least two strategies to view correlations.</p>
+      </div>
+    `;
+  }
+
+  const data = buildCorrelationMatrix(strategies, instrument, window);
+  return `
+    <div class="card correlation-card">
+      <div class="table-scroll">
+        <table class="correlation-table">
+          <thead>
+            <tr>
+              <th></th>
+              ${data.ids.map((id) => `<th>${id}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${data.ids
+              .map(
+                (rowId, rowIndex) => `
+              <tr>
+                <th class="row-header">${rowId}</th>
+                ${data.matrix[rowIndex]
+                  .map((value) => {
+                    const label = Number.isFinite(value)
+                      ? value.toFixed(2)
+                      : "--";
+                    const color = getCorrelationColor(value);
+                    return `<td class="correlation-cell" style="background:${color}">${label}</td>`;
+                  })
+                  .join("")}
+              </tr>
+            `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function getPortfolioWeights(strategyIds) {
+  if (!strategyIds.length) return [];
+  const fallback = 100 / strategyIds.length;
+  return strategyIds.map((id) => {
+    const stored = portfolioWeights.get(id);
+    return Number.isFinite(stored) ? stored : fallback;
+  });
+}
+
+function setPortfolioWeights(strategyIds, weights) {
+  strategyIds.forEach((id, index) => {
+    portfolioWeights.set(id, weights[index]);
+  });
+}
+
+function normalizeWeights(weights) {
+  const cleaned = weights.map((value) =>
+    Number.isFinite(value) ? Math.max(0, value) : 0
+  );
+  const total = cleaned.reduce((sum, value) => sum + value, 0);
+  if (!total) {
+    const equal = cleaned.length ? 1 / cleaned.length : 0;
+    return { weights: cleaned.map(() => equal), total };
+  }
+  return { weights: cleaned.map((value) => value / total), total };
+}
+
+function alignPortfolioSeries(strategyIds, instrument, window) {
+  const seriesList = strategyIds.map((id) =>
+    sliceSeries(getSeries(id, instrument), window)
+  );
+  const minLen = Math.min(...seriesList.map((series) => series.strategy.length));
+  if (!minLen || minLen < 2) return null;
+  return {
+    dates: seriesList[0].dates.slice(-minLen),
+    series: seriesList.map((series) => series.strategy.slice(-minLen))
+  };
+}
+
+function buildPortfolio(strategyIds, weights, instrument, window) {
+  const normalized = normalizeWeights(weights);
+  const aligned = alignPortfolioSeries(strategyIds, instrument, window);
+  if (!aligned) {
+    return { series: null, metrics: null, total: normalized.total };
+  }
+  const returnsList = aligned.series.map((values) => pctChange(values));
+  const minReturns = Math.min(...returnsList.map((returns) => returns.length));
+  const trimmedReturns = returnsList.map((returns) => returns.slice(-minReturns));
+  const portfolioReturns = trimmedReturns[0].map((_, index) =>
+    trimmedReturns.reduce(
+      (sum, returns, idx) => sum + normalized.weights[idx] * returns[index],
+      0
+    )
+  );
+  const values = [1];
+  portfolioReturns.forEach((ret) => {
+    values.push(round(values[values.length - 1] * (1 + ret), 4));
+  });
+  const dates = aligned.dates.slice(aligned.dates.length - values.length);
+  const series = { dates, strategy: values };
+  const metrics = calcMetrics(series);
+  return { series, metrics, total: normalized.total };
+}
+
+function renderPortfolioMetrics(metrics) {
+  if (!metrics) {
+    return `<div class="muted">Not enough data to calculate metrics.</div>`;
+  }
+  return `
+    <div class="metric-grid">
+      <div class="metric-tile">
+        <span>Total Return</span>
+        <strong>${formatMetric(metrics.totalReturn, "totalReturn")}</strong>
+      </div>
+      <div class="metric-tile">
+        <span>CAGR</span>
+        <strong>${formatMetric(metrics.cagr, "cagr")}</strong>
+      </div>
+      <div class="metric-tile">
+        <span>Sharpe Ratio</span>
+        <strong>${formatMetric(metrics.sharpe, "ratio")}</strong>
+      </div>
+      <div class="metric-tile">
+        <span>Max Drawdown</span>
+        <strong>${formatMetric(metrics.maxDrawdown, "maxDrawdown")}</strong>
+      </div>
+      <div class="metric-tile">
+        <span>Volatility</span>
+        <strong>${formatMetric(metrics.volatility, "volatility")}</strong>
+      </div>
+    </div>
+  `;
+}
+
+function calcRiskParityWeights(strategyIds, instrument, window) {
+  const raw = strategyIds.map((id) => {
+    const metrics = getMetricsFor(id, instrument, window);
+    const vol = metrics.volatility || 0;
+    return vol > 0 ? 1 / vol : 0;
+  });
+  const normalized = normalizeWeights(raw);
+  return normalized.weights.map((weight) => round(weight * 100, 1));
+}
+
+function renderPortfolioSection(strategies, instrument, window) {
+  const strategyIds = strategies.map((strategy) => strategy.id);
+  if (!strategyIds.length) {
+    return `
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <h2>Portfolio Builder</h2>
+            <p>Blend selected strategies into a weighted portfolio.</p>
+          </div>
+        </div>
+        <div class="card">
+          <h3>No strategies selected</h3>
+          <p>Select strategies in the comparator above to build a portfolio.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  const weights = getPortfolioWeights(strategyIds);
+  const portfolio = buildPortfolio(strategyIds, weights, instrument, window);
+  return `
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>Portfolio Builder</h2>
+          <p>Blend selected strategies into a weighted portfolio.</p>
+        </div>
+        <div class="chip-group">
+          <button class="chip" data-portfolio-preset="equal">Equal Weight</button>
+          <button class="chip" data-portfolio-preset="risk">Risk Parity</button>
+        </div>
+      </div>
+      <div class="portfolio-grid">
+        <div class="card portfolio-weights-card">
+          <div class="portfolio-weights">
+            ${strategies
+              .map((strategy, index) => {
+                const value = Number.isFinite(weights[index])
+                  ? weights[index].toFixed(1)
+                  : "0";
+                return `
+              <div class="portfolio-row">
+                <div>
+                  <strong>${strategy.id}</strong>
+                  <div class="muted">${strategy.name}</div>
+                </div>
+                <input class="portfolio-input" type="number" min="0" max="100" step="0.5" value="${value}" data-portfolio-weight="${strategy.id}" />
+              </div>
+            `;
+              })
+              .join("")}
+          </div>
+          <div class="portfolio-total">
+            <span>Total Weight</span>
+            <strong id="portfolio-total">${portfolio.total.toFixed(1)}%</strong>
+          </div>
+          <div class="muted" id="portfolio-note">
+            Weights normalize to 100% for calculations.
+          </div>
+        </div>
+        <div class="chart-card portfolio-chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>Portfolio Equity Curve</strong>
+              <div class="muted">${instrument} - ${window}</div>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="portfolio-chart"></canvas>
+          </div>
+        </div>
+        <div class="card portfolio-metrics-card" id="portfolio-metrics">
+          <h3>Portfolio Metrics</h3>
+          ${renderPortfolioMetrics(portfolio.metrics)}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderStrategies(route) {
   const state = strategiesState(route.params);
   const tags = uniqueTags(store.strategies);
@@ -1131,6 +1410,42 @@ function renderStrategyDetail(route) {
         </div>
       </div>
 
+      <div class="chart-grid rolling-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>Rolling Sharpe Ratio</strong>
+              <div class="muted">${ROLLING_WINDOW}-day window</div>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="rolling-sharpe"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>Rolling Volatility</strong>
+              <div class="muted">${ROLLING_WINDOW}-day annualized</div>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="rolling-vol"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>Rolling Beta</strong>
+              <div class="muted">vs Buy & Hold</div>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="rolling-beta"></canvas>
+          </div>
+        </div>
+      </div>
+
       <div class="tabs">
         <button class="tab-button active" data-tab="performance">Performance</button>
         <button class="tab-button" data-tab="risk">Risk</button>
@@ -1305,6 +1620,12 @@ function renderCompare(route) {
   const selectedStrategies = selected
     .map((id) => store.strategies.find((s) => s.id === id))
     .filter(Boolean);
+  const correlationStrategies = selectedStrategies.length >= 2
+    ? selectedStrategies
+    : topStrategiesForInstrument(instrument, window, 8);
+  const correlationNote = selectedStrategies.length >= 2
+    ? "Using selected strategies."
+    : "Using top strategies by Arena Score.";
 
   return `
     <section class="section">
@@ -1408,6 +1729,16 @@ function renderCompare(route) {
       `
       }
     </section>
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>Correlation Matrix</h2>
+          <p>Daily return correlation for ${instrument} - ${window}. ${correlationNote}</p>
+        </div>
+      </div>
+      ${renderCorrelationMatrix(correlationStrategies, instrument, window)}
+    </section>
+    ${renderPortfolioSection(selectedStrategies, instrument, window)}
   `;
 }
 
@@ -1513,6 +1844,8 @@ function bindCompare(route) {
   if (selected.length > 0) {
     drawCompareChart(selected, instrument, window);
   }
+
+  bindPortfolioBuilder(route);
 }
 
 function drawCompareChart(strategyIds, instrument, window) {
@@ -1560,6 +1893,133 @@ function drawCompareChart(strategyIds, instrument, window) {
       }
     })
   );
+}
+
+function bindPortfolioBuilder(route) {
+  const selectedParam = route.params.get("strategies") || "";
+  const selected = selectedParam ? selectedParam.split(",").filter(Boolean) : [];
+  if (!selected.length) return;
+
+  const instrument = route.params.get("instrument") || defaultInstrument();
+  const window = route.params.get("window") || defaultWindow();
+  const weightInputs = Array.from(
+    document.querySelectorAll("[data-portfolio-weight]")
+  );
+  if (!weightInputs.length) return;
+
+  const strategyIds = weightInputs.map((input) => input.dataset.portfolioWeight);
+
+  const applyWeights = (weights) => {
+    const cleaned = weights.map((value) =>
+      Number.isFinite(value) ? Math.max(0, value) : 0
+    );
+    setPortfolioWeights(strategyIds, cleaned);
+    weightInputs.forEach((input, index) => {
+      input.value = cleaned[index].toFixed(1);
+    });
+    updatePortfolioDisplay(strategyIds, cleaned, instrument, window);
+  };
+
+  const updateFromInputs = () => {
+    const weights = weightInputs.map((input) => {
+      const value = parseFloat(input.value);
+      return Number.isFinite(value) ? value : 0;
+    });
+    setPortfolioWeights(strategyIds, weights);
+    updatePortfolioDisplay(strategyIds, weights, instrument, window);
+  };
+
+  document.querySelectorAll("[data-portfolio-preset]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.dataset.portfolioPreset === "risk") {
+        applyWeights(calcRiskParityWeights(strategyIds, instrument, window));
+        return;
+      }
+      applyWeights(strategyIds.map(() => 100 / strategyIds.length));
+    });
+  });
+
+  weightInputs.forEach((input) => {
+    input.addEventListener("input", updateFromInputs);
+  });
+
+  updateFromInputs();
+}
+
+function updatePortfolioDisplay(strategyIds, weights, instrument, window) {
+  const portfolio = buildPortfolio(strategyIds, weights, instrument, window);
+  updatePortfolioTotals(portfolio.total);
+  updatePortfolioMetrics(portfolio.metrics);
+  updatePortfolioChart(portfolio.series);
+}
+
+function updatePortfolioTotals(total) {
+  const totalEl = document.getElementById("portfolio-total");
+  if (totalEl) {
+    totalEl.textContent = `${total.toFixed(1)}%`;
+  }
+  const note = document.getElementById("portfolio-note");
+  if (note) {
+    const normalized = Math.abs(total - 100) < 0.1;
+    note.textContent = normalized
+      ? "Weights sum to 100%."
+      : "Weights normalize to 100% for calculations.";
+  }
+}
+
+function updatePortfolioMetrics(metrics) {
+  const container = document.getElementById("portfolio-metrics");
+  if (!container) return;
+  container.innerHTML = `
+    <h3>Portfolio Metrics</h3>
+    ${renderPortfolioMetrics(metrics)}
+  `;
+}
+
+function updatePortfolioChart(series) {
+  const ctx = document.getElementById("portfolio-chart");
+  if (!ctx) return;
+  if (!series) {
+    if (portfolioChart) {
+      portfolioChart.destroy();
+      portfolioChart = null;
+    }
+    return;
+  }
+
+  const data = {
+    labels: series.dates,
+    datasets: [
+      {
+        label: "Portfolio",
+        data: series.strategy,
+        borderColor: palette(0),
+        backgroundColor: "rgba(31, 111, 120, 0.2)",
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.25
+      }
+    ]
+  };
+
+  if (portfolioChart) {
+    portfolioChart.data = data;
+    portfolioChart.update();
+    return;
+  }
+
+  portfolioChart = new Chart(ctx, {
+    type: "line",
+    data,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "bottom" } },
+      scales: { y: { type: "linear" } }
+    }
+  });
+  registerChart(portfolioChart);
 }
 
 function bindArena(route) {
@@ -1877,6 +2337,8 @@ function drawStrategyCharts(route) {
     const fullSeries = getSeries(strategy.id, instrument);
     renderMonthlyHeatmap(heatmapContainer, fullSeries);
   }
+
+  drawRollingMetrics(windowed);
 }
 
 function calcDrawdownSeries(values) {
@@ -1888,7 +2350,7 @@ function calcDrawdownSeries(values) {
 }
 
 function renderMonthlyHeatmap(container, series) {
-  const monthlyData = calcMonthlyReturnsMatrix(series.dates, series.strategy);
+  const monthlyData = calcMonthlyReturnsMatrix(series.dates, series.strategy);  
 
   if (!monthlyData.years.length) {
     container.innerHTML = "<div class='muted'>No data available</div>";
@@ -1925,6 +2387,102 @@ function renderMonthlyHeatmap(container, series) {
 
   html += "</tbody></table>";
   container.innerHTML = html;
+}
+
+function drawRollingMetrics(series) {
+  const sharpeCtx = document.getElementById("rolling-sharpe");
+  const volCtx = document.getElementById("rolling-vol");
+  const betaCtx = document.getElementById("rolling-beta");
+  if (!sharpeCtx && !volCtx && !betaCtx) return;
+
+  const rolling = calcRollingMetrics(series, ROLLING_WINDOW);
+  const labels = rolling.labels;
+  const baseOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: { legend: { display: false } },
+    scales: { y: { type: "linear" } }
+  };
+
+  if (sharpeCtx) {
+    registerChart(
+      new Chart(sharpeCtx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Rolling Sharpe",
+              data: rolling.sharpe,
+              borderColor: palette(0),
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.25,
+              spanGaps: true
+            }
+          ]
+        },
+        options: baseOptions
+      })
+    );
+  }
+
+  if (volCtx) {
+    registerChart(
+      new Chart(volCtx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Rolling Volatility",
+              data: rolling.volatility,
+              borderColor: palette(1),
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.25,
+              spanGaps: true
+            }
+          ]
+        },
+        options: {
+          ...baseOptions,
+          scales: {
+            y: {
+              type: "linear",
+              ticks: {
+                callback: (value) => `${(value * 100).toFixed(0)}%`
+              }
+            }
+          }
+        }
+      })
+    );
+  }
+
+  if (betaCtx) {
+    registerChart(
+      new Chart(betaCtx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Rolling Beta",
+              data: rolling.beta,
+              borderColor: palette(2),
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.25,
+              spanGaps: true
+            }
+          ]
+        },
+        options: baseOptions
+      })
+    );
+  }
 }
 
 function calcMonthlyReturnsMatrix(dates, values) {
@@ -2175,6 +2733,43 @@ function normalizeSeries(series) {
   return { ...series, strategy: normalized };
 }
 
+function calcRollingMetrics(series, windowSize) {
+  const returns = pctChange(series.strategy);
+  const benchReturns = pctChange(series.benchmark);
+  const labels = series.dates.slice(1);
+  const sharpe = [];
+  const volatility = [];
+  const beta = [];
+
+  for (let i = 0; i < returns.length; i += 1) {
+    if (i < windowSize - 1) {
+      sharpe.push(null);
+      volatility.push(null);
+      beta.push(null);
+      continue;
+    }
+    const start = i - windowSize + 1;
+    const windowReturns = returns.slice(start, i + 1);
+    const windowBench = benchReturns.slice(start, i + 1);
+    const avg = mean(windowReturns);
+    const stdDev = std(windowReturns);
+    const annualVol = stdDev * Math.sqrt(TRADING_DAYS);
+    const sharpeValue =
+      stdDev === 0 ? 0 : (avg / stdDev) * Math.sqrt(TRADING_DAYS);
+    const benchStd = std(windowBench);
+    const betaValue =
+      benchStd === 0
+        ? 0
+        : covariance(windowReturns, windowBench) / (benchStd * benchStd);
+
+    sharpe.push(round(sharpeValue, 3));
+    volatility.push(round(annualVol, 4));
+    beta.push(round(betaValue, 3));
+  }
+
+  return { labels, sharpe, volatility, beta };
+}
+
 function calcMetrics(series) {
   const returns = pctChange(series.strategy);
   const totalReturn =
@@ -2296,6 +2891,25 @@ function std(values) {
     values.reduce((sum, value) => sum + Math.pow(value - avg, 2), 0) /
     values.length;
   return Math.sqrt(variance);
+}
+
+function covariance(valuesA, valuesB) {
+  if (!valuesA.length || valuesA.length !== valuesB.length) return 0;
+  const avgA = mean(valuesA);
+  const avgB = mean(valuesB);
+  let sum = 0;
+  for (let i = 0; i < valuesA.length; i += 1) {
+    sum += (valuesA[i] - avgA) * (valuesB[i] - avgB);
+  }
+  return sum / valuesA.length;
+}
+
+function correlation(valuesA, valuesB) {
+  if (!valuesA.length || valuesA.length !== valuesB.length) return 0;
+  const stdA = std(valuesA);
+  const stdB = std(valuesB);
+  if (stdA === 0 || stdB === 0) return 0;
+  return covariance(valuesA, valuesB) / (stdA * stdB);
 }
 
 function clamp(value, min, max) {
