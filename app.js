@@ -44,6 +44,7 @@ const store = {
 let favorites = new Set();
 let portfolioWeights = new Map();
 let portfolioChart = null;
+let portfolioRiskChart = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   init().catch((err) => {
@@ -221,6 +222,7 @@ function destroyCharts() {
     charts.pop().destroy();
   }
   portfolioChart = null;
+  portfolioRiskChart = null;
 }
 
 function registerChart(chart) {
@@ -1026,7 +1028,7 @@ function alignPortfolioSeries(strategyIds, instrument, window) {
 
 function buildPortfolio(strategyIds, weights, instrument, window) {
   const normalized = normalizeWeights(weights);
-  const aligned = alignPortfolioSeries(strategyIds, instrument, window);
+  const aligned = alignPortfolioSeries(strategyIds, instrument, window);        
   if (!aligned) {
     return { series: null, metrics: null, total: normalized.total };
   }
@@ -1049,9 +1051,46 @@ function buildPortfolio(strategyIds, weights, instrument, window) {
   return { series, metrics, total: normalized.total };
 }
 
+function calcRiskContribution(strategyIds, weights, instrument, window) {
+  const normalized = normalizeWeights(weights);
+  const aligned = alignPortfolioSeries(strategyIds, instrument, window);
+  if (!aligned) return null;
+  const returnsList = aligned.series.map((values) => pctChange(values));
+  const minReturns = Math.min(...returnsList.map((returns) => returns.length));
+  if (!minReturns || minReturns < 2) return null;
+  const trimmed = returnsList.map((returns) => returns.slice(-minReturns));
+  const covMatrix = trimmed.map((row) =>
+    trimmed.map((col) => covariance(row, col))
+  );
+  const weightsNorm = normalized.weights;
+  const portfolioVar = weightsNorm.reduce((sum, weight, i) => {
+    const covRow = covMatrix[i].reduce(
+      (rowSum, cov, j) => rowSum + cov * weightsNorm[j],
+      0
+    );
+    return sum + weight * covRow;
+  }, 0);
+  const portfolioVol = portfolioVar > 0 ? Math.sqrt(portfolioVar) : 0;
+  const contributions = weightsNorm.map((weight, i) => {
+    const covWithPortfolio = covMatrix[i].reduce(
+      (rowSum, cov, j) => rowSum + cov * weightsNorm[j],
+      0
+    );
+    const marginal = portfolioVol > 0 ? covWithPortfolio / portfolioVol : 0;
+    const component = weight * marginal;
+    const percent = portfolioVol > 0 ? component / portfolioVol : 0;
+    return { weight, marginal, component, percent };
+  });
+  return {
+    contributions,
+    portfolioVol,
+    annualizedVol: portfolioVol * Math.sqrt(TRADING_DAYS)
+  };
+}
+
 function renderPortfolioMetrics(metrics) {
   if (!metrics) {
-    return `<div class="muted">Not enough data to calculate metrics.</div>`;
+    return `<div class="muted">Not enough data to calculate metrics.</div>`;    
   }
   return `
     <div class="metric-grid">
@@ -1075,6 +1114,50 @@ function renderPortfolioMetrics(metrics) {
         <span>Volatility</span>
         <strong>${formatMetric(metrics.volatility, "volatility")}</strong>
       </div>
+    </div>
+  `;
+}
+
+function renderRiskContributionTable(strategies, risk) {
+  if (!risk) {
+    return `<div class="muted">Not enough data to calculate risk contributions.</div>`;
+  }
+  const rows = strategies
+    .map((strategy, index) => {
+      const entry = risk.contributions[index] || {};
+      const weightLabel = formatPercent(entry.weight, 1);
+      const marginalLabel = formatPercent(
+        (entry.marginal || 0) * Math.sqrt(TRADING_DAYS),
+        2
+      );
+      const contributionLabel = formatPercent(entry.percent, 1);
+      const contributionClass =
+        entry.percent < 0 ? "negative" : entry.percent > 0 ? "positive" : "";
+      return `
+        <tr>
+          <td class="risk-label">${strategy.id}</td>
+          <td>${weightLabel}</td>
+          <td>${marginalLabel}</td>
+          <td class="${contributionClass}">${contributionLabel}</td>
+        </tr>
+      `;
+    })
+    .join("");
+  return `
+    <div class="table-scroll">
+      <table class="risk-table">
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>Weight</th>
+            <th>Marginal (ann.)</th>
+            <th>Contribution</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
     </div>
   `;
 }
@@ -1109,7 +1192,8 @@ function renderPortfolioSection(strategies, instrument, window) {
   }
 
   const weights = getPortfolioWeights(strategyIds);
-  const portfolio = buildPortfolio(strategyIds, weights, instrument, window);
+  const portfolio = buildPortfolio(strategyIds, weights, instrument, window);   
+  const risk = calcRiskContribution(strategyIds, weights, instrument, window);
   return `
     <section class="section">
       <div class="section-header">
@@ -1161,9 +1245,25 @@ function renderPortfolioSection(strategies, instrument, window) {
             <canvas id="portfolio-chart"></canvas>
           </div>
         </div>
-        <div class="card portfolio-metrics-card" id="portfolio-metrics">
+        <div class="card portfolio-metrics-card" id="portfolio-metrics">        
           <h3>Portfolio Metrics</h3>
           ${renderPortfolioMetrics(portfolio.metrics)}
+        </div>
+        <div class="chart-card portfolio-risk-card">
+          <div class="chart-header">
+            <div>
+              <strong>Risk Contribution</strong>
+              <div class="muted" id="portfolio-risk-note">
+                ${risk ? `Portfolio vol (ann.): ${formatPercent(risk.annualizedVol, 2)}` : "Not enough data to calculate risk contributions."}
+              </div>
+            </div>
+          </div>
+          <div class="chart-body portfolio-risk-body">
+            <canvas id="portfolio-risk-chart"></canvas>
+          </div>
+          <div class="risk-table-wrap" id="portfolio-risk-list">
+            ${renderRiskContributionTable(strategies, risk)}
+          </div>
         </div>
       </div>
     </section>
@@ -2190,11 +2290,12 @@ function bindPortfolioBuilder(route) {
   updateFromInputs();
 }
 
-function updatePortfolioDisplay(strategyIds, weights, instrument, window) {
-  const portfolio = buildPortfolio(strategyIds, weights, instrument, window);
+function updatePortfolioDisplay(strategyIds, weights, instrument, window) {     
+  const portfolio = buildPortfolio(strategyIds, weights, instrument, window);   
   updatePortfolioTotals(portfolio.total);
   updatePortfolioMetrics(portfolio.metrics);
   updatePortfolioChart(portfolio.series);
+  updatePortfolioRisk(strategyIds, weights, instrument, window);
 }
 
 function updatePortfolioTotals(total) {
@@ -2264,6 +2365,82 @@ function updatePortfolioChart(series) {
     }
   });
   registerChart(portfolioChart);
+}
+
+function updatePortfolioRisk(strategyIds, weights, instrument, window) {
+  const chartEl = document.getElementById("portfolio-risk-chart");
+  const listEl = document.getElementById("portfolio-risk-list");
+  const noteEl = document.getElementById("portfolio-risk-note");
+  if (!chartEl || !listEl || !noteEl) return;
+
+  const strategies = strategyIds
+    .map((id) => store.strategies.find((strategy) => strategy.id === id))
+    .filter(Boolean);
+  const risk = calcRiskContribution(strategyIds, weights, instrument, window);
+
+  if (!risk || !risk.contributions.length) {
+    noteEl.textContent = "Not enough data to calculate risk contributions.";
+    listEl.innerHTML =
+      "<div class=\"muted\">Not enough data to calculate risk contributions.</div>";
+    if (portfolioRiskChart) {
+      portfolioRiskChart.destroy();
+      portfolioRiskChart = null;
+    }
+    return;
+  }
+
+  noteEl.textContent = `Portfolio vol (ann.): ${formatPercent(
+    risk.annualizedVol,
+    2
+  )}`;
+  listEl.innerHTML = renderRiskContributionTable(strategies, risk);
+
+  const labels = strategies.map((strategy) => strategy.id);
+  const data = risk.contributions.map((entry) =>
+    round((entry.percent || 0) * 100, 2)
+  );
+  if (portfolioRiskChart) {
+    portfolioRiskChart.data.labels = labels;
+    portfolioRiskChart.data.datasets[0].data = data;
+    portfolioRiskChart.data.datasets[0].backgroundColor = labels.map(
+      (_, index) => palette(index)
+    );
+    portfolioRiskChart.update();
+    return;
+  }
+
+  portfolioRiskChart = new Chart(chartEl, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Risk Contribution (%)",
+          data,
+          backgroundColor: labels.map((_, index) => palette(index))
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: "y",
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.parsed.x.toFixed(2)}%`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { callback: (value) => `${value}%` }
+        }
+      }
+    }
+  });
+  registerChart(portfolioRiskChart);
 }
 
 function bindArena(route) {
@@ -3323,6 +3500,11 @@ function formatMetric(value, key) {
     return `${(value * 100).toFixed(2)}%`;
   }
   return value.toFixed(2);
+}
+
+function formatPercent(value, digits = 2) {
+  if (!Number.isFinite(value)) return "--";
+  return `${(value * 100).toFixed(digits)}%`;
 }
 
 function formatNumber(value) {
