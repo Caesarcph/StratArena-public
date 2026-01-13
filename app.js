@@ -26,6 +26,12 @@ const COMPARE_METRICS = [
   { key: "winRate", label: "Win Rate", format: "percent" },
   { key: "trades", label: "Trades", format: "number" }
 ];
+const BENCHMARK_OPTIONS = [
+  { value: "buy-hold", label: "Buy & Hold" },
+  { value: "spy", label: "SPY" },
+  { value: "60-40", label: "60/40 (SPY/GLD proxy)" },
+  { value: "risk-parity", label: "Risk Parity" }
+];
 
 const charts = [];
 const seriesCache = new Map();
@@ -293,6 +299,18 @@ function updateQuery(updates) {
   const next = `${window.location.pathname}?${params.toString()}`;
   history.pushState({}, "", next);
   render();
+}
+
+function buildCompareShareUrl(instrument, windowLabel, strategies) {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.searchParams.set("page", "compare");
+  if (instrument) url.searchParams.set("instrument", instrument);
+  if (windowLabel) url.searchParams.set("window", windowLabel);
+  if (strategies && strategies.length) {
+    url.searchParams.set("strategies", strategies.join(","));
+  }
+  return url.toString();
 }
 
 function highlightNav(page) {
@@ -1303,6 +1321,8 @@ function renderStrategyDetail(route) {
   const instrument =
     route.params.get("instrument") || strategy.instruments[0] || defaultInstrument();
   const window = route.params.get("window") || defaultWindow();
+  const benchmarkKey = route.params.get("benchmark") || "buy-hold";
+  const benchmarkLabel = getBenchmarkLabel(benchmarkKey);
   const compareParam = route.params.get("compare");
   const compare = compareParam ? compareParam.split(",").filter(Boolean) : [];
   const compareList = compare.length ? compare : strategy.recommendedCompare;
@@ -1378,7 +1398,12 @@ function renderStrategyDetail(route) {
           <div class="control-group">
             <label>Benchmark</label>
             <select id="detail-benchmark">
-              <option>Buy & Hold</option>
+              ${BENCHMARK_OPTIONS.map(
+                (option) => `
+                <option value="${option.value}" ${
+                  option.value === benchmarkKey ? "selected" : ""
+                }>${option.label}</option>`
+              ).join("")}
             </select>
           </div>
           <div class="control-group">
@@ -1412,7 +1437,7 @@ function renderStrategyDetail(route) {
           <div class="chart-header">
             <div>
               <strong>Equity vs Benchmark</strong>
-              <div class="muted">${instrument} - ${window}</div>
+              <div class="muted">${instrument} - ${window} · Benchmark: ${benchmarkLabel}</div>
             </div>
             <div class="chart-actions">
               <button class="button ghost small" data-export-csv="strategy">Export CSV</button>
@@ -1526,6 +1551,8 @@ function renderStrategyDetail(route) {
         </details>
       </div>
 
+      ${renderSimilarStrategies(strategy, instrument, window, benchmarkKey)}
+
       <div class="section note">
         <strong>Notes</strong>
         <div>${strategy.notes.join(" ")}</div>
@@ -1572,6 +1599,123 @@ function renderMetricTabs(metrics) {
 
 function metricTile(label, value) {
   return `<div class="metric-tile"><span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function renderSimilarStrategies(strategy, instrument, window, benchmarkKey) {
+  const similar = getSimilarStrategies(strategy, instrument, window, 4);
+  const benchmarkParam = benchmarkKey ? `&benchmark=${benchmarkKey}` : "";
+  if (!similar.length) {
+    return `
+      <div class="section">
+        <div class="section-header">
+          <div>
+            <h2>Similar Strategies</h2>
+            <p>Based on tag overlap and return correlation.</p>
+          </div>
+        </div>
+        <div class="card">
+          <p class="muted">No similar strategies available for this instrument window.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="section">
+      <div class="section-header">
+        <div>
+          <h2>Similar Strategies</h2>
+          <p>Based on tag overlap and return correlation for ${instrument} (${window}).</p>
+        </div>
+      </div>
+      <div class="card-grid">
+        ${similar
+          .map((entry) => {
+            const sharedTags = entry.sharedTags.length
+              ? entry.sharedTags.map((tag) => `<span class="tag">${tag}</span>`).join("")
+              : `<span class="muted">No shared tags</span>`;
+            const tagPercent = Math.round(entry.tagScore * 100);
+            const corrLabel =
+              entry.corr === null || entry.corr === undefined
+                ? "N/A"
+                : entry.corr.toFixed(2);
+            return `
+              <div class="card">
+                <div class="eyebrow">${entry.strategy.id}</div>
+                <h3>${entry.strategy.name}</h3>
+                <p>${entry.strategy.summary}</p>
+                <div class="tag-row">${sharedTags}</div>
+                <div class="stat-grid similar-meta">
+                  <div class="stat"><span>Tag match</span><span>${tagPercent}%</span></div>
+                  <div class="stat"><span>Return corr</span><span>${corrLabel}</span></div>
+                </div>
+                <div class="hero-actions">
+                  <a class="button ghost small" href="?page=strategy&id=${entry.strategy.id}&instrument=${instrument}&window=${window}${benchmarkParam}">View Strategy</a>
+                </div>
+              </div>
+            `;
+          })
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function getSimilarStrategies(baseStrategy, instrument, window, limit) {
+  const baseTags = baseStrategy.tags || [];
+  const candidates = store.strategies.filter(
+    (strategy) =>
+      strategy.id !== baseStrategy.id && strategy.instruments.includes(instrument)
+  );
+  const scored = candidates.map((candidate) => {
+    const tagScore = getTagSimilarity(baseTags, candidate.tags || []);
+    const sharedTags = baseTags.filter((tag) => candidate.tags?.includes(tag));
+    const corr = getCorrelationScore(baseStrategy.id, candidate.id, instrument, window);
+    const corrScore = corr === null ? 0 : Math.max(0, corr);
+    const score = tagScore * 0.6 + corrScore * 0.4;
+    return {
+      strategy: candidate,
+      score,
+      tagScore,
+      corr,
+      sharedTags
+    };
+  });
+  return scored
+    .filter((entry) => entry.tagScore > 0 || (entry.corr !== null && entry.corr > 0))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+function getTagSimilarity(tagsA, tagsB) {
+  if (!tagsA.length || !tagsB.length) return 0;
+  const setA = new Set(tagsA);
+  const setB = new Set(tagsB);
+  let intersection = 0;
+  setA.forEach((tag) => {
+    if (setB.has(tag)) intersection += 1;
+  });
+  const union = new Set([...setA, ...setB]).size;
+  return union ? intersection / union : 0;
+}
+
+function getCorrelationScore(baseId, candidateId, instrument, window) {
+  const baseSeries = sliceSeries(getSeries(baseId, instrument), window);
+  const candidateSeries = sliceSeries(getSeries(candidateId, instrument), window);
+  const minLen = Math.min(
+    baseSeries.strategy.length,
+    candidateSeries.strategy.length
+  );
+  if (!minLen || minLen < 30) return null;
+  const baseReturns = pctChange(baseSeries.strategy.slice(-minLen));
+  const candidateReturns = pctChange(candidateSeries.strategy.slice(-minLen));
+  const minReturns = Math.min(baseReturns.length, candidateReturns.length);
+  if (!minReturns || minReturns < 20) return null;
+  const value = correlation(
+    baseReturns.slice(-minReturns),
+    candidateReturns.slice(-minReturns)
+  );
+  return Number.isFinite(value) ? value : null;
 }
 
 function renderMethodology() {
@@ -1690,13 +1834,20 @@ function renderCompare(route) {
   const correlationNote = selectedStrategies.length >= 2
     ? "Using selected strategies."
     : "Using top strategies by Arena Score.";
+  const selectionCount = selectedStrategies.length;
+  const hasSelection = selectionCount >= 2;
+  const selectionNote = `${selectionCount}/5 selected`;
+  const emptyMessage =
+    selectionCount === 1
+      ? "Select at least two strategies to compare."
+      : "Select strategies above to compare their performance.";
 
   return `
     <section class="section">
       <div class="section-header">
         <div>
           <h2>Strategy Comparator</h2>
-          <p>Select up to 5 strategies to compare side-by-side.</p>
+          <p>Select 2-5 strategies to compare side-by-side.</p>
         </div>
       </div>
 
@@ -1731,7 +1882,10 @@ function renderCompare(route) {
         </div>
 
         <div class="strategy-selector">
-          <label>Select Strategies (max 5)</label>
+          <div class="strategy-selector-header">
+            <label>Select Strategies (2-5)</label>
+            <span class="muted">${selectionNote}</span>
+          </div>
           <div class="strategy-selector-grid">
             ${store.strategies
               .filter((s) => s.instruments.includes(instrument))
@@ -1755,7 +1909,7 @@ function renderCompare(route) {
       </div>
 
       ${
-        selectedStrategies.length > 0
+        hasSelection
           ? `
         <div class="chart-card compare-chart-card">
           <div class="chart-header">
@@ -1764,6 +1918,7 @@ function renderCompare(route) {
               <div class="muted">${instrument} - ${window} (Normalized to 1.0)</div>
             </div>
             <div class="chart-actions">
+              <button class="button ghost small" data-compare-share>Copy Share Link</button>
               <button class="button ghost small" data-export-chart="compare-main-chart" data-export-name="comparison">Export PNG</button>
             </div>
           </div>
@@ -1797,7 +1952,7 @@ function renderCompare(route) {
       `
           : `
         <div class="compare-empty">
-          <p>Select strategies above to compare their performance.</p>
+          <p>${emptyMessage}</p>
         </div>
       `
       }
@@ -1890,7 +2045,7 @@ function bindCompare(route) {
   });
 
   // Draw chart if strategies selected
-  if (selected.length > 0) {
+  if (selected.length >= 2) {
     drawCompareChart(selected, instrument, window);
   }
 
@@ -1915,6 +2070,24 @@ function bindCompare(route) {
       }
     });
   });
+
+  const shareButton = document.querySelector("[data-compare-share]");
+  if (shareButton) {
+    if (selected.length < 2) {
+      shareButton.setAttribute("disabled", "disabled");
+    } else {
+      shareButton.removeAttribute("disabled");
+    }
+    shareButton.addEventListener("click", () => {
+      if (selected.length < 2) return;
+      const url = buildCompareShareUrl(instrument, window, selected);
+      copyToClipboard(url);
+      shareButton.textContent = "Copied";
+      setTimeout(() => {
+        shareButton.textContent = "Copy Share Link";
+      }, 1500);
+    });
+  }
 
   bindPortfolioBuilder(route);
 }
@@ -2213,6 +2386,13 @@ function bindStrategyDetail(route) {
     });
   });
 
+  const benchmarkSelect = document.getElementById("detail-benchmark");
+  if (benchmarkSelect) {
+    benchmarkSelect.addEventListener("change", (event) => {
+      updateQuery({ page: "strategy", id: strategyId, benchmark: event.target.value });
+    });
+  }
+
   document.querySelectorAll("[data-compare]").forEach((input) => {
     input.addEventListener("change", () => {
       const selected = Array.from(
@@ -2244,16 +2424,7 @@ function bindStrategyDetail(route) {
       const code = document.querySelector(".pseudocode code");
       if (!code) return;
       const text = code.textContent || "";
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).catch(() => {});
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = text;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        textarea.remove();
-      }
+      copyToClipboard(text);
       copy.textContent = "Copied";
       setTimeout(() => {
         copy.textContent = "Copy";
@@ -2302,9 +2473,12 @@ function drawStrategyCharts(route) {
   const compare = compareParam ? compareParam.split(",").filter(Boolean) : [];
   const compareList = compare.length ? compare : strategy.recommendedCompare;
   const scale = route.params.get("scale") || "linear";
+  const benchmarkKey = route.params.get("benchmark") || "buy-hold";
 
   const series = getSeries(strategy.id, instrument);
   const windowed = sliceSeries(series, window);
+  const benchmarkSeries = buildBenchmarkSeries(benchmarkKey, instrument, window);
+  const aligned = alignBenchmarkToStrategy(windowed, benchmarkSeries.series);
 
   const equityCtx = document.getElementById("equity-chart");
   if (equityCtx) {
@@ -2312,11 +2486,11 @@ function drawStrategyCharts(route) {
       new Chart(equityCtx, {
         type: "line",
         data: {
-          labels: windowed.dates,
+          labels: aligned.dates,
           datasets: [
             {
               label: "Strategy",
-              data: windowed.strategy,
+              data: aligned.strategy,
               borderColor: "#1f6f78",
               backgroundColor: "rgba(31, 111, 120, 0.2)",
               borderWidth: 2,
@@ -2324,8 +2498,8 @@ function drawStrategyCharts(route) {
               tension: 0.25
             },
             {
-              label: "Buy & Hold",
-              data: windowed.benchmark,
+              label: benchmarkSeries.label,
+              data: aligned.benchmark,
               borderColor: "#e16b3a",
               backgroundColor: "rgba(225, 107, 58, 0.2)",
               borderWidth: 2,
@@ -2751,6 +2925,126 @@ function getSeries(strategyId, instrument) {
   return generated;
 }
 
+function getBenchmarkLabel(value) {
+  const option = BENCHMARK_OPTIONS.find((item) => item.value === value);
+  return option ? option.label : "Buy & Hold";
+}
+
+function getBenchmarkSeries(symbol) {
+  const strategies = store.performance.strategies || {};
+  for (const strategyId of Object.keys(strategies)) {
+    const entry = strategies[strategyId];
+    const equity = entry.equity?.[symbol];
+    if (equity && equity.dates && equity.benchmark) {
+      return { dates: equity.dates, values: equity.benchmark };
+    }
+  }
+  return null;
+}
+
+function getStrategySeriesForSymbol(symbol) {
+  const strategies = store.performance.strategies || {};
+  for (const strategyId of Object.keys(strategies)) {
+    const entry = strategies[strategyId];
+    const equity = entry.equity?.[symbol];
+    if (equity && equity.dates && equity.strategy) {
+      return { dates: equity.dates, values: equity.strategy };
+    }
+  }
+  return null;
+}
+
+function sliceBenchmarkSeries(series, window) {
+  if (!series) return null;
+  const wrapped = {
+    dates: series.dates,
+    strategy: series.values,
+    benchmark: series.values
+  };
+  const sliced = sliceSeries(wrapped, window);
+  return { dates: sliced.dates, values: sliced.strategy };
+}
+
+function alignBenchmarkToStrategy(strategySeries, benchmarkSeries) {
+  if (!benchmarkSeries) {
+    return {
+      dates: strategySeries.dates,
+      strategy: strategySeries.strategy,
+      benchmark: strategySeries.benchmark
+    };
+  }
+  const lookup = new Map(
+    benchmarkSeries.dates.map((date, index) => [date, benchmarkSeries.values[index]])
+  );
+  const dates = [];
+  const strategyValues = [];
+  const benchmarkValues = [];
+  strategySeries.dates.forEach((date, index) => {
+    const value = lookup.get(date);
+    if (value === undefined) return;
+    dates.push(date);
+    strategyValues.push(strategySeries.strategy[index]);
+    benchmarkValues.push(value);
+  });
+  if (!dates.length) {
+    return {
+      dates: strategySeries.dates,
+      strategy: strategySeries.strategy,
+      benchmark: strategySeries.benchmark
+    };
+  }
+  return { dates, strategy: strategyValues, benchmark: benchmarkValues };
+}
+
+function buildBlendBenchmark(symbolA, symbolB, weightA, window) {
+  const seriesA = sliceBenchmarkSeries(getBenchmarkSeries(symbolA), window);
+  const seriesB = sliceBenchmarkSeries(getBenchmarkSeries(symbolB), window);
+  if (!seriesA || !seriesB) return null;
+  const minLen = Math.min(seriesA.values.length, seriesB.values.length);
+  if (!minLen || minLen < 2) return null;
+  const valuesA = seriesA.values.slice(-minLen);
+  const valuesB = seriesB.values.slice(-minLen);
+  const returnsA = pctChange(valuesA);
+  const returnsB = pctChange(valuesB);
+  const blendReturns = returnsA.map(
+    (value, index) => weightA * value + (1 - weightA) * returnsB[index]
+  );
+  const values = [1];
+  blendReturns.forEach((ret) => {
+    values.push(round(values[values.length - 1] * (1 + ret), 4));
+  });
+  const dates = seriesA.dates.slice(seriesA.dates.length - values.length);
+  return { dates, values };
+}
+
+function buildBenchmarkSeries(benchmarkKey, instrument, window) {
+  let label = getBenchmarkLabel(benchmarkKey);
+  let series = null;
+  switch (benchmarkKey) {
+    case "spy":
+      series = sliceBenchmarkSeries(getBenchmarkSeries("SPY"), window);
+      break;
+    case "60-40":
+      series = buildBlendBenchmark("SPY", "GLD", 0.6, window);
+      break;
+    case "risk-parity":
+      series = sliceBenchmarkSeries(getStrategySeriesForSymbol("RISK-PARITY"), window);
+      break;
+    case "buy-hold":
+    default:
+      series = sliceBenchmarkSeries(getBenchmarkSeries(instrument), window);
+      label = getBenchmarkLabel("buy-hold");
+      break;
+  }
+  if (!series) {
+    return {
+      label: getBenchmarkLabel("buy-hold"),
+      series: null
+    };
+  }
+  return { label, series };
+}
+
 function generateSeries(seed, points, trend, vol) {
   const rng = mulberry32(seed);
   const dates = [];
@@ -3081,6 +3375,22 @@ function downloadCanvasAsPng(canvasId, filename) {
   document.body.appendChild(link);
   link.click();
   link.remove();
+}
+
+function copyToClipboard(text) {
+  if (!text) return Promise.resolve();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).catch(() => {});
+  }
+  return new Promise((resolve) => {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+    resolve();
+  });
 }
 
 function buildStrategyCsv(strategyId, instrument, window) {
