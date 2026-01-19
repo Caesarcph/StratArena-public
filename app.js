@@ -265,6 +265,14 @@ function render() {
       app.innerHTML = renderCompare(route);
       bindCompare(route);
       break;
+    case "research":
+      app.innerHTML = route.params.get("slug")
+        ? renderResearchArticle(route)
+        : renderResearchIndex();
+      break;
+    case "blog":
+      app.innerHTML = renderResearchIndex();
+      break;
     case "methodology":
       app.innerHTML = renderMethodology();
       break;
@@ -274,6 +282,15 @@ function render() {
     case "about":
       app.innerHTML = renderAbout();
       break;
+    case "privacy-policy":
+      app.innerHTML = renderPolicyPage("privacy");
+      break;
+    case "terms":
+      app.innerHTML = renderPolicyPage("terms");
+      break;
+    case "faq":
+      app.innerHTML = renderFaq();
+      break;
     default:
       app.innerHTML = renderHome();
       bindHome();
@@ -282,8 +299,34 @@ function render() {
 
 function getRoute() {
   const params = new URLSearchParams(window.location.search);
-  const page = params.get("page") || "home";
-  return { page, params };
+  let page = params.get("page");
+  if (!page) {
+    const rawPath = window.location.pathname.replace(/\/+$/, "");
+    const path = rawPath.replace(/^\/+/, "");
+    if (path && path !== "index.html" && path !== "404.html") {
+      const segments = path.split("/");
+      const root = segments[0];
+      if (root === "research") {
+        page = "research";
+        if (segments[1]) {
+          params.set("slug", segments[1]);
+        }
+      } else if (root === "blog") {
+        page = "blog";
+      } else if (root === "about") {
+        page = "about";
+      } else if (root === "methodology") {
+        page = "methodology";
+      } else if (root === "privacy-policy") {
+        page = "privacy-policy";
+      } else if (root === "terms") {
+        page = "terms";
+      } else if (root === "faq") {
+        page = "faq";
+      }
+    }
+  }
+  return { page: page || "home", params };
 }
 
 function updateQuery(updates) {
@@ -316,8 +359,9 @@ function buildCompareShareUrl(instrument, windowLabel, strategies) {
 }
 
 function highlightNav(page) {
+  const activePage = page === "blog" ? "research" : page;
   document.querySelectorAll(".site-nav a").forEach((link) => {
-    link.classList.toggle("active", link.dataset.route === page);
+    link.classList.toggle("active", link.dataset.route === activePage);
   });
 }
 
@@ -337,6 +381,11 @@ function renderHome() {
     .sort((a, b) => b.metrics.arenaScore - a.metrics.arenaScore)
     .slice(0, 5);
   const updates = store.changelog.slice(0, 5);
+  const researchArticles = sortResearchArticles(getResearchArticles());
+  const latestArticles = researchArticles.slice(0, 3);
+  const featuredArticles = researchArticles
+    .filter((article) => article.featured)
+    .slice(0, 3);
 
   return `
     <section class="hero">
@@ -363,7 +412,7 @@ function renderHome() {
       <div class="section-header">
         <div>
           <h2>Core features</h2>
-          <p>Browse, compare, and document strategies under one rulebook.</p>
+          <p>Browse, compare, and document strategies under one rulebook.</p>   
         </div>
       </div>
       <div class="card-grid">
@@ -382,6 +431,59 @@ function renderHome() {
           <h3>Transparent Ranking Logic</h3>
           <p>Explainable metrics and a stable Arena Score model.</p>
         </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>Latest Research</h2>
+          <p>Long-form strategy analysis and methodology notes.</p>
+        </div>
+        <a class="button ghost small" href="?page=research">View all</a>
+      </div>
+      <div class="card-grid article-grid">
+        ${latestArticles.map(renderArticleCard).join("")}
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>Featured Articles</h2>
+          <p>Deep dives into core strategies and ranking logic.</p>
+        </div>
+      </div>
+      <div class="card-grid article-grid">
+        ${(featuredArticles.length ? featuredArticles : latestArticles)
+          .map(renderArticleCard)
+          .join("")}
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>Learn the Method</h2>
+          <p>Context pages that explain the platform and its limits.</p>
+        </div>
+      </div>
+      <div class="card-grid">
+        <a class="card link-card" href="?page=methodology">
+          <div class="eyebrow">Methodology</div>
+          <h3>Ranking and scoring rules</h3>
+          <p>Understand the Arena Score and multi-window evaluation.</p>
+        </a>
+        <a class="card link-card" href="?page=about">
+          <div class="eyebrow">About</div>
+          <h3>What QuantArenas is</h3>
+          <p>Research goals, data sources, and usage disclaimers.</p>
+        </a>
+        <a class="card link-card" href="?page=faq">
+          <div class="eyebrow">FAQ</div>
+          <h3>Common questions</h3>
+          <p>Clarify how to read results and avoid misuse.</p>
+        </a>
       </div>
     </section>
 
@@ -1818,49 +1920,216 @@ function getCorrelationScore(baseId, candidateId, instrument, window) {
   return Number.isFinite(value) ? value : null;
 }
 
-function renderMethodology() {
+function getResearchArticles() {
+  if (typeof RESEARCH_ARTICLES === "undefined") return [];
+  return Array.isArray(RESEARCH_ARTICLES) ? RESEARCH_ARTICLES : [];
+}
+
+function sortResearchArticles(articles) {
+  return [...articles].sort(
+    (a, b) => new Date(b.date || 0) - new Date(a.date || 0)
+  );
+}
+
+function getResearchArticle(slug) {
+  return getResearchArticles().find((article) => article.slug === slug);
+}
+
+function buildResearchUrl(slug) {
+  return `?page=research&slug=${encodeURIComponent(slug)}`;
+}
+
+function renderArticleMeta(article) {
+  const parts = [article.date, article.readTime, article.category].filter(
+    Boolean
+  );
+  return parts.length ? `<div class="article-meta">${parts.join(" • ")}</div>` : "";
+}
+
+function renderTagRow(tags) {
+  if (!tags || !tags.length) return "";
   return `
-    <section class="section">
-      <div class="section-header">
+    <div class="tag-row">
+      ${tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
+    </div>
+  `;
+}
+
+function renderArticleCard(article) {
+  if (!article) return "";
+  const featuredBadge = article.featured
+    ? "<span class=\"badge\">Featured</span>"
+    : "";
+  return `
+    <div class="card article-card">
+      <div class="article-card-header">
+        ${featuredBadge}
+        ${renderArticleMeta(article)}
+      </div>
+      <h3>${article.title}</h3>
+      <p>${article.summary}</p>
+      ${renderTagRow(article.tags)}
+      <a class="link" href="${buildResearchUrl(article.slug)}">Read article</a>
+    </div>
+  `;
+}
+
+function renderContentSections(sections) {
+  return (sections || [])
+    .map(
+      (section) => `
+      <section class="content-section">
+        <h3>${section.heading}</h3>
+        ${(section.paragraphs || []).map((text) => `<p>${text}</p>`).join("")}
+      </section>
+    `
+    )
+    .join("");
+}
+
+function renderContentPage(key) {
+  const pages = typeof CONTENT_PAGES === "undefined" ? null : CONTENT_PAGES;
+  const page = pages ? pages[key] : null;
+  if (!page) {
+    return "<section class=\"section\"><h2>Page not found.</h2></section>";
+  }
+  const meta = page.updated ? `Updated ${page.updated}` : "";
+  return `
+    <section class="section content-page">
+      <div class="content-hero">
         <div>
-          <h2>Methodology</h2>
-          <p>Why the Arena score is comparable across strategies.</p>
+          <h2>${page.title}</h2>
+          <p>${page.subtitle}</p>
+          ${meta ? `<div class="content-meta">${meta}</div>` : ""}
         </div>
       </div>
-      <div class="card-grid">
-        <div class="card">
-          <h3>Backtest assumptions</h3>
-          <ul>
-            <li>Signals are generated on close and executed next session.</li>
-            <li>Positions are fully invested when active, cash otherwise.</li>
-            <li>Corporate actions are handled via adjusted closes.</li>
-          </ul>
+      <article class="content-article">
+        ${renderContentSections(page.sections)}
+      </article>
+    </section>
+  `;
+}
+
+function renderPolicyPage(key) {
+  return renderContentPage(key);
+}
+
+function renderResearchIndex() {
+  const articles = sortResearchArticles(getResearchArticles());
+  const featured = articles.filter((article) => article.featured).slice(0, 3);
+  const allArticles = articles;
+  const featuredList = featured.length ? featured : allArticles.slice(0, 3);
+  const researchMeta =
+    typeof RESEARCH_INDEX === "undefined" ? null : RESEARCH_INDEX;
+  const intro = researchMeta ? researchMeta.intro : "";
+  const note = researchMeta ? researchMeta.note : "";
+  return `
+    <section class="section content-page">
+      <div class="content-hero">
+        <div>
+          <h2>${researchMeta ? researchMeta.title : "Research"}</h2>
+          <p>${intro}</p>
+          <div class="content-meta">${note}</div>
         </div>
-        <div class="card">
-          <h3>Trading costs</h3>
-          <ul>
-            <li>Commissions and slippage are applied per trade.</li>
-            <li>Turnover heavy models are penalized via drawdown.</li>
-          </ul>
+      </div>
+      <div class="content-body">
+        <div class="section-header">
+          <div>
+            <h2>Featured Articles</h2>
+            <p>Strategy deep dives and methodology notes.</p>
+          </div>
         </div>
-        <div class="card">
-          <h3>Metric glossary</h3>
-          <ul>
-            <li>Sharpe: return per unit volatility.</li>
-            <li>Calmar: CAGR divided by max drawdown.</li>
-            <li>Max DD: worst peak-to-trough loss.</li>
-          </ul>
+        <div class="card-grid article-grid">
+          ${featuredList.map(renderArticleCard).join("")}
         </div>
-        <div class="card">
-          <h3>Ranking logic</h3>
-          <ul>
-            <li>Arena Score blends Sharpe, Sortino, Calmar, and CAGR.</li>
-            <li>Drawdown control prevents high risk outliers.</li>
-          </ul>
+
+        <div class="section-header">
+          <div>
+            <h2>All Research</h2>
+            <p>Explore every long-form research note and strategy breakdown.</p>
+          </div>
+        </div>
+        <div class="card-grid article-grid">
+          ${allArticles.map(renderArticleCard).join("")}
         </div>
       </div>
     </section>
   `;
+}
+
+function renderResearchArticle(route) {
+  const slug = route.params.get("slug");
+  const article = slug ? getResearchArticle(slug) : null;
+  if (!article) {
+    return `
+      <section class="section">
+        <h2>Article not found.</h2>
+        <p>Return to the <a class="link" href="?page=research">research index</a>.</p>
+      </section>
+    `;
+  }
+  const figure = article.figure
+    ? `
+      <figure class="article-figure">
+        ${article.figure.svg}
+        <figcaption>${article.figure.caption}</figcaption>
+      </figure>
+    `
+    : "";
+  return `
+    <section class="section content-page">
+      <div class="content-hero">
+        <div>
+          <div class="eyebrow">${article.category}</div>
+          <h2>${article.title}</h2>
+          <p>${article.summary}</p>
+          ${renderArticleMeta(article)}
+          ${renderTagRow(article.tags)}
+        </div>
+      </div>
+      <article class="content-article">
+        ${figure}
+        ${renderContentSections(article.sections)}
+        <div class="content-disclaimer">
+          Research only. Not financial advice.
+        </div>
+      </article>
+      <div class="content-footer">
+        <a class="link" href="?page=research">Back to Research</a>
+      </div>
+    </section>
+  `;
+}
+
+function renderFaq() {
+  const items =
+    typeof FAQ_ITEMS === "undefined" ? [] : Array.isArray(FAQ_ITEMS) ? FAQ_ITEMS : [];
+  return `
+    <section class="section content-page">
+      <div class="content-hero">
+        <div>
+          <h2>FAQ</h2>
+          <p>Short answers to common questions about research usage.</p>
+        </div>
+      </div>
+      <div class="faq-grid">
+        ${items
+          .map(
+            (item) => `
+          <div class="card faq-card">
+            <h3>${item.question}</h3>
+            <p>${item.answer}</p>
+          </div>
+        `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderMethodology() {
+  return renderContentPage("methodology");
 }
 
 function renderChangelog() {
@@ -1894,27 +2163,7 @@ function renderChangelog() {
 }
 
 function renderAbout() {
-  return `
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>About Quant Arena</h2>
-          <p>A personal research space for consistent, comparable strategy evaluation.</p>
-        </div>
-      </div>
-      <div class="card">
-        <p>Purpose: a public, read-only arena to benchmark strategies under a unified rulebook and daily refreshes.</p>
-        <p>Quant Arena exists to keep strategy research transparent and repeatable. Every model is measured under the same rules so the leaderboard remains fair across assets and time windows.</p>
-        <ul>
-          <li>Unified data source and backtest assumptions.</li>
-          <li>Clear methodology for scores and rankings.</li>
-          <li>Readable pseudocode for every strategy.</li>
-        </ul>
-        <p>Have a strategy to add? Contact <a class="link" href="mailto:chenpeihao1997@gmail.com">chenpeihao1997@gmail.com</a>.</p>
-        <p>Disclaimer: this site is for research and education only, not investment advice.</p>
-      </div>
-    </section>
-  `;
+  return renderContentPage("about");
 }
 
 function renderCompare(route) {
