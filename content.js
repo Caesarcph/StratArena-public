@@ -511,6 +511,90 @@ const RESEARCH_ARTICLES = [
     ]
   },
   {
+    slug: "rsi-mean-reversion",
+    title: "RSI Mean Reversion Strategy: Buying Weakness Inside Ranges",
+    summary:
+      "RSI mean reversion looks for short term exhaustion and then fades the move. This research note covers the signal logic, market fit, and risk traps.",
+    date: "2026-01-19",
+    readTime: "13 min read",
+    category: "Mean Reversion",
+    featured: false,
+    tags: ["RSI", "Mean Reversion", "Oscillator"],
+    figure: {
+      title: "RSI band with mean reversion zones",
+      caption:
+        "A simplified view of RSI oscillating between oversold and overbought bands.",
+      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="RSI mean reversion sketch">
+  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
+  <rect x="60" y="50" width="520" height="140" fill="none" stroke="#d8cbbd" stroke-width="2" />
+  <line x1="60" y1="90" x2="580" y2="90" stroke="#e16b3a" stroke-width="2" stroke-dasharray="6 6" />
+  <line x1="60" y1="150" x2="580" y2="150" stroke="#1f6f78" stroke-width="2" stroke-dasharray="6 6" />
+  <polyline fill="none" stroke="#4b4e6d" stroke-width="3" points="60,140 110,160 160,170 210,150 260,130 310,110 360,95 410,120 460,145 510,155 560,135 580,120" />
+  <text x="60" y="40" fill="#5b554d" font-size="12">RSI</text>
+  <text x="590" y="95" fill="#e16b3a" font-size="12">70</text>
+  <text x="590" y="155" fill="#1f6f78" font-size="12">30</text>
+</svg>`
+    },
+    sections: [
+      {
+        heading: "Why RSI mean reversion exists",
+        paragraphs: [
+          "Mean reversion strategies are built on the idea that markets overshoot in the short term and then snap back as liquidity and risk appetite rebalance. The RSI signal captures those temporary extremes by comparing recent gains to recent losses. When the ratio becomes lopsided, it signals that short term positioning may be crowded. That crowding can create predictable rebounds, especially in liquid markets where dealers and systematic traders provide liquidity around widely watched levels.",
+          "RSI remains popular because it compresses complex price dynamics into a simple, interpretable oscillator. Instead of forecasting a new trend, it asks whether the last swing was too aggressive for the current regime. In range bound markets, this is often the right question. RSI mean reversion is therefore less about predicting direction and more about identifying when price has moved too far, too fast relative to its recent behavior."
+        ]
+      },
+      {
+        heading: "Signal construction and math intuition",
+        paragraphs: [
+          "The classic RSI uses a 14 session lookback and compares the average of up moves to the average of down moves. It is commonly defined as RSI = 100 - 100 / (1 + RS), where RS is the ratio of average gains to average losses. Values above 70 are interpreted as overbought, while values below 30 are oversold. Mean reversion systems buy when RSI is low and exit when it recovers, or short when RSI is high and cover on a return to neutral.",
+          "The intuition is that persistent gains drive the RSI up quickly, but those gains are rarely linear. As the move matures, the marginal buyer becomes scarce and small reversals can cascade into a pullback. The RSI turns down before price necessarily collapses, so the strategy typically waits for confirmation such as a move back above the oversold band or a close above a short term moving average to avoid catching falling knives."
+        ]
+      },
+      {
+        heading: "Market fit and regime behavior",
+        paragraphs: [
+          "RSI mean reversion performs best in markets with stable ranges and frequent pullbacks. Equity indices often exhibit this behavior in low volatility regimes because buy the dip behavior is reinforced by institutional flows. Major FX pairs also oscillate around macro anchors when rate differentials are stable. Commodities can be trickier: some contracts mean revert within seasonal ranges, while others trend for long periods after supply shocks.",
+          "When volatility expands and trends dominate, RSI mean reversion can suffer. In those regimes RSI can stay oversold for extended periods as price keeps grinding lower. That does not mean the signal is broken, only that it is being asked to do a job it was not designed for. A disciplined workflow treats the strategy as a regime specific tool and looks for conditions that favor range trading before allocating meaningful capital."
+        ]
+      },
+      {
+        heading: "Reading backtests without overconfidence",
+        paragraphs: [
+          "Backtests for RSI mean reversion often look smooth, with frequent small wins and modest drawdowns. That pattern can be misleading because it hides tail risk. The strategy is paid a small premium for providing liquidity, but the premium is punctuated by occasional deep drawdowns when markets trend aggressively. The equity curve can appear stable for years and then suffer a sharp, concentrated loss during a crisis.",
+          "When reviewing results, focus on the worst drawdown and the distribution of losing streaks. Pay attention to how long the strategy stays underwater after a large loss. Also check whether returns are concentrated in a handful of months. A mean reversion system that only works during a narrow regime may not be robust, even if the long term CAGR looks attractive."
+        ]
+      },
+      {
+        heading: "Risk and failure modes",
+        paragraphs: [
+          "The most common failure is the slow bleed in a persistent trend. RSI can keep generating buy signals in a falling market because the oscillator is designed to flag oversold conditions, not to detect structural regime breaks. Without a stop loss or trend filter, the strategy can accumulate multiple losing entries and amplify drawdowns. Another risk is gap moves, where a sudden reprice blows through the expected rebound zone.",
+          "Signal clustering is another issue. During volatile ranges, RSI may oscillate rapidly around the threshold, causing repeated entries and exits with little net progress. This increases turnover and makes the system sensitive to costs. That sensitivity is why mean reversion strategies should be stress tested with realistic friction assumptions, especially if the lookback window or threshold is aggressive."
+        ]
+      },
+      {
+        heading: "Parameter sensitivity and filters",
+        paragraphs: [
+          "The choice of lookback and threshold can dramatically change performance. A 14 period RSI with 30 and 70 bands is a standard baseline, but shorter windows respond faster and increase trade frequency. Wider thresholds such as 20 and 80 reduce trades and can improve signal quality, but they also reduce opportunities and may miss shallow reversals.",
+          "Many researchers add a trend or volatility filter to improve robustness. A simple example is only taking long reversion trades when price is above a long term moving average, which keeps the strategy aligned with the dominant drift. Another approach is to avoid signals when volatility is rising sharply, since those periods are more likely to turn into trends rather than ranges."
+        ]
+      },
+      {
+        heading: "How it differs from related strategies",
+        paragraphs: [
+          "RSI mean reversion overlaps with other oscillators like Stochastic or Williams %R, but the signals are not identical. RSI smooths gains and losses, while Stochastic compares the close to a recent high low range. That means RSI can stay elevated even if price is not at the range extreme, which can delay entries. Bollinger Band mean reversion is similar in spirit but uses volatility bands instead of momentum ratios, making it more sensitive to volatility changes.",
+          "Compared to price based reversals like simple moving average pullbacks, RSI provides a bounded scale that is easier to compare across instruments. That makes it useful for cross asset screening. However, the bounded scale can also lull traders into overconfidence because it always looks like it offers a clear signal, even in regimes where mean reversion is structurally weak."
+        ]
+      },
+      {
+        heading: "Execution notes and portfolio role",
+        paragraphs: [
+          "Execution should assume next session fills and incorporate conservative slippage. RSI mean reversion entries often occur after sharp moves, so spreads can widen and fills can be poor. Limit orders can reduce costs but increase missed trades. Position sizing based on volatility can help control risk when markets swing more than usual, and a max position cap can prevent overexposure during signal clustering.",
+          "In a portfolio, RSI mean reversion pairs well with trend following or carry. The return profile is often negatively correlated with trend strategies during calm markets, which can smooth the overall equity curve. A disciplined approach is to allocate a fixed risk budget to the mean reversion sleeve and to scale exposure down when volatility spikes. This keeps the strategy as a liquidity harvesting tool rather than a primary return engine."
+        ]
+      }
+    ]
+  },
+  {
     slug: "how-quantarenas-ranks-strategies",
     title: "How QuantArenas Ranks Strategies",
     summary:
