@@ -32,6 +32,75 @@ const BENCHMARK_OPTIONS = [
   { value: "60-40", label: "60/40 (SPY/GLD proxy)" },
   { value: "risk-parity", label: "Risk Parity" }
 ];
+const AD_CLIENT_ID = "ca-pub-7668092478424830";
+const ADSENSE_SCRIPT_ID = "adsense-script";
+const CONTENT_ROUTES = new Set([
+  "research",
+  "about",
+  "methodology",
+  "faq",
+  "privacy-policy",
+  "terms"
+]);
+const PAGE_META = {
+  home: {
+    title: "Quant Arena",
+    description:
+      "Quant Arena is a research arena for comparing systematic strategies across assets and time windows."
+  },
+  arena: {
+    title: "Arena | Quant Arena",
+    description:
+      "Compare strategy performance by instrument and window with Arena Score rankings."
+  },
+  strategies: {
+    title: "Strategies | Quant Arena",
+    description:
+      "Browse the full strategy library with tags, categories, and performance summaries."
+  },
+  favorites: {
+    title: "Favorites | Quant Arena",
+    description: "Review and manage saved strategies in your local watchlist."
+  },
+  compare: {
+    title: "Compare | Quant Arena",
+    description:
+      "Build side-by-side strategy comparisons with exportable metrics and charts."
+  },
+  research: {
+    title: "Research | Quant Arena",
+    description:
+      "Long-form research notes and strategy deep dives from the Quant Arena library."
+  },
+  about: {
+    title: "About | Quant Arena",
+    description: "Background, data sources, and research goals for Quant Arena."
+  },
+  methodology: {
+    title: "Methodology | Quant Arena",
+    description: "How Quant Arena scores strategies and evaluates performance."
+  },
+  faq: {
+    title: "FAQ | Quant Arena",
+    description: "Answers to common questions about research usage and limits."
+  },
+  "privacy-policy": {
+    title: "Privacy Policy | Quant Arena",
+    description: "Privacy policy covering analytics, cookies, and advertising."
+  },
+  terms: {
+    title: "Terms of Use | Quant Arena",
+    description: "Terms and conditions for using Quant Arena content."
+  },
+  changelog: {
+    title: "Changelog | Quant Arena",
+    description: "Recent updates and release notes for Quant Arena."
+  },
+  strategy: {
+    title: "Strategy Detail | Quant Arena",
+    description: "Strategy details, charts, and pseudocode overview."
+  }
+};
 
 const charts = [];
 const seriesCache = new Map();
@@ -103,6 +172,113 @@ function bindGlobal() {
   if (themeToggle) {
     themeToggle.addEventListener("click", toggleTheme);
   }
+}
+
+function getBasePath() {
+  const host = window.location.hostname;
+  const segments = window.location.pathname.split("/").filter(Boolean);
+  if (host.endsWith("github.io") && segments.length) {
+    return `/${segments[0]}/`;
+  }
+  return "/";
+}
+
+function buildCanonicalUrl(route) {
+  if (window.location.origin === "null") {
+    return null;
+  }
+  if (!CONTENT_ROUTES.has(route.page) && route.page !== "home") {
+    return window.location.href;
+  }
+  const base = new URL(getBasePath(), window.location.origin);
+  if (route.page !== "home") {
+    base.searchParams.set("page", route.page);
+  }
+  if (route.page === "research") {
+    const slug = route.params.get("slug");
+    if (slug) {
+      base.searchParams.set("slug", slug);
+    }
+  }
+  return base.toString();
+}
+
+function normalizeRoute(route) {
+  const canonicalUrl = buildCanonicalUrl(route);
+  const shouldRedirect = (route.fromPath || route.alias) && canonicalUrl;
+  if (shouldRedirect && canonicalUrl !== window.location.href) {
+    window.location.replace(canonicalUrl);
+    return { redirected: true, canonicalUrl };
+  }
+  return { redirected: false, canonicalUrl };
+}
+
+function ensureMetaTag(name) {
+  let tag = document.querySelector(`meta[name="${name}"]`);
+  if (!tag) {
+    tag = document.createElement("meta");
+    tag.setAttribute("name", name);
+    document.head.appendChild(tag);
+  }
+  return tag;
+}
+
+function ensureCanonicalLink() {
+  let link = document.querySelector("link[rel=\"canonical\"]");
+  if (!link) {
+    link = document.createElement("link");
+    link.setAttribute("rel", "canonical");
+    document.head.appendChild(link);
+  }
+  return link;
+}
+
+function getPageMeta(route) {
+  if (route.page === "research") {
+    const slug = route.params.get("slug");
+    if (slug) {
+      const article = getResearchArticle(slug);
+      if (article) {
+        return {
+          title: `${article.title} | Quant Arena`,
+          description: article.summary || PAGE_META.research.description
+        };
+      }
+    }
+  }
+  if (route.page === "strategy") {
+    const id = route.params.get("id");
+    const strategy = store.strategies.find((item) => item.id === id);
+    if (strategy) {
+      return {
+        title: `${strategy.id} ${strategy.name} | Quant Arena`,
+        description: `${strategy.name} strategy details, performance metrics, and pseudocode.`
+      };
+    }
+  }
+  return PAGE_META[route.page] || PAGE_META.home;
+}
+
+function updatePageMeta(route, canonicalUrl) {
+  const meta = getPageMeta(route);
+  if (meta?.title) {
+    document.title = meta.title;
+  }
+  const descriptionTag = ensureMetaTag("description");
+  descriptionTag.setAttribute("content", meta.description);
+  const canonicalTag = ensureCanonicalLink();
+  canonicalTag.setAttribute("href", canonicalUrl || window.location.href);
+}
+
+function ensureAdSense(route) {
+  if (!CONTENT_ROUTES.has(route.page)) return;
+  if (document.getElementById(ADSENSE_SCRIPT_ID)) return;
+  const script = document.createElement("script");
+  script.id = ADSENSE_SCRIPT_ID;
+  script.async = true;
+  script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${AD_CLIENT_ID}`;
+  script.crossOrigin = "anonymous";
+  document.head.appendChild(script);
 }
 
 function initTheme() {
@@ -232,7 +408,13 @@ function registerChart(chart) {
 function render() {
   destroyCharts();
   const route = getRoute();
+  const normalized = normalizeRoute(route);
+  if (normalized.redirected) {
+    return;
+  }
   highlightNav(route.page);
+  updatePageMeta(route, normalized.canonicalUrl);
+  ensureAdSense(route);
 
   const app = document.getElementById("app");
   if (!store.strategies.length) {
@@ -270,9 +452,6 @@ function render() {
         ? renderResearchArticle(route)
         : renderResearchIndex();
       break;
-    case "blog":
-      app.innerHTML = renderResearchIndex();
-      break;
     case "methodology":
       app.innerHTML = renderMethodology();
       break;
@@ -299,7 +478,10 @@ function render() {
 
 function getRoute() {
   const params = new URLSearchParams(window.location.search);
+  const hasPageParam = params.has("page");
   let page = params.get("page");
+  let fromPath = false;
+  let alias = false;
   if (!page) {
     const rawPath = window.location.pathname.replace(/\/+$/, "");
     const path = rawPath.replace(/^\/+/, "");
@@ -311,22 +493,37 @@ function getRoute() {
         if (segments[1]) {
           params.set("slug", segments[1]);
         }
+        fromPath = true;
       } else if (root === "blog") {
-        page = "blog";
+        page = "research";
+        alias = true;
+        if (segments[1]) {
+          params.set("slug", segments[1]);
+        }
+        fromPath = true;
       } else if (root === "about") {
         page = "about";
+        fromPath = true;
       } else if (root === "methodology") {
         page = "methodology";
+        fromPath = true;
       } else if (root === "privacy-policy") {
         page = "privacy-policy";
+        fromPath = true;
       } else if (root === "terms") {
         page = "terms";
+        fromPath = true;
       } else if (root === "faq") {
         page = "faq";
+        fromPath = true;
       }
     }
   }
-  return { page: page || "home", params };
+  if (page === "blog") {
+    page = "research";
+    alias = true;
+  }
+  return { page: page || "home", params, fromPath: fromPath && !hasPageParam, alias };
 }
 
 function updateQuery(updates) {
@@ -359,7 +556,7 @@ function buildCompareShareUrl(instrument, windowLabel, strategies) {
 }
 
 function highlightNav(page) {
-  const activePage = page === "blog" ? "research" : page;
+  const activePage = page;
   document.querySelectorAll(".site-nav a").forEach((link) => {
     link.classList.toggle("active", link.dataset.route === activePage);
   });
