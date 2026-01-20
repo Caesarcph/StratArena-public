@@ -511,6 +511,247 @@ const RESEARCH_ARTICLES = [
     ]
   },
   {
+    slug: "donchian-turtle-breakout",
+    title: "Donchian Channel and Turtle Breakout: Trading the 20/10 Rule",
+    summary:
+      "The Turtle system uses Donchian breakouts and risk based sizing to capture sustained trends. This research note explains the logic, market fit, and failure modes.",
+    date: "2026-01-20",
+    readTime: "14 min read",
+    category: "Trend Following",
+    featured: false,
+    tags: ["Breakout", "Donchian", "Turtle"],
+    figure: {
+      title: "Donchian breakout channel",
+      caption:
+        "Price pushes above the recent channel to trigger a breakout entry.",
+      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Donchian breakout sketch">
+  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
+  <rect x="70" y="70" width="500" height="100" fill="none" stroke="#7c7c7c" stroke-width="2" stroke-dasharray="6 6" />
+  <polyline fill="none" stroke="#1f6f78" stroke-width="3" points="70,160 120,150 170,140 220,145 270,130 320,120 370,110 420,95 470,85 520,70 570,60" />
+  <circle cx="520" cy="70" r="6" fill="#e16b3a" />
+</svg>`
+    },
+    sections: [
+      {
+        heading: "Why Donchian breakouts persist",
+        paragraphs: [
+          "Breakout systems exist because trends often begin with a break of prior extremes. When price pushes beyond a recent high, it signals that buyers are willing to pay new prices and that supply has been absorbed. That transition can attract trend followers, CTA style flows, and discretionary traders who anchor to prior ranges. The Donchian channel captures that shift in the simplest possible way by watching the highest high and lowest low over a fixed window.",
+          "The simplicity is the point. Donchian rules do not require forecasts, only confirmation that price has moved far enough to matter. By focusing on extremes instead of averages, the system avoids the lag created by smoothing. It is a pure price discovery signal, which is why it has survived across equities, futures, and FX. The channel itself is not predictive, but it is a repeatable filter for when trends are likely to start."
+        ]
+      },
+      {
+        heading: "Signal rules and the Turtle playbook",
+        paragraphs: [
+          "The classic Turtle rules enter on a 20 day breakout and exit on a 10 day counter breakout. If price closes above the 20 day high, the system buys on the next session. If it then closes below the 10 day low, it exits. A second system uses a slower 55 day breakout to capture longer trends. Both systems can trade long and short, although many practitioners restrict shorts in equities.",
+          "The logic is intentionally mechanical. Entries are taken on new highs or lows, and exits are taken when price retreats far enough to invalidate the breakout. The rules are designed to trade infrequently but hold winners for long periods. Pyramiding was part of the original Turtle approach, adding units as the trend moves in favor, while strict risk limits capped overall exposure."
+        ]
+      },
+      {
+        heading: "Position sizing and risk units",
+        paragraphs: [
+          "The core of the Turtle system is risk sizing, not the channel itself. Volatility is estimated by an ATR based measure called N, and the system risks a fixed fraction of capital per unit, often 1 percent. Position size is scaled so that a one N move against the trade equals the chosen risk budget. This keeps exposure smaller when volatility is high and larger when volatility is low.",
+          "Pyramiding uses that same logic. Additional units are added each time price moves one N in favor, up to a maximum number of units. This lets the system size into strong trends without overcommitting early. Risk controls cap total risk across correlated positions and limit the number of active trades, which is essential because breakout systems can cluster losses when markets are choppy."
+        ]
+      },
+      {
+        heading: "Market fit and regime behavior",
+        paragraphs: [
+          "Donchian breakouts thrive in markets that trend for long stretches, which is why they are common in commodities and macro futures. Supply shocks, policy shifts, and risk cycles create persistent moves that allow breakouts to run. FX can also fit when rate differentials drive sustained direction. Equity indices can trend as well, but the long only bias often makes the system more reliable than short signals.",
+          "In sideways regimes, the system struggles. Price repeatedly breaks the channel and then reverses, producing a series of small losses. The longer the channel window, the fewer trades and the fewer false breaks, but the later the entry. This is the central trade off. The system does not try to avoid chop, it accepts it as the cost of being present for the occasional major trend."
+        ]
+      },
+      {
+        heading: "Reading backtests responsibly",
+        paragraphs: [
+          "Expect a lumpy equity curve. Most returns come from a small number of outsized trades, while many trades are small losses or modest wins. That distribution is a feature of trend following. Evaluate the system by trade distribution and drawdown length, not just by average returns. The question is whether the big winners are large enough and frequent enough to pay for long dry periods.",
+          "Trade count also matters. A Donchian system on daily data can produce only a handful of trades per year on each instrument. That makes the results sensitive to a few events, so multi market portfolios are often used to diversify the opportunity set. When testing, compare multiple windows and include realistic transaction costs, because breakouts can be expensive during volatile periods."
+        ]
+      },
+      {
+        heading: "Risk and failure modes",
+        paragraphs: [
+          "False breakouts are the primary risk. News driven spikes can trigger entries that immediately reverse, especially in thin liquidity or around major data releases. Gap risk is another concern, since the system executes on the next session, not intraday. A large gap can turn a planned risk unit loss into a much bigger drawdown.",
+          "Correlation spikes are a less obvious failure mode. When macro regimes shift, many markets can move together, causing multiple breakout entries that all fail at once. This is why Turtle style systems limit total portfolio risk and often avoid trading too many highly correlated instruments simultaneously. The rules are simple, but the portfolio level risk control must be strict."
+        ]
+      },
+      {
+        heading: "Parameter sensitivity and variations",
+        paragraphs: [
+          "The choice of channel length changes both trade frequency and lag. Shorter windows capture more moves but also create more noise. Longer windows reduce whipsaws but can enter late and miss a meaningful portion of the trend. Many researchers test multiple windows and combine them, or use a volatility filter to avoid trading during extremely low volatility ranges where breakouts are less reliable.",
+          "Other variations include time stops, trailing exits based on ATR, or filters that require alignment with a long term moving average. These additions can reduce churn but also risk curve fitting. The cleanest approach is to keep the breakout rule simple, then add portfolio level diversification across assets and lookbacks. That preserves the core idea without overfitting."
+        ]
+      },
+      {
+        heading: "How it differs from other trend rules",
+        paragraphs: [
+          "Compared to moving average crossovers, Donchian channels respond to extremes rather than averages. This can enter earlier in a fast breakout, but it also increases sensitivity to noise. Compared to volatility breakouts, Donchian channels use a fixed lookback, not a volatility scaled threshold, so the signal does not adapt automatically to regime changes. That makes it easier to interpret but less adaptive.",
+          "The system complements other trend rules because it captures a specific style of breakout, while moving averages or supertrend systems can capture slower directional shifts. Many practitioners run multiple trend sleeves to reduce dependence on any single trigger. In that context, Donchian breakouts are a clean, transparent building block."
+        ]
+      }
+    ]
+  },
+  {
+    slug: "supertrend-atr-trailing-stop",
+    title: "Supertrend and ATR Trailing Stop: Volatility Adjusted Trend Control",
+    summary:
+      "Supertrend uses ATR based bands to define trend flips and stops. This research note explains the signal mechanics, regime fit, and the risks of whipsaw.",
+    date: "2026-01-20",
+    readTime: "13 min read",
+    category: "Trend Following",
+    featured: false,
+    tags: ["Supertrend", "ATR", "Trailing Stop"],
+    figure: {
+      title: "Supertrend band and flip",
+      caption:
+        "ATR based bands trail price and flip when the trend changes.",
+      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Supertrend sketch">
+  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
+  <polyline fill="none" stroke="#7c7c7c" stroke-width="2" points="60,170 120,155 180,150 240,140 300,130 360,120 420,115 480,120 540,110 600,100" />
+  <polyline fill="none" stroke="#1f6f78" stroke-width="2.5" points="60,150 120,135 180,128 240,118 300,108 360,100 420,98 480,105 540,95 600,88" />
+  <polyline fill="none" stroke="#e16b3a" stroke-width="2.5" points="60,190 120,175 180,170 240,160 300,150 360,140 420,138 480,145 540,135 600,125" />
+  <circle cx="480" cy="120" r="6" fill="#e16b3a" />
+</svg>`
+    },
+    sections: [
+      {
+        heading: "Why supertrend resonates with traders",
+        paragraphs: [
+          "Supertrend exists because traders need a rule that adapts to volatility without becoming opaque. A fixed moving average can lag badly when volatility expands, while a tight stop can cut winners short during normal noise. Supertrend combines a trend filter with a volatility based buffer, so the stop distance widens when markets are noisy and tightens when markets are calm. That makes it intuitive for discretionary and systematic traders alike.",
+          "The name is simple, but the idea is subtle. Supertrend is not a prediction engine. It is a state machine that classifies the market as in trend or not based on whether price is above or below an ATR band. That state then dictates the stop level. This makes it as much a risk control tool as an entry signal, which is why it often appears in portfolio overlays and not just standalone strategies."
+        ]
+      },
+      {
+        heading: "Signal mechanics in plain language",
+        paragraphs: [
+          "Supertrend starts with ATR, a rolling measure of true range. The system builds an upper and lower band by adding and subtracting a multiple of ATR from a reference price, usually the median of the high and low. When price closes above the upper band, the trend flips to bullish and the trailing band moves below price. When price closes below the lower band, the trend flips to bearish and the trailing band moves above price.",
+          "The bands only move in the direction of the trend. In an uptrend, the lower band can rise but does not fall. In a downtrend, the upper band can fall but does not rise. This creates a one sided trailing stop that locks in gains as the trend develops. The entry can be defined as the trend flip itself or as a confirmation after the flip, depending on how conservative you want the strategy to be."
+        ]
+      },
+      {
+        heading: "ATR trailing stop as a risk engine",
+        paragraphs: [
+          "The ATR trailing stop is the heart of supertrend. Because the stop distance scales with volatility, the system avoids being stopped out during normal noise and tightens during quieter periods. That keeps risk consistent across different market regimes. A fixed point stop can be too tight in high volatility and too loose in low volatility. ATR scaling fixes that asymmetry and makes the strategy more robust across assets.",
+          "The stop also defines position sizing. If a portfolio targets a fixed risk per trade, the ATR distance tells you how many units to buy or sell. A wide ATR means smaller position size, while a narrow ATR allows a larger position. This is the same volatility targeting concept used in many trend systems, but supertrend bundles it directly into the signal structure so that exits and sizing use the same risk language."
+        ]
+      },
+      {
+        heading: "Market fit and regime behavior",
+        paragraphs: [
+          "Supertrend performs best in markets that trend with bursts of volatility, such as commodities during supply shocks or equities during risk on cycles. The ATR bands allow the system to stay in the trade despite short term noise, which can help capture large directional moves. The signal is also popular in crypto because volatility swings are large and frequent, making fixed stops unreliable.",
+          "The system struggles when markets oscillate around a mean. In tight ranges, the ATR bands may be too close, causing frequent flips. In extremely low volatility regimes, the system may overreact to small moves. This is why many traders pair supertrend with a higher time frame filter or a trend strength filter such as ADX to avoid trading when the market lacks direction."
+        ]
+      },
+      {
+        heading: "Reading backtests without overconfidence",
+        paragraphs: [
+          "Supertrend backtests often show attractive equity curves because the stop adapts to volatility. But that does not mean the system is immune to drawdowns. Look at the distribution of returns and the length of losing streaks. In range bound markets, supertrend can produce a long series of small losses that add up over time. A clean backtest often means the test period had strong trends.",
+          "Pay attention to trade duration. Supertrend systems with a large ATR multiplier can hold trades for months, which can look great in a trending sample but can underperform if the trend stalls. Systems with a small multiplier may look responsive but can turn into high turnover whipsaws. The right setting is not universal, so robustness across multiple windows and assets is more important than one perfect curve."
+        ]
+      },
+      {
+        heading: "Risk and failure modes",
+        paragraphs: [
+          "Whipsaw risk is the core failure mode. When price crosses the band and immediately reverses, the system flips and takes a loss. That can happen repeatedly in volatile ranges. Gap risk is also significant. A large gap can leap beyond the stop, turning a planned loss into a larger hit. This matters most in overnight markets or during earnings and macro releases.",
+          "Another failure mode is volatility contraction after entry. If ATR collapses quickly, the stop tightens and can close a trade before the trend develops. This is a common scenario in post event retracements. Some traders add a minimum ATR filter or delay tightening the stop for a few bars to prevent premature exits, but those modifications can also introduce curve fitting."
+        ]
+      },
+      {
+        heading: "Parameter sensitivity and filters",
+        paragraphs: [
+          "The two main parameters are the ATR lookback and the multiplier. A shorter ATR reacts faster but increases noise. A longer ATR smooths volatility but delays adjustment. The multiplier controls distance from price. A larger multiplier reduces whipsaws but gives back more profit on reversals. There is no single best combination, so most robust testing explores a range and looks for broad stability rather than a sharp optimum.",
+          "Common filters include trend strength measures such as ADX, a higher time frame moving average, or a regime filter based on volatility percentile. These filters aim to reduce trades in flat markets where supertrend is least effective. They can improve performance, but they also reduce trade count and can change the character of the system. Keep filters simple and consistent across assets to avoid overfitting."
+        ]
+      },
+      {
+        heading: "How it compares to other trend systems",
+        paragraphs: [
+          "Compared to moving average crossovers, supertrend reacts to volatility as well as direction. This can keep it in trades longer during noisy trends, but it can also make entries later. Compared to Parabolic SAR, supertrend is less aggressive because the stop distance is tied to ATR rather than an accelerating factor. That makes supertrend smoother but sometimes slower to flip in fast reversals.",
+          "Supertrend pairs well with breakout systems because it enters on trend state rather than range expansion. In a multi strategy portfolio, supertrend can serve as a volatility aware trend sleeve, while Donchian or volatility breakouts capture sharp regime shifts. That diversification is often more valuable than finding one perfect trend rule."
+        ]
+      }
+    ]
+  },
+  {
+    slug: "ichimoku-cloud-strategy",
+    title: "Ichimoku Cloud Strategy: Regime, Momentum, and Support in One System",
+    summary:
+      "Ichimoku combines trend, momentum, and support into a single framework. This research note breaks down the components, signals, and common traps.",
+    date: "2026-01-20",
+    readTime: "14 min read",
+    category: "Trend Following",
+    featured: false,
+    tags: ["Ichimoku", "Cloud", "Regime"],
+    figure: {
+      title: "Ichimoku cloud regime",
+      caption:
+        "The cloud highlights support and resistance zones while price signals trend direction.",
+      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Ichimoku cloud sketch">
+  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
+  <polygon points="60,140 160,130 260,135 360,125 460,115 560,120 560,160 460,170 360,165 260,175 160,170 60,180" fill="#d9e7d0" />
+  <polyline fill="none" stroke="#1f6f78" stroke-width="3" points="60,160 120,150 180,145 240,135 300,120 360,110 420,105 480,100 540,95 600,90" />
+  <polyline fill="none" stroke="#e16b3a" stroke-width="2" points="60,130 120,125 180,120 240,118 300,115 360,112 420,110 480,108 540,106 600,104" />
+</svg>`
+    },
+    sections: [
+      {
+        heading: "Why Ichimoku exists",
+        paragraphs: [
+          "Ichimoku was designed to show trend, momentum, and support in a single view. Instead of relying on one line, it uses multiple averages with different lookbacks to capture short, medium, and long term context. The cloud acts as a visual proxy for regime. When price is above the cloud, the regime is considered bullish. When price is below, it is bearish. This multi layer approach aims to prevent traders from fighting the dominant trend.",
+          "The system also embeds time shifting. Some lines are projected forward, which helps identify potential future support and resistance. That forward shift is not predictive in a magical sense, but it forces the user to think about where the market would need to go to invalidate the trend. In that way, Ichimoku acts as both a signal generator and a risk map."
+        ]
+      },
+      {
+        heading: "Components and core signals",
+        paragraphs: [
+          "The main components are Tenkan sen (short term mid point), Kijun sen (medium term mid point), Senkou Span A and B (the cloud boundaries), and Chikou span (a lagging line). The classic parameters are 9, 26, and 52 periods. A basic signal is a Tenkan Kijun cross in the direction of the cloud, with additional confirmation when price is above the cloud in a bullish regime or below it in a bearish regime.",
+          "The cloud itself provides a filter. If price is inside the cloud, the regime is neutral and trades are often skipped. When price breaks above the cloud, the system treats it as a trend shift. Chikou span, which is current price shifted back in time, can be used to confirm that price is above prior levels. These layers reduce false signals, but they also increase lag."
+        ]
+      },
+      {
+        heading: "Market fit and regime behavior",
+        paragraphs: [
+          "Ichimoku works best in markets that trend with visible swings, such as equity indices during expansion cycles or FX pairs in policy driven regimes. The cloud filters out many of the small reversals that plague simpler moving average systems. It is also popular in crypto because the cloud adapts to large volatility swings and gives a clear regime map for long trends.",
+          "In choppy ranges, the cloud can become thick and price can oscillate inside it, producing few trades or noisy signals. That behavior is expected because the system is designed to avoid trading without a clear regime. If a market is mean reverting, Ichimoku can lag the turns and enter late, which can cause frustration for short term traders."
+        ]
+      },
+      {
+        heading: "Reading backtests and signals",
+        paragraphs: [
+          "Ichimoku backtests often show fewer trades than moving average systems. That is because the cloud filter excludes many borderline setups. The benefit is a higher quality trade set, but the cost is lower participation. When you read results, pay attention to how long the system stays in cash and how much of the total return comes from a handful of extended trends.",
+          "Because the system is multi component, it is easy to over interpret. A strong backtest may simply mean the period had clean trends. Test across multiple windows and assets to see if the rule set generalizes. Also examine drawdown depth, because Ichimoku exits can be delayed when the cloud is wide. That delay can create larger drawdowns during fast reversals."
+        ]
+      },
+      {
+        heading: "Risk and failure modes",
+        paragraphs: [
+          "The biggest risk is lag. The cloud and Kijun lines are based on mid points, not closes, and they respond slowly. That can cause late entries after a large portion of the move has already occurred. The system can also hold positions too long during reversals because the cloud needs time to flip. That can be costly in sharp sell offs or event driven gaps.",
+          "Another failure mode is trendless chop above the cloud. The system may stay long because price remains above the cloud, even if momentum has faded. In those cases the strategy can drift lower without a clear exit. Traders often add a trailing stop or a time based exit to mitigate this, but those overlays can reduce the clarity that makes Ichimoku attractive in the first place."
+        ]
+      },
+      {
+        heading: "Parameter sensitivity and timeframe",
+        paragraphs: [
+          "The default 9, 26, 52 parameters were originally tied to Japanese trading weeks. Modern markets trade more days, so some researchers scale the parameters or test alternatives such as 10, 30, 60. Shorter parameters make the system faster but increase noise. Longer parameters make it smoother but more lagged. The best approach is to test a small range and look for stability rather than a single optimum.",
+          "Timeframe matters as much as parameters. On daily data, Ichimoku captures medium term trends. On weekly data, it becomes a long term regime filter. Mixing timeframes is common, for example using a weekly cloud for regime and a daily Tenkan Kijun cross for entries. This can improve timing while keeping the regime filter intact, but it should be applied consistently across assets."
+        ]
+      },
+      {
+        heading: "How it differs from moving average and breakout systems",
+        paragraphs: [
+          "Ichimoku is broader than a simple moving average crossover because it includes a regime filter and projected support zones. That makes it more conservative, with fewer false entries but more lag. Compared to breakout systems, Ichimoku does not require a new high. It can enter within a trend once the cloud confirms regime, which can reduce missed moves but also delay reaction to sudden breakouts.",
+          "The system is best viewed as a framework rather than a single signal. It organizes trend, momentum, and support into a consistent rule set. That can be valuable when combined with other strategies, such as using Donchian breakouts to trigger initial entries and Ichimoku to manage regime. The combination can smooth returns and reduce reliance on any one signal."
+        ]
+      },
+      {
+        heading: "Implementation notes and portfolio use",
+        paragraphs: [
+          "Execution should respect the system's slower cadence. Because signals are less frequent, use realistic position sizing and avoid over trading. If you add a trailing stop, align it with the cloud or Kijun line so the exit logic stays coherent. Many practitioners also avoid trades when the cloud is flat, which often signals a low momentum environment.",
+          "In a portfolio, Ichimoku acts as a regime filter. It can help keep trend sleeves aligned with dominant direction, while mean reversion sleeves exploit range bound phases. Treat the cloud as the map of the environment rather than a strict entry trigger. That framing keeps the system useful even when the exact signal timing is not perfect."
+        ]
+      }
+    ]
+  },
+  {
     slug: "rsi-mean-reversion",
     title: "RSI Mean Reversion Strategy: Buying Weakness Inside Ranges",
     summary:
