@@ -281,6 +281,13 @@ function ensureAdSense(route) {
   document.head.appendChild(script);
 }
 
+function forceAdFreeReload(route) {
+  if (CONTENT_ROUTES.has(route.page)) return false;
+  if (!document.getElementById(ADSENSE_SCRIPT_ID)) return false;
+  window.location.replace(window.location.href);
+  return true;
+}
+
 function initTheme() {
   const savedTheme = localStorage.getItem("theme");
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -410,6 +417,9 @@ function render() {
   const route = getRoute();
   const normalized = normalizeRoute(route);
   if (normalized.redirected) {
+    return;
+  }
+  if (forceAdFreeReload(route)) {
     return;
   }
   highlightNav(route.page);
