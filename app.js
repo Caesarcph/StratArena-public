@@ -751,11 +751,11 @@ function renderHome() {
           <h3>Priority Upgrades</h3>
           <p>Highlights from the current TODO backlog.</p>
           <div class="list">
-            <div><span class="badge">Planned</span> Benchmark selector for comparisons</div>
-            <div><span class="badge">Planned</span> Similar strategy recommendations</div>
-            <div><span class="badge">Planned</span> Risk contribution and attribution views</div>
             <div><span class="badge">Planned</span> Parameter sensitivity heatmaps</div>
-            <div><span class="badge">Planned</span> Real-time pricing snapshots</div>
+            <div><span class="badge">Planned</span> User-defined strategy uploads</div>
+            <div><span class="badge">Planned</span> Intraday pricing API snapshots</div>
+            <div><span class="badge">Planned</span> Attribution drilldown by alpha/beta sources</div>
+            <div><span class="badge">Planned</span> Regime testing and stress overlays</div>
           </div>
         </div>
       </div>
@@ -1738,6 +1738,7 @@ function renderStrategyDetail(route) {
   const scale = route.params.get("scale") || "linear";
   const metrics = getMetricsFor(strategy.id, instrument, window);
   const returnTo = route.params.get("return");
+  const snapshot = calcLatestSnapshot(getSeries(strategy.id, instrument));
 
   return `
     <section class="section">
@@ -1772,6 +1773,11 @@ function renderStrategyDetail(route) {
           <div class="info-card">
             <span>Frequency</span>
             <strong>${strategy.frequency}</strong>
+          </div>
+          <div class="info-card">
+            <span>Latest snapshot (EOD)</span>
+            <strong>${snapshot ? snapshot.date : "--"}</strong>
+            <div class="muted">Benchmark ${snapshot ? formatPercent(snapshot.benchmarkMove, 2) : "--"} · Strategy ${snapshot ? formatPercent(snapshot.strategyMove, 2) : "--"}</div>
           </div>
         </div>
       </div>
@@ -1896,6 +1902,36 @@ function renderStrategyDetail(route) {
             </div>
           </div>
           <div class="heatmap-body" id="monthly-heatmap"></div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <strong>Performance Attribution</strong>
+              <div class="muted">Alpha/Beta decomposition vs benchmark</div>
+            </div>
+            <div class="chart-actions">
+              <button class="button ghost small" data-export-chart="attribution-chart" data-export-name="attribution">Export PNG</button>
+            </div>
+          </div>
+          <div class="chart-body">
+            <canvas id="attribution-chart"></canvas>
+          </div>
+          <div class="metric-grid attribution-metrics" id="attribution-summary"></div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card heatmap-card">
+          <div class="chart-header">
+            <div>
+              <strong>Parameter Sensitivity</strong>
+              <div class="muted">Arena Score across parameter grid</div>
+            </div>
+          </div>
+          <div class="heatmap-body" id="param-sensitivity"></div>
         </div>
       </div>
 
@@ -3240,6 +3276,8 @@ function drawStrategyCharts(route) {
     renderMonthlyHeatmap(heatmapContainer, fullSeries);
   }
 
+  drawAttribution(aligned);
+  renderParamSensitivity(strategy.id, instrument);
   drawRollingMetrics(windowed);
 }
 
@@ -3289,6 +3327,130 @@ function renderMonthlyHeatmap(container, series) {
 
   html += "</tbody></table>";
   container.innerHTML = html;
+}
+
+function renderParamSensitivity(strategyId, instrument) {
+  const container = document.getElementById("param-sensitivity");
+  if (!container) return;
+
+  const sensitivity =
+    store.performance.strategies?.[strategyId]?.sensitivity?.[instrument];
+  if (!sensitivity || !sensitivity.scores) {
+    container.innerHTML = "<div class='muted'>No sensitivity grid available.</div>";
+    return;
+  }
+
+  const xKey = sensitivity.xKey;
+  const yKey = sensitivity.yKey;
+  const xValues = sensitivity.xValues || [];
+  const yValues = sensitivity.yValues || [];
+  const scores = sensitivity.scores || [];
+  const hasY = Boolean(yKey);
+  const xLabel = formatParamLabel(xKey);
+  const yLabel = hasY ? formatParamLabel(yKey) : xLabel;
+
+  let html = "<table class='sensitivity-table'><thead><tr>";
+  html += `<th>${yLabel}</th>`;
+  xValues.forEach((value) => {
+    html += `<th>${value}</th>`;
+  });
+  html += "</tr></thead><tbody>";
+
+  yValues.forEach((yValue, rowIndex) => {
+    html += "<tr>";
+    html += `<td class="param-label">${hasY ? yValue : xLabel}</td>`;
+    xValues.forEach((_, colIndex) => {
+      const value = scores[rowIndex]?.[colIndex];
+      const display = Number.isFinite(value) ? value.toFixed(1) : "-";
+      const color = Number.isFinite(value) ? getScoreColor(value) : "transparent";
+      html += `<td class="sensitivity-cell" style="background:${color}">${display}</td>`;
+    });
+    html += "</tr>";
+  });
+
+  html += "</tbody></table>";
+  container.innerHTML = html;
+}
+
+function drawAttribution(series) {
+  const attributionCtx = document.getElementById("attribution-chart");
+  const attributionSummary = document.getElementById("attribution-summary");
+  if (!attributionCtx && !attributionSummary) return;
+
+  const attribution = calcAttribution(series);
+  if (!attribution) {
+    if (attributionSummary) {
+      attributionSummary.innerHTML =
+        "<div class=\"muted\">Not enough data to calculate attribution.</div>";
+    }
+    return;
+  }
+
+  if (attributionSummary) {
+    attributionSummary.innerHTML = `
+      <div class="metric-tile">
+        <span>Beta</span>
+        <strong>${attribution.beta.toFixed(2)}</strong>
+      </div>
+      <div class="metric-tile">
+        <span>Alpha (ann.)</span>
+        <strong>${formatPercent(attribution.alphaAnnual, 2)}</strong>
+      </div>
+      <div class="metric-tile">
+        <span>Beta contrib (ann.)</span>
+        <strong>${formatPercent(attribution.betaContribution, 2)}</strong>
+      </div>
+      <div class="metric-tile">
+        <span>R²</span>
+        <strong>${attribution.rSquared.toFixed(2)}</strong>
+      </div>
+    `;
+  }
+
+  if (attributionCtx) {
+    registerChart(
+      new Chart(attributionCtx, {
+        type: "line",
+        data: {
+          labels: attribution.labels,
+          datasets: [
+            {
+              label: "Strategy",
+              data: attribution.strategyCurve,
+              borderColor: "#1f6f78",
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.25
+            },
+            {
+              label: "Beta contribution",
+              data: attribution.betaCurve,
+              borderColor: "#e16b3a",
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.25
+            },
+            {
+              label: "Alpha contribution",
+              data: attribution.alphaCurve,
+              borderColor: "#2f6fa5",
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.25,
+              borderDash: [6, 4]
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { position: "bottom" } },
+          scales: { y: { type: "linear" } }
+        }
+      })
+    );
+  }
 }
 
 function drawRollingMetrics(series) {
@@ -3457,6 +3619,20 @@ function getHeatmapColor(value) {
     const b = Math.round(255 - intensity * 100);
     return `rgb(${r}, ${g}, ${b})`;
   }
+}
+
+function getScoreColor(value) {
+  if (!Number.isFinite(value)) return "transparent";
+  const normalized = clamp((value - 50) / 50, -1, 1);
+  return getHeatmapColor(normalized);
+}
+
+function formatParamLabel(key) {
+  if (!key) return "";
+  return key
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function arenaState(params) {
@@ -3790,6 +3966,67 @@ function calcRollingMetrics(series, windowSize) {
   }
 
   return { labels, sharpe, volatility, beta };
+}
+
+function calcLatestSnapshot(series) {
+  if (!series?.dates?.length || series.strategy.length < 2) return null;
+  const index = series.strategy.length - 1;
+  const prev = index - 1;
+  const strategyMove = series.strategy[index] / series.strategy[prev] - 1;
+  const benchSeries = series.benchmark || [];
+  const benchmarkMove =
+    benchSeries.length > index ? benchSeries[index] / benchSeries[prev] - 1 : NaN;
+  return {
+    date: series.dates[index],
+    strategyMove,
+    benchmarkMove
+  };
+}
+
+function buildCumulativeSeries(returns) {
+  let value = 1;
+  return returns.map((ret) => {
+    value *= 1 + ret;
+    return round(value, 4);
+  });
+}
+
+function calcAttribution(series) {
+  if (!series?.strategy?.length || !series?.benchmark?.length) return null;
+  const returns = pctChange(series.strategy);
+  const benchReturns = pctChange(series.benchmark);
+  const length = Math.min(returns.length, benchReturns.length);
+  if (length < 30) return null;
+
+  const strategyReturns = returns.slice(-length);
+  const benchmarkReturns = benchReturns.slice(-length);
+  const benchStd = std(benchmarkReturns);
+  const benchVar = benchStd * benchStd;
+  const beta = benchVar === 0 ? 0 : covariance(strategyReturns, benchmarkReturns) / benchVar;
+  const alphaSeries = strategyReturns.map(
+    (value, index) => value - beta * benchmarkReturns[index]
+  );
+  const strategyAnnual = mean(strategyReturns) * TRADING_DAYS;
+  const benchmarkAnnual = mean(benchmarkReturns) * TRADING_DAYS;
+  const betaContribution = beta * benchmarkAnnual;
+  const alphaAnnual = mean(alphaSeries) * TRADING_DAYS;
+  const corr = correlation(strategyReturns, benchmarkReturns);
+  const rSquared = corr * corr;
+  const offset = series.dates.length - length;
+  const labels = series.dates.slice(offset);
+
+  return {
+    beta,
+    alphaAnnual,
+    betaContribution,
+    strategyAnnual,
+    benchmarkAnnual,
+    rSquared,
+    labels,
+    strategyCurve: buildCumulativeSeries(strategyReturns),
+    betaCurve: buildCumulativeSeries(benchmarkReturns.map((value) => beta * value)),
+    alphaCurve: buildCumulativeSeries(alphaSeries)
+  };
 }
 
 function calcMetrics(series) {
