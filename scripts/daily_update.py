@@ -133,7 +133,7 @@ def main():
         
         # Run publish_site.py
         logger.info("Running publish_site.py...")
-        result = run_command(["python", "scripts/publish_site.py"], cwd=repo_path)
+        result = run_command(["python3", "scripts/publish_site.py"], cwd=repo_path)
         if result.returncode != 0:
             logger.error("Failed to run publish_site.py")
             return 1

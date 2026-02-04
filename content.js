@@ -257,6 +257,69 @@ const RESEARCH_INDEX = {
 
 const RESEARCH_ARTICLES = [
   {
+    slug: "keltner-vs-bollinger",
+    title: "Keltner Channel Breakout vs Bollinger Band Reversion",
+    summary:
+      "Comparing two classic volatility envelopes. One rides trends using ATR, the other fades extremes using standard deviation. When to use which?",
+    date: "2026-02-04",
+    readTime: "12 min read",
+    category: "Trend Following",
+    featured: false,
+    tags: ["Keltner", "Bollinger", "Breakout", "Mean Reversion"],
+    figure: {
+      title: "Channel Comparison",
+      caption:
+        "Keltner Channels (Blue) are smoother and use ATR; Bollinger Bands (Red) are reactive and use Standard Deviation.",
+      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Channel comparison">
+  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
+  <path d="M40,120 Q160,80 280,120 T520,120" fill="none" stroke="#5b554d" stroke-width="2" />
+  <path d="M40,90 Q160,50 280,90 T520,90" fill="none" stroke="#1f6f78" stroke-width="2" stroke-dasharray="4" />
+  <path d="M40,150 Q160,110 280,150 T520,150" fill="none" stroke="#1f6f78" stroke-width="2" stroke-dasharray="4" />
+  <path d="M40,80 Q160,30 280,80 T520,80" fill="none" stroke="#e16b3a" stroke-width="2" />
+  <path d="M40,160 Q160,130 280,160 T520,160" fill="none" stroke="#e16b3a" stroke-width="2" />
+  <text x="540" y="90" fill="#1f6f78" font-size="10">Keltner</text>
+  <text x="540" y="80" fill="#e16b3a" font-size="10">Bollinger</text>
+</svg>`
+    },
+    sections: [
+      {
+        heading: "Two paths to volatility",
+        paragraphs: [
+          "Volatility envelopes are among the most versatile tools in a systematic trader's kit. They adapt to market noise, expanding when risk is high and contracting when it is low. But not all envelopes are built the same. Keltner Channels and Bollinger Bands represent two fundamentally different philosophies about how price moves.",
+          "Keltner Channels use Average True Range (ATR) to define their width. ATR is an additive metric that measures absolute price movement. Bollinger Bands use Standard Deviation, which measures variance from the mean. This difference sounds academic, but in practice, it changes everything about how the strategy reacts to a breakout."
+        ]
+      },
+      {
+        heading: "Keltner: The steady hand",
+        paragraphs: [
+          "Keltner Channels are typically constructed as an Exponential Moving Average (EMA) plus or minus a multiple of ATR. Because ATR changes relatively slowly, Keltner Channels are stable. They don't flare out wildly during a single shock event. This makes them ideal for trend following.",
+          "A Keltner breakout signals that price has moved significantly beyond its average daily range in a sustained way. It suggests a shift in the supply/demand balance that is likely to persist. The stability of the channel means you don't get shaken out by a momentary spike in volatility."
+        ]
+      },
+      {
+        heading: "Bollinger: The rubber band",
+        paragraphs: [
+          "Bollinger Bands use standard deviation. Because standard deviation squares the errors, it is highly sensitive to outliers. A sudden price spike causes Bollinger Bands to expand rapidly. This 'ballooning' effect is why Bollinger Bands are often preferred for mean reversion.",
+          "When price hits the upper Bollinger Band, it is statistically extended (e.g., 2 sigma moves occur less than 5% of the time in a normal distribution). The rapid expansion of the bands often captures the price action, suggesting the move is overextended and due to snap back—like a stretched rubber band."
+        ]
+      },
+      {
+        heading: "The Squeeze: When they agree",
+        paragraphs: [
+          "One of the most powerful signals occurs when these two indicators are compared. The 'TTM Squeeze' or similar strategies look for periods where the Bollinger Bands contract *inside* the Keltner Channels. This indicates an extremely low volatility regime—the calm before the storm.",
+          "When volatility compresses this tightly, a violent expansion usually follows. Traders wait for the Bollinger Bands to break out of the Keltner Channels, signaling the start of a new impulse move. In this context, they work together: Bollinger measures the compression, and Keltner provides the baseline."
+        ]
+      },
+      {
+        heading: "Choosing the right tool",
+        paragraphs: [
+          "If you are building a trend following system, start with Keltner Channels. Their stability produces fewer false exits during the noisy start of a trend. Use a multiple like 2.0 or 2.5 ATR to filter out chop.",
+          "If you are building a mean reversion system, start with Bollinger Bands. Their elasticity helps identify the exact moment a move has exhausted itself. Look for closes outside the bands followed by a reversal candle back inside."
+        ]
+      }
+    ]
+  },
+  {
     slug: "ema-crossover-strategy",
     title: "EMA Crossover Strategy: Reading Trend With Two Clocks",
     summary:
