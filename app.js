@@ -118,6 +118,7 @@ let portfolioRiskChart = null;
 document.addEventListener("DOMContentLoaded", () => {
   init().catch((err) => {
     console.error(err);
+    removeAdSense();
     const app = document.getElementById("app");
     app.innerHTML =
       "<section class=\"section\"><h2>Failed to load data.</h2><p>Check data files and reload.</p></section>";
@@ -281,6 +282,16 @@ function ensureAdSense(route) {
   document.head.appendChild(script);
 }
 
+function removeAdSense() {
+  const script = document.getElementById(ADSENSE_SCRIPT_ID);
+  if (script) script.remove();
+}
+
+function hasSubstantialContent(container) {
+  const text = container.textContent || "";
+  return text.trim().length > 200;
+}
+
 function forceAdFreeReload(route) {
   if (CONTENT_ROUTES.has(route.page)) return false;
   if (!document.getElementById(ADSENSE_SCRIPT_ID)) return false;
@@ -424,10 +435,10 @@ function render() {
   }
   highlightNav(route.page);
   updatePageMeta(route, normalized.canonicalUrl);
-  ensureAdSense(route);
 
   const app = document.getElementById("app");
   if (!store.strategies.length) {
+    removeAdSense();
     app.innerHTML = "<section class=\"section\"><h2>Loading...</h2></section>";
     return;
   }
@@ -483,6 +494,12 @@ function render() {
     default:
       app.innerHTML = renderHome();
       bindHome();
+  }
+
+  if (hasSubstantialContent(app)) {
+    ensureAdSense(route);
+  } else {
+    removeAdSense();
   }
 }
 
