@@ -1,36 +1,40 @@
+const LANG = window.getLang ? getLang() : "en";
+
 const DATA_FILES = {
   strategies: "data/strategies.json",
   performance: "data/performance.json",
-  changelog: "data/changelog.json"
+  changelog: "data/changelog.json",
+  eaCatalog: "data/ea_catalog.json",
+  eaAnalysis: "data/ea_analysis.json"
 };
 const FAVORITES_KEY = "favorites";
 const CATEGORY_TOP_COUNT = 5;
 const TRADING_DAYS = 252;
 const ROLLING_WINDOW = 252;
 const CATEGORY_GROUPS = [
-  { id: "trend", label: "Trend Following", tag: "Trend" },
-  { id: "momentum", label: "Momentum", tag: "Momentum" },
-  { id: "mean-reversion", label: "Mean Reversion", tag: "Mean Reversion" },
-  { id: "volatility", label: "Volatility", tag: "Volatility" },
-  { id: "portfolio", label: "Portfolio", tag: "Portfolio" },
-  { id: "regime", label: "Regime", tag: "Regime" }
+  { id: "trend", labelKey: "category.trend_following", tag: "Trend" },
+  { id: "momentum", labelKey: "category.momentum", tag: "Momentum" },
+  { id: "mean-reversion", labelKey: "category.mean_reversion", tag: "Mean Reversion" },
+  { id: "volatility", labelKey: "category.volatility", tag: "Volatility" },
+  { id: "portfolio", labelKey: "category.portfolio", tag: "Portfolio" },
+  { id: "regime", labelKey: "category.regime", tag: "Regime" }
 ];
 const COMPARE_METRICS = [
-  { key: "totalReturn", label: "Total Return", format: "percent" },
-  { key: "cagr", label: "CAGR", format: "percent" },
-  { key: "sharpe", label: "Sharpe Ratio", format: "ratio" },
-  { key: "sortino", label: "Sortino Ratio", format: "ratio" },
-  { key: "calmar", label: "Calmar Ratio", format: "ratio" },
-  { key: "maxDrawdown", label: "Max Drawdown", format: "percent" },
-  { key: "volatility", label: "Volatility", format: "percent" },
-  { key: "winRate", label: "Win Rate", format: "percent" },
-  { key: "trades", label: "Trades", format: "number" }
+  { key: "totalReturn", labelKey: "metric.total_return", format: "percent" },
+  { key: "cagr", labelKey: "metric.cagr", format: "percent" },
+  { key: "sharpe", labelKey: "metric.sharpe_ratio", format: "ratio" },
+  { key: "sortino", labelKey: "metric.sortino_ratio", format: "ratio" },
+  { key: "calmar", labelKey: "metric.calmar_ratio", format: "ratio" },
+  { key: "maxDrawdown", labelKey: "metric.max_drawdown", format: "percent" },
+  { key: "volatility", labelKey: "metric.volatility", format: "percent" },
+  { key: "winRate", labelKey: "metric.win_rate", format: "percent" },
+  { key: "trades", labelKey: "metric.trades", format: "number" }
 ];
 const BENCHMARK_OPTIONS = [
-  { value: "buy-hold", label: "Buy & Hold" },
-  { value: "spy", label: "SPY" },
-  { value: "60-40", label: "60/40 (SPY/GLD proxy)" },
-  { value: "risk-parity", label: "Risk Parity" }
+  { value: "buy-hold", labelKey: "benchmark.buy_hold" },
+  { value: "spy", labelKey: "benchmark.spy" },
+  { value: "60-40", labelKey: "benchmark.60_40" },
+  { value: "risk-parity", labelKey: "benchmark.risk_parity" }
 ];
 const AD_CLIENT_ID = "ca-pub-7668092478424830";
 const ADSENSE_SCRIPT_ID = "adsense-script";
@@ -44,61 +48,64 @@ const CONTENT_ROUTES = new Set([
 ]);
 const PAGE_META = {
   home: {
-    title: "Quant Arena",
-    description:
-      "Quant Arena is a research arena for comparing systematic strategies across assets and time windows."
+    titleKey: "meta.home_title",
+    descriptionKey: "meta.home_desc"
   },
   arena: {
-    title: "Arena | Quant Arena",
-    description:
-      "Compare strategy performance by instrument and window with Arena Score rankings."
+    titleKey: "meta.arena_title",
+    descriptionKey: "meta.arena_desc"
   },
   strategies: {
-    title: "Strategies | Quant Arena",
-    description:
-      "Browse the full strategy library with tags, categories, and performance summaries."
+    titleKey: "meta.strategies_title",
+    descriptionKey: "meta.strategies_desc"
   },
   favorites: {
-    title: "Favorites | Quant Arena",
-    description: "Review and manage saved strategies in your local watchlist."
+    titleKey: "meta.favorites_title",
+    descriptionKey: "meta.favorites_desc"
   },
   compare: {
-    title: "Compare | Quant Arena",
-    description:
-      "Build side-by-side strategy comparisons with exportable metrics and charts."
+    titleKey: "meta.compare_title",
+    descriptionKey: "meta.compare_desc"
   },
   research: {
-    title: "Research | Quant Arena",
-    description:
-      "Long-form research notes and strategy deep dives from the Quant Arena library."
+    titleKey: "meta.research_title",
+    descriptionKey: "meta.research_desc"
   },
   about: {
-    title: "About | Quant Arena",
-    description: "Background, data sources, and research goals for Quant Arena."
+    titleKey: "meta.about_title",
+    descriptionKey: "meta.about_desc"
   },
   methodology: {
-    title: "Methodology | Quant Arena",
-    description: "How Quant Arena scores strategies and evaluates performance."
+    titleKey: "meta.methodology_title",
+    descriptionKey: "meta.methodology_desc"
   },
   faq: {
-    title: "FAQ | Quant Arena",
-    description: "Answers to common questions about research usage and limits."
+    titleKey: "meta.faq_title",
+    descriptionKey: "meta.faq_desc"
   },
   "privacy-policy": {
-    title: "Privacy Policy | Quant Arena",
-    description: "Privacy policy covering analytics, cookies, and advertising."
+    titleKey: "meta.privacy_title",
+    descriptionKey: "meta.privacy_desc"
   },
   terms: {
-    title: "Terms of Use | Quant Arena",
-    description: "Terms and conditions for using Quant Arena content."
+    titleKey: "meta.terms_title",
+    descriptionKey: "meta.terms_desc"
   },
   changelog: {
-    title: "Changelog | Quant Arena",
-    description: "Recent updates and release notes for Quant Arena."
+    titleKey: "meta.changelog_title",
+    descriptionKey: "meta.changelog_desc"
   },
   strategy: {
-    title: "Strategy Detail | Quant Arena",
-    description: "Strategy details, charts, and pseudocode overview."
+    titleKey: "meta.strategy_title",
+    descriptionKey: "meta.strategy_desc"
+  },
+  "ea-arena": {
+    titleKey: "meta.ea_arena_title",
+    descriptionKey: "meta.ea_arena_desc"
+  },
+  "ea-detail": {
+    titleKey: "meta.ea_detail_title",
+    descriptionKey: "meta.ea_detail_desc"
   }
 };
 
@@ -108,7 +115,9 @@ const seriesCache = new Map();
 const store = {
   strategies: [],
   performance: null,
-  changelog: []
+  changelog: [],
+  eaCatalog: [],
+  eaAnalysis: {}
 };
 let favorites = new Set();
 let portfolioWeights = new Map();
@@ -119,8 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
   init().catch((err) => {
     console.error(err);
     const app = document.getElementById("app");
-    app.innerHTML =
-      "<section class=\"section\"><h2>Failed to load data.</h2><p>Check data files and reload.</p></section>";
+    app.innerHTML = `<section class="section"><h2>${t("common.failed_load_title")}</h2><p>${t("common.failed_load_desc")}</p></section>`;
   });
 });
 
@@ -133,15 +141,19 @@ async function init() {
 }
 
 async function loadData() {
-  const [strategies, performance, changelog] = await Promise.all([
+  const [strategies, performance, changelog, eaCatalog, eaAnalysis] = await Promise.all([
     fetchJson(DATA_FILES.strategies),
     fetchJson(DATA_FILES.performance),
-    fetchJson(DATA_FILES.changelog)
+    fetchJson(DATA_FILES.changelog),
+    fetchJson(DATA_FILES.eaCatalog).catch(() => []),
+    fetchJson(DATA_FILES.eaAnalysis).catch(() => ({}))
   ]);
 
   store.strategies = strategies.strategies || [];
   store.performance = performance || { instruments: [], windows: [] };
   store.changelog = changelog.entries || [];
+  if (Array.isArray(eaCatalog)) store.eaCatalog = eaCatalog;
+  if (eaAnalysis && typeof eaAnalysis === "object" && !Array.isArray(eaAnalysis)) store.eaAnalysis = eaAnalysis;
 }
 
 async function fetchJson(path) {
@@ -240,8 +252,8 @@ function getPageMeta(route) {
       const article = getResearchArticle(slug);
       if (article) {
         return {
-          title: `${article.title} | Quant Arena`,
-          description: article.summary || PAGE_META.research.description
+          title: `${tc(article.title)} | ${t("meta.site_name")}`,
+          description: tc(article.summary) || t(PAGE_META.research.descriptionKey)
         };
       }
     }
@@ -251,12 +263,16 @@ function getPageMeta(route) {
     const strategy = store.strategies.find((item) => item.id === id);
     if (strategy) {
       return {
-        title: `${strategy.id} ${strategy.name} | Quant Arena`,
-        description: `${strategy.name} strategy details, performance metrics, and pseudocode.`
+        title: `${strategy.id} ${strategy.name} | ${t("meta.site_name")}`,
+        description: t("meta.strategy_dynamic_desc", { name: strategy.name })
       };
     }
   }
-  return PAGE_META[route.page] || PAGE_META.home;
+  const meta = PAGE_META[route.page] || PAGE_META.home;
+  return {
+    title: t(meta.titleKey),
+    description: t(meta.descriptionKey)
+  };
 }
 
 function updatePageMeta(route, canonicalUrl) {
@@ -309,10 +325,10 @@ function setTheme(theme) {
   if (icon && label) {
     if (theme === "dark") {
       icon.textContent = "☀️";
-      label.textContent = "Light";
+      label.textContent = t("nav.theme_light");
     } else {
       icon.textContent = "🌙";
-      label.textContent = "Dark";
+      label.textContent = t("nav.theme_dark");
     }
   }
 }
@@ -369,11 +385,11 @@ function refreshFavoriteButtons() {
     button.setAttribute("aria-pressed", active ? "true" : "false");
     button.setAttribute(
       "title",
-      active ? "Remove from favorites" : "Add to favorites"
+      active ? t("common.remove_from_favorites") : t("common.add_to_favorites")
     );
     const label = button.querySelector("[data-favorite-label]");
     if (label) {
-      label.textContent = active ? "Saved" : "Save";
+      label.textContent = active ? t("common.saved") : t("common.save");
     }
     const icon = button.querySelector("[data-favorite-icon]");
     if (icon) {
@@ -428,7 +444,7 @@ function render() {
 
   const app = document.getElementById("app");
   if (!store.strategies.length) {
-    app.innerHTML = "<section class=\"section\"><h2>Loading...</h2></section>";
+    app.innerHTML = `<section class="section"><h2>${t("common.loading")}</h2></section>`;
     return;
   }
 
@@ -467,6 +483,14 @@ function render() {
       break;
     case "changelog":
       app.innerHTML = renderChangelog();
+      break;
+    case "ea-arena":
+      app.innerHTML = renderEAArena(route);
+      bindEAArena(route);
+      break;
+    case "ea-detail":
+      app.innerHTML = renderEADetail(route);
+      bindEADetail(route);
       break;
     case "about":
       app.innerHTML = renderAbout();
@@ -523,10 +547,13 @@ function getRoute() {
       } else if (root === "terms") {
         page = "terms";
         fromPath = true;
-      } else if (root === "faq") {
-        page = "faq";
-        fromPath = true;
-      }
+    } else if (root === "faq") {
+      page = "faq";
+      fromPath = true;
+    } else if (root === "ea-arena") {
+      page = "ea-arena";
+      fromPath = true;
+    }
     }
   }
   if (page === "blog") {
@@ -597,57 +624,72 @@ function renderHome() {
   return `
     <section class="hero">
       <div>
-        <div class="eyebrow">Strategy Arena</div>
-        <h1>Quant Arena</h1>
-        <p>Unified rules for strategy rankings, daily refreshes, and clean side-by-side comparisons.</p>
+        <div class="eyebrow">${t("home.hero_eyebrow")}</div>
+        <h1>${t("meta.site_name")}</h1>
+        <p>${t("home.hero_desc")}</p>
         <div class="hero-actions">
-          <a class="button primary" href="?page=arena">Explore Arena</a>
-          <a class="button ghost" href="?page=strategies">Browse Strategies</a>
+          <a class="button primary" href="?page=arena">${t("home.explore_arena")}</a>
+          <a class="button ghost" href="?page=strategies">${t("home.browse_strategies")}</a>
         </div>
       </div>
       <div class="hero-panel">
-        <h3>Daily refresh workflow</h3>
+        <h3>${t("home.daily_refresh_workflow")}</h3>
         <div class="stat-grid">
-          <div class="stat"><span>Data source</span><span>yfinance</span></div>
-          <div class="stat"><span>Refresh cadence</span><span>Daily backtest</span></div>
-          <div class="stat"><span>Coverage</span><span>${store.strategies.length} strategies</span></div>
+          <div class="stat"><span>${t("home.data_source")}</span><span>yfinance</span></div>
+          <div class="stat"><span>${t("home.refresh_cadence")}</span><span>${t("home.daily_backtest")}</span></div>
+          <div class="stat"><span>${t("home.coverage")}</span><span>${t("home.strategy_count", { count: store.strategies.length })}</span></div>
         </div>
       </div>
-    </section>
+  </section>
+
+  <section class="section">
+    <div class="ea-promo">
+      <div class="ea-promo-icon">🤖</div>
+      <div>
+        <h3>${t("home.ea_promo_title")}</h3>
+        <p>${t("home.ea_promo_desc", { count: store.eaCatalog.length })}</p>
+        <div class="ea-promo-stats">
+          <span><strong>${store.eaCatalog.length}</strong> ${t("home.ea_count")}</span>
+          <span><strong>${Object.keys(store.eaAnalysis).length}</strong> ${t("common.analyzed")}</span>
+        </div>
+        <a class="button primary small" href="?page=ea-arena" style="margin-top:0.75rem">${t("home.explore_ea_arena")}</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>${t("home.core_features_title")}</h2>
+          <p>${t("home.core_features_desc")}</p>
+         </div>
+       </div>
+       <div class="card-grid">
+         <div class="card">
+           <div class="eyebrow">${t("home.feature_leaderboard_eyebrow")}</div>
+           <h3>${t("home.feature_leaderboard_title")}</h3>
+           <p>${t("home.feature_leaderboard_desc")}</p>
+         </div>
+         <div class="card">
+           <div class="eyebrow">${t("home.feature_details_eyebrow")}</div>
+           <h3>${t("home.feature_details_title")}</h3>
+           <p>${t("home.feature_details_desc")}</p>
+         </div>
+         <div class="card">
+           <div class="eyebrow">${t("nav.methodology")}</div>
+           <h3>${t("home.feature_methodology_title")}</h3>
+           <p>${t("home.feature_methodology_desc")}</p>
+         </div>
+       </div>
+     </section>
 
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Core features</h2>
-          <p>Browse, compare, and document strategies under one rulebook.</p>   
+          <h2>${t("home.latest_research_title")}</h2>
+          <p>${t("home.latest_research_desc")}</p>
         </div>
-      </div>
-      <div class="card-grid">
-        <div class="card">
-          <div class="eyebrow">Leaderboard</div>
-          <h3>Leaderboard by Asset and Window</h3>
-          <p>Filter the Arena by instrument, window, and scoring metric.</p>
-        </div>
-        <div class="card">
-          <div class="eyebrow">Details</div>
-          <h3>Strategy Pages with Pseudocode</h3>
-          <p>Equity curves, benchmark overlays, and copyable pseudocode.</p>
-        </div>
-        <div class="card">
-          <div class="eyebrow">Methodology</div>
-          <h3>Transparent Ranking Logic</h3>
-          <p>Explainable metrics and a stable Arena Score model.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>Latest Research</h2>
-          <p>Long-form strategy analysis and methodology notes.</p>
-        </div>
-        <a class="button ghost small" href="?page=research">View all</a>
+        <a class="button ghost small" href="?page=research">${t("common.view_all")}</a>
       </div>
       <div class="card-grid article-grid">
         ${latestArticles.map(renderArticleCard).join("")}
@@ -657,8 +699,8 @@ function renderHome() {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Featured Articles</h2>
-          <p>Deep dives into core strategies and ranking logic.</p>
+          <h2>${t("home.featured_articles_title")}</h2>
+          <p>${t("home.featured_articles_desc")}</p>
         </div>
       </div>
       <div class="card-grid article-grid">
@@ -671,32 +713,32 @@ function renderHome() {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Learn the Method</h2>
-          <p>Context pages that explain the platform and its limits.</p>
+          <h2>${t("home.learn_method_title")}</h2>
+          <p>${t("home.learn_method_desc")}</p>
         </div>
       </div>
       <div class="card-grid">
         <a class="card link-card" href="?page=methodology">
-          <div class="eyebrow">Methodology</div>
-          <h3>Ranking and scoring rules</h3>
-          <p>Understand the Arena Score and multi-window evaluation.</p>
+          <div class="eyebrow">${t("nav.methodology")}</div>
+          <h3>${t("home.methodology_card_title")}</h3>
+          <p>${t("home.methodology_card_desc")}</p>
         </a>
         <a class="card link-card" href="?page=about">
-          <div class="eyebrow">About</div>
-          <h3>What QuantArenas is</h3>
-          <p>Research goals, data sources, and usage disclaimers.</p>
+          <div class="eyebrow">${t("nav.about")}</div>
+          <h3>${t("home.about_card_title")}</h3>
+          <p>${t("home.about_card_desc")}</p>
         </a>
         <a class="card link-card" href="?page=faq">
-          <div class="eyebrow">FAQ</div>
-          <h3>Common questions</h3>
-          <p>Clarify how to read results and avoid misuse.</p>
+          <div class="eyebrow">${t("nav.faq")}</div>
+          <h3>${t("home.faq_card_title")}</h3>
+          <p>${t("home.faq_card_desc")}</p>
         </a>
       </div>
     </section>
 
     <section class="section split">
       <div class="card">
-        <h3>Top Strategies (${window}, ${instrument})</h3>
+        <h3>${t("home.top_strategies_title", { window, instrument })}</h3>
         <div class="list">
           ${topRows
             .map(
@@ -712,7 +754,7 @@ function renderHome() {
         </div>
       </div>
       <div class="card">
-        <h3>Latest Updates</h3>
+        <h3>${t("home.latest_updates_title")}</h3>
         <div class="list">
           ${updates
             .map(
@@ -730,32 +772,32 @@ function renderHome() {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Future Updates</h2>
-          <p>Planned membership rollout and priority roadmap items.</p>
+          <h2>${t("home.future_updates_title")}</h2>
+          <p>${t("home.future_updates_desc")}</p>
         </div>
       </div>
       <div class="card-grid">
         <div class="card">
-          <div class="eyebrow">Membership (Planned)</div>
-          <h3>Research Membership</h3>
-          <p>Unlock member-only exports and deeper strategy research.</p>
+          <div class="eyebrow">${t("home.membership_planned")}</div>
+          <h3>${t("home.research_membership_title")}</h3>
+          <p>${t("home.research_membership_desc")}</p>
           <div class="list">
-            <div><span class="badge">Planned</span> CSV/PNG exports and comparison reports</div>
-            <div><span class="badge">Planned</span> Strategy source downloads and research notes</div>
-            <div><span class="badge">Planned</span> Saved comparisons and watchlists</div>
-            <div><span class="badge">Planned</span> Early access to new strategies</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_exports")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_downloads")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_watchlists")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_early_access")}</div>
           </div>
         </div>
         <div class="card">
-          <div class="eyebrow">Roadmap</div>
-          <h3>Priority Upgrades</h3>
-          <p>Highlights from the current TODO backlog.</p>
+          <div class="eyebrow">${t("home.roadmap_eyebrow")}</div>
+          <h3>${t("home.priority_upgrades_title")}</h3>
+          <p>${t("home.priority_upgrades_desc")}</p>
           <div class="list">
-            <div><span class="badge">Planned</span> Parameter sensitivity heatmaps</div>
-            <div><span class="badge">Planned</span> User-defined strategy uploads</div>
-            <div><span class="badge">Planned</span> Intraday pricing API snapshots</div>
-            <div><span class="badge">Planned</span> Attribution drilldown by alpha/beta sources</div>
-            <div><span class="badge">Planned</span> Regime testing and stress overlays</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_heatmaps")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_uploads")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_intraday")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_attribution")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_regime")}</div>
           </div>
         </div>
       </div>
@@ -764,16 +806,16 @@ function renderHome() {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Top Strategy Leaderboards</h2>
-          <p>Top 5 strategies by Arena Score across different instruments and time windows.</p>
+          <h2>${t("home.top_leaderboards_title")}</h2>
+          <p>${t("home.top_leaderboards_desc")}</p>
         </div>
       </div>
       <div class="home-chart-grid">
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>SPY - 1 Year</strong>
-              <div class="muted">S&P 500 ETF</div>
+              <strong>${t("home.chart_spy_1y_title")}</strong>
+              <div class="muted">${t("home.chart_spy_1y_desc")}</div>
             </div>
           </div>
           <div class="chart-body">
@@ -783,8 +825,8 @@ function renderHome() {
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>SPY - 5 Year</strong>
-              <div class="muted">Long-term performance</div>
+              <strong>${t("home.chart_spy_5y_title")}</strong>
+              <div class="muted">${t("home.chart_spy_5y_desc")}</div>
             </div>
           </div>
           <div class="chart-body">
@@ -794,8 +836,8 @@ function renderHome() {
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>GLD - 1 Year</strong>
-              <div class="muted">Gold ETF</div>
+              <strong>${t("home.chart_gld_1y_title")}</strong>
+              <div class="muted">${t("home.chart_gld_1y_desc")}</div>
             </div>
           </div>
           <div class="chart-body">
@@ -805,8 +847,8 @@ function renderHome() {
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>EURUSD - 1 Year</strong>
-              <div class="muted">Euro/US Dollar</div>
+              <strong>${t("home.chart_eurusd_1y_title")}</strong>
+              <div class="muted">${t("home.chart_eurusd_1y_desc")}</div>
             </div>
           </div>
           <div class="chart-body">
@@ -898,13 +940,13 @@ function renderArena(route) {
   const instruments = store.performance.instruments || [];
   const windows = store.performance.windows || [];
   const metrics = [
-    { value: "score", label: "Arena Score" },
-    { value: "totalReturn", label: "Total Return" },
-    { value: "cagr", label: "CAGR" },
-    { value: "sharpe", label: "Sharpe" },
-    { value: "sortino", label: "Sortino" },
-    { value: "calmar", label: "Calmar" },
-    { value: "maxDrawdown", label: "Max Drawdown" }
+    { value: "score", label: t("arena.score") },
+    { value: "totalReturn", label: t("metric.total_return") },
+    { value: "cagr", label: t("metric.cagr") },
+    { value: "sharpe", label: t("metric.sharpe") },
+    { value: "sortino", label: t("metric.sortino") },
+    { value: "calmar", label: t("metric.calmar") },
+    { value: "maxDrawdown", label: t("metric.max_drawdown") }
   ];
 
   const leaderboard = buildLeaderboard(state.instrument, state.window);
@@ -918,18 +960,18 @@ function renderArena(route) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Strategy Arena</h2>
-          <p>Rank strategies under a single rule set and compare the score drivers.</p>
+          <h2>${t("arena.title")}</h2>
+          <p>${t("arena.desc")}</p>
         </div>
         <details class="score-note">
-          <summary>Arena Score is a composite rating</summary>
-          <p>We weight Sharpe, Sortino, Calmar, CAGR, and drawdown control to keep rankings stable across assets.</p>
+          <summary>${t("arena.score_note_title")}</summary>
+          <p>${t("arena.score_note_desc")}</p>
         </details>
       </div>
 
       <div class="filter-bar">
         <div class="filter-group">
-          <label>Instrument</label>
+          <label>${t("common.instrument")}</label>
           <input id="arena-instrument" list="arena-instrument-list" value="${state.instrument}" />
           <datalist id="arena-instrument-list">
             ${instruments
@@ -941,7 +983,7 @@ function renderArena(route) {
           </datalist>
         </div>
         <div class="filter-group">
-          <label>Window</label>
+          <label>${t("common.window")}</label>
           <div class="chip-group">
             ${windows
               .map(
@@ -954,7 +996,7 @@ function renderArena(route) {
           </div>
         </div>
         <div class="filter-group">
-          <label>Ranking Metric</label>
+          <label>${t("arena.ranking_metric")}</label>
           <select id="arena-metric">
             ${metrics
               .map(
@@ -967,7 +1009,7 @@ function renderArena(route) {
           </select>
         </div>
         <div class="filter-group">
-          <label>Top N</label>
+          <label>${t("common.top_n")}</label>
           <select id="arena-top">
             ${[10, 25, 50]
               .map(
@@ -980,12 +1022,12 @@ function renderArena(route) {
           </select>
         </div>
         <div class="filter-group">
-          <label>Threshold</label>
+          <label>${t("common.threshold")}</label>
           <div class="toggle">
             <input id="arena-threshold" type="checkbox" ${
               state.threshold ? "checked" : ""
             } />
-            <span>Trades >= 20</span>
+            <span>${t("arena.trades_threshold")}</span>
           </div>
         </div>
       </div>
@@ -994,18 +1036,18 @@ function renderArena(route) {
         <table>
           <thead>
             <tr>
-              <th>Rank</th>
-              <th>Strategy</th>
+              <th>${t("common.rank")}</th>
+              <th>${t("common.strategy")}</th>
               <th>
-                <button data-sort="metric">Metric</button>
+                <button data-sort="metric">${t("common.metric")}</button>
               </th>
               <th>
-                <button data-sort="totalReturn">Return</button>
+                <button data-sort="totalReturn">${t("common.return")}</button>
               </th>
               <th>
-                <button data-sort="maxDrawdown">Max Drawdown</button>
+                <button data-sort="maxDrawdown">${t("metric.max_drawdown")}</button>
               </th>
-              <th>Trades</th>
+              <th>${t("common.trades")}</th>
               <th></th>
             </tr>
           </thead>
@@ -1047,7 +1089,7 @@ function renderArena(route) {
                       row.strategy.id
                     }&instrument=${state.instrument}&window=${
                   state.window
-                }&return=${returnTo}">View</a>
+                }&return=${returnTo}">${t("common.view_item")}</a>
                   </td>
                 </tr>`;
               })
@@ -1061,7 +1103,7 @@ function renderArena(route) {
 
 function renderFavoriteButton(strategyId, variant = "card") {
   const active = isFavorite(strategyId);
-  const label = active ? "Saved" : "Save";
+  const label = active ? t("common.saved") : t("common.save");
   const icon = active ? "&#9733;" : "&#9734;";
   const classes =
     variant === "action"
@@ -1070,7 +1112,7 @@ function renderFavoriteButton(strategyId, variant = "card") {
       ? "favorite-inline"
       : "favorite-toggle";
   return `
-    <button class="${classes} ${active ? "active" : ""}" data-favorite="${strategyId}" type="button" aria-pressed="${active ? "true" : "false"}" title="${active ? "Remove from favorites" : "Add to favorites"}">
+    <button class="${classes} ${active ? "active" : ""}" data-favorite="${strategyId}" type="button" aria-pressed="${active ? "true" : "false"}" title="${active ? t("common.remove_from_favorites") : t("common.add_to_favorites")}">
       <span class="favorite-icon" data-favorite-icon>${icon}</span>
       <span class="favorite-label" data-favorite-label>${label}</span>
     </button>
@@ -1083,7 +1125,7 @@ function renderCategoryControls(state) {
   return `
     <div class="category-controls">
       <div class="filter-group">
-        <label>Instrument</label>
+        <label>${t("common.instrument")}</label>
         <select id="category-instrument">
           ${instruments
             .map(
@@ -1096,7 +1138,7 @@ function renderCategoryControls(state) {
         </select>
       </div>
       <div class="filter-group">
-        <label>Window</label>
+        <label>${t("common.window")}</label>
         <div class="chip-group">
           ${windows
             .map(
@@ -1142,7 +1184,7 @@ function renderCategoryRow(entry, index, instrument, window) {
         </div>
       </div>
       <div class="category-score">
-        <span class="muted">Arena Score</span>
+        <span class="muted">${t("arena.score")}</span>
         <strong>${formatMetric(metrics.arenaScore, "score")}</strong>
       </div>
       ${renderFavoriteButton(strategy.id, "inline")}
@@ -1179,12 +1221,12 @@ function renderCategoryView(strategies, state) {
       <div class="card category-card">
         <div class="category-header">
           <div>
-            <h3>${group.label}</h3>
-            <p class="muted">${scored.length} strategies • ${instrument} ${window} ranking</p>
+            <h3>${t(group.labelKey)}</h3>
+            <p class="muted">${t("strategy.category_ranking", { count: scored.length, instrument, window })}</p>
           </div>
           <a class="link" href="?page=strategies&tags=${encodeURIComponent(
             group.tag
-          )}&view=list">View all</a>
+          )}&view=list">${t("common.view_all")}</a>
         </div>
         <div class="category-list">
           ${top
@@ -1197,9 +1239,9 @@ function renderCategoryView(strategies, state) {
 
   if (!cards) {
     return `
-      <div class="card">
-        <h3>No matching categories</h3>
-        <p>Try adjusting tags or search filters.</p>
+        <div class="card">
+        <h3>${t("strategy.no_matching_categories")}</h3>
+        <p>${t("strategy.adjust_filters")}</p>
       </div>
     `;
   }
@@ -1253,8 +1295,8 @@ function renderCorrelationMatrix(strategies, instrument, window) {
   if (strategies.length < 2) {
     return `
       <div class="card">
-        <h3>Not enough strategies selected</h3>
-        <p>Select at least two strategies to view correlations.</p>
+        <h3>${t("compare.not_enough_selected")}</h3>
+        <p>${t("compare.select_two_for_correlation")}</p>
       </div>
     `;
   }
@@ -1399,28 +1441,28 @@ function calcRiskContribution(strategyIds, weights, instrument, window) {
 
 function renderPortfolioMetrics(metrics) {
   if (!metrics) {
-    return `<div class="muted">Not enough data to calculate metrics.</div>`;    
+    return `<div class="muted">${t("common.not_enough_data")}</div>`;
   }
   return `
     <div class="metric-grid">
       <div class="metric-tile">
-        <span>Total Return</span>
+        <span>${t("metric.total_return")}</span>
         <strong>${formatMetric(metrics.totalReturn, "totalReturn")}</strong>
       </div>
       <div class="metric-tile">
-        <span>CAGR</span>
+        <span>${t("metric.cagr")}</span>
         <strong>${formatMetric(metrics.cagr, "cagr")}</strong>
       </div>
       <div class="metric-tile">
-        <span>Sharpe Ratio</span>
+        <span>${t("metric.sharpe_ratio")}</span>
         <strong>${formatMetric(metrics.sharpe, "ratio")}</strong>
       </div>
       <div class="metric-tile">
-        <span>Max Drawdown</span>
+        <span>${t("metric.max_drawdown")}</span>
         <strong>${formatMetric(metrics.maxDrawdown, "maxDrawdown")}</strong>
       </div>
       <div class="metric-tile">
-        <span>Volatility</span>
+        <span>${t("metric.volatility")}</span>
         <strong>${formatMetric(metrics.volatility, "volatility")}</strong>
       </div>
     </div>
@@ -1429,7 +1471,7 @@ function renderPortfolioMetrics(metrics) {
 
 function renderRiskContributionTable(strategies, risk) {
   if (!risk) {
-    return `<div class="muted">Not enough data to calculate risk contributions.</div>`;
+    return `<div class="muted">${t("common.not_enough_risk_data")}</div>`;
   }
   const rows = strategies
     .map((strategy, index) => {
@@ -1457,10 +1499,10 @@ function renderRiskContributionTable(strategies, risk) {
       <table class="risk-table">
         <thead>
           <tr>
-            <th>Strategy</th>
-            <th>Weight</th>
-            <th>Marginal (ann.)</th>
-            <th>Contribution</th>
+            <th>${t("common.strategy")}</th>
+            <th>${t("common.weight")}</th>
+            <th>${t("portfolio.marginal_ann")}</th>
+            <th>${t("common.contribution")}</th>
           </tr>
         </thead>
         <tbody>
@@ -1488,13 +1530,13 @@ function renderPortfolioSection(strategies, instrument, window) {
       <section class="section">
         <div class="section-header">
           <div>
-            <h2>Portfolio Builder</h2>
-            <p>Blend selected strategies into a weighted portfolio.</p>
+            <h2>${t("portfolio.title")}</h2>
+            <p>${t("portfolio.desc")}</p>
           </div>
         </div>
         <div class="card">
-          <h3>No strategies selected</h3>
-          <p>Select strategies in the comparator above to build a portfolio.</p>
+          <h3>${t("portfolio.none_selected_title")}</h3>
+          <p>${t("portfolio.none_selected_desc")}</p>
         </div>
       </section>
     `;
@@ -1507,12 +1549,12 @@ function renderPortfolioSection(strategies, instrument, window) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Portfolio Builder</h2>
-          <p>Blend selected strategies into a weighted portfolio.</p>
+          <h2>${t("portfolio.title")}</h2>
+          <p>${t("portfolio.desc")}</p>
         </div>
         <div class="chip-group">
-          <button class="chip" data-portfolio-preset="equal">Equal Weight</button>
-          <button class="chip" data-portfolio-preset="risk">Risk Parity</button>
+          <button class="chip" data-portfolio-preset="equal">${t("portfolio.equal_weight")}</button>
+          <button class="chip" data-portfolio-preset="risk">${t("portfolio.risk_parity")}</button>
         </div>
       </div>
       <div class="portfolio-grid">
@@ -1536,17 +1578,17 @@ function renderPortfolioSection(strategies, instrument, window) {
               .join("")}
           </div>
           <div class="portfolio-total">
-            <span>Total Weight</span>
+            <span>${t("portfolio.total_weight")}</span>
             <strong id="portfolio-total">${portfolio.total.toFixed(1)}%</strong>
           </div>
           <div class="muted" id="portfolio-note">
-            Weights normalize to 100% for calculations.
+            ${t("portfolio.weights_normalize")}
           </div>
         </div>
         <div class="chart-card portfolio-chart-card">
           <div class="chart-header">
             <div>
-              <strong>Portfolio Equity Curve</strong>
+              <strong>${t("portfolio.equity_curve")}</strong>
               <div class="muted">${instrument} - ${window}</div>
             </div>
           </div>
@@ -1555,15 +1597,15 @@ function renderPortfolioSection(strategies, instrument, window) {
           </div>
         </div>
         <div class="card portfolio-metrics-card" id="portfolio-metrics">        
-          <h3>Portfolio Metrics</h3>
+          <h3>${t("portfolio.metrics")}</h3>
           ${renderPortfolioMetrics(portfolio.metrics)}
         </div>
         <div class="chart-card portfolio-risk-card">
           <div class="chart-header">
             <div>
-              <strong>Risk Contribution</strong>
+              <strong>${t("portfolio.risk_contribution")}</strong>
               <div class="muted" id="portfolio-risk-note">
-                ${risk ? `Portfolio vol (ann.): ${formatPercent(risk.annualizedVol, 2)}` : "Not enough data to calculate risk contributions."}
+                ${risk ? t("portfolio.vol_ann", { value: formatPercent(risk.annualizedVol, 2) }) : t("common.not_enough_risk_data")}
               </div>
             </div>
           </div>
@@ -1597,25 +1639,25 @@ function renderStrategies(route) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Strategy Library</h2>
-          <p>Filter by tags, search by name, and open the full detail pages.</p>
+          <h2>${t("strategy.library_title")}</h2>
+          <p>${t("strategy.library_desc")}</p>
         </div>
         <div class="chip-group">
-          <button class="chip ${state.view === "grid" ? "active" : ""}" data-view="grid">Grid</button>
-          <button class="chip ${state.view === "list" ? "active" : ""}" data-view="list">List</button>
-          <button class="chip ${state.view === "category" ? "active" : ""}" data-view="category">Category</button>
+          <button class="chip ${state.view === "grid" ? "active" : ""}" data-view="grid">${t("common.grid")}</button>
+          <button class="chip ${state.view === "list" ? "active" : ""}" data-view="list">${t("common.list")}</button>
+          <button class="chip ${state.view === "category" ? "active" : ""}" data-view="category">${t("common.category")}</button>
         </div>
       </div>
 
       <div class="filter-bar">
         <div class="filter-group">
-          <label>Search</label>
-          <input id="strategy-search" type="text" placeholder="Search by name or ID" value="${escapeHtml(
+          <label>${t("common.search")}</label>
+          <input id="strategy-search" type="text" placeholder="${t("strategy.search_placeholder")}" value="${escapeHtml(
             state.query || ""
           )}" />
         </div>
         <div class="filter-group">
-          <label>Tags</label>
+          <label>${t("common.tags")}</label>
           <div class="chip-group">
             ${tags
               .map(
@@ -1651,7 +1693,7 @@ function renderStrategies(route) {
               <span class="badge">${strategy.bestOn}</span>
             </div>
             <div class="hero-actions">
-              <a class="button ghost" href="?page=strategy&id=${strategy.id}">View Strategy</a>
+              <a class="button ghost" href="?page=strategy&id=${strategy.id}">${t("common.view_strategy")}</a>
             </div>
           </div>`
           )
@@ -1671,12 +1713,12 @@ function renderFavorites(route) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Favorites</h2>
-          <p>${saved.length} strategies saved for quick access.</p>
+          <h2>${t("nav.favorites")}</h2>
+          <p>${t("strategy.favorites_saved", { count: saved.length })}</p>
         </div>
         <div class="chip-group">
-          <button class="chip ${state.view === "grid" ? "active" : ""}" data-view="grid">Grid</button>
-          <button class="chip ${state.view === "list" ? "active" : ""}" data-view="list">List</button>
+          <button class="chip ${state.view === "grid" ? "active" : ""}" data-view="grid">${t("common.grid")}</button>
+          <button class="chip ${state.view === "list" ? "active" : ""}" data-view="list">${t("common.list")}</button>
         </div>
       </div>
 
@@ -1699,7 +1741,7 @@ function renderFavorites(route) {
                 <span class="badge">${strategy.bestOn}</span>
               </div>
               <div class="hero-actions">
-                <a class="button ghost" href="?page=strategy&id=${strategy.id}">View Strategy</a>
+                <a class="button ghost" href="?page=strategy&id=${strategy.id}">${t("common.view_strategy")}</a>
               </div>
             </div>`
             )
@@ -1708,10 +1750,10 @@ function renderFavorites(route) {
       `
           : `
         <div class="card">
-          <h3>No favorites yet</h3>
-          <p>Save strategies from the library to build your watchlist.</p>
+          <h3>${t("strategy.no_favorites_title")}</h3>
+          <p>${t("strategy.no_favorites_desc")}</p>
           <div class="hero-actions">
-            <a class="button ghost" href="?page=strategies">Browse Strategies</a>
+            <a class="button ghost" href="?page=strategies">${t("home.browse_strategies")}</a>
           </div>
         </div>
       `
@@ -1724,7 +1766,7 @@ function renderStrategyDetail(route) {
   const strategyId = route.params.get("id") || store.strategies[0].id;
   const strategy = store.strategies.find((item) => item.id === strategyId);     
   if (!strategy) {
-    return "<section class=\"section\"><h2>Strategy not found.</h2></section>";
+    return `<section class="section"><h2>${t("strategy.not_found")}</h2></section>`;
   }
 
   const instrument =
@@ -1755,7 +1797,7 @@ function renderStrategyDetail(route) {
               returnTo
                 ? `<a class="button ghost" href="?${decodeURIComponent(
                     returnTo
-                  )}">Back to Arena</a>`
+                  )}">${t("common.back_to_arena")}</a>`
                 : ""
             }
             ${renderFavoriteButton(strategy.id, "action")}
@@ -1763,21 +1805,21 @@ function renderStrategyDetail(route) {
         </div>
         <div class="info-grid">
           <div class="info-card">
-            <span>Asset fit</span>
+            <span>${t("strategy.asset_fit")}</span>
             <strong>${strategy.assetClasses.join(", ")}</strong>
           </div>
           <div class="info-card">
-            <span>Holding period</span>
+            <span>${t("strategy.holding_period")}</span>
             <strong>${strategy.holdingPeriod}</strong>
           </div>
           <div class="info-card">
-            <span>Frequency</span>
+            <span>${t("strategy.frequency")}</span>
             <strong>${strategy.frequency}</strong>
           </div>
           <div class="info-card">
-            <span>Latest snapshot (EOD)</span>
+            <span>${t("strategy.latest_snapshot")}</span>
             <strong>${snapshot ? snapshot.date : "--"}</strong>
-            <div class="muted">Benchmark ${snapshot ? formatPercent(snapshot.benchmarkMove, 2) : "--"} · Strategy ${snapshot ? formatPercent(snapshot.strategyMove, 2) : "--"}</div>
+            <div class="muted">${t("strategy.snapshot_summary", { benchmark: snapshot ? formatPercent(snapshot.benchmarkMove, 2) : "--", strategy: snapshot ? formatPercent(snapshot.strategyMove, 2) : "--" })}</div>
           </div>
         </div>
       </div>
@@ -1785,7 +1827,7 @@ function renderStrategyDetail(route) {
       <div class="control-bar">
         <div class="control-row">
           <div class="control-group">
-            <label>Instrument</label>
+            <label>${t("common.instrument")}</label>
             <select id="detail-instrument">
               ${strategy.instruments
                 .map(
@@ -1798,7 +1840,7 @@ function renderStrategyDetail(route) {
             </select>
           </div>
           <div class="control-group">
-            <label>Window</label>
+            <label>${t("common.window")}</label>
             <div class="chip-group">
               ${(store.performance.windows || [])
                 .map(
@@ -1811,26 +1853,26 @@ function renderStrategyDetail(route) {
             </div>
           </div>
           <div class="control-group">
-            <label>Benchmark</label>
+            <label>${t("common.benchmark")}</label>
             <select id="detail-benchmark">
               ${BENCHMARK_OPTIONS.map(
                 (option) => `
                 <option value="${option.value}" ${
                   option.value === benchmarkKey ? "selected" : ""
-                }>${option.label}</option>`
+                }>${t(option.labelKey)}</option>`
               ).join("")}
             </select>
           </div>
           <div class="control-group">
-            <label>Scale</label>
+            <label>${t("common.scale")}</label>
             <div class="chip-group">
-              <button class="chip ${scale === "linear" ? "active" : ""}" data-scale="linear">Linear</button>
-              <button class="chip ${scale === "logarithmic" ? "active" : ""}" data-scale="logarithmic">Log</button>
+              <button class="chip ${scale === "linear" ? "active" : ""}" data-scale="linear">${t("common.linear")}</button>
+              <button class="chip ${scale === "logarithmic" ? "active" : ""}" data-scale="logarithmic">${t("common.log")}</button>
             </div>
           </div>
         </div>
         <div class="compare-panel">
-          <strong>Cross-asset compare (max 5)</strong>
+          <strong>${t("strategy.cross_asset_compare")}</strong>
           <div class="compare-options">
             ${strategy.instruments
               .map(
@@ -1851,12 +1893,12 @@ function renderStrategyDetail(route) {
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>Equity vs Benchmark</strong>
-              <div class="muted">${instrument} - ${window} · Benchmark: ${benchmarkLabel}</div>
+              <strong>${t("strategy.equity_vs_benchmark")}</strong>
+              <div class="muted">${t("strategy.benchmark_line", { instrument, window, benchmark: benchmarkLabel })}</div>
             </div>
             <div class="chart-actions">
-              <button class="button ghost small" data-export-csv="strategy">Export CSV</button>
-              <button class="button ghost small" data-export-chart="equity-chart" data-export-name="equity">Export PNG</button>
+              <button class="button ghost small" data-export-csv="strategy">${t("common.export_csv")}</button>
+              <button class="button ghost small" data-export-chart="equity-chart" data-export-name="equity">${t("common.export_png")}</button>
             </div>
           </div>
           <div class="chart-body">
@@ -1866,11 +1908,11 @@ function renderStrategyDetail(route) {
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>Cross-asset comparison</strong>
-              <div class="muted">Normalized to 1.0</div>
+              <strong>${t("strategy.cross_asset_comparison")}</strong>
+              <div class="muted">${t("strategy.normalized_to_one")}</div>
             </div>
             <div class="chart-actions">
-              <button class="button ghost small" data-export-chart="compare-chart" data-export-name="cross-asset">Export PNG</button>
+              <button class="button ghost small" data-export-chart="compare-chart" data-export-name="cross-asset">${t("common.export_png")}</button>
             </div>
           </div>
           <div class="chart-body">
@@ -1883,11 +1925,11 @@ function renderStrategyDetail(route) {
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>Drawdown</strong>
-              <div class="muted">Peak-to-trough decline over time</div>
+              <strong>${t("strategy.drawdown")}</strong>
+              <div class="muted">${t("strategy.drawdown_desc")}</div>
             </div>
             <div class="chart-actions">
-              <button class="button ghost small" data-export-chart="drawdown-chart" data-export-name="drawdown">Export PNG</button>
+              <button class="button ghost small" data-export-chart="drawdown-chart" data-export-name="drawdown">${t("common.export_png")}</button>
             </div>
           </div>
           <div class="chart-body">
@@ -1897,8 +1939,8 @@ function renderStrategyDetail(route) {
         <div class="chart-card heatmap-card">
           <div class="chart-header">
             <div>
-              <strong>Monthly Returns Heatmap</strong>
-              <div class="muted">Green = positive, Red = negative</div>
+              <strong>${t("strategy.monthly_heatmap")}</strong>
+              <div class="muted">${t("strategy.heatmap_desc")}</div>
             </div>
           </div>
           <div class="heatmap-body" id="monthly-heatmap"></div>
@@ -1909,11 +1951,11 @@ function renderStrategyDetail(route) {
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>Performance Attribution</strong>
-              <div class="muted">Alpha/Beta decomposition vs benchmark</div>
+              <strong>${t("strategy.performance_attribution")}</strong>
+              <div class="muted">${t("strategy.attribution_desc")}</div>
             </div>
             <div class="chart-actions">
-              <button class="button ghost small" data-export-chart="attribution-chart" data-export-name="attribution">Export PNG</button>
+              <button class="button ghost small" data-export-chart="attribution-chart" data-export-name="attribution">${t("common.export_png")}</button>
             </div>
           </div>
           <div class="chart-body">
@@ -1927,8 +1969,8 @@ function renderStrategyDetail(route) {
         <div class="chart-card heatmap-card">
           <div class="chart-header">
             <div>
-              <strong>Parameter Sensitivity</strong>
-              <div class="muted">Arena Score across parameter grid</div>
+              <strong>${t("strategy.parameter_sensitivity")}</strong>
+              <div class="muted">${t("strategy.parameter_sensitivity_desc")}</div>
             </div>
           </div>
           <div class="heatmap-body" id="param-sensitivity"></div>
@@ -1939,11 +1981,11 @@ function renderStrategyDetail(route) {
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>Rolling Sharpe Ratio</strong>
-              <div class="muted">${ROLLING_WINDOW}-day window</div>
+              <strong>${t("strategy.rolling_sharpe")}</strong>
+              <div class="muted">${t("strategy.rolling_window_desc", { days: ROLLING_WINDOW })}</div>
             </div>
             <div class="chart-actions">
-              <button class="button ghost small" data-export-chart="rolling-sharpe" data-export-name="rolling-sharpe">Export PNG</button>
+              <button class="button ghost small" data-export-chart="rolling-sharpe" data-export-name="rolling-sharpe">${t("common.export_png")}</button>
             </div>
           </div>
           <div class="chart-body">
@@ -1953,11 +1995,11 @@ function renderStrategyDetail(route) {
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>Rolling Volatility</strong>
-              <div class="muted">${ROLLING_WINDOW}-day annualized</div>
+              <strong>${t("strategy.rolling_volatility")}</strong>
+              <div class="muted">${t("strategy.rolling_volatility_desc", { days: ROLLING_WINDOW })}</div>
             </div>
             <div class="chart-actions">
-              <button class="button ghost small" data-export-chart="rolling-vol" data-export-name="rolling-volatility">Export PNG</button>
+              <button class="button ghost small" data-export-chart="rolling-vol" data-export-name="rolling-volatility">${t("common.export_png")}</button>
             </div>
           </div>
           <div class="chart-body">
@@ -1967,11 +2009,11 @@ function renderStrategyDetail(route) {
         <div class="chart-card">
           <div class="chart-header">
             <div>
-              <strong>Rolling Beta</strong>
-              <div class="muted">vs Buy & Hold</div>
+              <strong>${t("strategy.rolling_beta")}</strong>
+              <div class="muted">${t("strategy.rolling_beta_desc")}</div>
             </div>
             <div class="chart-actions">
-              <button class="button ghost small" data-export-chart="rolling-beta" data-export-name="rolling-beta">Export PNG</button>
+              <button class="button ghost small" data-export-chart="rolling-beta" data-export-name="rolling-beta">${t("common.export_png")}</button>
             </div>
           </div>
           <div class="chart-body">
@@ -1981,27 +2023,27 @@ function renderStrategyDetail(route) {
       </div>
 
       <div class="tabs">
-        <button class="tab-button active" data-tab="performance">Performance</button>
-        <button class="tab-button" data-tab="risk">Risk</button>
-        <button class="tab-button" data-tab="efficiency">Efficiency</button>
-        <button class="tab-button" data-tab="trades">Trades</button>
+        <button class="tab-button active" data-tab="performance">${t("common.performance")}</button>
+        <button class="tab-button" data-tab="risk">${t("common.risk")}</button>
+        <button class="tab-button" data-tab="efficiency">${t("common.efficiency")}</button>
+        <button class="tab-button" data-tab="trades">${t("common.trades")}</button>
       </div>
       ${renderMetricTabs(metrics)}
 
       <div class="section pseudocode">
         <details open>
-          <summary>Pseudocode</summary>
+          <summary>${t("strategy.pseudocode")}</summary>
           <pre><code>${buildPseudocode(strategy)}</code></pre>
-          <button class="copy-button" data-copy>Copy</button>
+          <button class="copy-button" data-copy>${t("common.copy")}</button>
         </details>
       </div>
 
       ${renderSimilarStrategies(strategy, instrument, window, benchmarkKey)}
 
       <div class="section note">
-        <strong>Notes</strong>
+        <strong>${t("common.notes")}</strong>
         <div>${strategy.notes.join(" ")}</div>
-        <div>Last updated: ${strategy.updated}</div>
+        <div>${t("common.last_updated", { date: strategy.updated })}</div>
       </div>
     </section>
   `;
@@ -2011,32 +2053,32 @@ function renderMetricTabs(metrics) {
   return `
     <div class="tab-content active" data-panel="performance">
       <div class="metric-grid">
-        ${metricTile("Total Return", formatMetric(metrics.totalReturn, "totalReturn"))}
-        ${metricTile("CAGR", formatMetric(metrics.cagr, "cagr"))}
-        ${metricTile("Best Month", formatMetric(metrics.bestMonth, "totalReturn"))}
-        ${metricTile("Worst Month", formatMetric(metrics.worstMonth, "totalReturn"))}
+        ${metricTile(t("metric.total_return"), formatMetric(metrics.totalReturn, "totalReturn"))}
+        ${metricTile(t("metric.cagr"), formatMetric(metrics.cagr, "cagr"))}
+        ${metricTile(t("metric.best_month"), formatMetric(metrics.bestMonth, "totalReturn"))}
+        ${metricTile(t("metric.worst_month"), formatMetric(metrics.worstMonth, "totalReturn"))}
       </div>
     </div>
     <div class="tab-content" data-panel="risk">
       <div class="metric-grid">
-        ${metricTile("Max Drawdown", formatMetric(metrics.maxDrawdown, "maxDrawdown"))}
-        ${metricTile("Volatility", formatMetric(metrics.volatility, "cagr"))}
-        ${metricTile("Ulcer Index", formatMetric(metrics.ulcer, "ratio"))}
+        ${metricTile(t("metric.max_drawdown"), formatMetric(metrics.maxDrawdown, "maxDrawdown"))}
+        ${metricTile(t("metric.volatility"), formatMetric(metrics.volatility, "cagr"))}
+        ${metricTile(t("metric.ulcer_index"), formatMetric(metrics.ulcer, "ratio"))}
       </div>
     </div>
     <div class="tab-content" data-panel="efficiency">
       <div class="metric-grid">
-        ${metricTile("Sharpe", formatMetric(metrics.sharpe, "ratio"))}
-        ${metricTile("Sortino", formatMetric(metrics.sortino, "ratio"))}
-        ${metricTile("Calmar", formatMetric(metrics.calmar, "ratio"))}
+        ${metricTile(t("metric.sharpe"), formatMetric(metrics.sharpe, "ratio"))}
+        ${metricTile(t("metric.sortino"), formatMetric(metrics.sortino, "ratio"))}
+        ${metricTile(t("metric.calmar"), formatMetric(metrics.calmar, "ratio"))}
       </div>
     </div>
     <div class="tab-content" data-panel="trades">
       <div class="metric-grid">
-        ${metricTile("Trades", formatNumber(metrics.trades))}
-        ${metricTile("Turnover (avg daily)", formatMetric(metrics.turnover, "turnover"))}
-        ${metricTile("Win Rate", formatMetric(metrics.winRate, "totalReturn"))}
-        ${metricTile("Profit Factor", formatMetric(metrics.profitFactor, "ratio"))}
+        ${metricTile(t("metric.trades"), formatNumber(metrics.trades))}
+        ${metricTile(t("metric.turnover_avg_daily"), formatMetric(metrics.turnover, "turnover"))}
+        ${metricTile(t("metric.win_rate"), formatMetric(metrics.winRate, "totalReturn"))}
+        ${metricTile(t("metric.profit_factor"), formatMetric(metrics.profitFactor, "ratio"))}
       </div>
     </div>
   `;
@@ -2054,12 +2096,12 @@ function renderSimilarStrategies(strategy, instrument, window, benchmarkKey) {
       <div class="section">
         <div class="section-header">
           <div>
-            <h2>Similar Strategies</h2>
-            <p>Based on tag overlap and return correlation.</p>
+            <h2>${t("strategy.similar_title")}</h2>
+            <p>${t("strategy.similar_desc")}</p>
           </div>
         </div>
         <div class="card">
-          <p class="muted">No similar strategies available for this instrument window.</p>
+          <p class="muted">${t("strategy.no_similar")}</p>
         </div>
       </div>
     `;
@@ -2069,8 +2111,8 @@ function renderSimilarStrategies(strategy, instrument, window, benchmarkKey) {
     <div class="section">
       <div class="section-header">
         <div>
-          <h2>Similar Strategies</h2>
-          <p>Based on tag overlap and return correlation for ${instrument} (${window}).</p>
+          <h2>${t("strategy.similar_title")}</h2>
+          <p>${t("strategy.similar_desc_window", { instrument, window })}</p>
         </div>
       </div>
       <div class="card-grid">
@@ -2078,7 +2120,7 @@ function renderSimilarStrategies(strategy, instrument, window, benchmarkKey) {
           .map((entry) => {
             const sharedTags = entry.sharedTags.length
               ? entry.sharedTags.map((tag) => `<span class="tag">${tag}</span>`).join("")
-              : `<span class="muted">No shared tags</span>`;
+              : `<span class="muted">${t("strategy.no_shared_tags")}</span>`;
             const tagPercent = Math.round(entry.tagScore * 100);
             const corrLabel =
               entry.corr === null || entry.corr === undefined
@@ -2091,11 +2133,11 @@ function renderSimilarStrategies(strategy, instrument, window, benchmarkKey) {
                 <p>${entry.strategy.summary}</p>
                 <div class="tag-row">${sharedTags}</div>
                 <div class="stat-grid similar-meta">
-                  <div class="stat"><span>Tag match</span><span>${tagPercent}%</span></div>
-                  <div class="stat"><span>Return corr</span><span>${corrLabel}</span></div>
+                  <div class="stat"><span>${t("strategy.tag_match")}</span><span>${tagPercent}%</span></div>
+                  <div class="stat"><span>${t("strategy.return_corr")}</span><span>${corrLabel}</span></div>
                 </div>
                 <div class="hero-actions">
-                  <a class="button ghost small" href="?page=strategy&id=${entry.strategy.id}&instrument=${instrument}&window=${window}${benchmarkParam}">View Strategy</a>
+                  <a class="button ghost small" href="?page=strategy&id=${entry.strategy.id}&instrument=${instrument}&window=${window}${benchmarkParam}">${t("common.view_strategy")}</a>
                 </div>
               </div>
             `;
@@ -2201,7 +2243,7 @@ function renderTagRow(tags) {
 function renderArticleCard(article) {
   if (!article) return "";
   const featuredBadge = article.featured
-    ? "<span class=\"badge\">Featured</span>"
+    ? `<span class="badge">${t("common.featured")}</span>`
     : "";
   return `
     <div class="card article-card">
@@ -2209,10 +2251,10 @@ function renderArticleCard(article) {
         ${featuredBadge}
         ${renderArticleMeta(article)}
       </div>
-      <h3>${article.title}</h3>
-      <p>${article.summary}</p>
+      <h3>${tc(article.title)}</h3>
+      <p>${tc(article.summary)}</p>
       ${renderTagRow(article.tags)}
-      <a class="link" href="${buildResearchUrl(article.slug)}">Read article</a>
+      <a class="link" href="${buildResearchUrl(article.slug)}">${t("common.read_article")}</a>
     </div>
   `;
 }
@@ -2221,11 +2263,11 @@ function renderContentSections(sections) {
   return (sections || [])
     .map(
       (section) => `
-      <section class="content-section">
-        <h3>${section.heading}</h3>
-        ${(section.paragraphs || []).map((text) => `<p>${text}</p>`).join("")}
-      </section>
-    `
+    <section class="content-section">
+      <h3>${tc(section.heading)}</h3>
+      ${(tc(section.paragraphs) || []).map((text) => `<p>${text}</p>`).join("")}
+    </section>
+  `
     )
     .join("");
 }
@@ -2234,15 +2276,15 @@ function renderContentPage(key) {
   const pages = typeof CONTENT_PAGES === "undefined" ? null : CONTENT_PAGES;
   const page = pages ? pages[key] : null;
   if (!page) {
-    return "<section class=\"section\"><h2>Page not found.</h2></section>";
+    return `<section class="section"><h2>${t("common.not_found")}</h2></section>`;
   }
-  const meta = page.updated ? `Updated ${page.updated}` : "";
+  const meta = page.updated ? t("common.updated", { date: page.updated }) : "";
   return `
-    <section class="section content-page">
-      <div class="content-hero">
-        <div>
-          <h2>${page.title}</h2>
-          <p>${page.subtitle}</p>
+  <section class="section content-page">
+    <div class="content-hero">
+      <div>
+        <h2>${tc(page.title)}</h2>
+        <p>${tc(page.subtitle)}</p>
           ${meta ? `<div class="content-meta">${meta}</div>` : ""}
         </div>
       </div>
@@ -2264,22 +2306,22 @@ function renderResearchIndex() {
   const featuredList = featured.length ? featured : allArticles.slice(0, 3);
   const researchMeta =
     typeof RESEARCH_INDEX === "undefined" ? null : RESEARCH_INDEX;
-  const intro = researchMeta ? researchMeta.intro : "";
-  const note = researchMeta ? researchMeta.note : "";
+  const intro = researchMeta ? tc(researchMeta.intro) : "";
+  const note = researchMeta ? tc(researchMeta.note) : "";
   return `
-    <section class="section content-page">
-      <div class="content-hero">
-        <div>
-          <h2>${researchMeta ? researchMeta.title : "Research"}</h2>
-          <p>${intro}</p>
-          <div class="content-meta">${note}</div>
+  <section class="section content-page">
+    <div class="content-hero">
+      <div>
+        <h2>${researchMeta ? tc(researchMeta.title) : t("nav.research")}</h2>
+        <p>${intro}</p>
+        <div class="content-meta">${note}</div>
         </div>
       </div>
       <div class="content-body">
         <div class="section-header">
           <div>
-            <h2>Featured Articles</h2>
-            <p>Strategy deep dives and methodology notes.</p>
+            <h2>${t("research.featured_title")}</h2>
+            <p>${t("research.featured_desc")}</p>
           </div>
         </div>
         <div class="card-grid article-grid">
@@ -2288,8 +2330,8 @@ function renderResearchIndex() {
 
         <div class="section-header">
           <div>
-            <h2>All Research</h2>
-            <p>Explore every long-form research note and strategy breakdown.</p>
+            <h2>${t("research.all_title")}</h2>
+            <p>${t("research.all_desc")}</p>
           </div>
         </div>
         <div class="card-grid article-grid">
@@ -2306,8 +2348,8 @@ function renderResearchArticle(route) {
   if (!article) {
     return `
       <section class="section">
-        <h2>Article not found.</h2>
-        <p>Return to the <a class="link" href="?page=research">research index</a>.</p>
+        <h2>${t("research.article_not_found")}</h2>
+        <p>${t("research.return_to_index_prefix")} <a class="link" href="?page=research">${t("research.index_label")}</a>.</p>
       </section>
     `;
   }
@@ -2315,7 +2357,7 @@ function renderResearchArticle(route) {
     ? `
       <figure class="article-figure">
         ${article.figure.svg}
-        <figcaption>${article.figure.caption}</figcaption>
+        <figcaption>${tc(article.figure.caption)}</figcaption>
       </figure>
     `
     : "";
@@ -2323,9 +2365,9 @@ function renderResearchArticle(route) {
     <section class="section content-page">
       <div class="content-hero">
         <div>
-          <div class="eyebrow">${article.category}</div>
-          <h2>${article.title}</h2>
-          <p>${article.summary}</p>
+      <div class="eyebrow">${article.category}</div>
+      <h2>${tc(article.title)}</h2>
+      <p>${tc(article.summary)}</p>
           ${renderArticleMeta(article)}
           ${renderTagRow(article.tags)}
         </div>
@@ -2334,11 +2376,11 @@ function renderResearchArticle(route) {
         ${figure}
         ${renderContentSections(article.sections)}
         <div class="content-disclaimer">
-          Research only. Not financial advice.
+          ${t("common.research_only")}
         </div>
       </article>
       <div class="content-footer">
-        <a class="link" href="?page=research">Back to Research</a>
+        <a class="link" href="?page=research">${t("common.back_to_research")}</a>
       </div>
     </section>
   `;
@@ -2351,18 +2393,18 @@ function renderFaq() {
     <section class="section content-page">
       <div class="content-hero">
         <div>
-          <h2>FAQ</h2>
-          <p>Short answers to common questions about research usage.</p>
+          <h2>${t("faq.title")}</h2>
+          <p>${t("faq.desc")}</p>
         </div>
       </div>
       <div class="faq-grid">
         ${items
           .map(
             (item) => `
-          <div class="card faq-card">
-            <h3>${item.question}</h3>
-            <p>${item.answer}</p>
-          </div>
+      <div class="card faq-card">
+        <h3>${tc(item.question)}</h3>
+        <p>${tc(item.answer)}</p>
+      </div>
         `
           )
           .join("")}
@@ -2380,8 +2422,8 @@ function renderChangelog() {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Changelog</h2>
-          <p>Every change to strategies and methodology is tracked here.</p>
+          <h2>${t("changelog.title")}</h2>
+          <p>${t("changelog.desc")}</p>
         </div>
       </div>
       <div class="list">
@@ -2394,7 +2436,7 @@ function renderChangelog() {
             <p>${entry.details}</p>
             ${
               entry.strategyId
-                ? `<a class="link" href="?page=strategy&id=${entry.strategyId}">View strategy</a>`
+                ? `<a class="link" href="?page=strategy&id=${entry.strategyId}">${t("common.view_strategy")}</a>`
                 : ""
             }
           </div>`
@@ -2424,29 +2466,29 @@ function renderCompare(route) {
     ? selectedStrategies
     : topStrategiesForInstrument(instrument, window, 8);
   const correlationNote = selectedStrategies.length >= 2
-    ? "Using selected strategies."
-    : "Using top strategies by Arena Score.";
+    ? t("compare.using_selected")
+    : t("compare.using_top");
   const selectionCount = selectedStrategies.length;
   const hasSelection = selectionCount >= 2;
-  const selectionNote = `${selectionCount}/5 selected`;
+  const selectionNote = t("compare.selection_count", { count: selectionCount });
   const emptyMessage =
     selectionCount === 1
-      ? "Select at least two strategies to compare."
-      : "Select strategies above to compare their performance.";
+      ? t("compare.select_at_least_two")
+      : t("compare.select_above");
 
   return `
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Strategy Comparator</h2>
-          <p>Select 2-5 strategies to compare side-by-side.</p>
+          <h2>${t("compare.title")}</h2>
+          <p>${t("compare.desc")}</p>
         </div>
       </div>
 
       <div class="compare-controls">
         <div class="filter-bar">
           <div class="filter-group">
-            <label>Instrument</label>
+            <label>${t("common.instrument")}</label>
             <select id="compare-instrument">
               ${instruments
                 .map(
@@ -2459,7 +2501,7 @@ function renderCompare(route) {
             </select>
           </div>
           <div class="filter-group">
-            <label>Window</label>
+            <label>${t("common.window")}</label>
             <div class="chip-group">
               ${windows
                 .map(
@@ -2475,7 +2517,7 @@ function renderCompare(route) {
 
         <div class="strategy-selector">
           <div class="strategy-selector-header">
-            <label>Select Strategies (2-5)</label>
+            <label>${t("compare.select_strategies")}</label>
             <span class="muted">${selectionNote}</span>
           </div>
           <div class="strategy-selector-grid">
@@ -2506,12 +2548,12 @@ function renderCompare(route) {
         <div class="chart-card compare-chart-card">
           <div class="chart-header">
             <div>
-              <strong>Equity Curves Comparison</strong>
-              <div class="muted">${instrument} - ${window} (Normalized to 1.0)</div>
+              <strong>${t("compare.equity_curves")}</strong>
+              <div class="muted">${instrument} - ${window} (${t("compare.normalized_to_one")})</div>
             </div>
             <div class="chart-actions">
-              <button class="button ghost small" data-compare-share>Copy Share Link</button>
-              <button class="button ghost small" data-export-chart="compare-main-chart" data-export-name="comparison">Export PNG</button>
+              <button class="button ghost small" data-compare-share>${t("common.copy_share_link")}</button>
+              <button class="button ghost small" data-export-chart="compare-main-chart" data-export-name="comparison">${t("common.export_png")}</button>
             </div>
           </div>
           <div class="chart-body compare-chart-body">
@@ -2521,17 +2563,17 @@ function renderCompare(route) {
 
         <div class="compare-table-card">
           <div class="compare-table-header">
-            <h3>Performance Metrics</h3>
+            <h3>${t("compare.performance_metrics")}</h3>
             <div class="chart-actions">
-              <button class="button ghost small" data-export-compare="csv">Export CSV</button>
-              <button class="button ghost small" data-export-compare="report">Export Report</button>
+              <button class="button ghost small" data-export-compare="csv">${t("common.export_csv")}</button>
+              <button class="button ghost small" data-export-compare="report">${t("common.export_report")}</button>
             </div>
           </div>
           <div class="table-scroll">
             <table class="compare-table">
               <thead>
                 <tr>
-                  <th>Metric</th>
+                  <th>${t("common.metric")}</th>
                   ${selectedStrategies.map((s) => `<th>${s.id}</th>`).join("")}
                 </tr>
               </thead>
@@ -2552,8 +2594,8 @@ function renderCompare(route) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>Correlation Matrix</h2>
-          <p>Daily return correlation for ${instrument} - ${window}. ${correlationNote}</p>
+          <h2>${t("compare.correlation_matrix")}</h2>
+          <p>${t("compare.correlation_desc", { instrument, window, note: correlationNote })}</p>
         </div>
       </div>
       ${renderCorrelationMatrix(correlationStrategies, instrument, window)}
@@ -2574,7 +2616,7 @@ function renderCompareMetricRows(strategies, instrument, window) {
 
       return `
         <tr>
-          <td>${config.label}</td>
+          <td>${t(config.labelKey)}</td>
           ${values
             .map((value) => {
               const formatted = formatCompareValue(value, config.format);
@@ -2674,9 +2716,9 @@ function bindCompare(route) {
       if (selected.length < 2) return;
       const url = buildCompareShareUrl(instrument, window, selected);
       copyToClipboard(url);
-      shareButton.textContent = "Copied";
+      shareButton.textContent = t("common.copied");
       setTimeout(() => {
-        shareButton.textContent = "Copy Share Link";
+        shareButton.textContent = t("common.copy_share_link");
       }, 1500);
     });
   }
@@ -2799,8 +2841,8 @@ function updatePortfolioTotals(total) {
   if (note) {
     const normalized = Math.abs(total - 100) < 0.1;
     note.textContent = normalized
-      ? "Weights sum to 100%."
-      : "Weights normalize to 100% for calculations.";
+      ? t("portfolio.weights_sum")
+      : t("portfolio.weights_normalize");
   }
 }
 
@@ -2808,7 +2850,7 @@ function updatePortfolioMetrics(metrics) {
   const container = document.getElementById("portfolio-metrics");
   if (!container) return;
   container.innerHTML = `
-    <h3>Portfolio Metrics</h3>
+    <h3>${t("portfolio.metrics")}</h3>
     ${renderPortfolioMetrics(metrics)}
   `;
 }
@@ -2828,7 +2870,7 @@ function updatePortfolioChart(series) {
     labels: series.dates,
     datasets: [
       {
-        label: "Portfolio",
+        label: t("portfolio.portfolio_label"),
         data: series.strategy,
         borderColor: palette(0),
         backgroundColor: "rgba(31, 111, 120, 0.2)",
@@ -2871,9 +2913,9 @@ function updatePortfolioRisk(strategyIds, weights, instrument, window) {
   const risk = calcRiskContribution(strategyIds, weights, instrument, window);
 
   if (!risk || !risk.contributions.length) {
-    noteEl.textContent = "Not enough data to calculate risk contributions.";
+    noteEl.textContent = t("common.not_enough_risk_data");
     listEl.innerHTML =
-      "<div class=\"muted\">Not enough data to calculate risk contributions.</div>";
+      `<div class="muted">${t("common.not_enough_risk_data")}</div>`;
     if (portfolioRiskChart) {
       portfolioRiskChart.destroy();
       portfolioRiskChart = null;
@@ -2881,10 +2923,9 @@ function updatePortfolioRisk(strategyIds, weights, instrument, window) {
     return;
   }
 
-  noteEl.textContent = `Portfolio vol (ann.): ${formatPercent(
-    risk.annualizedVol,
-    2
-  )}`;
+  noteEl.textContent = t("portfolio.vol_ann", {
+    value: formatPercent(risk.annualizedVol, 2)
+  });
   listEl.innerHTML = renderRiskContributionTable(strategies, risk);
 
   const labels = strategies.map((strategy) => strategy.id);
@@ -2907,7 +2948,7 @@ function updatePortfolioRisk(strategyIds, weights, instrument, window) {
       labels,
       datasets: [
         {
-          label: "Risk Contribution (%)",
+          label: t("portfolio.risk_contribution_pct"),
           data,
           backgroundColor: labels.map((_, index) => palette(index))
         }
@@ -3094,9 +3135,9 @@ function bindStrategyDetail(route) {
       if (!code) return;
       const text = code.textContent || "";
       copyToClipboard(text);
-      copy.textContent = "Copied";
+      copy.textContent = t("common.copied");
       setTimeout(() => {
-        copy.textContent = "Copy";
+        copy.textContent = t("common.copy");
       }, 1500);
     });
   }
@@ -3158,7 +3199,7 @@ function drawStrategyCharts(route) {
           labels: aligned.dates,
           datasets: [
             {
-              label: "Strategy",
+              label: t("common.strategy"),
               data: aligned.strategy,
               borderColor: "#1f6f78",
               backgroundColor: "rgba(31, 111, 120, 0.2)",
@@ -3232,7 +3273,7 @@ function drawStrategyCharts(route) {
           labels: windowed.dates,
           datasets: [
             {
-              label: "Drawdown",
+              label: t("strategy.drawdown"),
               data: drawdownSeries,
               borderColor: "#c94c4c",
               backgroundColor: "rgba(201, 76, 76, 0.3)",
@@ -3251,7 +3292,7 @@ function drawStrategyCharts(route) {
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: (context) => `Drawdown: ${(context.raw * 100).toFixed(2)}%`
+                label: (context) => `${t("strategy.drawdown")}: ${(context.raw * 100).toFixed(2)}%`
               }
             }
           },
@@ -3293,17 +3334,30 @@ function renderMonthlyHeatmap(container, series) {
   const monthlyData = calcMonthlyReturnsMatrix(series.dates, series.strategy);  
 
   if (!monthlyData.years.length) {
-    container.innerHTML = "<div class='muted'>No data available</div>";
+    container.innerHTML = `<div class='muted'>${t("common.no_data")}</div>`;
     return;
   }
 
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const months = [
+    t("heatmap.jan"),
+    t("heatmap.feb"),
+    t("heatmap.mar"),
+    t("heatmap.apr"),
+    t("heatmap.may"),
+    t("heatmap.jun"),
+    t("heatmap.jul"),
+    t("heatmap.aug"),
+    t("heatmap.sep"),
+    t("heatmap.oct"),
+    t("heatmap.nov"),
+    t("heatmap.dec")
+  ];
 
-  let html = "<table class='heatmap-table'><thead><tr><th>Year</th>";
+  let html = `<table class='heatmap-table'><thead><tr><th>${t("common.year")}</th>`;
   months.forEach((m) => {
     html += `<th>${m}</th>`;
   });
-  html += "<th>Annual</th></tr></thead><tbody>";
+  html += `<th>${t("common.annual")}</th></tr></thead><tbody>`;
 
   monthlyData.years.forEach((year) => {
     html += `<tr><td class="year-cell">${year}</td>`;
@@ -3336,7 +3390,7 @@ function renderParamSensitivity(strategyId, instrument) {
   const sensitivity =
     store.performance.strategies?.[strategyId]?.sensitivity?.[instrument];
   if (!sensitivity || !sensitivity.scores) {
-    container.innerHTML = "<div class='muted'>No sensitivity grid available.</div>";
+    container.innerHTML = `<div class='muted'>${t("strategy.no_sensitivity")}</div>`;
     return;
   }
 
@@ -3381,7 +3435,7 @@ function drawAttribution(series) {
   if (!attribution) {
     if (attributionSummary) {
       attributionSummary.innerHTML =
-        "<div class=\"muted\">Not enough data to calculate attribution.</div>";
+        `<div class="muted">${t("strategy.not_enough_attribution")}</div>`;
     }
     return;
   }
@@ -3389,19 +3443,19 @@ function drawAttribution(series) {
   if (attributionSummary) {
     attributionSummary.innerHTML = `
       <div class="metric-tile">
-        <span>Beta</span>
+        <span>${t("metric.beta")}</span>
         <strong>${attribution.beta.toFixed(2)}</strong>
       </div>
       <div class="metric-tile">
-        <span>Alpha (ann.)</span>
+        <span>${t("metric.alpha_ann")}</span>
         <strong>${formatPercent(attribution.alphaAnnual, 2)}</strong>
       </div>
       <div class="metric-tile">
-        <span>Beta contrib (ann.)</span>
+        <span>${t("metric.beta_contrib_ann")}</span>
         <strong>${formatPercent(attribution.betaContribution, 2)}</strong>
       </div>
       <div class="metric-tile">
-        <span>R²</span>
+        <span>${t("metric.r_squared")}</span>
         <strong>${attribution.rSquared.toFixed(2)}</strong>
       </div>
     `;
@@ -3415,7 +3469,7 @@ function drawAttribution(series) {
           labels: attribution.labels,
           datasets: [
             {
-              label: "Strategy",
+              label: t("common.strategy"),
               data: attribution.strategyCurve,
               borderColor: "#1f6f78",
               borderWidth: 2,
@@ -3423,7 +3477,7 @@ function drawAttribution(series) {
               tension: 0.25
             },
             {
-              label: "Beta contribution",
+              label: t("strategy.beta_contribution_curve"),
               data: attribution.betaCurve,
               borderColor: "#e16b3a",
               borderWidth: 2,
@@ -3431,7 +3485,7 @@ function drawAttribution(series) {
               tension: 0.25
             },
             {
-              label: "Alpha contribution",
+              label: t("strategy.alpha_contribution_curve"),
               data: attribution.alphaCurve,
               borderColor: "#2f6fa5",
               borderWidth: 2,
@@ -3477,7 +3531,7 @@ function drawRollingMetrics(series) {
           labels,
           datasets: [
             {
-              label: "Rolling Sharpe",
+              label: t("strategy.rolling_sharpe"),
               data: rolling.sharpe,
               borderColor: palette(0),
               borderWidth: 2,
@@ -3500,7 +3554,7 @@ function drawRollingMetrics(series) {
           labels,
           datasets: [
             {
-              label: "Rolling Volatility",
+              label: t("strategy.rolling_volatility"),
               data: rolling.volatility,
               borderColor: palette(1),
               borderWidth: 2,
@@ -3533,7 +3587,7 @@ function drawRollingMetrics(series) {
           labels,
           datasets: [
             {
-              label: "Rolling Beta",
+              label: t("strategy.rolling_beta"),
               data: rolling.beta,
               borderColor: palette(2),
               borderWidth: 2,
@@ -3736,7 +3790,7 @@ function getSeries(strategyId, instrument) {
 
 function getBenchmarkLabel(value) {
   const option = BENCHMARK_OPTIONS.find((item) => item.value === value);
-  return option ? option.label : "Buy & Hold";
+  return option ? t(option.labelKey) : t("benchmark.buy_hold");
 }
 
 function getBenchmarkSeries(symbol) {
@@ -4271,7 +4325,7 @@ function copyToClipboard(text) {
 function buildStrategyCsv(strategyId, instrument, window) {
   const series = getSeries(strategyId, instrument);
   const windowed = sliceSeries(series, window);
-  const rows = [["Date", "Strategy", "Benchmark"]];
+  const rows = [[t("common.date"), t("common.strategy"), t("common.benchmark")]];
   for (let i = 0; i < windowed.dates.length; i += 1) {
     const strategyValue = Number.isFinite(windowed.strategy[i])
       ? windowed.strategy[i].toFixed(6)
@@ -4292,12 +4346,12 @@ function downloadStrategyCsv(strategyId, instrument, window) {
 
 function buildCompareMetricsCsv(strategies, instrument, window) {
   const metricsData = strategies.map((s) => getMetricsFor(s.id, instrument, window));
-  const rows = [["Metric", ...strategies.map((s) => s.id)]];
+  const rows = [[t("common.metric"), ...strategies.map((s) => s.id)]];
   COMPARE_METRICS.forEach((config) => {
     const values = metricsData.map((metrics) =>
       formatCompareValue(metrics[config.key], config.format)
     );
-    rows.push([config.label, ...values]);
+    rows.push([t(config.labelKey), ...values]);
   });
   return buildCsv(rows);
 }
@@ -4319,7 +4373,7 @@ function buildCompareReportHtml(strategies, instrument, window) {
       .map((metrics) => formatCompareValue(metrics[config.key], config.format))
       .map((value) => `<td>${escapeHtml(value)}</td>`)
       .join("");
-    return `<tr><th>${escapeHtml(config.label)}</th>${values}</tr>`;
+    return `<tr><th>${escapeHtml(t(config.labelKey))}</th>${values}</tr>`;
   }).join("");
   const strategyList = strategies
     .map((strategy) => `${strategy.id} - ${strategy.name}`)
@@ -4329,7 +4383,7 @@ function buildCompareReportHtml(strategies, instrument, window) {
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Strategy Comparison Report</title>
+    <title>${t("compare.report_title")}</title>
     <style>
       body {
         font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
@@ -4364,14 +4418,14 @@ function buildCompareReportHtml(strategies, instrument, window) {
     </style>
   </head>
   <body>
-    <h1>Strategy Comparison Report</h1>
-    <p class="meta">Instrument: ${escapeHtml(instrument)} | Window: ${escapeHtml(window)}</p>
-    <p class="meta">Strategies: ${escapeHtml(strategyList)}</p>
-    <p class="meta">Generated: ${escapeHtml(generated)}</p>
+    <h1>${t("compare.report_title")}</h1>
+    <p class="meta">${t("common.instrument")}: ${escapeHtml(instrument)} | ${t("common.window")}: ${escapeHtml(window)}</p>
+    <p class="meta">${t("compare.report_strategies")}: ${escapeHtml(strategyList)}</p>
+    <p class="meta">${t("common.generated")}: ${escapeHtml(generated)}</p>
     <table>
       <thead>
         <tr>
-          <th>Metric</th>
+          <th>${t("common.metric")}</th>
           ${headerCells}
         </tr>
       </thead>
