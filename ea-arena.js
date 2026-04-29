@@ -302,6 +302,7 @@ function renderEADetail(route) {
   }
 
   const analysis = store.eaAnalysis[id];
+  const isEn = getLang() === "en";
   const mql5Url = `https://www.mql5.com/en/code/${id.replace(/^EA-/, "")}`;
 
   function scoreBar(label, value, max) {
@@ -324,10 +325,10 @@ function renderEADetail(route) {
     .join("");
 
   let paramsHtml = "";
-  if (analysis && analysis.parameters && analysis.parameters.length) {
-    const rows = analysis.parameters
+if (analysis && analysis.parameters && analysis.parameters.length) {
+  const rows = analysis.parameters
       .map(
-        (p) => `<tr><td>${p.name || "—"}</td><td>${p.default_value || "—"}</td><td>${p.description || "—"}</td></tr>`
+        (p) => `<tr><td>${p.name || "—"}</td><td>${p.default_value || "—"}</td><td>${isEn ? (p.description_en || p.description || "—") : (p.description || "—")}</td></tr>`
       )
       .join("");
     paramsHtml = `
@@ -342,14 +343,14 @@ function renderEADetail(route) {
 
   let analysisHtml = "";
   if (analysis) {
-    const prosHtml = (analysis.pros || []).map((p) => `<li>${p}</li>`).join("");
-    const consHtml = (analysis.cons || []).map((c) => `<li>${c}</li>`).join("");
-    const impsHtml = (analysis.improvements || []).map((i) => `<li>${i}</li>`).join("");
+    const prosHtml = (isEn ? (analysis.pros_en && analysis.pros_en.length ? analysis.pros_en : analysis.pros) : analysis.pros || []).map((p) => `<li>${p}</li>`).join("");
+    const consHtml = (isEn ? (analysis.cons_en && analysis.cons_en.length ? analysis.cons_en : analysis.cons) : analysis.cons || []).map((c) => `<li>${c}</li>`).join("");
+    const impsHtml = (isEn ? (analysis.improvements_en && analysis.improvements_en.length ? analysis.improvements_en : analysis.improvements) : analysis.improvements || []).map((i) => `<li>${i}</li>`).join("");
 
     let riskHtml = "";
     if (analysis.risk_assessment) {
       const ra = analysis.risk_assessment;
-      const riskPoints = (ra.risk_points || []).map((rp) => `<li>${rp}</li>`).join("");
+      const riskPoints = (isEn ? (ra.risk_points_en && ra.risk_points_en.length ? ra.risk_points_en : ra.risk_points) : ra.risk_points || []).map((rp) => `<li>${rp}</li>`).join("");
       riskHtml = `
       <div class="ea-section">
         <h2>${getLang() === "zh" ? "风险评估" : "Risk Assessment"}</h2>
@@ -379,7 +380,7 @@ function renderEADetail(route) {
     }
 
     analysisHtml = `
-    <div class="ea-section"><h2>${getLang() === "zh" ? "策略分析" : "Strategy Analysis"}</h2><div class="ea-analysis-text">${analysis.strategy_analysis || analysis.summary || ""}</div></div>
+<div class="ea-section"><h2>${getLang() === "zh" ? "策略分析" : "Strategy Analysis"}</h2><div class="ea-analysis-text">${isEn ? (analysis.strategy_analysis_en || analysis.strategy_analysis || analysis.summary_en || analysis.summary || "") : (analysis.strategy_analysis || analysis.summary_zh || analysis.summary || "")}</div></div>
     ${paramsHtml}
     <div class="ea-section ea-pros-cons">
       <div class="ea-pros"><h3>${getLang() === "zh" ? "优势" : "Strengths"}</h3><ul>${prosHtml || `<li>${getLang() === "zh" ? "未评估" : "Not evaluated"}</li>`}</ul></div>
@@ -413,7 +414,7 @@ function renderEADetail(route) {
 
     <div class="ea-info-grid">${infoItems}</div>
 
-    ${analysis && analysis.summary ? `<div class="ea-section"><h2>${getLang() === "zh" ? "摘要" : "Summary"}</h2><p>${analysis.summary}</p></div>` : ""}
+    ${analysis && (analysis.summary || analysis.summary_zh || analysis.summary_en) ? `<div class="ea-section"><h2>${getLang() === "zh" ? "摘要" : "Summary"}</h2><p>${isEn ? (analysis.summary_en || analysis.summary || "") : (analysis.summary_zh || analysis.summary || "")}</p></div>` : ""}
 
     ${analysisHtml}
   </section>`;
