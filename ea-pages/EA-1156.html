@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TwoDirectionMartin - EA Analysis | QuantArena</title>
-<meta name="description" content="This EA implements a dual-direction martingale strategy that places both BUY and SELL limit orders simultaneously around the current price. When price moves aga">
+<meta name="description" content="A bi-directional martingale EA that simultaneously places BUY_LIMIT and SELL_LIMIT pending orders at a fixed TP distance from the current price. When one side i">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6;min-height:100vh}
@@ -86,13 +86,13 @@ code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#
   </div>
   <div lang="zh" class="visible">
     <h2>摘要</h2>
-    <p>该EA实现了双向马丁格尔策略，同时在当前价格上下方放置买入限价和卖出限价订单。当价格对一侧不利时，它通过马丁格尔式的加仓来恢复亏损，并将挂单重新定位到更接近当前价格的位置（收缩范围）。</p>
-    <h2>策略分析</h2><p>策略概念是双向挂单马丁格尔：同时在价格上方放置卖出限价单、下方放置买入限价单，形成对称布局。入场条件为：初始时直接市价买入和卖出各一手，同时在上下方各挂一个限价单；当一侧挂单被取消或不存在时，通过ShrinkRange()重新计算仓位并重建挂单。出场条件隐含在挂单的止盈价格中——当挂单成交时即获利出场，因为挂单价格设在TP距离处。仓位管理采用马丁格尔递增方式：当浮亏增加时，NewTotalVol按(OldLOSS+WinPerTrade)/TP公式计算，确保新仓位能覆盖旧亏损并盈利。资金管理通过PercentSame参数控制多空方向的仓位比例分配，VolumeLimitOrder限制单笔订单最大手数以规避经纪商限制。该策略没有止损机制，完全依赖马丁格尔加仓来回本，存在爆仓风险。</p>
+    <p>一个双向马丁格尔EA，同时在当前价格上下方放置BUY_LIMIT和SELL_LIMIT挂单。当一侧被触发且价格逆向运动时，EA通过马丁格尔逻辑重新计算总仓位以回收亏损并获利，然后将两侧重单移近当前价格并加大手数。它持续缩小挂单范围以迫使价格回到盈利区间。</p>
+    <h2>策略分析</h2><p>策略概念：这是一个双向马丁格尔策略，核心思想是同时在不同方向下限价单，利用价格回归获利。入场条件：初始时在当前买价上方放置SELL_LIMIT单，在当前卖价下方放置BUY_LIMIT单，距离由KTP参数计算的TP值决定。出场条件：没有显式止损，仅依赖反向挂单被触发后的整体获利出场，通过TP距离确保每笔交易盈利点差以上。仓位管理：当一侧订单被触发后价格继续远离，ShrinkRange函数根据当前浮亏重新计算总仓位量，公式为NewTotalVol=(OldLOSS+WinPerTrade)/TP，其中OldLOSS是两侧未实现亏损之和。资金管理：使用PercentSame参数控制主方向占总仓位的比例，剩余部分分配给反向对冲单，VolumeLimitOrder限制单笔订单最大手数。该策略没有止损保护，完全依赖价格回归来平仓，在单边行情中浮亏将无限扩大，属于极高风险的马丁格尔策略。</p>
   </div>
   <div lang="en">
     <h2>Summary</h2>
-    <p>This EA implements a dual-direction martingale strategy that places both BUY and SELL limit orders simultaneously around the current price. When price moves against one side, it recalculates position sizes using a martingale-like volume increase to recover losses, and repositions pending orders closer to the current price (shrinking the range).</p>
-    <h2>Strategy Analysis</h2><p>The strategy concept is a dual-direction pending order martingale: it places SELL limit orders above and BUY limit orders below the current price simultaneously, creating a symmetrical layout. Entry conditions: on initialization, it opens market BUY and SELL orders plus pending limit orders at TP distance from price; when one side&#x27;s pending order is missing, ShrinkRange() recalculates positions and rebuilds orders. Exit conditions are implicit in the pending order take-profit prices—when a limit order fills, profit is realized since the order price is set at TP distance from entry. Position sizing uses martingale escalation: as unrealized losses increase, NewTotalVol is calculated via (OldLOSS+WinPerTrade)/TP formula, ensuring new positions can cover old losses and still profit. Money management uses the PercentSame parameter to control volume allocation ratio between long and short sides, while VolumeLimitOrder caps individual order size to comply with broker limits. The strategy has no stop-loss mechanism and relies entirely on martingale position increases to recover losses, creating significant account blow-up risk.</p>
+    <p>A bi-directional martingale EA that simultaneously places BUY_LIMIT and SELL_LIMIT pending orders at a fixed TP distance from the current price. When one side is triggered and price moves against it, the EA recalculates total volume using martingale logic to recover losses plus profit, then repositions both orders closer to the current price with increased lot sizes. It continuously shrinks the order range to force price back into the profitable zone.</p>
+    <h2>Strategy Analysis</h2><p>Strategy concept: This is a bi-directional martingale system that places pending limit orders on both sides of the current price, aiming to profit from price reversion. Entry conditions: On initialization, the EA places a BUY_LIMIT below the bid price and a SELL_LIMIT above the ask price, with distance determined by the TP value calculated from the KTP parameter percentage of price. Exit conditions: There is no explicit stop-loss; the strategy relies on overall profit when price reverts to the opposite pending order&#x27;s take-profit level, with each cycle targeting at least the spread as profit. Position sizing: When one side is triggered and price moves away, the ShrinkRange function recalculates total volume using the formula NewTotalVol=(OldLOSS+WinPerTrade)/TP, where OldLOSS is the sum of unrealized losses from both sides. Money management: The PercentSame parameter controls what percentage of total volume goes to the dominant direction, while the remainder is allocated to the hedging opposite side; VolumeLimitOrder caps individual order size to avoid broker rejection. The strategy has no stop-loss protection and depends entirely on price mean reversion, meaning floating losses will grow indefinitely in trending markets, making this an extremely high-risk martingale approach.</p>
   </div>
 </div>
 
@@ -102,34 +102,24 @@ code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#
     <button class="lang-btn" onclick="switchLang2(this,'en')">English</button>
   </div>
   <div lang2="zh" class="visible pros-cons">
-    <div class="pros"><h3>优势</h3><ul><li>双向同时布局，在震荡行情中可以双向获利</li>
-<li>通过VolumeLimitOrder拆分大单，避免经纪商拒绝</li>
-<li>包含重试机制处理REQUOTE，提高订单成交率</li>
-<li>ShrinkRange机制能在亏损后自动调整挂单距离，加速回本</li></ul></div>
-    <div class="cons"><h3>劣势</h3><ul><li>无止损机制，单边趋势行情中亏损会无限放大</li>
-<li>马丁格尔加仓在极端行情下可能导致账户爆仓</li>
-<li>使用全局变量而非局部变量存储状态，代码可读性和安全性差</li>
-<li>Sleep(12345)在OnTick中阻塞线程，可能导致错过行情</li>
-<li>MqlTradeRequest结构体R被多个函数共享使用，存在字段残留风险</li></ul></div>
-    <div class="improvements"><h3>改进建议</h3><ul><li>添加止损机制和最大亏损限制，防止账户爆仓</li>
-<li>将MqlTradeRequest在每次使用前完整初始化，避免字段残留导致错误</li>
-<li>用定时器或非阻塞方式替代Sleep重试机制</li>
-<li>添加持仓检查和最大持仓量限制</li></ul></div>
+    <div class="pros"><h3>优势</h3><ul><li>双向挂单设计能在震荡行情中持续获利，利用价格来回波动的特性</li>
+<li>有单笔手数上限VolumeLimitOrder控制，避免单次下单量过大被经纪商拒绝</li>
+<li>自动缩小挂单范围的ShrinkRange机制能加速亏损回本，在价格回归时更快实现盈利</li></ul></div>
+    <div class="cons"><h3>劣势</h3><ul><li>无止损保护，在单边行情中浮亏将无限放大，可能导致账户爆仓</li>
+<li>马丁格尔加仓逻辑在极端行情下手数增长极快，资金消耗速度呈指数级</li>
+<li>没有新K线检查也没有持仓检查，在快速行情中可能重复下单导致仓位失控</li></ul></div>
+    <div class="improvements"><h3>改进建议</h3><ul><li>添加最大浮亏止损线，当亏损超过账户余额一定比例时强制全部平仓</li>
+<li>加入新K线检查机制，避免同一根K线内重复触发交易逻辑</li></ul></div>
   </div>
   <div lang2="en" class="pros-cons">
-    <div class="pros"><h3>Strengths</h3><ul><li>Dual-direction layout allows profiting from both sides in ranging markets</li>
-<li>VolumeLimitOrder splits large orders to avoid broker rejection</li>
-<li>Retry mechanism handles REQUOTE scenarios, improving order fill rate</li>
-<li>ShrinkRange mechanism automatically adjusts pending order distance after losses, accelerating recovery</li></ul></div>
-    <div class="cons"><h3>Weaknesses</h3><ul><li>No stop-loss mechanism; losses amplify infinitely in trending markets</li>
-<li>Martingale position sizing can lead to account blow-up in extreme markets</li>
-<li>Uses global variables instead of local variables for state, harming readability and safety</li>
-<li>Sleep(12345) blocks the OnTick thread, potentially missing market events</li>
-<li>Shared MqlTradeRequest struct R across functions risks residual field contamination</li></ul></div>
-    <div class="improvements"><h3>Improvements</h3><ul><li>Add stop-loss mechanism and maximum drawdown limit to prevent account blow-up</li>
-<li>Fully initialize MqlTradeRequest before each use to avoid residual field errors</li>
-<li>Replace Sleep retry mechanism with timer-based or non-blocking approach</li>
-<li>Add position checking and maximum position limits</li></ul></div>
+    <div class="pros"><h3>Strengths</h3><ul><li>Bi-directional pending order design can continuously profit in ranging markets by exploiting price oscillation</li>
+<li>VolumeLimitOrder cap prevents individual orders from being too large and rejected by the broker</li>
+<li>The ShrinkRange mechanism accelerates loss recovery by repositioning orders closer to current price for faster breakeven</li></ul></div>
+    <div class="cons"><h3>Weaknesses</h3><ul><li>No stop-loss protection means floating losses grow indefinitely in trending markets, potentially blowing the account</li>
+<li>Martingale lot escalation is extremely rapid in extreme moves, draining capital at an exponential rate</li>
+<li>No new bar check and insufficient position verification may cause duplicate orders in fast markets leading to uncontrolled exposure</li></ul></div>
+    <div class="improvements"><h3>Improvements</h3><ul><li>Add a maximum drawdown stop-loss that force-closes all positions when losses exceed a percentage of account equity</li>
+<li>Implement a new bar check mechanism to prevent redundant trade triggers within the same candle</li></ul></div>
   </div>
 </div>
 
@@ -144,10 +134,9 @@ code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#
       <div class="risk-item"><span class="risk-key">总体 / Overall:</span><span class="badge badge-risk">DANGEROUS</span></div>
     </div>
     <h3>风险点</h3>
-    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>马丁格尔无止损加仓，极端单边行情会爆仓</li>
-<li>双向同时市价开仓，初始即暴露双向风险</li>
-<li>ShrinkRange将挂单移近当前价格，增加了被触发后再次亏损的概率</li>
-<li>没有最大回撤或最大手数保护机制</li></ul>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>无止损的马丁格尔策略，单边行情下浮亏无限扩大可能导致爆仓</li>
+<li>加仓手数按亏损比例计算，极端行情下手数增长极快</li>
+<li>没有最大持仓或最大亏损限制，资金管理完全依赖价格回归假设</li></ul>
   </div>
   <div lang3="en">
     <h2>Risk Assessment</h2>
@@ -155,10 +144,9 @@ code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#
       <div class="risk-item"><span class="risk-key">Overall:</span><span class="badge badge-risk">DANGEROUS</span></div>
     </div>
     <h3>Risk Points</h3>
-    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>Martingale position increase without stop-loss; extreme one-way trends cause account blow-up</li>
-<li>Simultaneous dual-direction market orders expose risk on both sides from the start</li>
-<li>ShrinkRange moves pending orders closer to price, increasing probability of triggering and re-loss</li>
-<li>No maximum drawdown or maximum lot size protection mechanism</li></ul>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>Martingale strategy without stop-loss; floating losses grow without bound in trending markets, risking account blowup</li>
+<li>Position sizing scales with losses, causing extremely rapid lot escalation during extreme moves</li>
+<li>No maximum position or maximum loss limit; money management relies entirely on the assumption of price mean reversion</li></ul>
   </div>
 </div>
 
@@ -168,19 +156,19 @@ code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#
   <div class="score-row"><span class="score-label">策略逻辑 Strategy Logic</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
   <div class="score-row"><span class="score-label">风险管理 Risk Management</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
   <div class="score-row"><span class="score-label">稳健性 Robustness</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
-  <div class="score-row"><span class="score-label">创新性 Innovation</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">创新性 Innovation</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
   <div class="score-row"><span class="score-label">文档 Documentation</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
-  <div class="score-row"><span class="score-label">总体 Overall</span><div class="score-bar"><div class="score-fill" style="width:33.4%"></div></div><span class="score-value">1.7/5</span></div>
+  <div class="score-row"><span class="score-label">总体 Overall</span><div class="score-bar"><div class="score-fill" style="width:36.6%"></div></div><span class="score-value">1.8/5</span></div>
 </div>
 
 <div class="section">
   <h2>参数 / Parameters</h2>
   <table>
     <thead><tr><th>参数 / Parameter</th><th>默认值 / Default</th><th>说明 / Description</th></tr></thead>
-    <tbody><tr><td>KTP</td><td><code>0.35</code></td><td>止盈系数，以价格的百分比计算止盈距离</td></tr>
-<tr><td>VolumeToOrder</td><td><code>0.10</code></td><td>最小下单手数，也是初始建仓量</td></tr>
-<tr><td>VolumeLimitOrder</td><td><code>0.75</code></td><td>单笔订单最大手数限制，超过此值会拆分为多笔订单</td></tr>
-<tr><td>PercentSame</td><td><code>75.0</code></td><td>同向仓位百分比，控制马丁格尔加仓时主导方向的仓位占比</td></tr></tbody>
+    <tbody><tr><td>KTP</td><td><code>0.35</code></td><td>止盈系数，以价格的百分比计算TP距离</td></tr>
+<tr><td>VolumeToOrder</td><td><code>0.10</code></td><td>最小下单手数，也是初始开仓量</td></tr>
+<tr><td>VolumeLimitOrder</td><td><code>0.75</code></td><td>单笔订单最大手数限制，防止单笔过大被拒单</td></tr>
+<tr><td>PercentSame</td><td><code>75.0</code></td><td>主方向占总仓位的百分比，用于控制马丁加仓方向的手数分配</td></tr></tbody>
   </table>
 </div>
 
