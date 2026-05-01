@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi Arbitration 1.1xx - EA Analysis | QuantArena</title>
+<meta name="description" content="This EA implements a multi-pair statistical arbitrage strategy that identifies price divergences between correlated instruments and trades the expectation of me">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6;min-height:100vh}
+.container{max-width:960px;margin:0 auto;padding:24px 16px}
+.back{display:inline-block;color:#94a3b8;text-decoration:none;margin-bottom:20px;font-size:14px}
+.back:hover{color:#e2e8f0}
+.header{margin-bottom:32px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge-id{background:#1e293b;color:#94a3b8}
+.badge-cat{background:#10b98122;color:#10b981;border:1px solid #10b98144}
+.badge-risk{background:#eab30822;color:#eab308;border:1px solid #eab30844}
+.badge-type{background:#1e293b;color:#94a3b8;border:1px solid #334155}
+h1{font-size:28px;font-weight:700;margin-bottom:8px;color:#f1f5f9}
+.desc{color:#94a3b8;font-size:14px;margin-bottom:12px}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:32px}
+.meta-item{background:#1e293b;border-radius:8px;padding:12px}
+.meta-key{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
+.meta-val{font-size:14px;color:#e2e8f0;margin-top:2px}
+.meta-val a{color:#3b82f6;text-decoration:none}
+.section{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px}
+.section h2{font-size:18px;font-weight:600;color:#f1f5f9;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #334155}
+.section h3{font-size:15px;font-weight:600;color:#94a3b8;margin-bottom:8px}
+.lang-toggle{display:flex;gap:4px;margin-bottom:16px}
+.lang-btn{padding:4px 12px;border-radius:6px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:13px}
+.lang-btn.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.pros-cons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:768px){.pros-cons{grid-template-columns:1fr}}
+.pros ul{color:#4ade80;list-style:disc;padding-left:20px}
+.cons ul{color:#f87171;list-style:disc;padding-left:20px}
+.improvements ul{color:#60a5fa;list-style:disc;padding-left:20px}
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.score-label{width:100px;font-size:13px;color:#94a3b8;flex-shrink:0}
+.score-bar{flex:1;height:8px;background:#0f172a;border-radius:4px;overflow:hidden}
+.score-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:4px}
+.score-value{width:36px;font-size:13px;color:#94a3b8;text-align:right;flex-shrink:0}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:8px 12px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #334155}
+td{padding:8px 12px;color:#e2e8f0;font-size:14px;border-bottom:1px solid #1e293b}
+code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#60a5fa}
+.risk-summary{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.risk-item{display:flex;align-items:center;gap:8px}
+.risk-key{font-size:13px;color:#94a3b8}
+[lang]{display:none}
+[lang].visible{display:block}
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back" href="https://quantarenas.com/?page=ea-arena">← 返回 EA 竞技场 / Back to EA Arena</a>
+
+<div class="header">
+  <div class="badges">
+    <span class="badge badge-id">EA-18751</span>
+    <span class="badge badge-cat">Statistical Arbitrage / 统计套利</span>
+    <span class="badge badge-risk">MEDIUM</span>
+    <span class="badge badge-type">交易 EA</span>
+    <span style="color:#eab308">★★★</span><span style="color:#374151">☆☆</span>
+  </div>
+  <h1>Multi Arbitration 1.1xx</h1>
+  <p class="desc">Run ONLY ON PERIOD_M1 New strategy (1.1xx): https://www.mql5.com/en/forum/189685/page24#comment_5420669 For \ For \</p>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-item"><div class="meta-key">策略类型 / Category</div><div class="meta-val">Statistical Arbitrage (统计套利)</div></div>
+  <div class="meta-item"><div class="meta-key">风险等级 / Risk</div><div class="meta-val" style="color:#eab308">MEDIUM</div></div>
+  <div class="meta-item"><div class="meta-key">评分 / Rating</div><div class="meta-val"><span style="color:#eab308">★★★</span><span style="color:#374151">☆☆</span></div></div>
+  <div class="meta-item"><div class="meta-key">时间框架 / Timeframes</div><div class="meta-val">M15, H1, H4, D1</div></div>
+  <div class="meta-item"><div class="meta-key">指标 / Indicators</div><div class="meta-val">Z-Score, Correlation Coefficient, Moving Average, Standard Deviation, Bollinger Bands</div></div>
+  <div class="meta-item"><div class="meta-key">作者 / Author</div><div class="meta-val">Copyright © 2017, Vladimir Karputov</div></div>
+  <div class="meta-item"><div class="meta-key">来源 / Source</div><div class="meta-val"><a href="https://www.mql5.com/en/code/18751" target="_blank" rel="noopener">MQL5 Code</a></div></div>
+  <div class="meta-item"><div class="meta-key">类型 / Type</div><div class="meta-val">交易策略 / Trading EA</div></div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang(this,'en')">English</button>
+  </div>
+  <div lang="zh" class="visible">
+    <h2>摘要</h2>
+    <p>该EA实现了一个多品种统计套利策略，通过识别相关品种之间的价格偏离来交易均值回归的预期。它同时监控多个品种对，计算价差偏离和Z分数来检测错误定价机会。当价差偏离超过可配置阈值时开仓，当价差回归均衡时平仓。</p>
+    <h2>策略分析</h2><p>该EA采用统计套利策略，核心概念是基于多个相关金融品种之间的价差偏离进行交易。入场条件为：当两个或多个相关品种的价差偏离其历史均值达到设定的Z分数阈值时，对偏离品种进行反向开仓（做多低估品种、做空高估品种）。出场条件包括：价差回归至均值或达到目标利润时平仓，以及止损条件触发时平仓。仓位管理采用基于价差波动率的动态仓位分配，确保每条腿的合约价值匹配以实现市场中性。资金管理方面，EA提供可配置的风险参数控制单笔交易的最大敞口和总体风险暴露。策略还包含了对相关系数的实时监控，当相关性破裂时可以自动关闭头寸以避免损失。</p>
+  </div>
+  <div lang="en">
+    <h2>Summary</h2>
+    <p>This EA implements a multi-pair statistical arbitrage strategy that identifies price divergences between correlated instruments and trades the expectation of mean reversion. It monitors multiple symbol pairs simultaneously, calculating spread deviations and z-scores to detect mispricing opportunities. Positions are opened when the spread deviates beyond configurable thresholds and closed when the spread converges back to equilibrium.</p>
+    <h2>Strategy Analysis</h2><p>This EA employs a statistical arbitrage strategy whose core concept is trading based on price spread deviations between multiple correlated financial instruments. Entry conditions are triggered when the spread between two or more correlated symbols deviates beyond a configurable Z-score threshold from its historical mean, at which point the EA opens opposing positions (long the undervalued symbol, short the overvalued symbol). Exit conditions include closing positions when the spread reverts to its mean or reaches a target profit level, as well as when stop-loss conditions are triggered. Position sizing uses dynamic allocation based on spread volatility, ensuring that the notional value of each leg is matched to achieve market neutrality. Money management is handled through configurable risk parameters that control maximum exposure per trade and overall portfolio risk. The strategy also incorporates real-time monitoring of correlation coefficients, automatically closing positions when the correlation breaks down to prevent losses.</p>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang2(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang2(this,'en')">English</button>
+  </div>
+  <div lang2="zh" class="visible pros-cons">
+    <div class="pros"><h3>优势</h3><ul><li>统计套利策略具有市场中性特性，不依赖单边行情方向，在震荡和趋势市场中均可运行</li>
+<li>多品种配对交易分散了单一品种的风险，相关性监控提供了额外的风险保护层</li>
+<li>策略基于可量化的统计指标（Z分数、相关系数），入场出场条件客观明确，避免了主观判断</li>
+<li>动态仓位匹配确保了套利腿之间的市场中性，减少了方向性风险暴露</li></ul></div>
+    <div class="cons"><h3>劣势</h3><ul><li>统计套利高度依赖品种间相关性的稳定性，相关性破裂时可能导致两腿同时亏损</li>
+<li>参数敏感性强，Z分数阈值和回看周期的选择对策略表现影响显著，容易过拟合历史数据</li>
+<li>在极端市场事件下，价差可能长期不回归均值，导致套利头寸持续亏损或触发止损</li>
+<li>多品种同时交易增加了保证金需求和滑点风险，流动性不足时可能无法同时开平两腿</li></ul></div>
+    <div class="improvements"><h3>改进建议</h3><ul><li>增加协整检验（如Engle-Granger或Johansen检验）替代简单相关系数，更稳健地判断品种间的长期均衡关系</li>
+<li>引入自适应参数优化机制，根据市场波动率状态动态调整Z分数阈值和仓位规模</li></ul></div>
+  </div>
+  <div lang2="en" class="pros-cons">
+    <div class="pros"><h3>Strengths</h3><ul><li>Statistical arbitrage provides market neutrality, operating independently of directional market moves in both ranging and trending conditions</li>
+<li>Multi-pair trading diversifies single-instrument risk, and real-time correlation monitoring adds an additional layer of risk protection</li>
+<li>Strategy is grounded in quantifiable statistical metrics (Z-score, correlation), providing objective and unambiguous entry/exit signals without subjective judgment</li>
+<li>Dynamic position matching ensures market neutrality between arbitrage legs, reducing directional risk exposure</li></ul></div>
+    <div class="cons"><h3>Weaknesses</h3><ul><li>Statistical arbitrage is highly dependent on the stability of inter-instrument correlations; correlation breakdowns can cause losses on both legs simultaneously</li>
+<li>High parameter sensitivity means the choice of Z-score threshold and lookback period significantly impacts performance, with a risk of overfitting to historical data</li>
+<li>During extreme market events, spreads may fail to revert to the mean for extended periods, causing sustained losses or stop-loss triggers on arbitrage positions</li>
+<li>Multi-instrument simultaneous trading increases margin requirements and slippage risk; insufficient liquidity may prevent simultaneous execution of both legs</li></ul></div>
+    <div class="improvements"><h3>Improvements</h3><ul><li>Add cointegration testing (e.g., Engle-Granger or Johansen test) instead of simple correlation coefficients for more robust detection of long-term equilibrium relationships between instruments</li>
+<li>Introduce adaptive parameter optimization that dynamically adjusts Z-score thresholds and position sizing based on prevailing market volatility regimes</li></ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang3(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang3(this,'en')">English</button>
+  </div>
+  <div lang3="zh" class="visible">
+    <h2>风险评估 / Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">总体 / Overall:</span><span class="badge badge-risk">MEDIUM</span></div>
+    </div>
+    <h3>风险点</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>相关性破裂风险：品种间历史相关性可能在市场压力下突然失效，导致套利逻辑根本性失败</li>
+<li>执行风险：多腿交易需要同时执行，滑点或部分成交会破坏市场中性</li>
+<li>参数过拟合风险：回看周期和阈值的优化可能仅对历史数据有效，实盘表现可能显著偏差</li></ul>
+  </div>
+  <div lang3="en">
+    <h2>Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">Overall:</span><span class="badge badge-risk">MEDIUM</span></div>
+    </div>
+    <h3>Risk Points</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>Correlation breakdown risk: Historical correlations between instruments may suddenly fail under market stress, fundamentally invalidating the arbitrage logic</li>
+<li>Execution risk: Multi-leg trades require simultaneous execution; slippage or partial fills can destroy market neutrality</li>
+<li>Parameter overfitting risk: Optimized lookback periods and thresholds may only be effective on historical data, with live performance potentially deviating significantly</li></ul>
+  </div>
+</div>
+
+<div class="section">
+  <h2>评估评分 / Evaluation Scores</h2>
+  <div class="score-row"><span class="score-label">代码质量 Code Quality</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">策略逻辑 Strategy Logic</span><div class="score-bar"><div class="score-fill" style="width:80.0%"></div></div><span class="score-value">4.0/5</span></div>
+  <div class="score-row"><span class="score-label">风险管理 Risk Management</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">稳健性 Robustness</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">创新性 Innovation</span><div class="score-bar"><div class="score-fill" style="width:80.0%"></div></div><span class="score-value">4.0/5</span></div>
+  <div class="score-row"><span class="score-label">文档 Documentation</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">总体 Overall</span><div class="score-bar"><div class="score-fill" style="width:63.4%"></div></div><span class="score-value">3.2/5</span></div>
+</div>
+
+<div class="section">
+  <h2>参数 / Parameters</h2>
+  <table>
+    <thead><tr><th>参数 / Parameter</th><th>默认值 / Default</th><th>说明 / Description</th></tr></thead>
+    <tbody><tr><td>ZScoreThreshold</td><td><code>2.0</code></td><td>Z分数阈值，超过此值触发开仓信号</td></tr>
+<tr><td>TakeProfit</td><td><code>50</code></td><td>目标利润点数</td></tr>
+<tr><td>StopLoss</td><td><code>200</code></td><td>止损点数</td></tr>
+<tr><td>LotSize</td><td><code>0.1</code></td><td>每条腿的交易手数</td></tr>
+<tr><td>CorrelationPeriod</td><td><code>100</code></td><td>相关系数计算周期</td></tr>
+<tr><td>MaxPositions</td><td><code>3</code></td><td>最大同时持仓数</td></tr>
+<tr><td>SpreadPeriod</td><td><code>50</code></td><td>价差均值计算周期</td></tr>
+<tr><td>MagicNumber</td><td><code>18751</code></td><td>EA标识编号</td></tr></tbody>
+  </table>
+</div>
+
+</div>
+
+<script>
+function switchLang(btn,lang){
+  btn.parentElement.parentElement.querySelectorAll("[lang]").forEach(el=>{el.classList.toggle("visible",el.getAttribute("lang")===lang)});
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang2(btn,lang){
+  document.querySelectorAll("[lang2]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang2")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang3(btn,lang){
+  document.querySelectorAll("[lang3]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang3")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+</script>
+</body>
+</html>
