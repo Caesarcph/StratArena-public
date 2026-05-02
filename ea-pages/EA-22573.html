@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RNN - EA Analysis | QuantArena</title>
+<meta name="description" content="This EA uses an RSI indicator feeding into a small 3-input neural network to generate trading signals. It reads three RSI values at different lookback periods, ">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6;min-height:100vh}
+.container{max-width:960px;margin:0 auto;padding:24px 16px}
+.back{display:inline-block;color:#94a3b8;text-decoration:none;margin-bottom:20px;font-size:14px}
+.back:hover{color:#e2e8f0}
+.header{margin-bottom:32px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge-id{background:#1e293b;color:#94a3b8}
+.badge-cat{background:#06b6d422;color:#06b6d4;border:1px solid #06b6d444}
+.badge-risk{background:#eab30822;color:#eab308;border:1px solid #eab30844}
+.badge-type{background:#1e293b;color:#94a3b8;border:1px solid #334155}
+h1{font-size:28px;font-weight:700;margin-bottom:8px;color:#f1f5f9}
+.desc{color:#94a3b8;font-size:14px;margin-bottom:12px}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:32px}
+.meta-item{background:#1e293b;border-radius:8px;padding:12px}
+.meta-key{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
+.meta-val{font-size:14px;color:#e2e8f0;margin-top:2px}
+.meta-val a{color:#3b82f6;text-decoration:none}
+.section{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px}
+.section h2{font-size:18px;font-weight:600;color:#f1f5f9;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #334155}
+.section h3{font-size:15px;font-weight:600;color:#94a3b8;margin-bottom:8px}
+.lang-toggle{display:flex;gap:4px;margin-bottom:16px}
+.lang-btn{padding:4px 12px;border-radius:6px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:13px}
+.lang-btn.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.pros-cons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:768px){.pros-cons{grid-template-columns:1fr}}
+.pros ul{color:#4ade80;list-style:disc;padding-left:20px}
+.cons ul{color:#f87171;list-style:disc;padding-left:20px}
+.improvements ul{color:#60a5fa;list-style:disc;padding-left:20px}
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.score-label{width:100px;font-size:13px;color:#94a3b8;flex-shrink:0}
+.score-bar{flex:1;height:8px;background:#0f172a;border-radius:4px;overflow:hidden}
+.score-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:4px}
+.score-value{width:36px;font-size:13px;color:#94a3b8;text-align:right;flex-shrink:0}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:8px 12px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #334155}
+td{padding:8px 12px;color:#e2e8f0;font-size:14px;border-bottom:1px solid #1e293b}
+code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#60a5fa}
+.risk-summary{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.risk-item{display:flex;align-items:center;gap:8px}
+.risk-key{font-size:13px;color:#94a3b8}
+[lang]{display:none}
+[lang].visible{display:block}
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back" href="https://quantarenas.com/?page=ea-arena">← 返回 EA 竞技场 / Back to EA Arena</a>
+
+<div class="header">
+  <div class="badges">
+    <span class="badge badge-id">EA-22573</span>
+    <span class="badge badge-cat">Machine Learning / 机器学习</span>
+    <span class="badge badge-risk">MEDIUM</span>
+    <span class="badge badge-type">交易 EA</span>
+    <span style="color:#eab308">★★★</span><span style="color:#374151">☆☆</span>
+  </div>
+  <h1>RNN</h1>
+  <p class="desc">该EA使用RSI指标输入到一个3输入小型神经网络来生成交易信号。它读取三个不同回溯周期的RSI值，归一化到0-1范围，通过8个可调权重(x0-x7)的加权二叉树计算概率，再经线性Sigmoid变换产生买卖信号，每次只持有一个仓位，支持可配置的止损止盈。</p>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-item"><div class="meta-key">策略类型 / Category</div><div class="meta-val">Machine Learning (机器学习)</div></div>
+  <div class="meta-item"><div class="meta-key">风险等级 / Risk</div><div class="meta-val" style="color:#eab308">MEDIUM</div></div>
+  <div class="meta-item"><div class="meta-key">评分 / Rating</div><div class="meta-val"><span style="color:#eab308">★★★</span><span style="color:#374151">☆☆</span></div></div>
+  <div class="meta-item"><div class="meta-key">时间框架 / Timeframes</div><div class="meta-val">M5, M15, H1</div></div>
+  <div class="meta-item"><div class="meta-key">指标 / Indicators</div><div class="meta-val">RSI</div></div>
+  <div class="meta-item"><div class="meta-key">作者 / Author</div><div class="meta-val">Copyright © 2012, Yury V. Reshetov</div></div>
+  <div class="meta-item"><div class="meta-key">来源 / Source</div><div class="meta-val"><a href="https://www.mql5.com/en/code/22573" target="_blank" rel="noopener">MQL5 Code</a></div></div>
+  <div class="meta-item"><div class="meta-key">类型 / Type</div><div class="meta-val">交易策略 / Trading EA</div></div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang(this,'en')">English</button>
+  </div>
+  <div lang="zh" class="visible">
+    <h2>摘要</h2>
+    <p>该EA使用RSI指标输入到一个3输入小型神经网络来生成交易信号。它读取三个不同回溯周期的RSI值，归一化到0-1范围，通过8个可调权重(x0-x7)的加权二叉树计算概率，再经线性Sigmoid变换产生买卖信号，每次只持有一个仓位，支持可配置的止损止盈。</p>
+    <h2>策略分析</h2><p>策略概念：该EA基于Reshetov的RNN（随机神经网络）概念，使用RSI指标作为3个输入信号源，分别取当前RSI、RSI周期前和2倍RSI周期前的值，归一化到0-1范围。入场条件：当神经网络输出概率经过线性Sigmoid变换后(result=result*2.0-1.0)，如果结果小于0则开多单，如果结果大于等于0则开空单。出场条件：通过固定点数的止损和止盈来退出，止损和止盈距离相同（InpSLTP参数，默认100点），也支持设置为0取消止损止盈。仓位管理：固定手数交易(InpLots默认1.0手)，每次只允许持有一个仓位(IsPositionExists检查)，新K线触发机制避免重复开仓。资金管理：通过FreeMarginCheck检查可用保证金是否充足，但没有动态手数调整或风险百分比计算。神经网络核心是GetProbability函数，8个权重参数x0-x7通过优化获得，使用加权概率二叉树结构计算空头概率，多头概率为1减去空头概率。</p>
+  </div>
+  <div lang="en">
+    <h2>Summary</h2>
+    <p>This EA uses an RSI indicator feeding into a small 3-input neural network to generate trading signals. It reads three RSI values at different lookback periods, normalizes them to 0-1, and computes a probability via a weighted binary tree with 8 tunable weights (x0-x7). The probability is then transformed via linear sigmoid to produce a buy or sell signal, opening one position at a time with configurable SL/TP.</p>
+    <h2>Strategy Analysis</h2><p>The strategy concept is based on Reshetov&#x27;s RNN (Random Neural Network) approach, using three RSI values at different lookback periods as inputs, normalized to the 0-1 range. Entry conditions: after the neural network output probability is transformed via linear sigmoid (result=result*2.0-1.0), if the result is less than 0 a buy position is opened, and if the result is greater than or equal to 0 a sell position is opened. Exit conditions: positions are closed via fixed-pip stop loss and take profit (InpSLTP parameter, default 100 pips), with equal SL and TP distances; setting InpSLTP to 0 disables SL/TP. Position sizing: fixed lot size trading (InpLots default 1.0 lots), only one position allowed at a time via IsPositionExists check, with new-bar trigger mechanism to avoid duplicate entries. Money management: FreeMarginCheck verifies sufficient free margin before order placement, but there is no dynamic lot sizing or risk-percentage calculation. The neural network core is the GetProbability function with 8 weight parameters (x0-x7) obtained through optimization, using a weighted probability binary tree structure to compute the short position probability, with the long probability being 1 minus the short probability.</p>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang2(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang2(this,'en')">English</button>
+  </div>
+  <div lang2="zh" class="visible pros-cons">
+    <div class="pros"><h3>优势</h3><ul><li>使用神经网络概率模型进行交易决策，比简单阈值信号更具适应性</li>
+<li>每次只持有一个仓位并使用新K线触发，避免了过度交易和重复开仓</li>
+<li>包含完善的保证金检查和手数验证机制，防止资金不足时下单失败</li></ul></div>
+    <div class="cons"><h3>劣势</h3><ul><li>神经网络权重x0-x7含义不直观，需要大量优化且极易过拟合</li>
+<li>止损止盈距离相同缺乏非对称风险回报设计，不符合专业交易实践</li>
+<li>固定手数交易无动态仓位管理，无法根据账户风险或波动率调整仓位大小</li></ul></div>
+    <div class="improvements"><h3>改进建议</h3><ul><li>增加动态仓位管理，根据账户风险比例和ATR波动率自动计算手数</li>
+<li>引入非对称止损止盈和移动止损机制，提高风险回报比</li>
+<li>增加多时间框架确认和交易量/波动率过滤，减少虚假信号</li></ul></div>
+  </div>
+  <div lang2="en" class="pros-cons">
+    <div class="pros"><h3>Strengths</h3><ul><li>Uses a neural network probability model for trading decisions, more adaptive than simple threshold signals</li>
+<li>Maintains only one position at a time with new-bar trigger, avoiding overtrading and duplicate entries</li>
+<li>Includes thorough margin checking and lot validation to prevent order failures due to insufficient funds</li></ul></div>
+    <div class="cons"><h3>Weaknesses</h3><ul><li>Neural network weights x0-x7 are unintuitive, require extensive optimization and are highly prone to overfitting</li>
+<li>Equal stop loss and take profit distances lack asymmetric risk-reward design, not aligned with professional trading practices</li>
+<li>Fixed lot trading with no dynamic position sizing, unable to adjust lot size based on account risk or volatility</li></ul></div>
+    <div class="improvements"><h3>Improvements</h3><ul><li>Add dynamic position sizing that automatically calculates lot size based on account risk percentage and ATR volatility</li>
+<li>Introduce asymmetric stop loss/take profit and trailing stop mechanisms to improve risk-reward ratio</li>
+<li>Add multi-timeframe confirmation and volume/volatility filters to reduce false signals</li></ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang3(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang3(this,'en')">English</button>
+  </div>
+  <div lang3="zh" class="visible">
+    <h2>风险评估 / Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">总体 / Overall:</span><span class="badge badge-risk">MEDIUM</span></div>
+    </div>
+    <h3>风险点</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>神经网络权重参数高度依赖历史优化，存在严重过拟合风险，实盘表现可能大幅偏离回测</li>
+<li>止损止盈距离相等意味着风险回报比为1:1，需要较高胜率才能盈利</li>
+<li>固定1.0手默认手数较大，小账户可能承受过高风险</li></ul>
+  </div>
+  <div lang3="en">
+    <h2>Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">Overall:</span><span class="badge badge-risk">MEDIUM</span></div>
+    </div>
+    <h3>Risk Points</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>Neural network weight parameters are highly dependent on historical optimization, posing significant overfitting risk; live performance may deviate substantially from backtesting</li>
+<li>Equal stop loss and take profit distances imply a 1:1 risk-reward ratio, requiring a high win rate to be profitable</li>
+<li>Fixed 1.0 lot default size is large and may expose small accounts to excessive risk</li></ul>
+  </div>
+</div>
+
+<div class="section">
+  <h2>评估评分 / Evaluation Scores</h2>
+  <div class="score-row"><span class="score-label">代码质量 Code Quality</span><div class="score-bar"><div class="score-fill" style="width:80.0%"></div></div><span class="score-value">4.0/5</span></div>
+  <div class="score-row"><span class="score-label">策略逻辑 Strategy Logic</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">风险管理 Risk Management</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">稳健性 Robustness</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">创新性 Innovation</span><div class="score-bar"><div class="score-fill" style="width:80.0%"></div></div><span class="score-value">4.0/5</span></div>
+  <div class="score-row"><span class="score-label">文档 Documentation</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">总体 Overall</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+</div>
+
+<div class="section">
+  <h2>参数 / Parameters</h2>
+  <table>
+    <thead><tr><th>参数 / Parameter</th><th>默认值 / Default</th><th>说明 / Description</th></tr></thead>
+    <tbody><tr><td>InpLots</td><td><code>1.0</code></td><td>交易手数</td></tr>
+<tr><td>InpSLTP</td><td><code>100</code></td><td>止损止盈点数(0为禁用)</td></tr>
+<tr><td>x0</td><td><code>6</code></td><td>神经网络权重x0(0-100)</td></tr>
+<tr><td>x1</td><td><code>96</code></td><td>神经网络权重x1(0-100)</td></tr>
+<tr><td>x2</td><td><code>90</code></td><td>神经网络权重x2(0-100)</td></tr>
+<tr><td>x3</td><td><code>35</code></td><td>神经网络权重x3(0-100)</td></tr>
+<tr><td>x4</td><td><code>64</code></td><td>神经网络权重x4(0-100)</td></tr>
+<tr><td>x5</td><td><code>83</code></td><td>神经网络权重x5(0-100)</td></tr>
+<tr><td>x6</td><td><code>66</code></td><td>神经网络权重x6(0-100)</td></tr>
+<tr><td>x7</td><td><code>50</code></td><td>神经网络权重x7(0-100)</td></tr>
+<tr><td>Inp_RSI_ma_period</td><td><code>9</code></td><td>RSI平均周期</td></tr>
+<tr><td>Inp_RSI_applied_price</td><td><code>PRICE_OPEN</code></td><td>RSI应用价格类型</td></tr></tbody>
+  </table>
+</div>
+
+</div>
+
+<script>
+function switchLang(btn,lang){
+  btn.parentElement.parentElement.querySelectorAll("[lang]").forEach(el=>{el.classList.toggle("visible",el.getAttribute("lang")===lang)});
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang2(btn,lang){
+  document.querySelectorAll("[lang2]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang2")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang3(btn,lang){
+  document.querySelectorAll("[lang3]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang3")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+</script>
+</body>
+</html>
