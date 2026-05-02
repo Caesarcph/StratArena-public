@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Martin for small deposits - EA Analysis | QuantArena</title>
+<meta name="description" content="A Martingale-style EA that opens positions in one direction and progressively increases lot size by a multiplicative factor when price moves against the positio">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6;min-height:100vh}
+.container{max-width:960px;margin:0 auto;padding:24px 16px}
+.back{display:inline-block;color:#94a3b8;text-decoration:none;margin-bottom:20px;font-size:14px}
+.back:hover{color:#e2e8f0}
+.header{margin-bottom:32px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge-id{background:#1e293b;color:#94a3b8}
+.badge-cat{background:#dc262622;color:#dc2626;border:1px solid #dc262644}
+.badge-risk{background:#dc262622;color:#dc2626;border:1px solid #dc262644}
+.badge-type{background:#1e293b;color:#94a3b8;border:1px solid #334155}
+h1{font-size:28px;font-weight:700;margin-bottom:8px;color:#f1f5f9}
+.desc{color:#94a3b8;font-size:14px;margin-bottom:12px}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:32px}
+.meta-item{background:#1e293b;border-radius:8px;padding:12px}
+.meta-key{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
+.meta-val{font-size:14px;color:#e2e8f0;margin-top:2px}
+.meta-val a{color:#3b82f6;text-decoration:none}
+.section{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px}
+.section h2{font-size:18px;font-weight:600;color:#f1f5f9;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #334155}
+.section h3{font-size:15px;font-weight:600;color:#94a3b8;margin-bottom:8px}
+.lang-toggle{display:flex;gap:4px;margin-bottom:16px}
+.lang-btn{padding:4px 12px;border-radius:6px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:13px}
+.lang-btn.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.pros-cons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:768px){.pros-cons{grid-template-columns:1fr}}
+.pros ul{color:#4ade80;list-style:disc;padding-left:20px}
+.cons ul{color:#f87171;list-style:disc;padding-left:20px}
+.improvements ul{color:#60a5fa;list-style:disc;padding-left:20px}
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.score-label{width:100px;font-size:13px;color:#94a3b8;flex-shrink:0}
+.score-bar{flex:1;height:8px;background:#0f172a;border-radius:4px;overflow:hidden}
+.score-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:4px}
+.score-value{width:36px;font-size:13px;color:#94a3b8;text-align:right;flex-shrink:0}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:8px 12px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #334155}
+td{padding:8px 12px;color:#e2e8f0;font-size:14px;border-bottom:1px solid #1e293b}
+code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#60a5fa}
+.risk-summary{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.risk-item{display:flex;align-items:center;gap:8px}
+.risk-key{font-size:13px;color:#94a3b8}
+[lang]{display:none}
+[lang].visible{display:block}
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back" href="https://quantarenas.com/?page=ea-arena">← 返回 EA 竞技场 / Back to EA Arena</a>
+
+<div class="header">
+  <div class="badges">
+    <span class="badge badge-id">EA-19637</span>
+    <span class="badge badge-cat">Martingale / 马丁格尔</span>
+    <span class="badge badge-risk">DANGEROUS</span>
+    <span class="badge badge-type">交易 EA</span>
+    <span style="color:#eab308">★★</span><span style="color:#374151">☆☆☆</span>
+  </div>
+  <h1>Martin for small deposits</h1>
+  <p class="desc">这是一个马丁格尔策略EA，在价格逆向波动时通过乘数因子递增加仓。初始方向由15根K线的收盘价比较决定，随后按固定间距加仓。当浮盈超过阈值时全部平仓，若同时存在多空仓位则立即全部平仓。</p>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-item"><div class="meta-key">策略类型 / Category</div><div class="meta-val">Martingale (马丁格尔)</div></div>
+  <div class="meta-item"><div class="meta-key">风险等级 / Risk</div><div class="meta-val" style="color:#dc2626">DANGEROUS</div></div>
+  <div class="meta-item"><div class="meta-key">评分 / Rating</div><div class="meta-val"><span style="color:#eab308">★★</span><span style="color:#374151">☆☆☆</span></div></div>
+  <div class="meta-item"><div class="meta-key">时间框架 / Timeframes</div><div class="meta-val">M15, H1, H4</div></div>
+  <div class="meta-item"><div class="meta-key">指标 / Indicators</div><div class="meta-val">Price Action</div></div>
+  <div class="meta-item"><div class="meta-key">作者 / Author</div><div class="meta-val">—</div></div>
+  <div class="meta-item"><div class="meta-key">来源 / Source</div><div class="meta-val"><a href="https://www.mql5.com/en/code/19637" target="_blank" rel="noopener">MQL5 Code</a></div></div>
+  <div class="meta-item"><div class="meta-key">类型 / Type</div><div class="meta-val">交易策略 / Trading EA</div></div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang(this,'en')">English</button>
+  </div>
+  <div lang="zh" class="visible">
+    <h2>摘要</h2>
+    <p>这是一个马丁格尔策略EA，在价格逆向波动时通过乘数因子递增加仓。初始方向由15根K线的收盘价比较决定，随后按固定间距加仓。当浮盈超过阈值时全部平仓，若同时存在多空仓位则立即全部平仓。</p>
+    <h2>策略分析</h2><p>该EA采用经典的马丁格尔策略概念，核心逻辑是在价格逆向运行时逐步加仓以摊薄均价。入场条件分为两种：首次入场通过比较最近15根K线的收盘价趋势来决定方向（收低则做多，收高则做空）；加仓条件是当价格逆现有持仓方向移动超过设定步距时，以乘数因子递增手数开仓。出场条件是当所有持仓的总浮盈（含佣金和掉期）超过最小盈利阈值时全部平仓，没有任何止损机制。仓位管理采用指数递增方式，第N次加仓手数为初始手数乘以增长因子的N次方，但受最大手数限制。资金管理方面存在严重缺陷：没有止损，完全依赖价格回调来解套，在趋势行情中可能因持续加仓而爆仓。此外，跳过K线数的机制限制了加仓频率，但并不能有效控制风险。</p>
+  </div>
+  <div lang="en">
+    <h2>Summary</h2>
+    <p>A Martingale-style EA that opens positions in one direction and progressively increases lot size by a multiplicative factor when price moves against the position. It uses a simple price comparison over 15 bars to determine initial direction, then adds positions at fixed step distances. All positions are closed when total floating profit exceeds a threshold, or immediately if both buy and sell positions somehow coexist.</p>
+    <h2>Strategy Analysis</h2><p>This EA implements a classic Martingale strategy where the core concept is to progressively increase position size when price moves against existing positions to average down the entry price. Entry conditions come in two types: the initial entry direction is determined by comparing the close price of the most recent bar against the close 15 bars ago (lower close triggers buy, higher triggers sell); subsequent entries occur when price moves against existing positions by more than the configured step distance, with lot size multiplied by the increase factor raised to the power of the position count. Exit conditions are solely based on total floating profit across all positions exceeding the minimum profit threshold, with absolutely no stop loss mechanism. Position sizing follows exponential growth where the N-th additional position uses the base lot multiplied by the increase factor to the N-th power, capped by a maximum lot limit. Money management is severely deficient: there is no stop loss, the strategy relies entirely on price reversion to exit profitably, and sustained trending markets can lead to margin call due to continuously increasing exposure. The bar-skipping mechanism limits adding frequency but does not effectively control downside risk.</p>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang2(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang2(this,'en')">English</button>
+  </div>
+  <div lang2="zh" class="visible pros-cons">
+    <div class="pros"><h3>优势</h3><ul><li>逻辑简单明了，代码结构清晰，易于理解和修改</li>
+<li>设有最大手数限制，一定程度上约束了极端加仓</li>
+<li>同时存在多空仓位时自动全部平仓的保护机制</li>
+<li>使用持仓浮盈（含佣金和掉期）而非仅价格距离来判断平仓，更贴近实际盈亏</li></ul></div>
+    <div class="cons"><h3>劣势</h3><ul><li>无止损机制，在单边趋势行情中可能持续加仓直至爆仓</li>
+<li>马丁格尔策略本质上是高风险策略，亏损时仓位指数增长，资金需求呈几何级数膨胀</li>
+<li>入场信号过于简单（仅比较15根K线首尾收盘价），缺乏有效技术分析确认</li>
+<li>加仓手数上限检查使用小于而非小于等于，导致手数恰好等于最大手数时无法开仓</li>
+<li>跳过K线数的计算方式依赖CopyOpen，可能因数据获取问题导致计数不准确</li></ul></div>
+    <div class="improvements"><h3>改进建议</h3><ul><li>增加止损机制，可以设定账户最大亏损百分比或单笔最大亏损金额作为硬性止损</li>
+<li>改进入场信号，加入趋势指标确认（如均线方向、RSI超买超卖等），避免在强趋势中逆势加仓</li>
+<li>修复手数上限判断逻辑，将 lot&lt;InpMaxLot 改为 lot&lt;=InpMaxLot，允许达到最大手数时仍可开仓</li>
+<li>加入最大持仓数量限制和最大总手数限制，防止无限加仓</li></ul></div>
+  </div>
+  <div lang2="en" class="pros-cons">
+    <div class="pros"><h3>Strengths</h3><ul><li>Simple and clear logic with well-structured code that is easy to understand and modify</li>
+<li>Maximum lot size cap provides some constraint against extreme position accumulation</li>
+<li>Safety mechanism that closes all positions if both buy and sell positions coexist unexpectedly</li>
+<li>Uses actual floating profit including commissions and swaps rather than just price distance for exit decisions</li></ul></div>
+    <div class="cons"><h3>Weaknesses</h3><ul><li>No stop loss mechanism whatsoever, positions can accumulate indefinitely in a trending market leading to margin call</li>
+<li>Martingale strategy is inherently high-risk with exponentially growing exposure when losing, requiring geometric capital growth</li>
+<li>Entry signal is overly simplistic (just comparing close of bar 1 vs bar 15), lacking proper technical analysis confirmation</li>
+<li>Lot size check uses strict less-than instead of less-than-or-equal, preventing opening when calculated lot exactly equals InpMaxLot</li>
+<li>Bar-skipping calculation relies on CopyOpen which may produce inaccurate counts due to data availability issues</li></ul></div>
+    <div class="improvements"><h3>Improvements</h3><ul><li>Add stop loss mechanisms such as account maximum drawdown percentage or per-position maximum loss as hard stops</li>
+<li>Improve entry signals with trend indicator confirmation (e.g., MA direction, RSI overbought/oversold) to avoid adding against strong trends</li>
+<li>Fix lot size upper bound check by changing lot&lt;InpMaxLot to lot&lt;=InpMaxLot to allow opening when lot exactly equals the maximum</li>
+<li>Add maximum position count limit and maximum total lot limit to prevent unlimited position accumulation</li></ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang3(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang3(this,'en')">English</button>
+  </div>
+  <div lang3="zh" class="visible">
+    <h2>风险评估 / Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">总体 / Overall:</span><span class="badge badge-risk">DANGEROUS</span></div>
+    </div>
+    <h3>风险点</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>马丁格尔策略无止损，在趋势行情中仓位指数增长，极易导致爆仓</li>
+<li>没有最大回撤保护或账户权益保护机制</li>
+<li>入场信号极弱，可能逆势持续加仓</li>
+<li>跳过K线机制可能在数据异常时失效，导致加仓频率失控</li></ul>
+  </div>
+  <div lang3="en">
+    <h2>Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">Overall:</span><span class="badge badge-risk">DANGEROUS</span></div>
+    </div>
+    <h3>Risk Points</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>Martingale strategy with no stop loss causes exponential position growth in trending markets,极易leading to margin call</li>
+<li>No maximum drawdown protection or account equity safeguard mechanism exists</li>
+<li>Very weak entry signal may cause persistent counter-trend position accumulation</li>
+<li>Bar-skipping mechanism may fail during data anomalies, causing uncontrolled adding frequency</li></ul>
+  </div>
+</div>
+
+<div class="section">
+  <h2>评估评分 / Evaluation Scores</h2>
+  <div class="score-row"><span class="score-label">代码质量 Code Quality</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">策略逻辑 Strategy Logic</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">风险管理 Risk Management</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
+  <div class="score-row"><span class="score-label">稳健性 Robustness</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">创新性 Innovation</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
+  <div class="score-row"><span class="score-label">文档 Documentation</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
+  <div class="score-row"><span class="score-label">总体 Overall</span><div class="score-bar"><div class="score-fill" style="width:33.4%"></div></div><span class="score-value">1.7/5</span></div>
+</div>
+
+<div class="section">
+  <h2>参数 / Parameters</h2>
+  <table>
+    <thead><tr><th>参数 / Parameter</th><th>默认值 / Default</th><th>说明 / Description</th></tr></thead>
+    <tbody><tr><td>InpLots</td><td><code>0.01</code></td><td>初始手数</td></tr>
+<tr><td>InpTakeProfit</td><td><code>65</code></td><td>止盈点数（以点为单位）</td></tr>
+<tr><td>InpStep</td><td><code>15</code></td><td>加仓间距（以点为单位）</td></tr>
+<tr><td>InpBarsSkipped</td><td><code>45</code></td><td>跳过的K线数量，控制加仓频率</td></tr>
+<tr><td>InpIncreaseFactor</td><td><code>1.7</code></td><td>加仓手数递增乘数因子</td></tr>
+<tr><td>InpMaxLot</td><td><code>6.0</code></td><td>最大允许手数</td></tr>
+<tr><td>InpMinProfit</td><td><code>10.0</code></td><td>最小盈利阈值，达到后全部平仓</td></tr></tbody>
+  </table>
+</div>
+
+</div>
+
+<script>
+function switchLang(btn,lang){
+  btn.parentElement.parentElement.querySelectorAll("[lang]").forEach(el=>{el.classList.toggle("visible",el.getAttribute("lang")===lang)});
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang2(btn,lang){
+  document.querySelectorAll("[lang2]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang2")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang3(btn,lang){
+  document.querySelectorAll("[lang3]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang3")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+</script>
+</body>
+</html>
