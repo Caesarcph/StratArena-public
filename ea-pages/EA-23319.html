@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dynamic averaging - EA Analysis | QuantArena</title>
+<meta name="description" content="This EA implements a dynamic averaging strategy that opens positions when price deviates significantly from a calculated average, aiming to profit from price re">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6;min-height:100vh}
+.container{max-width:960px;margin:0 auto;padding:24px 16px}
+.back{display:inline-block;color:#94a3b8;text-decoration:none;margin-bottom:20px;font-size:14px}
+.back:hover{color:#e2e8f0}
+.header{margin-bottom:32px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge-id{background:#1e293b;color:#94a3b8}
+.badge-cat{background:#ec489922;color:#ec4899;border:1px solid #ec489944}
+.badge-risk{background:#ef444422;color:#ef4444;border:1px solid #ef444444}
+.badge-type{background:#1e293b;color:#94a3b8;border:1px solid #334155}
+h1{font-size:28px;font-weight:700;margin-bottom:8px;color:#f1f5f9}
+.desc{color:#94a3b8;font-size:14px;margin-bottom:12px}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:32px}
+.meta-item{background:#1e293b;border-radius:8px;padding:12px}
+.meta-key{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
+.meta-val{font-size:14px;color:#e2e8f0;margin-top:2px}
+.meta-val a{color:#3b82f6;text-decoration:none}
+.section{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px}
+.section h2{font-size:18px;font-weight:600;color:#f1f5f9;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #334155}
+.section h3{font-size:15px;font-weight:600;color:#94a3b8;margin-bottom:8px}
+.lang-toggle{display:flex;gap:4px;margin-bottom:16px}
+.lang-btn{padding:4px 12px;border-radius:6px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:13px}
+.lang-btn.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.pros-cons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:768px){.pros-cons{grid-template-columns:1fr}}
+.pros ul{color:#4ade80;list-style:disc;padding-left:20px}
+.cons ul{color:#f87171;list-style:disc;padding-left:20px}
+.improvements ul{color:#60a5fa;list-style:disc;padding-left:20px}
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.score-label{width:100px;font-size:13px;color:#94a3b8;flex-shrink:0}
+.score-bar{flex:1;height:8px;background:#0f172a;border-radius:4px;overflow:hidden}
+.score-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:4px}
+.score-value{width:36px;font-size:13px;color:#94a3b8;text-align:right;flex-shrink:0}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:8px 12px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #334155}
+td{padding:8px 12px;color:#e2e8f0;font-size:14px;border-bottom:1px solid #1e293b}
+code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#60a5fa}
+.risk-summary{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.risk-item{display:flex;align-items:center;gap:8px}
+.risk-key{font-size:13px;color:#94a3b8}
+[lang]{display:none}
+[lang].visible{display:block}
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back" href="https://quantarenas.com/?page=ea-arena">← 返回 EA 竞技场 / Back to EA Arena</a>
+
+<div class="header">
+  <div class="badges">
+    <span class="badge badge-id">EA-23319</span>
+    <span class="badge badge-cat">Mean Reversion / 均值回归</span>
+    <span class="badge badge-risk">HIGH</span>
+    <span class="badge badge-type">交易 EA</span>
+    <span style="color:#eab308">★★</span><span style="color:#374151">☆☆☆</span>
+  </div>
+  <h1>Dynamic averaging</h1>
+  <p class="desc">该EA实现了动态均价策略，当价格偏离计算均值较大时开仓，旨在从价格回归均值中获利。它根据市场波动条件动态调整均线周期和阈值。系统在价格进一步偏离均值时以递增手数管理多个订单。</p>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-item"><div class="meta-key">策略类型 / Category</div><div class="meta-val">Mean Reversion (均值回归)</div></div>
+  <div class="meta-item"><div class="meta-key">风险等级 / Risk</div><div class="meta-val" style="color:#ef4444">HIGH</div></div>
+  <div class="meta-item"><div class="meta-key">评分 / Rating</div><div class="meta-val"><span style="color:#eab308">★★</span><span style="color:#374151">☆☆☆</span></div></div>
+  <div class="meta-item"><div class="meta-key">时间框架 / Timeframes</div><div class="meta-val">M15, H1, H4</div></div>
+  <div class="meta-item"><div class="meta-key">指标 / Indicators</div><div class="meta-val">MA, ATR</div></div>
+  <div class="meta-item"><div class="meta-key">作者 / Author</div><div class="meta-val">Copyright © 2018, Vladimir Karputov</div></div>
+  <div class="meta-item"><div class="meta-key">来源 / Source</div><div class="meta-val"><a href="https://www.mql5.com/en/code/23319" target="_blank" rel="noopener">MQL5 Code</a></div></div>
+  <div class="meta-item"><div class="meta-key">类型 / Type</div><div class="meta-val">交易策略 / Trading EA</div></div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang(this,'en')">English</button>
+  </div>
+  <div lang="zh" class="visible">
+    <h2>摘要</h2>
+    <p>该EA实现了动态均价策略，当价格偏离计算均值较大时开仓，旨在从价格回归均值中获利。它根据市场波动条件动态调整均线周期和阈值。系统在价格进一步偏离均值时以递增手数管理多个订单。</p>
+    <h2>策略分析</h2><p>策略概念基于动态均价回归，当价格偏离移动均线达到一定阈值时认为市场过度偏离，预期价格将回归均值。入场条件为价格偏离动态计算的均线超过设定的偏差百分比，首次偏离开初始仓位，继续偏离则加仓。出场条件为价格回归到均线附近或达到止盈目标时平仓。仓位管理采用递增加仓方式，每次加仓手数按设定倍数增加，类似于均价摊低成本的做法。资金管理方面，EA根据账户余额和风险参数计算初始手数，但递增加仓可能导致总仓位过大。策略未设置硬性止损，存在持续加仓导致大幅亏损的风险。</p>
+  </div>
+  <div lang="en">
+    <h2>Summary</h2>
+    <p>This EA implements a dynamic averaging strategy that opens positions when price deviates significantly from a calculated average, aiming to profit from price reversion to the mean. It dynamically adjusts the averaging period and thresholds based on market volatility conditions. The system manages multiple orders with incremental lot sizing as price moves further from the average.</p>
+    <h2>Strategy Analysis</h2><p>The strategy concept is based on dynamic mean reversion, assuming that when price deviates significantly from a moving average, the market is overextended and price will revert to the mean. Entry conditions trigger when price deviates beyond a set threshold percentage from the dynamically calculated average, with an initial position opened on the first deviation and additional positions added as deviation increases. Exit conditions close all positions when price returns near the average or reaches a take-profit target. Position sizing uses incremental lot increases, where each additional order scales up by a configured multiplier, similar to averaging down cost basis. Money management calculates initial lot size based on account balance and risk parameters, but incremental position additions can lead to excessive total exposure. The strategy lacks a hard stop-loss, creating risk of sustained position accumulation leading to significant drawdowns.</p>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang2(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang2(this,'en')">English</button>
+  </div>
+  <div lang2="zh" class="visible pros-cons">
+    <div class="pros"><h3>优势</h3><ul><li>动态调整均线周期适应不同市场波动环境，比固定周期均线更灵活</li>
+<li>均值回归策略在震荡行情中表现良好，逻辑清晰易懂</li>
+<li>递增加仓方式在价格回归时可以加速回本并盈利</li>
+<li>设有最大加仓次数限制，一定程度上控制了风险敞口</li>
+<li>使用魔法编号管理订单，避免与其他EA冲突</li></ul></div>
+    <div class="cons"><h3>劣势</h3><ul><li>缺乏硬性止损，在单边趋势行情中可能持续加仓导致巨大亏损</li>
+<li>递增加仓本质上接近马丁格尔策略，资金需求指数级增长</li>
+<li>未考虑点差和滑点影响，在短线回归交易中成本可能侵蚀利润</li>
+<li>均值回归策略在强趋势市场中表现极差，缺乏趋势过滤机制</li>
+<li>动态均线的参数优化可能导致过拟合历史数据</li></ul></div>
+    <div class="improvements"><h3>改进建议</h3><ul><li>增加硬性止损机制，设为最大可承受亏损百分比或固定点数止损，防止单边行情中无限加仓</li>
+<li>添加趋势过滤器（如ADX或大周期均线方向），在强趋势方向上禁止逆势加仓</li></ul></div>
+  </div>
+  <div lang2="en" class="pros-cons">
+    <div class="pros"><h3>Strengths</h3><ul><li>Dynamically adjusting the averaging period adapts to different market volatility regimes, offering more flexibility than fixed-period moving averages</li>
+<li>Mean reversion strategy performs well in ranging markets with clear and understandable logic</li>
+<li>Incremental position sizing accelerates breakeven and profit when price reverts</li>
+<li>Maximum order count limit provides some control over total risk exposure</li>
+<li>Magic number for order management prevents conflicts with other EAs</li></ul></div>
+    <div class="cons"><h3>Weaknesses</h3><ul><li>Lack of hard stop-loss means sustained position accumulation in trending markets can lead to catastrophic losses</li>
+<li>Incremental lot sizing本质上approaches martingale behavior, requiring exponentially growing capital</li>
+<li>Spread and slippage costs are not factored in, which can erode profits on short-term reversion trades</li>
+<li>Mean reversion performs poorly in strong trending markets without a trend filter mechanism</li>
+<li>Dynamic averaging parameter optimization risks overfitting to historical data</li></ul></div>
+    <div class="improvements"><h3>Improvements</h3><ul><li>Add a hard stop-loss mechanism, either as a maximum acceptable loss percentage or fixed pip stop, to prevent unlimited position accumulation in one-directional markets</li>
+<li>Implement a trend filter (such as ADX or higher-timeframe moving average direction) to prohibit counter-trend averaging in strong trending conditions</li></ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang3(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang3(this,'en')">English</button>
+  </div>
+  <div lang3="zh" class="visible">
+    <h2>风险评估 / Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">总体 / Overall:</span><span class="badge badge-risk">HIGH</span></div>
+    </div>
+    <h3>风险点</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>递增加仓无硬性止损，在极端单边行情中可能导致爆仓</li>
+<li>最大加仓次数限制仍允许5倍递增仓位，总风险敞口可能远超账户承受能力</li>
+<li>缺乏新K线检查可能导致同一K线内多次开仓</li></ul>
+  </div>
+  <div lang3="en">
+    <h2>Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">Overall:</span><span class="badge badge-risk">HIGH</span></div>
+    </div>
+    <h3>Risk Points</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>Incremental position sizing without hard stop-loss can lead to account blow-up in extreme trending markets</li>
+<li>Maximum order limit of 5 still permits 5x incremental positions, potentially exceeding account capacity</li>
+<li>Lack of new bar check may cause multiple entries within the same candle</li></ul>
+  </div>
+</div>
+
+<div class="section">
+  <h2>评估评分 / Evaluation Scores</h2>
+  <div class="score-row"><span class="score-label">代码质量 Code Quality</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">策略逻辑 Strategy Logic</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">风险管理 Risk Management</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
+  <div class="score-row"><span class="score-label">稳健性 Robustness</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">创新性 Innovation</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">文档 Documentation</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
+  <div class="score-row"><span class="score-label">总体 Overall</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+</div>
+
+<div class="section">
+  <h2>参数 / Parameters</h2>
+  <table>
+    <thead><tr><th>参数 / Parameter</th><th>默认值 / Default</th><th>说明 / Description</th></tr></thead>
+    <tbody><tr><td>AveragingPeriod</td><td><code>20</code></td><td>动态均线计算周期</td></tr>
+<tr><td>DeviationThreshold</td><td><code>0.5</code></td><td>开仓偏差阈值百分比</td></tr>
+<tr><td>LotSize</td><td><code>0.01</code></td><td>初始开仓手数</td></tr>
+<tr><td>LotMultiplier</td><td><code>1.5</code></td><td>加仓手数倍数</td></tr>
+<tr><td>MaxOrders</td><td><code>5</code></td><td>最大加仓次数</td></tr>
+<tr><td>TakeProfitPips</td><td><code>50</code></td><td>止盈点数</td></tr>
+<tr><td>MagicNumber</td><td><code>12345</code></td><td>订单唯一标识号</td></tr></tbody>
+  </table>
+</div>
+
+</div>
+
+<script>
+function switchLang(btn,lang){
+  btn.parentElement.parentElement.querySelectorAll("[lang]").forEach(el=>{el.classList.toggle("visible",el.getAttribute("lang")===lang)});
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang2(btn,lang){
+  document.querySelectorAll("[lang2]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang2")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang3(btn,lang){
+  document.querySelectorAll("[lang3]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang3")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+</script>
+</body>
+</html>
