@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Divergence + EMA + RSI Close EA - EA Analysis | QuantArena</title>
+<meta name="description" content="This EA combines divergence detection with EMA trend filtering and RSI momentum confirmation to generate trade signals. It comes in two variants: a buy-only ver">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6;min-height:100vh}
+.container{max-width:960px;margin:0 auto;padding:24px 16px}
+.back{display:inline-block;color:#94a3b8;text-decoration:none;margin-bottom:20px;font-size:14px}
+.back:hover{color:#e2e8f0}
+.header{margin-bottom:32px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge-id{background:#1e293b;color:#94a3b8}
+.badge-cat{background:#8b5cf622;color:#8b5cf6;border:1px solid #8b5cf644}
+.badge-risk{background:#f9731622;color:#f97316;border:1px solid #f9731644}
+.badge-type{background:#1e293b;color:#94a3b8;border:1px solid #334155}
+h1{font-size:28px;font-weight:700;margin-bottom:8px;color:#f1f5f9}
+.desc{color:#94a3b8;font-size:14px;margin-bottom:12px}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:32px}
+.meta-item{background:#1e293b;border-radius:8px;padding:12px}
+.meta-key{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
+.meta-val{font-size:14px;color:#e2e8f0;margin-top:2px}
+.meta-val a{color:#3b82f6;text-decoration:none}
+.section{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px}
+.section h2{font-size:18px;font-weight:600;color:#f1f5f9;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #334155}
+.section h3{font-size:15px;font-weight:600;color:#94a3b8;margin-bottom:8px}
+.lang-toggle{display:flex;gap:4px;margin-bottom:16px}
+.lang-btn{padding:4px 12px;border-radius:6px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:13px}
+.lang-btn.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.pros-cons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:768px){.pros-cons{grid-template-columns:1fr}}
+.pros ul{color:#4ade80;list-style:disc;padding-left:20px}
+.cons ul{color:#f87171;list-style:disc;padding-left:20px}
+.improvements ul{color:#60a5fa;list-style:disc;padding-left:20px}
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.score-label{width:100px;font-size:13px;color:#94a3b8;flex-shrink:0}
+.score-bar{flex:1;height:8px;background:#0f172a;border-radius:4px;overflow:hidden}
+.score-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:4px}
+.score-value{width:36px;font-size:13px;color:#94a3b8;text-align:right;flex-shrink:0}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:8px 12px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #334155}
+td{padding:8px 12px;color:#e2e8f0;font-size:14px;border-bottom:1px solid #1e293b}
+code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#60a5fa}
+.risk-summary{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.risk-item{display:flex;align-items:center;gap:8px}
+.risk-key{font-size:13px;color:#94a3b8}
+[lang]{display:none}
+[lang].visible{display:block}
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back" href="https://quantarenas.com/?page=ea-arena">← 返回 EA 竞技场 / Back to EA Arena</a>
+
+<div class="header">
+  <div class="badges">
+    <span class="badge badge-id">EA-43146</span>
+    <span class="badge badge-cat">Momentum / 动量</span>
+    <span class="badge badge-risk">CAUTION</span>
+    <span class="badge badge-type">交易 EA</span>
+    <span style="color:#eab308">★★</span><span style="color:#374151">☆☆☆</span>
+  </div>
+  <h1>Divergence + EMA + RSI Close EA</h1>
+  <p class="desc">该EA结合了背离检测、EMA趋势过滤和RSI动量确认来产生交易信号。它分为两个版本：仅做多版本和仅做空版本，各自还有对应的仅报警版本。策略在价格背离与EMA趋势方向一致且RSI支持动量偏向时入场，并在反向背离信号或RSI极端值时平仓。</p>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-item"><div class="meta-key">策略类型 / Category</div><div class="meta-val">Momentum (动量)</div></div>
+  <div class="meta-item"><div class="meta-key">风险等级 / Risk</div><div class="meta-val" style="color:#f97316">CAUTION</div></div>
+  <div class="meta-item"><div class="meta-key">评分 / Rating</div><div class="meta-val"><span style="color:#eab308">★★</span><span style="color:#374151">☆☆☆</span></div></div>
+  <div class="meta-item"><div class="meta-key">时间框架 / Timeframes</div><div class="meta-val">H1, H4, D1</div></div>
+  <div class="meta-item"><div class="meta-key">指标 / Indicators</div><div class="meta-val">EMA, RSI, Divergence</div></div>
+  <div class="meta-item"><div class="meta-key">作者 / Author</div><div class="meta-val">—</div></div>
+  <div class="meta-item"><div class="meta-key">来源 / Source</div><div class="meta-val"><a href="https://www.mql5.com/en/code/43146" target="_blank" rel="noopener">MQL5 Code</a></div></div>
+  <div class="meta-item"><div class="meta-key">类型 / Type</div><div class="meta-val">交易策略 / Trading EA</div></div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang(this,'en')">English</button>
+  </div>
+  <div lang="zh" class="visible">
+    <h2>摘要</h2>
+    <p>该EA结合了背离检测、EMA趋势过滤和RSI动量确认来产生交易信号。它分为两个版本：仅做多版本和仅做空版本，各自还有对应的仅报警版本。策略在价格背离与EMA趋势方向一致且RSI支持动量偏向时入场，并在反向背离信号或RSI极端值时平仓。</p>
+    <h2>策略分析</h2><p>策略核心概念是基于价格与指标之间的背离来捕捉趋势反转或延续的机会。入场条件要求三个信号同时满足：首先检测到价格与指标之间的看涨或看跌背离，其次价格必须位于EMA的有利于入场方向的一侧（做多时价格在EMA之上，做空时在EMA之下），最后RSI必须处于支持入场动量的区间。出场条件包括检测到反向背离信号时平仓，以及RSI达到超买或超卖极端区域时平仓。仓位管理方面，EA使用固定手数交易，没有动态仓位调整机制。资金管理方面，未发现明确的止损和止盈设置，依赖于信号平仓而非预设的价格目标来控制风险。整体策略逻辑清晰，将背离作为核心信号、EMA作为趋势过滤器、RSI作为动量确认器，三层过滤降低了假信号概率。</p>
+  </div>
+  <div lang="en">
+    <h2>Summary</h2>
+    <p>This EA combines divergence detection with EMA trend filtering and RSI momentum confirmation to generate trade signals. It comes in two variants: a buy-only version that opens long positions and a sell-only version that opens short positions, each with corresponding alert-only editions. The strategy enters trades when price divergence aligns with the EMA trend direction and RSI supports the momentum bias, then closes positions on opposing divergence signals or RSI extremes.</p>
+    <h2>Strategy Analysis</h2><p>The core concept of this strategy is to capture trend reversals or continuations based on divergence between price and indicators. Entry conditions require three signals to align simultaneously: first, a bullish or bearish divergence must be detected between price and the indicator; second, price must be on the favorable side of the EMA (above EMA for buys, below EMA for sells); third, RSI must be in a zone that supports the entry momentum. Exit conditions include closing positions when an opposing divergence signal is detected, and closing when RSI reaches overbought or oversold extreme zones. Position sizing uses fixed lots with no dynamic lot adjustment mechanism. Money management lacks explicit stop-loss and take-profit settings, relying on signal-based exits rather than preset price targets to control risk. The overall strategy logic is clear, using divergence as the core signal, EMA as a trend filter, and RSI as a momentum confirmer, with triple filtering reducing false signal probability. However, the absence of hardcoded stop-losses means the EA carries significant open-ended risk if signals fail to trigger exits in a timely manner.</p>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang2(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang2(this,'en')">English</button>
+  </div>
+  <div lang2="zh" class="visible pros-cons">
+    <div class="pros"><h3>优势</h3><ul><li>三层信号过滤（背离+EMA+RSI）有效降低假信号概率</li>
+<li>买卖分离版本设计简洁，避免信号冲突，便于单独优化</li>
+<li>背离检测是较可靠的反转信号，结合趋势过滤提高胜率</li></ul></div>
+    <div class="cons"><h3>劣势</h3><ul><li>缺乏硬编码止损，极端行情下可能造成巨额亏损</li>
+<li>固定手数交易，没有根据账户风险动态调整仓位</li>
+<li>背离检测算法可能存在滞后性，导致入场时机偏晚</li></ul></div>
+    <div class="improvements"><h3>改进建议</h3><ul><li>添加硬编码止损和止盈参数，提供风险兜底保护</li>
+<li>实现动态仓位管理，根据ATR或账户余额自动调整手数</li></ul></div>
+  </div>
+  <div lang2="en" class="pros-cons">
+    <div class="pros"><h3>Strengths</h3><ul><li>Triple signal filtering (divergence + EMA + RSI) effectively reduces false signal probability</li>
+<li>Separate buy/sell versions keep logic simple, avoid signal conflicts, and allow independent optimization</li>
+<li>Divergence detection is a relatively reliable reversal signal, and combining it with trend filtering improves win rate</li></ul></div>
+    <div class="cons"><h3>Weaknesses</h3><ul><li>Lacks hardcoded stop-loss, which can cause massive losses during extreme market conditions</li>
+<li>Fixed lot sizing with no dynamic position adjustment based on account risk</li>
+<li>Divergence detection algorithm may have latency, causing late entry timing</li></ul></div>
+    <div class="improvements"><h3>Improvements</h3><ul><li>Add hardcoded stop-loss and take-profit parameters to provide risk floor protection</li>
+<li>Implement dynamic position sizing that adjusts lots based on ATR or account balance</li></ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang3(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang3(this,'en')">English</button>
+  </div>
+  <div lang3="zh" class="visible">
+    <h2>风险评估 / Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">总体 / Overall:</span><span class="badge badge-risk">CAUTION</span></div>
+    </div>
+    <h3>风险点</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>无硬编码止损，在剧烈行情中依赖信号平仓可能不及时</li>
+<li>固定手数未考虑账户资金比例，大仓位可能导致过高风险敞口</li></ul>
+  </div>
+  <div lang3="en">
+    <h2>Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">Overall:</span><span class="badge badge-risk">CAUTION</span></div>
+    </div>
+    <h3>Risk Points</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>No hardcoded stop-loss; relying on signal-based exits may be too slow during violent market moves</li>
+<li>Fixed lots without account equity proportional sizing can lead to excessive risk exposure</li></ul>
+  </div>
+</div>
+
+<div class="section">
+  <h2>评估评分 / Evaluation Scores</h2>
+  <div class="score-row"><span class="score-label">代码质量 Code Quality</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">策略逻辑 Strategy Logic</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">风险管理 Risk Management</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">稳健性 Robustness</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">创新性 Innovation</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">文档 Documentation</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
+  <div class="score-row"><span class="score-label">总体 Overall</span><div class="score-bar"><div class="score-fill" style="width:43.4%"></div></div><span class="score-value">2.2/5</span></div>
+</div>
+
+<div class="section">
+  <h2>参数 / Parameters</h2>
+  <table>
+    <thead><tr><th>参数 / Parameter</th><th>默认值 / Default</th><th>说明 / Description</th></tr></thead>
+    <tbody><tr><td>EMA_Period</td><td><code>200</code></td><td>EMA周期参数，用于趋势过滤</td></tr>
+<tr><td>RSI_Period</td><td><code>14</code></td><td>RSI周期参数，用于动量确认</td></tr>
+<tr><td>RSI_Overbought</td><td><code>70</code></td><td>RSI超买阈值，用于出场判断</td></tr>
+<tr><td>RSI_Oversold</td><td><code>30</code></td><td>RSI超卖阈值，用于出场判断</td></tr>
+<tr><td>LotSize</td><td><code>0.1</code></td><td>固定交易手数</td></tr>
+<tr><td>Divergence_Lookback</td><td><code>20</code></td><td>背离检测回溯周期</td></tr></tbody>
+  </table>
+</div>
+
+</div>
+
+<script>
+function switchLang(btn,lang){
+  btn.parentElement.parentElement.querySelectorAll("[lang]").forEach(el=>{el.classList.toggle("visible",el.getAttribute("lang")===lang)});
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang2(btn,lang){
+  document.querySelectorAll("[lang2]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang2")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang3(btn,lang){
+  document.querySelectorAll("[lang3]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang3")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+</script>
+</body>
+</html>
