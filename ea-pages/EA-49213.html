@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pass Wait then Pass - EA Analysis | QuantArena</title>
+<meta name="description" content="A tick-counting utility EA that implements a two-phase cycle: it counts ticks up to a configurable limit, then waits for another configurable number of ticks, b">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6;min-height:100vh}
+.container{max-width:960px;margin:0 auto;padding:24px 16px}
+.back{display:inline-block;color:#94a3b8;text-decoration:none;margin-bottom:20px;font-size:14px}
+.back:hover{color:#e2e8f0}
+.header{margin-bottom:32px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge-id{background:#1e293b;color:#94a3b8}
+.badge-cat{background:#64748b22;color:#64748b;border:1px solid #64748b44}
+.badge-risk{background:#22c55e22;color:#22c55e;border:1px solid #22c55e44}
+.badge-type{background:#1e293b;color:#94a3b8;border:1px solid #334155}
+h1{font-size:28px;font-weight:700;margin-bottom:8px;color:#f1f5f9}
+.desc{color:#94a3b8;font-size:14px;margin-bottom:12px}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:32px}
+.meta-item{background:#1e293b;border-radius:8px;padding:12px}
+.meta-key{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
+.meta-val{font-size:14px;color:#e2e8f0;margin-top:2px}
+.meta-val a{color:#3b82f6;text-decoration:none}
+.section{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px}
+.section h2{font-size:18px;font-weight:600;color:#f1f5f9;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #334155}
+.section h3{font-size:15px;font-weight:600;color:#94a3b8;margin-bottom:8px}
+.lang-toggle{display:flex;gap:4px;margin-bottom:16px}
+.lang-btn{padding:4px 12px;border-radius:6px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:13px}
+.lang-btn.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.pros-cons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:768px){.pros-cons{grid-template-columns:1fr}}
+.pros ul{color:#4ade80;list-style:disc;padding-left:20px}
+.cons ul{color:#f87171;list-style:disc;padding-left:20px}
+.improvements ul{color:#60a5fa;list-style:disc;padding-left:20px}
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.score-label{width:100px;font-size:13px;color:#94a3b8;flex-shrink:0}
+.score-bar{flex:1;height:8px;background:#0f172a;border-radius:4px;overflow:hidden}
+.score-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:4px}
+.score-value{width:36px;font-size:13px;color:#94a3b8;text-align:right;flex-shrink:0}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:8px 12px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #334155}
+td{padding:8px 12px;color:#e2e8f0;font-size:14px;border-bottom:1px solid #1e293b}
+code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#60a5fa}
+.risk-summary{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.risk-item{display:flex;align-items:center;gap:8px}
+.risk-key{font-size:13px;color:#94a3b8}
+[lang]{display:none}
+[lang].visible{display:block}
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back" href="https://quantarenas.com/?page=ea-arena">← 返回 EA 竞技场 / Back to EA Arena</a>
+
+<div class="header">
+  <div class="badges">
+    <span class="badge badge-id">EA-49213</span>
+    <span class="badge badge-cat">Utility / 工具</span>
+    <span class="badge badge-risk">SAFE</span>
+    <span class="badge badge-type">工具 Utility</span>
+    <span style="color:#eab308">★</span><span style="color:#374151">☆☆☆☆</span>
+  </div>
+  <h1>Pass Wait then Pass</h1>
+  <p class="desc">一个计数工具EA，实现双阶段循环：先计数到设定上限的tick数，再等待另一个设定上限的tick数，然后重置并重复循环。通过Comment()在图表上显示当前计数和等待值，但不执行任何交易操作。</p>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-item"><div class="meta-key">策略类型 / Category</div><div class="meta-val">Utility (工具)</div></div>
+  <div class="meta-item"><div class="meta-key">风险等级 / Risk</div><div class="meta-val" style="color:#22c55e">SAFE</div></div>
+  <div class="meta-item"><div class="meta-key">评分 / Rating</div><div class="meta-val"><span style="color:#eab308">★</span><span style="color:#374151">☆☆☆☆</span></div></div>
+  <div class="meta-item"><div class="meta-key">时间框架 / Timeframes</div><div class="meta-val">M1, M5, M15, M30, H1, H4, D1</div></div>
+  <div class="meta-item"><div class="meta-key">指标 / Indicators</div><div class="meta-val">None</div></div>
+  <div class="meta-item"><div class="meta-key">作者 / Author</div><div class="meta-val">—</div></div>
+  <div class="meta-item"><div class="meta-key">来源 / Source</div><div class="meta-val"><a href="https://www.mql5.com/en/code/49213" target="_blank" rel="noopener">MQL5 Code</a></div></div>
+  <div class="meta-item"><div class="meta-key">类型 / Type</div><div class="meta-val">辅助工具 / Utility Tool</div></div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang(this,'en')">English</button>
+  </div>
+  <div lang="zh" class="visible">
+    <h2>摘要</h2>
+    <p>一个计数工具EA，实现双阶段循环：先计数到设定上限的tick数，再等待另一个设定上限的tick数，然后重置并重复循环。通过Comment()在图表上显示当前计数和等待值，但不执行任何交易操作。</p>
+    <h2>策略分析</h2><p>该EA并非交易策略，而是一个tick计数与等待的工具框架。策略概念是基于tick频率的分阶段执行框架：第一阶段（Pass阶段）累计tick达到count参数后停止执行；第二阶段（Wait阶段）累计wait个tick的等待期；等待期结束后自动重置两个计数器，重新开始循环。入场条件完全由tick计数驱动，不存在任何交易信号生成逻辑。出场条件同样不存在，因为没有开仓操作。仓位管理和资金管理均未实现，EA仅提供计数骨架供用户填入自定义逻辑。整体而言，这是一个模板/脚手架代码，设计意图是让用户在指定tick间隔内执行代码块。</p>
+  </div>
+  <div lang="en">
+    <h2>Summary</h2>
+    <p>A tick-counting utility EA that implements a two-phase cycle: it counts ticks up to a configurable limit, then waits for another configurable number of ticks, before resetting and repeating. It displays the current count and wait values on the chart via Comment() but does not execute any trades.</p>
+    <h2>Strategy Analysis</h2><p>This EA is not a trading strategy but a tick-counting and waiting utility framework. The strategy concept is a two-phase cycle driven by tick frequency: Phase 1 (Pass phase) accumulates ticks until the &#x27;count&#x27; parameter is reached, then stops executing user code; Phase 2 (Wait phase) accumulates &#x27;wait&#x27; number of ticks as a cooldown period; after the wait completes, both counters reset and the cycle repeats. There are no entry conditions for trades whatsoever, as no trading signal generation logic exists. Exit conditions are similarly absent since no positions are ever opened. Position sizing and money management are completely unimplemented — the EA only provides a counting skeleton for users to insert their own custom logic. Overall, this is a template/scaffold code designed to let users execute code blocks at specified tick intervals with a built-in cooldown mechanism.</p>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang2(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang2(this,'en')">English</button>
+  </div>
+  <div lang2="zh" class="visible pros-cons">
+    <div class="pros"><h3>优势</h3><ul><li>简洁的双阶段循环框架，逻辑清晰易懂</li>
+<li>提供可配置的计数和等待参数，灵活性好</li>
+<li>自动重置机制确保循环持续运行，无需手动干预</li>
+<li>通过Comment()实时显示计数状态，便于调试和监控</li>
+<li>代码结构简单，适合初学者学习和扩展</li></ul></div>
+    <div class="cons"><h3>劣势</h3><ul><li>没有任何交易逻辑，仅是一个空壳模板</li>
+<li>缺少新K线检测，同一根K线内可能多次执行</li>
+<li>没有错误处理机制，计数器溢出或异常值无防护</li>
+<li>Comment()刷新频繁可能导致图表闪烁，影响性能</li>
+<li>等待阶段的代码块为空，用户容易误解执行时机</li></ul></div>
+    <div class="improvements"><h3>改进建议</h3><ul><li>添加新K线检测（isNewBar），避免同一K线内重复执行逻辑</li>
+<li>使用计时器（OnTimer）替代tick计数，使执行间隔更稳定可预测</li>
+<li>增加输入参数校验，防止count和wait设为0或负值导致逻辑异常</li></ul></div>
+  </div>
+  <div lang2="en" class="pros-cons">
+    <div class="pros"><h3>Strengths</h3><ul><li>Clean two-phase cycle framework with clear and understandable logic</li>
+<li>Configurable count and wait parameters provide good flexibility</li>
+<li>Automatic reset mechanism ensures continuous cycling without manual intervention</li>
+<li>Real-time counter display via Comment() aids debugging and monitoring</li>
+<li>Simple code structure makes it suitable for beginners to learn and extend</li></ul></div>
+    <div class="cons"><h3>Weaknesses</h3><ul><li>Contains no trading logic whatsoever — it is merely an empty shell template</li>
+<li>Lacks new bar detection, potentially causing multiple executions within the same bar</li>
+<li>No error handling mechanism — no protection against counter overflow or abnormal values</li>
+<li>Frequent Comment() refreshes may cause chart flickering and impact performance</li>
+<li>The wait phase code block is empty, making it easy for users to misunderstand execution timing</li></ul></div>
+    <div class="improvements"><h3>Improvements</h3><ul><li>Add new bar detection (isNewBar) to prevent repeated logic execution within the same bar</li>
+<li>Use timer (OnTimer) instead of tick counting for more stable and predictable execution intervals</li>
+<li>Add input parameter validation to prevent setting count or wait to 0 or negative values which would cause logic anomalies</li></ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang3(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang3(this,'en')">English</button>
+  </div>
+  <div lang3="zh" class="visible">
+    <h2>风险评估 / Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">总体 / Overall:</span><span class="badge badge-risk">SAFE</span></div>
+    </div>
+    <h3>风险点</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>该EA不执行任何交易操作，无财务风险</li>
+<li>缺少参数校验，count或wait为0时可能导致无限循环或无效行为</li></ul>
+  </div>
+  <div lang3="en">
+    <h2>Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">Overall:</span><span class="badge badge-risk">SAFE</span></div>
+    </div>
+    <h3>Risk Points</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>The EA does not execute any trading operations — no financial risk</li>
+<li>Missing parameter validation — setting count or wait to 0 could cause infinite loops or invalid behavior</li></ul>
+  </div>
+</div>
+
+<div class="section">
+  <h2>评估评分 / Evaluation Scores</h2>
+  <div class="score-row"><span class="score-label">代码质量 Code Quality</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">策略逻辑 Strategy Logic</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
+  <div class="score-row"><span class="score-label">风险管理 Risk Management</span><div class="score-bar"><div class="score-fill" style="width:100%"></div></div><span class="score-value">5.0/5</span></div>
+  <div class="score-row"><span class="score-label">稳健性 Robustness</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">创新性 Innovation</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
+  <div class="score-row"><span class="score-label">文档 Documentation</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">总体 Overall</span><div class="score-bar"><div class="score-fill" style="width:43.4%"></div></div><span class="score-value">2.2/5</span></div>
+</div>
+
+<div class="section">
+  <h2>参数 / Parameters</h2>
+  <table>
+    <thead><tr><th>参数 / Parameter</th><th>默认值 / Default</th><th>说明 / Description</th></tr></thead>
+    <tbody><tr><td>count</td><td><code>50</code></td><td>计数阶段的上限tick数</td></tr>
+<tr><td>wait</td><td><code>50</code></td><td>等待阶段的tick数上限</td></tr></tbody>
+  </table>
+</div>
+
+</div>
+
+<script>
+function switchLang(btn,lang){
+  btn.parentElement.parentElement.querySelectorAll("[lang]").forEach(el=>{el.classList.toggle("visible",el.getAttribute("lang")===lang)});
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang2(btn,lang){
+  document.querySelectorAll("[lang2]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang2")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang3(btn,lang){
+  document.querySelectorAll("[lang3]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang3")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+</script>
+</body>
+</html>
