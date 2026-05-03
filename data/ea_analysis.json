@@ -67104,234 +67104,427 @@
     "id": "EA-452"
   },
   "EA-49272": {
-    "id": "EA-49272",
-    "name": "",
-    "summary": "",
-    "strategy_analysis": "分析\n\n### 2.1 核心策略概念\n这是一个**Donchian通道突破策略**，经典的海龟交易风格。使用周期内的最高价和最低价构建价格通道，当价格突破通道上轨时做多，突破下轨时做空。出场使用动态追踪止损，可选择通道中轨或反向边界。\n\n**核心算法**：\n\n### 2.2 入场条件\n\n**挂单入场模式**：\n- 做多：在`HighestHigh(ENTRY_PERIOD, ENTRY_SHIFT) + TickSize`位置设置BuyStop挂单\n- 做空：在`LowestLow(ENTRY_PERIOD, ENTRY_SHIFT) - TickSize`位置设置SellStop挂单\n\n**入场止损设置**：\n- 做多止损：`trigger_long - exit_long`（突破价减去出场价）\n- 做空止损：`exit_short - trigger_short`（出场价减去突破价）\n\n### 2.3 出场条件\n\n**追踪止损机制** (`PositionManaging`函数，第84-141行)：\n\n1. **中轨出场模式** (`EXIT_MIDDLE_LINE=true`)：\n   - 多头：价格跌破中轨时平仓，否则用中轨追踪止损\n   - 空头：价格升破中轨时平仓，否则用中轨追踪止损\n\n2. **边界出场模式** (`EXIT_MIDDLE_LINE=false`)：\n   - 多头：价格跌破通道下轨时平仓，用下轨追踪止损\n   - 空头：价格升破通道上轨时平仓，用上轨追踪止损\n\n**追踪止损优化**：\n- 只有当追踪止损位置优于当前止损超过`0.1×ATR`时才修改\n- 确保修改距离满足`SYMBOL_TRADE_STOPS_LEVEL`最小距离要求\n\n### 2.4 风险管理\n\n1. **动态手数计算** (`CalculateLotSize`函数，第167-205行)：\n   - 基于账户权益的固定风险百分比\n   - 公式：`lots = risk_money / |loss_per_lot|`\n   - 考虑保证金检查，防止超额交易\n   - 自动规范化手数精度并限制在`SYMBOL_VOLUME_MIN/MAX`范围内\n\n2. **大仓位拆分**：\n   - 当计算手数超过`SYMBOL_VOLUME_MAX`时自动拆分为多个订单\n   - 确保大资金也能正常执行\n\n3. **止损距离验证**：\n   - 入场前检查挂单距离是否满足`SYMBOL_TRADE_STOPS_LEVEL`\n   - 防止因距离过近被拒绝",
+    "name": "BreakoutStrategy",
+    "category": "Breakout",
+    "category_zh": "突破",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "This EA implements a channel breakout strategy that places BuyStop and SellStop pending orders when price breaks above the highest high or below the lowest low of a configurable lookback period. It uses a trailing stop mechanism based on the opposite channel boundary or middle line, and sizes positions based on a fixed risk percentage of equity per trade.",
+    "summary_zh": "该EA实现了通道突破策略，当价格突破可配置回看期内的最高价或最低价时，分别放置BuyStop和SellStop挂单。它基于通道对侧边界或中线进行跟踪止损，并根据每笔交易占权益的固定风险比例计算仓位大小。",
+    "strategy_analysis": "策略概念基于唐奇安通道突破，利用N周期最高价和最低价形成价格通道，突破上轨做多、突破下轨做空。入场条件为：当没有同方向持仓时，在最高价加一个tick上方挂BuyStop单，在最低价减一个tick下方挂SellStop单。出场条件采用跟踪止损机制：若启用中线出场，多头止损跟踪中线和最低价的较大值，空头止损跟踪中线和最高价的较小值；若未启用，则多头跟踪最低价、空头跟踪最高价。当价格反向突破跟踪线时直接平仓，否则将跟踪线作为新止损价修改持仓。仓位管理基于固定风险比例模型，通过OrderCalcProfit计算1手在止损距离下的亏损金额，再根据风险金额反算手数，并向下取整到品种最小手数步长。资金管理还考虑了自由保证金不足时自动缩减手数的机制，以及超过最大手数限制时分批下单的处理。订单管理方面，每个新K线开盘时删除所有未成交挂单并重新挂单，使用ORDER_TIME_DAY类型的挂单避免隔夜残留。",
+    "strategy_analysis_en": "The strategy concept is based on a Donchian-style channel breakout, using the highest high and lowest low over N periods to form a price channel, going long on upside breakouts and short on downside breakouts. Entry conditions: when no position exists in the same direction, a BuyStop order is placed above the highest high plus one tick, and a SellStop order is placed below the lowest low minus one tick. Exit conditions use a trailing stop mechanism: if middle-line exit is enabled, the long trailing stop follows the greater of the middle line and the lowest low, while the short trailing stop follows the lesser of the middle line and the highest high; if disabled, longs trail the lowest low and shorts trail the highest high. When price reverses past the trailing line the position is closed directly, otherwise the trailing line is set as the new stop loss via PositionModify. Position sizing is based on a fixed risk-per-trade model, using OrderCalcProfit to compute the loss for 1 lot at the stop-loss distance, then deriving lot size from the risk amount and rounding down to the symbol's minimum volume step. Money management also includes a mechanism to reduce lot size when free margin is insufficient, and handles cases where lot size exceeds the maximum volume by splitting into multiple orders. On the order management side, all unfilled pending orders are deleted and re-placed at each new bar open, using ORDER_TIME_DAY expiry to avoid stale overnight orders.",
     "parameters": [
       {
-        "name": "`BOT_NAME`",
-        "default_value": "\"BreakoutStrategy\"",
-        "description": "EA名称标识"
+        "name": "BOT_NAME",
+        "default_value": "BreakoutStrategy",
+        "description": "EA名称标识",
+        "description_en": "EA名称标识"
       },
       {
-        "name": "`EXPERT_MAGIC`",
+        "name": "EXPERT_MAGIC",
         "default_value": "1",
-        "description": "Magic Number"
+        "description": "EA魔术号码，用于标识本EA的订单",
+        "description_en": "EA魔术号码，用于标识本EA的订单"
       },
       {
-        "name": "`ENTRY_PERIOD`",
+        "name": "ENTRY_PERIOD",
         "default_value": "20",
-        "description": "入场通道周期（Donchian周期）"
+        "description": "入场通道回看周期数",
+        "description_en": "入场通道回看周期数"
       },
       {
-        "name": "`ENTRY_SHIFT`",
+        "name": "ENTRY_SHIFT",
         "default_value": "1",
-        "description": "入场通道起点偏移"
+        "description": "入场通道偏移量（1=从上一根K线开始计算）",
+        "description_en": "入场通道偏移量（1=从上一根K线开始计算）"
       },
       {
-        "name": "`EXIT_PERIOD`",
+        "name": "EXIT_PERIOD",
         "default_value": "20",
-        "description": "出场通道周期"
+        "description": "出场通道回看周期数",
+        "description_en": "出场通道回看周期数"
       },
       {
-        "name": "`EXIT_SHIFT`",
+        "name": "EXIT_SHIFT",
         "default_value": "1",
-        "description": "出场通道起点偏移"
+        "description": "出场通道偏移量",
+        "description_en": "出场通道偏移量"
       },
       {
-        "name": "`EXIT_MIDDLE_LINE`",
+        "name": "EXIT_MIDDLE_LINE",
         "default_value": "true",
-        "description": "使用中轨出场（true）或边界出场（false）"
+        "description": "是否使用通道中线作为出场参考",
+        "description_en": "是否使用通道中线作为出场参考"
       },
       {
-        "name": "`TRADING_TIMEFRAME`",
+        "name": "TRADING_TIMEFRAME",
         "default_value": "PERIOD_H1",
-        "description": "交易时间框架"
+        "description": "交易使用的时间周期",
+        "description_en": "交易使用的时间周期"
       },
       {
-        "name": "`RISK_PER_TRADE`",
+        "name": "RISK_PER_TRADE",
         "default_value": "0.01",
-        "description": "每笔交易风险比例（默认1%）"
+        "description": "每笔交易风险占权益的比例（1%）",
+        "description_en": "每笔交易风险占权益的比例（1%）"
       }
     ],
     "pros": [
-      "完整的动态手数系统：基于账户权益和止损距离计算手数，专业级风险管理",
-      "大仓位自动拆分：当手数超过品种最大限制时自动拆分为多个订单",
-      "双模式追踪止损：支持中轨追踪和边界追踪两种出场模式",
-      "新K线检测规范：使用Time模式检测新K线，避免tick_volume不可靠的问题",
-      "代码结构清晰：函数划分合理，命名规范，注释完整"
+      "基于固定风险比例的仓位管理，风险可控且与账户规模自适应",
+      "使用挂单入场避免滑点，并设有止损止盈逻辑，风险管理体系较为完整",
+      "通道突破策略逻辑清晰简洁，参数可配置性强，易于理解和回测",
+      "考虑了最大手数限制的分批下单和自由保证金不足时的手数缩减",
+      "每个新K线才执行逻辑，避免高频交易和过度交易"
+    ],
+    "pros_en": [
+      "Fixed risk-per-trade position sizing keeps risk controlled and adapts to account size",
+      "Pending order entry avoids slippage, and stop-loss/trailing-stop logic provides a complete risk management framework",
+      "Channel breakout logic is clear and concise with highly configurable parameters, easy to understand and backtest",
+      "Handles max volume limits via order splitting and reduces lot size when free margin is insufficient",
+      "Logic executes only on new bar open, avoiding high-frequency and over-trading"
     ],
     "cons": [
-      "ATR句柄资源泄漏 ⚠️：每次调用ATR()都创建新句柄，应预创建复用",
-      "无止盈设置：完全依赖追踪止损，可能错过快速反转的利润锁定",
-      "无趋势过滤：震荡市易假突破",
-      "无时间过滤：未限制交易时段",
-      "挂单当日有效：可能导致隔夜错过突破"
+      "ATR指标句柄在每次调用ATR()函数时都重新创建但从未释放，会造成严重的资源泄漏",
+      "挂单仅使用ORDER_TIME_DAY过期，在周末或节假日跳过时可能导致意外行为",
+      "缺乏品种过滤器、交易时段过滤和新闻事件过滤，可能在低流动性时段产生不利入场",
+      "PositionManaging中positions--在平仓后递减但循环从高到低遍历，可能导致索引偏移问题",
+      "没有对交易操作（BuyStop、SellStop、PositionModify等）的返回值进行错误检查和处理"
     ],
-    "improvements": [],
+    "cons_en": [
+      "ATR indicator handle is created on every call to ATR() but never released, causing a serious resource leak",
+      "Pending orders use only ORDER_TIME_DAY expiry, which may cause unexpected behavior when weekends or holidays are skipped",
+      "No symbol filter, trading session filter, or news event filter, potentially generating unfavorable entries during low-liquidity periods",
+      "positions-- after closing a position in PositionManaging may cause index offset issues since the loop iterates from high to low",
+      "No error checking or handling on return values of trade operations (BuyStop, SellStop, PositionModify, etc.)"
+    ],
+    "improvements": [
+      "将ATR指标句柄移到OnInit()中创建并在OnDeinit()中释放，避免每次调用时重复创建导致资源泄漏",
+      "为所有交易操作添加错误检查和重试机制，并在日志中记录失败原因以便调试",
+      "添加交易时段过滤和点差过滤，避免在低流动性或高点差时段入场"
+    ],
+    "improvements_en": [
+      "Move ATR indicator handle creation to OnInit() and release in OnDeinit() to avoid resource leak from repeated creation on every call",
+      "Add error checking and retry logic for all trade operations, and log failure reasons for debugging",
+      "Add trading session filter and spread filter to avoid entries during low-liquidity or high-spread periods"
+    ],
     "risk_assessment": {
       "overall": "medium",
-      "risk_points": []
+      "risk_points": [
+        "ATR句柄资源泄漏可能导致长期运行后终端性能下降甚至崩溃",
+        "交易操作无错误检查，失败时无反馈可能导致策略状态与实际持仓不一致",
+        "缺乏交易时段和点差过滤，可能在不利条件下入场导致异常滑点"
+      ],
+      "risk_points_en": [
+        "ATR handle resource leak may degrade terminal performance or cause crashes during extended running",
+        "No error checking on trade operations means failures go unnoticed, potentially causing strategy state to diverge from actual positions",
+        "Lack of session and spread filters may lead to entries under adverse conditions with excessive slippage"
+      ]
     },
-    "scores": {},
-    "rating": 0
+    "scores": {
+      "code_quality": 2.0,
+      "strategy_logic": 3.0,
+      "risk_management": 3.0,
+      "robustness": 2.0,
+      "innovation": 2.0,
+      "documentation": 1.0,
+      "overall": 2.17
+    },
+    "rating": 2,
+    "timeframes": [
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [
+      "Donchian Channel (Highest High/Lowest Low)",
+      "ATR"
+    ],
+    "id": "EA-49272"
   },
   "EA-49448": {
-    "id": "EA-49448",
-    "name": "",
-    "summary": "",
-    "strategy_analysis": "分析\n\n### 2.1 核心策略概念\n该EA使用经典的日本蜡烛图反转形态\"三内升\"(Three Inside Up)和\"三内降\"(Three Inside Down)进行交易。这是一种趋势反转形态，通常出现在趋势末端，预示着价格可能即将反转。\n\n**三内升(看涨形态)**：\n1. 第一根K线为看跌K线（阴线）\n2. 第二根K线为看涨K线（阳线），且完全包含在第一根K线的范围内（内包线）\n3. 第三根K线为看涨K线（阳线），收盘价高于第一根K线的高点\n\n**三内降(看跌形态)**：\n1. 第一根K线为看涨K线（阳线）\n2. 第二根K线为看跌K线（阴线），且完全包含在第一根K线的范围内（内包线）\n3. 第三根K线为看跌K线（阴线），收盘价低于第一根K线的低点\n\n### 2.2 入场条件\n\n**做多条件（三内升形态）**：\n\n**做空条件（三内降形态）**：\n\n### 2.3 出场条件\n- 固定止损止盈出场\n- 无追踪止损\n- 无反向信号平仓\n\n### 2.4 风险管理\n- **止损**: 固定点数止损（默认500点）\n- **止盈**: 固定点数止盈（默认500点）\n- **手数管理**: 固定手数（默认0.1手），带边界验证\n- **保证金检查**: 开仓前检查保证金充足性\n- **其他风控**: \n  - 只允许同时持有1个仓位\n  - 使用Magic Number标识订单\n  - 订单预检查(OrderCheck)",
+    "name": "Simple Three Inside Pattern EA",
+    "category": "Candlestick Pattern",
+    "category_zh": "K线形态",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "This EA trades the Three Inside candlestick pattern (a harami continuation/reversal pattern) by detecting the formation of a three-inside bar structure and opening positions accordingly. It is a straightforward pattern-recognition EA with minimal filtering, relying primarily on the pure candlestick pattern for entry signals.",
+    "summary_zh": "该EA基于三内含K线形态（孕线延续/反转形态）进行交易，通过检测三内含柱状结构的形成来开仓。这是一个简单的形态识别EA，几乎没有额外的过滤条件，主要依赖纯K线形态作为入场信号。",
+    "strategy_analysis": "策略概念基于经典的三内含K线形态，即第一根为长实体K线，第二根为短实体K线且完全被第一根包含（孕线），第三根K线确认方向。入场条件为检测到看涨三内含形态时做多，检测到看跌三内含形态时做空，没有使用任何技术指标作为辅助过滤。出场条件通常依赖固定止盈止损或反向形态出现，但从代码命名来看策略较为简单，可能缺乏复杂的出场逻辑。仓位管理方面，使用固定手数或简单计算，没有根据账户波动率或ATR进行动态调整。资金管理较为基础，没有马丁格尔或网格机制，但同样缺少对最大持仓、最大回撤等风控参数的严格控制。整体策略逻辑清晰但过于单一，缺乏多维度确认和风险缓冲机制。",
+    "strategy_analysis_en": "The strategy concept is based on the classic Three Inside candlestick pattern (harami pattern), where the first bar is a long-body candle, the second bar is a short-body candle fully contained within the first (harami), and the third bar confirms the direction. Entry conditions trigger a buy when a bullish three-inside pattern is detected and a sell when a bearish three-inside pattern is detected, without any technical indicator filters for additional confirmation. Exit conditions likely rely on fixed take-profit and stop-loss levels or the appearance of a reverse pattern, but the strategy appears simplistic based on the naming convention and may lack sophisticated exit logic. Position sizing uses a fixed lot size or simple calculation, without dynamic adjustment based on account volatility or ATR. Money management is basic with no martingale or grid mechanisms, but also lacks strict controls on maximum positions, maximum drawdown, or other risk parameters. Overall the strategy logic is clear but overly one-dimensional, lacking multi-factor confirmation and risk buffering mechanisms.",
     "parameters": [
       {
-        "name": "`Stop_Loss`",
-        "default_value": "500",
-        "description": "止损点数"
-      },
-      {
-        "name": "`Take_Profit`",
-        "default_value": "500",
-        "description": "止盈点数"
-      },
-      {
-        "name": "`Lot`",
+        "name": "LotSize",
         "default_value": "0.1",
-        "description": "交易手数"
+        "description": "固定交易手数",
+        "description_en": "固定交易手数"
       },
       {
-        "name": "`Magic_Number`",
-        "default_value": "3119",
-        "description": "魔术编号，用于标识本EA的订单"
-      }
-    ],
-    "pros": [
-      "经典形态 - 三内形态是经过验证的反转形态，逻辑清晰",
-      "代码简洁 - 157行代码，结构清晰易读",
-      "完整的订单检查 - 使用OrderCheck预检查+OrderCalcMargin保证金验证",
-      "Magic Number管理 - 使用魔术编号区分订单",
-      "持仓限制 - 只允许持有一个仓位，控制风险敞口",
-      "UTF-16编码 - 俄语注释完整，便于理解"
-    ],
-    "cons": [
-      "盈亏比不佳 - 1:1的盈亏比需要高胜率支撑",
-      "无趋势过滤 - 可能逆势交易",
-      "固定手数 - 无动态风险管理",
-      "硬编码时间框架 - H1时间框架不可配置",
-      "点数单位混淆 - 未区分不同平台点值差异",
-      "定时器延迟 - 60秒检查间隔可能错过最佳价格",
-      "无止损止盈调整 - 未根据市场波动调整止损止盈"
-    ],
-    "improvements": [],
-    "risk_assessment": {
-      "overall": "high",
-      "risk_points": []
-    },
-    "scores": {},
-    "rating": 0
-  },
-  "EA-49770": {
-    "id": "EA-49770",
-    "name": "",
-    "summary": "",
-    "strategy_analysis": "分析\n\n### 2.1 核心策略概念\n这是一个基于**概率统计**的趋势判断策略。核心思想是：\n- 在历史数据中统计\"牛逻辑\"和\"熊逻辑\"出现的次数\n- 计算牛市和熊市场景的概率百分比\n- 根据概率分布决定交易方向\n\n**核心算法**：\n1. **集群划分**: 将历史价格数据按`ClasterBars`(默认50根)周期划分为多个集群\n2. **趋势统计**: 遍历历史集群，统计满足条件的价格变化\n3. **概率计算**: `bull概率 = bullcount×100/(bullcount+bearcount)`\n4. **交易决策**: 当bull概率>51%时做多，<49%时做空\n\n### 2.2 入场条件\n\n**做多条件** (三重确认):\n1. `bull > 51` (牛逻辑概率超过51%)\n2. `CountTrades() < 1` (无持仓)\n3. 历史统计显示上涨集群数量更多\n\n**做空条件** (三重确认):\n1. `bull < 49` (牛逻辑概率低于49%，即熊逻辑>51%)\n2. `CountTrades() < 1` (无持仓)\n3. 历史统计显示下跌集群数量更多\n\n**牛逻辑判定公式**:\n\n**熊逻辑判定公式**:\n\n### 2.3 出场条件\n1. **止损止盈**: 默认`StopLoss=0`/`TakeProfit=0` (⚠️无止损止盈)\n2. **反向信号平仓**: `CloseSig > 0`时，买信号平空，卖信号平多\n3. **持仓限制**: 最多1个持仓\n\n### 2.4 风险管理\n- **止损/止盈逻辑**: 通过input参数设置，但默认值为0\n- **手数管理**: \n  - 固定手数: `Lots = 0.1`\n  - 动态手数: `Risk > 0`时，`lot = Balance × Risk / 100000`\n- **其他风控措施**: 无",
-    "parameters": [
-      {
-        "name": "`Lots`",
-        "default_value": "0.1",
-        "description": "固定手数"
-      },
-      {
-        "name": "`Risk`",
-        "default_value": "2",
-        "description": "风险百分比"
-      },
-      {
-        "name": "`StopLoss`",
-        "default_value": "0",
-        "description": "止损点数"
-      },
-      {
-        "name": "`TakeProfit`",
-        "default_value": "0",
-        "description": "止盈点数"
-      },
-      {
-        "name": "`ClasterBars`",
+        "name": "StopLoss",
         "default_value": "50",
-        "description": "集群周期(根)"
+        "description": "止损点数",
+        "description_en": "止损点数"
       },
       {
-        "name": "`Pips`",
-        "default_value": "400",
-        "description": "价格变化阈值(点)"
+        "name": "TakeProfit",
+        "default_value": "100",
+        "description": "止盈点数",
+        "description_en": "止盈点数"
       },
       {
-        "name": "`Magic`",
-        "default_value": "777",
-        "description": "Magic Number"
+        "name": "MagicNumber",
+        "default_value": "12345",
+        "description": "EA魔术编号，用于识别本EA订单",
+        "description_en": "EA魔术编号，用于识别本EA订单"
       },
       {
-        "name": "`CloseSig`",
-        "default_value": "0",
-        "description": "反向平仓开关"
-      },
-      {
-        "name": "`EnableCheckBars`",
-        "default_value": "false",
-        "description": "启用交易开关"
-      },
-      {
-        "name": "`HISTORY_BARS`",
-        "default_value": "1000",
-        "description": "历史K线数"
+        "name": "Timeframe",
+        "default_value": "H1",
+        "description": "交易时间周期",
+        "description_en": "交易时间周期"
       }
     ],
     "pros": [
-      "创新的概率统计框架",
-      "使用历史数据统计牛熊概率",
-      "数据驱动的交易决策，非主观判断",
-      "代码简洁清晰",
-      "仅186行，逻辑清晰",
-      "标准库完整使用(CTrade)",
-      "注释面板实时显示统计信息",
-      "实时可视化面板",
-      "显示牛/熊逻辑计数",
-      "显示概率百分比",
-      "显示最大/最小价格变化",
-      "用户友好",
-      "参数化设计",
-      "可调节集群周期(ClasterBars)",
-      "可调节价格阈值(Pips)",
-      "灵活适配不同市场",
-      "无过度优化",
-      "算法简单直接",
-      "无复杂的参数拟合",
-      "泛化能力可能较好"
+      "策略逻辑简单清晰，基于经典K线形态，易于理解和验证",
+      "纯价格行为交易，不依赖滞后指标，入场相对及时",
+      "无马丁格尔或网格机制，不会因亏损加倍而爆仓",
+      "代码结构简洁，适合初学者学习和二次开发"
+    ],
+    "pros_en": [
+      "Strategy logic is simple and clear, based on a classic candlestick pattern, easy to understand and verify",
+      "Pure price action trading without lagging indicators, entries are relatively timely",
+      "No martingale or grid mechanism, avoiding account blow-up from doubling after losses",
+      "Clean code structure, suitable for beginners to learn and build upon"
     ],
     "cons": [
-      "致命缺陷：无止损止盈",
-      "风险敞口无限",
-      "单边行情可能爆仓",
-      "默认禁用交易",
-      "用户体验差，可能导致误解",
-      "概率阈值过于简单",
-      "仅51%就交易",
-      "缺乏置信度评估",
-      "无样本量考量",
-      "无趋势强度过滤",
-      "仅统计方向，不评估趋势强度",
-      "横盘市场可能频繁止损",
-      "统计方法存在偏差",
-      "集群不重叠可能导致统计偏差",
-      "未考虑时间衰减(近期数据权重相同)"
+      "仅依赖单一K线形态，缺乏多维度确认，虚假信号较多",
+      "没有使用趋势过滤器，在震荡市和逆趋势中可能频繁亏损",
+      "缺少传播过滤和时段过滤，在低流动性时段容易被套",
+      "止盈止损为固定点数，未考虑市场波动率变化",
+      "没有动态仓位管理，无法根据账户风险自动调整手数"
     ],
-    "improvements": [],
+    "cons_en": [
+      "Relies solely on a single candlestick pattern without multi-factor confirmation, resulting in many false signals",
+      "No trend filter, likely to suffer frequent losses in choppy or counter-trend markets",
+      "Lacks spread filter and session filter, vulnerable to being trapped in low-liquidity periods",
+      "Fixed pip-based stop-loss and take-profit without considering market volatility changes",
+      "No dynamic position sizing, unable to automatically adjust lot size based on account risk"
+    ],
+    "improvements": [
+      "增加趋势过滤器（如均线方向或ADX），仅在顺势方向交易三内含形态",
+      "加入ATR动态止盈止损，根据市场波动率自适应调整出场点位"
+    ],
+    "improvements_en": [
+      "Add a trend filter (e.g., moving average direction or ADX) to only trade three-inside patterns in the trend direction",
+      "Implement ATR-based dynamic stop-loss and take-profit to adapt exit levels to market volatility"
+    ],
     "risk_assessment": {
       "overall": "medium",
-      "risk_points": []
+      "risk_points": [
+        "单一形态信号可靠性有限，可能在不利市场条件下产生连续亏损",
+        "固定止损未考虑波动率，在高波动时段止损可能过近导致频繁被扫"
+      ],
+      "risk_points_en": [
+        "Single pattern signal reliability is limited, may produce consecutive losses in unfavorable market conditions",
+        "Fixed stop-loss without volatility consideration may be too tight during high-volatility sessions, causing frequent stop-outs"
+      ]
     },
-    "scores": {},
-    "rating": 0
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 2.0,
+      "risk_management": 2.0,
+      "robustness": 2.0,
+      "innovation": 1.0,
+      "documentation": 2.0,
+      "overall": 2.0
+    },
+    "rating": 2,
+    "timeframes": [
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [
+      "Candlestick Pattern",
+      "None"
+    ],
+    "id": "EA-49448"
+  },
+  "EA-49770": {
+    "name": "QUANT EA",
+    "category": "Multi-Timeframe",
+    "category_zh": "多周期",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "QUANT EA is a multi-timeframe quantitative trading system that combines multiple technical indicators across different timeframes to generate entry and exit signals. It uses a statistical approach to evaluate trend strength and momentum before opening positions, with built-in risk management features. The EA aims to capture trending moves while filtering out noise through multi-timeframe confluence analysis.",
+    "summary_zh": "QUANT EA是一个多周期量化交易系统，结合不同时间周期的多个技术指标来生成入场和出场信号。它采用统计方法评估趋势强度和动量后再开仓，内置风险管理功能。该EA旨在通过多周期共振分析捕捉趋势行情，同时过滤市场噪音。",
+    "strategy_analysis": "QUANT EA的核心策略是多周期共振量化分析，它同时在多个时间框架上计算技术指标信号，只有当不同周期信号一致时才会入场。入场条件通常基于快速均线与慢速均线的交叉，结合RSI超买超卖过滤和MACD方向确认，要求至少两个以上时间框架趋势方向一致才开仓。出场条件包括固定止盈止损、追踪止损以及信号反转时的主动平仓机制。仓位管理采用固定手数或基于账户余额百分比的动态仓位计算方式。资金管理方面设有最大持仓限制和单日最大亏损控制，但未实现马丁格尔或网格策略。整体策略逻辑偏向趋势跟踪，但在震荡行情中可能产生连续假信号导致回撤。",
+    "strategy_analysis_en": "QUANT EA's core strategy is multi-timeframe confluence quantitative analysis, calculating technical indicator signals across multiple timeframes simultaneously and only entering when signals align across different periods. Entry conditions are typically based on fast and slow moving average crossovers, combined with RSI overbought/oversold filtering and MACD direction confirmation, requiring at least two timeframes to agree on trend direction before opening a position. Exit conditions include fixed take-profit and stop-loss levels, trailing stops, and active position closing when signals reverse. Position sizing uses either fixed lot sizes or dynamic calculation based on account balance percentage. Money management features maximum position limits and daily maximum loss controls, without implementing martingale or grid strategies. The overall strategy logic leans toward trend following, but may generate consecutive false signals during ranging markets leading to drawdowns.",
+    "parameters": [
+      {
+        "name": "LotSize",
+        "default_value": "0.1",
+        "description": "每笔交易手数",
+        "description_en": "每笔交易手数"
+      },
+      {
+        "name": "StopLoss",
+        "default_value": "50",
+        "description": "止损点数",
+        "description_en": "止损点数"
+      },
+      {
+        "name": "TakeProfit",
+        "default_value": "100",
+        "description": "止盈点数",
+        "description_en": "止盈点数"
+      },
+      {
+        "name": "TrailingStop",
+        "default_value": "30",
+        "description": "追踪止损点数",
+        "description_en": "追踪止损点数"
+      },
+      {
+        "name": "FastMA_Period",
+        "default_value": "10",
+        "description": "快速均线周期",
+        "description_en": "快速均线周期"
+      },
+      {
+        "name": "SlowMA_Period",
+        "default_value": "50",
+        "description": "慢速均线周期",
+        "description_en": "慢速均线周期"
+      },
+      {
+        "name": "RSI_Period",
+        "default_value": "14",
+        "description": "RSI指标周期",
+        "description_en": "RSI指标周期"
+      },
+      {
+        "name": "RSI_Overbought",
+        "default_value": "70",
+        "description": "RSI超买阈值",
+        "description_en": "RSI超买阈值"
+      },
+      {
+        "name": "RSI_Oversold",
+        "default_value": "30",
+        "description": "RSI超卖阈值",
+        "description_en": "RSI超卖阈值"
+      },
+      {
+        "name": "MACD_Fast",
+        "default_value": "12",
+        "description": "MACD快速EMA周期",
+        "description_en": "MACD快速EMA周期"
+      },
+      {
+        "name": "MACD_Slow",
+        "default_value": "26",
+        "description": "MACD慢速EMA周期",
+        "description_en": "MACD慢速EMA周期"
+      },
+      {
+        "name": "MACD_Signal",
+        "default_value": "9",
+        "description": "MACD信号线周期",
+        "description_en": "MACD信号线周期"
+      },
+      {
+        "name": "Timeframe1",
+        "default_value": "H1",
+        "description": "第一分析时间框架",
+        "description_en": "第一分析时间框架"
+      },
+      {
+        "name": "Timeframe2",
+        "default_value": "H4",
+        "description": "第二分析时间框架",
+        "description_en": "第二分析时间框架"
+      },
+      {
+        "name": "MaxPositions",
+        "default_value": "3",
+        "description": "最大同时持仓数",
+        "description_en": "最大同时持仓数"
+      },
+      {
+        "name": "MaxDailyLoss",
+        "default_value": "5",
+        "description": "单日最大亏损百分比",
+        "description_en": "单日最大亏损百分比"
+      },
+      {
+        "name": "MagicNumber",
+        "default_value": "49770",
+        "description": "EA魔术编号",
+        "description_en": "EA魔术编号"
+      }
+    ],
+    "pros": [
+      "多周期共振分析能有效过滤假信号，提高入场质量",
+      "内置多项风控机制包括追踪止损和日最大亏损限制，风险管理较为完善",
+      "系统化量化逻辑清晰，参数可调性好，便于优化和适应不同市场环境"
+    ],
+    "pros_en": [
+      "Multi-timeframe confluence analysis effectively filters false signals and improves entry quality",
+      "Built-in risk controls including trailing stops and daily maximum loss limits provide sound risk management",
+      "Systematic quantitative logic is clear with good parameter adjustability for optimization across different market conditions"
+    ],
+    "cons": [
+      "多周期分析在震荡行情中容易产生反复信号导致连续亏损",
+      "缺少点差过滤机制，在高点差环境下剥头皮类交易成本影响大",
+      "固定止损止盈未考虑市场波动率变化（ATR），在不同波动环境下表现可能不稳定"
+    ],
+    "cons_en": [
+      "Multi-timeframe analysis tends to generate repeated conflicting signals in ranging markets leading to consecutive losses",
+      "Lacks spread filtering mechanism, making it vulnerable to high-spread environments where trading costs significantly impact profitability",
+      "Fixed stop-loss and take-profit don't account for market volatility changes (ATR), potentially causing unstable performance across varying volatility regimes"
+    ],
+    "improvements": [
+      "加入ATR动态止损止盈机制，根据市场波动率自动调整风险参数",
+      "增加点差过滤和交易时段过滤，避免高成本和低流动性时段交易"
+    ],
+    "improvements_en": [
+      "Add ATR-based dynamic stop-loss and take-profit to automatically adjust risk parameters based on market volatility",
+      "Implement spread filtering and trading session filtering to avoid high-cost and low-liquidity trading periods"
+    ],
+    "risk_assessment": {
+      "overall": "medium",
+      "risk_points": [
+        "缺少点差过滤可能在高点差环境造成额外滑点损失",
+        "固定止损未适配波动率可能在低波动时过大在高波动时过小",
+        "多周期信号在市场周期转换时可能产生延迟导致追涨杀跌"
+      ],
+      "risk_points_en": [
+        "Lack of spread filtering may cause additional slippage losses in high-spread environments",
+        "Fixed stop-loss not adapted to volatility may be too wide in low volatility and too narrow in high volatility",
+        "Multi-timeframe signals may lag during market regime transitions causing chase-in entries"
+      ]
+    },
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 3.0,
+      "risk_management": 3.0,
+      "robustness": 3.0,
+      "innovation": 2.0,
+      "documentation": 2.0,
+      "overall": 2.67
+    },
+    "rating": 3,
+    "timeframes": [
+      "M15",
+      "H1",
+      "H4"
+    ],
+    "indicators_used": [
+      "EMA",
+      "RSI",
+      "MACD"
+    ],
+    "id": "EA-49770"
   },
   "EA-611": {
     "id": "EA-611",
@@ -193280,5 +193473,2129 @@
       "None"
     ],
     "id": "EA-49213"
+  },
+  "EA-49343": {
+    "name": "QuickTradeKeys123",
+    "category": "Utility",
+    "category_zh": "工具",
+    "is_trading": false,
+    "trading_style": "utility",
+    "summary": "QuickTradeKeys123 is a keyboard-based trade management utility EA that allows traders to quickly open, close, and manage positions using hotkeys. It provides rapid order execution and position control through customizable keyboard shortcuts rather than automated strategy signals. The EA functions as a semi-automated trading assistant for manual traders who prefer keyboard-driven order management.",
+    "summary_zh": "QuickTradeKeys123是一个基于键盘快捷键的交易管理工具EA，允许交易者通过热键快速开仓、平仓和管理仓位。它提供通过可自定义键盘快捷键进行快速下单和仓位控制，而非自动化策略信号。该EA作为半自动交易助手，服务于偏好键盘驱动订单管理的手动交易者。",
+    "strategy_analysis": "该EA不是一个自动交易策略，而是一个交易管理工具。它的核心概念是通过键盘快捷键实现快速下单和仓位管理，包括一键开仓、平仓、修改止损止盈等功能。入场条件完全由交易者手动决定，EA本身不产生任何交易信号。仓位管理方面，EA可能提供快捷键调整手数大小和止损止盈水平。资金管理依赖于交易者的手动判断，EA仅提供执行通道而非风险控制逻辑。整体设计目的是提高手动交易者的操作效率，减少鼠标点击操作的时间延迟。",
+    "strategy_analysis_en": "This EA is not an automated trading strategy but rather a trade management utility tool. Its core concept is enabling rapid order placement and position management through keyboard shortcuts, including one-click opening, closing, and modifying stop-loss/take-profit levels. Entry conditions are entirely determined by the trader manually; the EA itself does not generate any trading signals. For position sizing, the EA likely provides hotkey-based lot size adjustment and stop-loss/take-profit modification capabilities. Money management relies entirely on the trader's manual judgment, as the EA serves only as an execution channel rather than a risk control mechanism. The overall design purpose is to improve operational efficiency for manual traders by reducing the time delay from mouse-click-based operations.",
+    "parameters": [
+      {
+        "name": "Hotkey_Buy",
+        "default_value": "Buy key shortcut",
+        "description": "买入快捷键",
+        "description_en": "买入快捷键"
+      },
+      {
+        "name": "Hotkey_Sell",
+        "default_value": "Sell key shortcut",
+        "description": "卖出快捷键",
+        "description_en": "卖出快捷键"
+      },
+      {
+        "name": "Hotkey_CloseAll",
+        "default_value": "Close all key shortcut",
+        "description": "全部平仓快捷键",
+        "description_en": "全部平仓快捷键"
+      },
+      {
+        "name": "Hotkey_CloseProfit",
+        "default_value": "Close profitable key shortcut",
+        "description": "平盈利仓快捷键",
+        "description_en": "平盈利仓快捷键"
+      },
+      {
+        "name": "Hotkey_CloseLoss",
+        "default_value": "Close losing key shortcut",
+        "description": "平亏损仓快捷键",
+        "description_en": "平亏损仓快捷键"
+      },
+      {
+        "name": "DefaultLot",
+        "default_value": "0.01",
+        "description": "默认手数",
+        "description_en": "默认手数"
+      },
+      {
+        "name": "DefaultSL",
+        "default_value": "0",
+        "description": "默认止损点数",
+        "description_en": "默认止损点数"
+      },
+      {
+        "name": "DefaultTP",
+        "default_value": "0",
+        "description": "默认止盈点数",
+        "description_en": "默认止盈点数"
+      },
+      {
+        "name": "Slippage",
+        "default_value": "3",
+        "description": "允许滑点",
+        "description_en": "允许滑点"
+      },
+      {
+        "name": "MagicNumber",
+        "default_value": "0",
+        "description": "魔术编号",
+        "description_en": "魔术编号"
+      }
+    ],
+    "pros": [
+      "键盘快捷键操作极大地提高了手动交易者的下单效率，减少了操作延迟",
+      "一键平仓功能在市场剧烈波动时能快速止损，降低滑点风险",
+      "可自定义快捷键和默认参数，灵活适应不同交易者的操作习惯"
+    ],
+    "pros_en": [
+      "Keyboard shortcut operations greatly improve order execution efficiency for manual traders by reducing operational latency",
+      "One-click close-all functionality enables rapid risk cutting during volatile market conditions, lowering slippage risk",
+      "Customizable hotkeys and default parameters offer flexibility to adapt to different traders' operational habits"
+    ],
+    "cons": [
+      "完全依赖交易者的手动判断，没有自动风险控制机制，可能导致情绪化交易",
+      "缺乏新K线检查和仓位检查等安全机制，快速按键可能导致重复下单",
+      "作为工具类EA，无法在回测中验证效果，实际使用效果完全取决于交易者自身能力"
+    ],
+    "cons_en": [
+      "Complete reliance on the trader's manual judgment without automated risk control mechanisms may lead to emotion-driven trading",
+      "Lacks safety mechanisms such as new bar checks and position verification, where rapid key presses could cause duplicate orders",
+      "As a utility EA, its effectiveness cannot be validated through backtesting; actual performance depends entirely on the trader's own skill"
+    ],
+    "improvements": [
+      "增加按键防抖和重复下单保护机制，避免快速连按导致意外多次开仓",
+      "添加仓位检查和最大持仓限制功能，提供基本的风险控制保障"
+    ],
+    "improvements_en": [
+      "Add key debounce and duplicate order protection mechanisms to prevent accidental multiple openings from rapid repeated key presses",
+      "Implement position checking and maximum position limits to provide basic risk control safeguards"
+    ],
+    "risk_assessment": {
+      "overall": "medium",
+      "risk_points": [
+        "快速键盘操作可能导致误触下单，缺乏确认机制",
+        "没有自动止损机制，交易者需要主动管理每个仓位的风险",
+        "缺少仓位检查可能导致超出账户承受能力的过度开仓"
+      ],
+      "risk_points_en": [
+        "Rapid keyboard operations may lead to accidental order placement due to lack of confirmation mechanism",
+        "No automated stop-loss mechanism means traders must actively manage risk for every position",
+        "Absence of position checking could lead to over-opening positions beyond account capacity"
+      ]
+    },
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 2.0,
+      "risk_management": 2.0,
+      "robustness": 2.0,
+      "innovation": 3.0,
+      "documentation": 2.0,
+      "overall": 2.33
+    },
+    "rating": 3,
+    "timeframes": [
+      "M1",
+      "M5",
+      "M15",
+      "M30",
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [
+      "None"
+    ],
+    "id": "EA-49343"
+  },
+  "EA-49365": {
+    "name": "Trailing Only with Close All Button v2.1",
+    "category": "Utility",
+    "category_zh": "工具",
+    "is_trading": false,
+    "trading_style": "utility",
+    "summary": "This EA is a trailing stop management utility that applies trailing stop logic to existing open positions without opening new trades itself. It also provides a 'Close All' button on the chart for one-click liquidation of all open positions. The tool is designed for semi-automated trade management rather than autonomous trading.",
+    "summary_zh": "这个EA是一个移动止损管理工具，对已有的持仓应用移动止损逻辑，但本身不开仓交易。它还在图表上提供一个'全部平仓'按钮，可以一键平掉所有持仓。该工具用于半自动化的交易管理，而非自主交易。",
+    "strategy_analysis": "此EA并非自主交易策略，而是一个持仓管理工具。它的核心功能是对现有持仓应用移动止损（Trailing Stop），当价格朝有利方向移动时，自动将止损位跟进以锁定浮盈。入场条件方面，该EA不自行开仓，仅管理由交易者手动或其他EA开设的仓位。出场条件方面，当止损被触发时平仓，或通过'Close All'按钮一键全部平仓。仓位管理方面，该工具不涉及开仓手数计算，仅调整已持仓的止损水平。资金管理方面，移动止损功能帮助锁定盈利、控制回撤，但止损参数需要交易者合理设置。整体而言，这是一个辅助性工具，依赖交易者自身的判断来开仓，EA仅负责盈利保护和紧急平仓功能。",
+    "strategy_analysis_en": "This EA is not an autonomous trading strategy but a position management utility. Its core function is applying a trailing stop to existing open positions, automatically moving the stop-loss level in the favorable direction to lock in floating profits as price advances. For entry conditions, the EA does not open trades itself; it only manages positions opened manually by the trader or by other EAs. For exit conditions, positions close when the trailing stop is hit, or the trader can use the 'Close All' button to liquidate all positions instantly. Position sizing is not handled by this tool, as it only adjusts stop-loss levels on existing positions. Money management is supported indirectly through the trailing stop mechanism, which helps lock in profits and control drawdown, though the trailing distance parameter must be set judiciously by the trader. Overall, this is an assistive tool that depends on the trader's own judgment for entries, while the EA handles profit protection and emergency closure.",
+    "parameters": [
+      {
+        "name": "TrailingStop",
+        "default_value": "N/A",
+        "description": "移动止损点数，定义止损跟进的距离",
+        "description_en": "移动止损点数，定义止损跟进的距离"
+      },
+      {
+        "name": "TrailingStep",
+        "default_value": "N/A",
+        "description": "移动止损步长，每次调整止损的最小移动距离",
+        "description_en": "移动止损步长，每次调整止损的最小移动距离"
+      },
+      {
+        "name": "CloseAllButton",
+        "default_value": "true",
+        "description": "是否在图表上显示全部平仓按钮",
+        "description_en": "是否在图表上显示全部平仓按钮"
+      }
+    ],
+    "pros": [
+      "移动止损功能帮助自动锁定浮盈，减少人工盯盘压力",
+      "一键全部平仓按钮提供紧急退出能力，在剧烈行情中快速止损",
+      "作为纯管理工具不自行开仓，不会产生非预期持仓风险",
+      "可与其他交易EA或手动策略配合使用，灵活性强"
+    ],
+    "pros_en": [
+      "Trailing stop function automatically locks in floating profits, reducing the need for constant manual monitoring",
+      "The Close All button provides emergency exit capability for rapid liquidation during volatile market conditions",
+      "As a pure management tool that does not open its own positions, it avoids unintended exposure risk",
+      "Compatible with other trading EAs or manual strategies, offering high flexibility"
+    ],
+    "cons": [
+      "作为工具不提供入场信号，完全依赖交易者自身的开仓判断",
+      "移动止损参数设置不当可能导致过早被扫止损或止盈空间不足",
+      "缺少对多品种、多策略持仓的差异化移动止损管理",
+      "未提供止损调整的可视化反馈或日志记录功能"
+    ],
+    "cons_en": [
+      "As a utility it provides no entry signals, fully depending on the trader's own judgment to open positions",
+      "Improper trailing stop parameter settings may lead to premature stop-outs or insufficient profit room",
+      "Lacks differentiated trailing stop management for positions across multiple symbols or strategies",
+      "Does not provide visual feedback or logging for stop-loss adjustments"
+    ],
+    "improvements": [
+      "增加按品种或魔术号分别设置移动止损参数的功能，支持多策略并行管理",
+      "添加移动止损调整的可视化线条和操作日志，提升透明度和可追溯性"
+    ],
+    "improvements_en": [
+      "Add per-symbol or per-magic-number trailing stop configuration to support parallel management of multiple strategies",
+      "Add visual lines on chart and operation logs for trailing stop adjustments to improve transparency and traceability"
+    ],
+    "risk_assessment": {
+      "overall": "safe",
+      "risk_points": [
+        "移动止损参数设置过小可能在市场噪音中被频繁触发止损",
+        "全部平仓按钮无二次确认机制，存在误操作风险"
+      ],
+      "risk_points_en": [
+        "Overly tight trailing stop parameters may cause frequent premature stop-outs from market noise",
+        "The Close All button lacks a confirmation dialog, posing a risk of accidental execution"
+      ]
+    },
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 3.0,
+      "risk_management": 3.0,
+      "robustness": 3.0,
+      "innovation": 2.0,
+      "documentation": 2.0,
+      "overall": 2.67
+    },
+    "rating": 3,
+    "timeframes": [
+      "M5",
+      "M15",
+      "M30",
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [],
+    "id": "EA-49365"
+  },
+  "EA-49374": {
+    "name": "Last Closed Trade",
+    "category": "Utility",
+    "category_zh": "工具",
+    "is_trading": false,
+    "trading_style": "utility",
+    "summary": "This EA monitors the account's deal history and displays information about the last closed deal on the chart via Comment(). It retrieves the last deal's profit, symbol, and type, then outputs them as an on-chart overlay. It does not open, close, or manage any trades.",
+    "summary_zh": "该EA监控账户的历史成交记录，并通过Comment()函数在图表上显示最后一笔已平仓成交的信息。它获取最近一笔成交的利润、交易品种和类型，并将其作为图表叠加层输出。该EA不执行任何开仓、平仓或仓位管理操作。",
+    "strategy_analysis": "此EA并非交易策略，而是一个纯粹的信息监控工具。它没有任何入场条件或出场条件，因为根本不执行交易操作。仓位管理和资金管理在此EA中完全不适用。其核心逻辑是在每个tick调用CheckLastClosed()函数，从当日起始时间到当前时间的历史成交记录中获取最后一笔成交的票据号，然后读取该成交的利润、品种和方向信息。需要注意的是，代码中存在明显的逻辑错误：当成交类型为BUY时，标签被标记为'Sell Trade'，而成交类型为SELL时，标签被标记为'Buy Trade'，买卖方向的显示与实际成交类型完全相反。此外，该EA使用HistoryOrderGetString来获取品种信息，但实际上应该使用HistoryDealGetString，因为Ticket是成交票据而非订单票据。每个tick都重复执行历史查询和Comment输出，没有做任何防重复或新交易检测，效率较低。",
+    "strategy_analysis_en": "This EA is not a trading strategy but a purely informational monitoring tool. It has no entry or exit conditions since it does not execute any trading operations whatsoever. Position sizing and money management are entirely inapplicable to this EA. Its core logic calls CheckLastClosed() on every tick, which selects deal history from the day's start time to the current time, retrieves the last deal's ticket number, and reads that deal's profit, symbol, and direction. A critical logic bug exists: when the deal type is BUY, it is labeled 'Sell Trade', and when the deal type is SELL, it is labeled 'Buy Trade' — the displayed direction is reversed from the actual deal type. Additionally, the code uses HistoryOrderGetString to retrieve the symbol, but it should use HistoryDealGetString since Ticket is a deal ticket, not an order ticket. The EA redundantly re-executes history queries and Comment output on every tick without any new-deal detection or deduplication, making it inefficient.",
+    "parameters": [
+      {
+        "name": "DayStart",
+        "default_value": "00:00",
+        "description": "历史查询的起始时间，用于限定从当天何时开始扫描成交记录",
+        "description_en": "历史查询的起始时间，用于限定从当天何时开始扫描成交记录"
+      }
+    ],
+    "pros": [
+      "代码非常简洁，易于阅读和理解",
+      "作为信息展示工具，不涉及任何交易风险",
+      "使用Comment()在图表上直接输出信息，方便用户实时查看"
+    ],
+    "pros_en": [
+      "Code is very concise and easy to read and understand",
+      "As an informational display tool, it involves zero trading risk",
+      "Uses Comment() to output information directly on the chart for convenient real-time viewing"
+    ],
+    "cons": [
+      "买卖方向标签完全颠倒，BUY显示为Sell Trade，SELL显示为Buy Trade，属于严重逻辑错误",
+      "使用HistoryOrderGetString获取品种信息而非HistoryDealGetString，在成交票据上调用订单函数可能导致返回空值或错误数据",
+      "每个tick都重复查询历史和刷新Comment输出，没有检测是否有新成交，效率低下且可能闪烁"
+    ],
+    "cons_en": [
+      "Buy/sell direction labels are completely reversed — BUY displays as 'Sell Trade' and SELL displays as 'Buy Trade', which is a critical logic bug",
+      "Uses HistoryOrderGetString to get the symbol instead of HistoryDealGetString; calling an order function on a deal ticket may return empty or incorrect data",
+      "Repeats history queries and Comment output on every tick without checking for new deals, making it inefficient and potentially causing chart flickering"
+    ],
+    "improvements": [
+      "修正买卖方向标签的逻辑，BUY应对应'Buy Trade'，SELL应对应'Sell Trade'",
+      "将HistoryOrderGetString改为HistoryDealGetString以正确获取成交品种信息",
+      "添加新成交检测机制，仅在最后一笔成交变化时才更新输出，避免每个tick重复查询"
+    ],
+    "improvements_en": [
+      "Fix the reversed buy/sell direction labels — BUY should display 'Buy Trade' and SELL should display 'Sell Trade'",
+      "Replace HistoryOrderGetString with HistoryDealGetString to correctly retrieve the deal symbol",
+      "Add a new-deal detection mechanism so the output only updates when the last deal changes, avoiding redundant per-tick history queries"
+    ],
+    "risk_assessment": {
+      "overall": "safe",
+      "risk_points": [
+        "该EA不执行任何交易操作，本身无交易风险",
+        "但由于买卖方向显示颠倒，如果用户依据此信息进行手动交易决策，可能导致方向性错误"
+      ],
+      "risk_points_en": [
+        "The EA does not execute any trading operations, so it has no inherent trading risk",
+        "However, since the buy/sell direction display is reversed, users who rely on this information for manual trading decisions may make directional errors"
+      ]
+    },
+    "scores": {
+      "code_quality": 2.0,
+      "strategy_logic": 1.0,
+      "risk_management": 5.0,
+      "robustness": 1.0,
+      "innovation": 1.0,
+      "documentation": 1.0,
+      "overall": 1.83
+    },
+    "rating": 1,
+    "timeframes": [
+      "M1",
+      "M5",
+      "M15",
+      "M30",
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [],
+    "id": "EA-49374"
+  },
+  "EA-49611": {
+    "name": "Get_Last_Nth_Open_Trade",
+    "category": "Utility",
+    "category_zh": "工具",
+    "is_trading": false,
+    "trading_style": "utility",
+    "summary": "This EA scans all open positions and displays the details of the Nth trade from the sorted list on the chart. It supports optional filtering by magic number and symbol, sorts positions by ticket number in descending order, and prints trade information via the Comment() function.",
+    "summary_zh": "该EA扫描所有持仓，按票号降序排列后，在图表上显示第N笔交易的详细信息。支持按魔术号和交易品种进行可选过滤，通过Comment()函数在图表上打印交易信息。",
+    "strategy_analysis": "该EA并非交易策略，而是一个持仓查询工具。其核心功能是遍历当前所有持仓，根据用户设定的魔术号和交易品种过滤器进行筛选，将符合条件的持仓信息存入结构体数组中。然后通过冒泡排序按票号降序排列所有持仓，最终根据用户指定的索引（TRADE_INDEX）从排序后的数组中提取对应交易的信息并显示在图表上。该工具不执行任何开仓、平仓或修改操作，仅用于监控和展示持仓状态。排序算法使用简单的冒泡排序，效率较低但不影响功能正确性。",
+    "strategy_analysis_en": "This EA is not a trading strategy but a position inquiry utility. Its core functionality iterates through all current open positions, filtering them based on user-configured magic number and symbol filters, and stores matching positions into a struct array. It then sorts all positions by ticket number in descending order using a bubble sort algorithm, and finally extracts the trade at the user-specified index (TRADE_INDEX) from the sorted array to display its details on the chart. The tool does not execute any opening, closing, or modification operations — it is purely for monitoring and displaying position status. The sorting algorithm uses a simple bubble sort which is inefficient but does not affect functional correctness. There is no entry or exit logic since no trades are placed.",
+    "parameters": [
+      {
+        "name": "ENABLE_MAGIC_NUMBER",
+        "default_value": "false",
+        "description": "启用魔术号过滤",
+        "description_en": "启用魔术号过滤"
+      },
+      {
+        "name": "ENABLE_SYMBOL_FILTER",
+        "default_value": "false",
+        "description": "启用交易品种过滤",
+        "description_en": "启用交易品种过滤"
+      },
+      {
+        "name": "MAGICNUMBER",
+        "default_value": "1234",
+        "description": "魔术号值",
+        "description_en": "魔术号值"
+      },
+      {
+        "name": "TRADE_INDEX",
+        "default_value": "2",
+        "description": "交易索引（从排序后的列表中获取第N笔交易）",
+        "description_en": "交易索引（从排序后的列表中获取第N笔交易）"
+      }
+    ],
+    "pros": [
+      "支持按魔术号和交易品种灵活过滤持仓",
+      "结构化存储交易详情，便于扩展和调用",
+      "以图表注释方式直观展示持仓信息，使用方便"
+    ],
+    "pros_en": [
+      "Supports flexible filtering by magic number and trading symbol",
+      "Uses structured storage for trade details, easy to extend and integrate",
+      "Displays position information intuitively on chart via Comment()"
+    ],
+    "cons": [
+      "冒泡排序效率低，持仓数量多时性能不佳",
+      "缺少边界检查，TRADE_INDEX越界时会导致数组越界错误",
+      "每次tick都执行全量扫描和排序，缺乏节流机制造成不必要的资源消耗",
+      "MAGICNUMBER未声明为input变量，无法在参数面板中修改"
+    ],
+    "cons_en": [
+      "Bubble sort is inefficient and performs poorly with many positions",
+      "Missing boundary checks — TRADE_INDEX out of range causes array out-of-bounds errors",
+      "Performs full scan and sort on every tick with no throttling, causing unnecessary resource consumption",
+      "MAGICNUMBER is not declared as an input variable, making it unmodifiable from the parameter panel"
+    ],
+    "improvements": [
+      "将MAGICNUMBER改为input变量以便在参数面板中配置",
+      "添加边界检查防止数组越界，并增加定时器或新K线检测减少执行频率"
+    ],
+    "improvements_en": [
+      "Change MAGICNUMBER to an input variable so it can be configured from the parameter panel",
+      "Add boundary checks to prevent array out-of-bounds errors, and implement a timer or new bar check to reduce execution frequency"
+    ],
+    "risk_assessment": {
+      "overall": "safe",
+      "risk_points": [
+        "数组越界风险：当TRADE_INDEX超出筛选后的持仓数量范围时会发生数组越界",
+        "每tick执行全量扫描可能在高频行情下造成CPU资源浪费"
+      ],
+      "risk_points_en": [
+        "Array out-of-bounds risk: TRADE_INDEX exceeding the filtered position count causes array access violation",
+        "Full scan on every tick may waste CPU resources under high-frequency market conditions"
+      ]
+    },
+    "scores": {
+      "code_quality": 2.0,
+      "strategy_logic": 1.0,
+      "risk_management": 4.0,
+      "robustness": 2.0,
+      "innovation": 1.0,
+      "documentation": 2.0,
+      "overall": 2.0
+    },
+    "rating": 2,
+    "timeframes": [
+      "M1",
+      "M5",
+      "M15",
+      "M30",
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [],
+    "id": "EA-49611"
+  },
+  "EA-49615": {
+    "name": "Get_Last_Nth_Close_Trade",
+    "category": "Utility",
+    "category_zh": "工具",
+    "is_trading": false,
+    "trading_style": "utility",
+    "summary": "This EA scans all closed trade deals in the account history, filters them by optional symbol and magic number, sorts them by close time, and displays the Nth most recent closed trade's details on the chart via Comment(). It is a read-only utility that does not open or manage any positions.",
+    "summary_zh": "该EA扫描账户历史中的所有已平仓交易，可按交易品种和魔术号进行过滤，按平仓时间排序后在图表上显示第N笔最近已平仓交易的详细信息。它是一个只读工具，不执行任何开仓或仓位管理操作。",
+    "strategy_analysis": "该EA并非交易策略，而是一个历史交易查询工具。它通过遍历MT5的HistoryDeals来获取已平仓交易信息，使用DEAL_ENTRY_OUT筛选出场交易，使用DEAL_ENTRY_IN匹配对应的开仓价格和开仓时间。支持通过ENABLE_SYMBOL_FILTER和ENABLE_MAGIC_NUMBER两个布尔开关进行交易品种和魔术号过滤。排序采用冒泡排序按平仓时间降序排列，然后根据用户指定的TRADE_INDEX索引提取对应的交易详情。仓位管理和资金管理均不涉及，因为该EA纯粹是信息展示工具。整体逻辑清晰但存在性能隐患，如每次Tick都重复扫描全部历史记录且使用O(n²)排序算法。",
+    "strategy_analysis_en": "This EA is not a trading strategy but a historical trade query utility. It iterates through MT5's HistoryDeals to retrieve closed trade information, filtering for exit deals using DEAL_ENTRY_OUT and matching corresponding entry prices and times using DEAL_ENTRY_IN. It supports optional filtering by symbol and magic number through two boolean switches: ENABLE_SYMBOL_FILTER and ENABLE_MAGIC_NUMBER. Sorting is done via bubble sort in descending order by close time, then the trade at the user-specified TRADE_INDEX is extracted and displayed. There is no position sizing or money management since the EA is purely an information display tool. The logic is clear but has performance concerns, such as scanning the entire deal history on every tick and using an O(n²) bubble sort algorithm.",
+    "parameters": [
+      {
+        "name": "ENABLE_MAGIC_NUMBER",
+        "default_value": "false",
+        "description": "是否启用魔术号过滤",
+        "description_en": "是否启用魔术号过滤"
+      },
+      {
+        "name": "ENABLE_SYMBOL_FILTER",
+        "default_value": "false",
+        "description": "是否启用交易品种过滤",
+        "description_en": "是否启用交易品种过滤"
+      },
+      {
+        "name": "MAGICNUMBER",
+        "default_value": "1234",
+        "description": "用于过滤的魔术号",
+        "description_en": "用于过滤的魔术号"
+      },
+      {
+        "name": "TRADE_INDEX",
+        "default_value": "2",
+        "description": "要查询的已平仓交易索引（从最新开始）",
+        "description_en": "要查询的已平仓交易索引（从最新开始）"
+      }
+    ],
+    "pros": [
+      "支持按交易品种和魔术号灵活过滤，适配多策略场景",
+      "结构体设计合理，完整记录了已平仓交易的关键信息包括开仓价、平仓价、止损、止盈、盈亏等",
+      "通过DEAL_ENTRY_IN反向匹配开仓信息，确保获取完整的开仓价和开仓时间数据"
+    ],
+    "pros_en": [
+      "Supports flexible filtering by symbol and magic number, suitable for multi-strategy scenarios",
+      "Well-designed struct that comprehensively records key closed trade details including open price, close price, SL, TP, and profit",
+      "Reverse-matches entry deals via DEAL_ENTRY_IN to ensure complete open price and open time data"
+    ],
+    "cons": [
+      "每Tick都执行完整历史扫描和排序，在交易历史较多时会造成严重性能问题",
+      "使用冒泡排序O(n²)算法，对大量历史交易效率极低",
+      "全局结构体orderHistoryDetails仅保存单条记录，无法同时保留多条查询结果，且OnTick中无条件执行查询缺乏节流控制",
+      "第二次遍历历史记录匹配开仓信息时缺少break优化，找到匹配后仍继续遍历剩余记录"
+    ],
+    "cons_en": [
+      "Performs full history scan and sort on every tick, causing serious performance issues when trade history is large",
+      "Uses O(n²) bubble sort algorithm, extremely inefficient for large numbers of historical trades",
+      "The global struct orderHistoryDetails only stores a single record and cannot retain multiple query results, plus OnTick executes queries unconditionally without throttling",
+      "The second history loop matching entry information lacks a break optimization, continuing to iterate after finding a match"
+    ],
+    "improvements": [
+      "添加新Bar检测或定时器机制，避免每Tick重复计算，大幅提升性能",
+      "将冒泡排序替换为标准库排序或将历史记录按时间倒序直接利用HistorySelect的有序性避免排序",
+      "第二次遍历匹配开仓信息时，为每个position_ticket找到匹配后立即break跳出内循环以减少不必要的迭代"
+    ],
+    "improvements_en": [
+      "Add new bar detection or a timer mechanism to avoid recalculating on every tick, significantly improving performance",
+      "Replace bubble sort with standard library sorting or leverage the inherent ordering of HistorySelect to avoid sorting altogether",
+      "Break out of the inner loop immediately after finding the matching entry deal for each position_ticket to reduce unnecessary iterations"
+    ],
+    "risk_assessment": {
+      "overall": "safe",
+      "risk_points": [
+        "该EA为只读工具，不执行任何交易操作，无资金风险",
+        "频繁的历史扫描在高交易量账户上可能导致终端卡顿或CPU占用过高"
+      ],
+      "risk_points_en": [
+        "This EA is a read-only utility that executes no trades, posing no financial risk",
+        "Frequent history scanning on high-volume accounts may cause terminal lag or excessive CPU usage"
+      ]
+    },
+    "scores": {
+      "code_quality": 2.0,
+      "strategy_logic": 1.0,
+      "risk_management": 5.0,
+      "robustness": 2.0,
+      "innovation": 1.0,
+      "documentation": 2.0,
+      "overall": 2.17
+    },
+    "rating": 2,
+    "timeframes": [
+      "M1",
+      "M5",
+      "M15",
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [
+      "None"
+    ],
+    "id": "EA-49615"
+  },
+  "EA-49713": {
+    "name": "Breakout Strategy with Prop Firm Challenge Helper",
+    "category": "Breakout",
+    "category_zh": "突破",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "A channel breakout EA that enters BuyStop/SellStop orders when price breaks above the highest high or below the lowest low of a configurable lookback period, with a trailing stop based on the opposite channel boundary. It includes a prop firm challenge helper that monitors daily loss limits and profit targets, automatically closing all positions and orders when either threshold is breached.",
+    "summary_zh": "这是一个通道突破EA，当价格突破 configurable 回溯期的最高价或最低价时，分别下BuyStop和SellStop挂单，止损基于通道对侧边界进行追踪。同时内置自营公司挑战辅助功能，监控每日亏损限额和盈利目标，当触及任一阈值时自动平仓和撤单。",
+    "strategy_analysis": "策略核心是Donchian通道突破：使用过去N根K线的最高价和最低价形成交易通道，价格突破通道上轨时做多，突破下轨时做空。入场条件为：无同方向持仓且挂单价位与当前价的距离满足经纪商止损级别要求时，放置BuyStop或SellStop挂单，触发价位为通道边界加/减一个tick。出场条件采用双重机制：一是追踪止损，使用出场周期的最低价（多单）或最高价（空单）作为动态止损位；二是当价格反向穿越追踪止损位时直接平仓。仓位管理基于风险百分比模型：根据每笔交易的风险占权益的百分比（默认1%）计算手数，使用OrderCalcProfit估算每手止损金额，再反算合适手数，同时考虑手数步长、最小/最大手数限制以及可用保证金。资金管理方面，EA内置自营公司挑战辅助功能，通过isPassed检查权益是否达到目标，通过isDailyLimit检查当日累计亏损是否超过限额，二者均调用ClearAll函数关闭所有持仓和挂单。",
+    "strategy_analysis_en": "The strategy core is a Donchian-style channel breakout: it uses the highest high and lowest low over the past N bars to form a trading channel, going long when price breaks above the upper channel and short when it breaks below the lower channel. Entry conditions require no existing position in the same direction and that the pending order price is at least the broker's minimum stop level away from the current price, placing BuyStop or SellStop orders at the channel boundary plus/minus one tick. Exit conditions use a dual mechanism: a trailing stop that dynamically adjusts to the lowest low (for longs) or highest high (for shorts) over the exit period, and an immediate market close when price crosses against the trailing level. Position sizing is based on a risk-percentage model: it calculates lot size from RISK_PER_TRADE percent of equity divided by the per-lot stop-loss value estimated via OrderCalcProfit, then floors to the volume step and clamps to broker min/max limits while checking available margin. Money management includes a prop firm challenge helper that monitors equity against a profit target (isPassed) and daily accumulated losses against a loss limit (isDailyLimit), both triggering ClearAll to close all positions and cancel all pending orders when breached.",
+    "parameters": [
+      {
+        "name": "BOT_NAME",
+        "default_value": "Breakout Strategy with Prop Firm Challenge Helper",
+        "description": "EA名称标识",
+        "description_en": "EA名称标识"
+      },
+      {
+        "name": "EXPERT_MAGIC",
+        "default_value": "1",
+        "description": "EA魔术号，用于标识本EA的订单和持仓",
+        "description_en": "EA魔术号，用于标识本EA的订单和持仓"
+      },
+      {
+        "name": "ENTRY_PERIOD",
+        "default_value": "20",
+        "description": "入场通道回溯周期，计算最高价和最低价的K线数量",
+        "description_en": "入场通道回溯周期，计算最高价和最低价的K线数量"
+      },
+      {
+        "name": "ENTRY_SHIFT",
+        "default_value": "1",
+        "description": "入场通道起始偏移量，1表示从上一根K线开始计算",
+        "description_en": "入场通道起始偏移量，1表示从上一根K线开始计算"
+      },
+      {
+        "name": "EXIT_PERIOD",
+        "default_value": "20",
+        "description": "出场通道回溯周期，用于计算追踪止损",
+        "description_en": "出场通道回溯周期，用于计算追踪止损"
+      },
+      {
+        "name": "EXIT_SHIFT",
+        "default_value": "1",
+        "description": "出场通道起始偏移量",
+        "description_en": "出场通道起始偏移量"
+      },
+      {
+        "name": "isChallenge",
+        "default_value": "false",
+        "description": "是否启用自营公司挑战模式",
+        "description_en": "是否启用自营公司挑战模式"
+      },
+      {
+        "name": "PASS_CRITERIA",
+        "default_value": "110100.0",
+        "description": "挑战通过的资金权益目标",
+        "description_en": "挑战通过的资金权益目标"
+      },
+      {
+        "name": "DAILY_LOSS_LIMIT",
+        "default_value": "4500.0",
+        "description": "每日最大亏损限额",
+        "description_en": "每日最大亏损限额"
+      },
+      {
+        "name": "RISK_PER_TRADE",
+        "default_value": "1.0",
+        "description": "每笔交易风险占权益的百分比",
+        "description_en": "每笔交易风险占权益的百分比"
+      },
+      {
+        "name": "TRADING_TIMEFRAME",
+        "default_value": "PERIOD_H1",
+        "description": "交易使用的时间周期",
+        "description_en": "交易使用的时间周期"
+      }
+    ],
+    "pros": [
+      "风险百分比仓位管理模型科学合理，每笔交易风险可控",
+      "内置自营公司挑战辅助功能，自动监控盈利目标和每日亏损限额",
+      "追踪止损机制灵活，使用通道对侧边界作为动态止损位",
+      "考虑了经纪商交易限制，包括止损级别、手数限制和保证金检查",
+      "使用新K线检测避免同一K线内重复交易"
+    ],
+    "pros_en": [
+      "Risk-percentage position sizing model is sound and keeps per-trade risk controlled",
+      "Built-in prop firm challenge helper automatically monitors profit targets and daily loss limits",
+      "Flexible trailing stop mechanism using the opposite channel boundary as a dynamic stop level",
+      "Accounts for broker trading constraints including stop levels, volume limits, and margin checks",
+      "New bar detection prevents redundant trading within the same bar"
+    ],
+    "cons": [
+      "ATR指标句柄在PositionManaging中每次调用都重新创建，未在OnInit中缓存，存在资源泄漏风险",
+      "OrderManaging函数返回的orders变量始终为0，逻辑存在缺陷",
+      "每日亏损计算假设历史交易按时间倒序排列并使用break退出，可能遗漏当日早期交易",
+      "ClearAll函数未过滤魔术号和交易品种，可能关闭其他EA的持仓和挂单",
+      "缺乏点差过滤，在高点差环境下突破信号可能被虚假触发",
+      "追踪止损修改条件'0.1*ATR'硬编码，无法通过参数调整"
+    ],
+    "cons_en": [
+      "ATR indicator handle is created fresh on every PositionManaging call instead of being cached in OnInit, risking resource leaks",
+      "OrderManaging function always returns 0 due to the orders variable never being incremented, a logical flaw",
+      "Daily loss calculation assumes history deals are reverse-chronological and uses break to exit, potentially missing earlier same-day trades",
+      "ClearAll does not filter by magic number or symbol, potentially closing positions and orders from other EAs",
+      "No spread filter, so breakout signals may be falsely triggered in high-spread environments",
+      "Trailing stop adjustment threshold of 0.1*ATR is hardcoded and not configurable via input parameters"
+    ],
+    "improvements": [
+      "将ATR指标句柄在OnInit中创建并缓存，在OnDeinit中释放，避免每次调用时重复创建造成资源泄漏",
+      "ClearAll函数应增加魔术号和交易品种过滤，避免误关闭其他EA的订单和持仓",
+      "每日亏损计算应遍历所有历史交易而非依赖倒序break逻辑，确保准确统计当日所有盈亏"
+    ],
+    "improvements_en": [
+      "Create and cache the ATR indicator handle in OnInit and release it in OnDeinit to avoid resource leaks from repeated creation on every call",
+      "Add magic number and symbol filtering to ClearAll to prevent accidentally closing other EAs' orders and positions",
+      "Daily loss calculation should iterate through all history deals instead of relying on reverse-chronological break logic to ensure accurate same-day P&L accounting"
+    ],
+    "risk_assessment": {
+      "overall": "medium",
+      "risk_points": [
+        "ClearAll函数无魔术号过滤，可能在自营公司挑战触发时关闭所有EA的持仓，造成意外损失",
+        "ATR句柄资源泄漏长期运行可能导致内存耗尽",
+        "每日亏损限额计算可能不准确，导致自营公司挑战保护失效",
+        "缺乏点差过滤和滑点保护，突破策略在高点差或低流动性时易受虚假信号影响"
+      ],
+      "risk_points_en": [
+        "ClearAll lacks magic number filtering, potentially closing all EAs' positions when prop firm challenge triggers, causing unintended losses",
+        "ATR handle resource leak from repeated creation may exhaust memory during long-running sessions",
+        "Daily loss limit calculation may be inaccurate, causing prop firm challenge protection to fail silently",
+        "No spread filter or slippage protection, making the breakout strategy vulnerable to false signals in high-spread or low-liquidity conditions"
+      ]
+    },
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 3.0,
+      "risk_management": 3.0,
+      "robustness": 2.0,
+      "innovation": 2.0,
+      "documentation": 1.0,
+      "overall": 2.33
+    },
+    "rating": 3,
+    "timeframes": [
+      "M15",
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [
+      "Donchian Channel (Highest High/Lowest Low)",
+      "ATR"
+    ],
+    "id": "EA-49713"
+  },
+  "EA-49892": {
+    "name": "KopierMaschine",
+    "category": "Utility",
+    "category_zh": "工具",
+    "is_trading": false,
+    "trading_style": "utility",
+    "summary": "KopierMaschine (Copy Machine) is a trade copying utility EA that replicates trades from a source account or symbol to one or more destination accounts/symbols. It functions as a signal copier rather than an autonomous trading strategy, handling both local and remote trade duplication with configurable lot scaling and filtering options.",
+    "summary_zh": "KopierMaschine（复制机）是一个交易复制工具EA，用于将源账户或交易品种的交易复制到一个或多个目标账户/交易品种。它作为信号复制器而非自主交易策略运行，支持本地和远程交易复制，并具有可配置的手数缩放和过滤选项。",
+    "strategy_analysis": "该EA并非自主交易策略，而是一个交易复制工具。其核心功能是监控源账户的交易活动（开仓、平仓、修改止损止盈等），然后将这些操作同步复制到目标账户。入场和出场条件完全取决于源账户的操作，EA本身不产生任何交易信号。仓位管理通过手数缩放因子实现，可以根据目标账户资金大小调整复制的手数比例。资金管理方面，EA依赖源账户的风险控制，自身仅负责忠实复制交易动作。该工具适用于需要在不同账户间同步交易的场景，如资金管理人在多个客户账户间复制交易策略。",
+    "strategy_analysis_en": "This EA is not an autonomous trading strategy but a trade copying utility. Its core function is to monitor trading activity on a source account (opening, closing, modifying stops and take-profits) and then synchronously replicate these operations to destination accounts. Entry and exit conditions depend entirely on the source account's actions; the EA itself generates no trading signals. Position sizing is handled through a lot scaling factor, which adjusts the copied lot size proportionally based on the destination account's balance relative to the source. Money management relies on the source account's risk controls, as the EA is solely responsible for faithfully replicating trade actions. This tool is suitable for scenarios requiring trade synchronization across multiple accounts, such as money managers copying strategies across client accounts.",
+    "parameters": [
+      {
+        "name": "LotScaleFactor",
+        "default_value": "1.0",
+        "description": "手数缩放因子，用于调整复制到目标账户的手数比例",
+        "description_en": "手数缩放因子，用于调整复制到目标账户的手数比例"
+      },
+      {
+        "name": "SourceSymbol",
+        "default_value": "",
+        "description": "源交易品种名称，指定从哪个品种复制交易",
+        "description_en": "源交易品种名称，指定从哪个品种复制交易"
+      },
+      {
+        "name": "CopyTrades",
+        "default_value": "true",
+        "description": "是否复制交易操作的总开关",
+        "description_en": "是否复制交易操作的总开关"
+      },
+      {
+        "name": "Slippage",
+        "default_value": "3",
+        "description": "允许的最大滑点点数",
+        "description_en": "允许的最大滑点点数"
+      },
+      {
+        "name": "MagicNumber",
+        "default_value": "0",
+        "description": "魔术编号，用于标识复制来源的交易",
+        "description_en": "魔术编号，用于标识复制来源的交易"
+      },
+      {
+        "name": "CopyStopLoss",
+        "default_value": "true",
+        "description": "是否复制止损设置",
+        "description_en": "是否复制止损设置"
+      },
+      {
+        "name": "CopyTakeProfit",
+        "default_value": "true",
+        "description": "是否复制止盈设置",
+        "description_en": "是否复制止盈设置"
+      },
+      {
+        "name": "ReverseMode",
+        "default_value": "false",
+        "description": "反向复制模式，将买入复制为卖出反之亦然",
+        "description_en": "反向复制模式，将买入复制为卖出反之亦然"
+      }
+    ],
+    "pros": [
+      "可以在多个账户间高效同步交易，适合资金管理人使用",
+      "手数缩放功能允许根据目标账户资金大小灵活调整仓位",
+      "支持反向复制模式，提供更多交易复制策略的灵活性"
+    ],
+    "pros_en": [
+      "Efficiently synchronizes trades across multiple accounts, ideal for money managers",
+      "Lot scaling feature allows flexible position adjustment based on destination account size",
+      "Reverse copy mode provides additional flexibility for trade copying strategies"
+    ],
+    "cons": [
+      "作为复制工具本身不产生交易信号，完全依赖源账户的交易质量",
+      "缺乏对复制失败的完善错误处理和重试机制",
+      "没有内置的风险检查，可能在目标账户资金不足时仍然尝试复制交易"
+    ],
+    "cons_en": [
+      "As a copying tool, it generates no trading signals and relies entirely on source account trade quality",
+      "Lacks robust error handling and retry mechanisms for copy failures",
+      "No built-in risk checks may attempt to copy trades even when destination account has insufficient funds"
+    ],
+    "improvements": [
+      "增加复制失败的重试机制和详细日志记录",
+      "添加目标账户资金充足性检查，防止因资金不足导致复制失败",
+      "增加交易过滤功能，如按品种、方向或手数大小过滤"
+    ],
+    "improvements_en": [
+      "Add retry mechanism and detailed logging for copy failures",
+      "Implement destination account sufficiency checks to prevent copy failures due to insufficient funds",
+      "Add trade filtering capabilities, such as filtering by symbol, direction, or lot size"
+    ],
+    "risk_assessment": {
+      "overall": "safe",
+      "risk_points": [
+        "复制延迟可能导致目标账户成交价格与源账户不同",
+        "如果源账户使用高频策略，复制可能跟不上节奏导致滑点过大"
+      ],
+      "risk_points_en": [
+        "Copy latency may cause destination account fill prices to differ from the source account",
+        "If the source account uses high-frequency strategies, copying may not keep pace, leading to excessive slippage"
+      ]
+    },
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 3.0,
+      "risk_management": 2.0,
+      "robustness": 3.0,
+      "innovation": 2.0,
+      "documentation": 2.0,
+      "overall": 2.5
+    },
+    "rating": 3,
+    "timeframes": [
+      "M1",
+      "M5",
+      "M15",
+      "M30",
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [
+      "None"
+    ],
+    "id": "EA-49892"
+  },
+  "EA-50198": {
+    "name": "MovingAverageMartinGale",
+    "category": "Martingale",
+    "category_zh": "马丁格尔",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "This EA trades based on a simple moving average crossover with price, opening buy or sell positions when the MA crosses above or below the candle close. It employs a Martingale position sizing strategy, doubling the lot size after each losing trade while also multiplying TP and SL distances, and resetting to initial values after a winning trade.",
+    "summary_zh": "该EA基于简单移动平均线与价格的交叉进行交易，当MA向上或向下穿越收盘价时开仓买入或卖出。它采用马丁格尔仓位管理策略，每次亏损后将手数翻倍并同步扩大止盈止损距离，盈利后则重置为初始值。",
+    "strategy_analysis": "策略概念基于移动平均线与价格的交叉：当MA从上方穿越到价格下方时做多，从下方穿越到价格上方时做空，本质上是一个趋势跟踪信号。入场条件是在新K线形成时检测MA与前期收盘价和当前收盘价的交叉关系。出场条件采用固定点数的止盈和止损，初始TP为100点、SL为300点，风险收益比为1:3。仓位管理采用马丁格尔策略：亏损后手数乘以2倍（最高不超过0.5手），盈利后重置为起始手数0.01手。资金管理方面，TP和SL距离也会随马丁格尔倍数同步放大，这导致每次加仓的风险敞口呈指数增长，存在爆仓的严重风险。",
+    "strategy_analysis_en": "The strategy concept is based on a moving average crossover with price: it goes long when the MA crosses above the price and goes short when it crosses below, essentially a trend-following signal. Entry conditions are triggered on a new candle when the MA value at shift 1 crosses over the previous close and current close prices. Exit conditions use fixed-point take profit and stop loss, with initial TP of 100 points and SL of 300 points, resulting in a risk-reward ratio of 1:3. Position sizing follows a Martingale approach: after a loss, the lot size is multiplied by 2 (capped at 0.5 lots), and after a win, it resets to the starting lot of 0.01. Money management is flawed because both TP and SL distances are also multiplied by the same factor, meaning each successive losing trade exponentially increases the total risk exposure, creating a dangerous path toward account blow-up.",
+    "parameters": [
+      {
+        "name": "MAPeriod",
+        "default_value": "50",
+        "description": "移动平均线周期",
+        "description_en": "移动平均线周期"
+      },
+      {
+        "name": "StartingLot",
+        "default_value": "0.01",
+        "description": "起始手数",
+        "description_en": "起始手数"
+      },
+      {
+        "name": "MaxLot",
+        "default_value": "0.5",
+        "description": "最大允许手数",
+        "description_en": "最大允许手数"
+      },
+      {
+        "name": "TPPoints",
+        "default_value": "100",
+        "description": "止盈点数",
+        "description_en": "止盈点数"
+      },
+      {
+        "name": "SLPoints",
+        "default_value": "300",
+        "description": "止损点数",
+        "description_en": "止损点数"
+      },
+      {
+        "name": "LotMultiplier",
+        "default_value": "2",
+        "description": "亏损后手数乘数",
+        "description_en": "亏损后手数乘数"
+      },
+      {
+        "name": "TPMultiplier",
+        "default_value": "2",
+        "description": "亏损后止盈止损距离乘数",
+        "description_en": "亏损后止盈止损距离乘数"
+      }
+    ],
+    "pros": [
+      "马丁格尔手数有MaxLot上限保护，防止无限加仓",
+      "盈利后自动重置手数和止盈止损，锁定利润回到初始状态",
+      "在新K线形成时才交易，避免同一根K线内重复开仓",
+      "使用CheckVolumeValue验证手数有效性，防止无效订单"
+    ],
+    "pros_en": [
+      "Martingale lot sizing has a MaxLot cap to prevent unlimited position increase",
+      "Automatically resets lot size and TP/SL after a profitable trade, locking in gains",
+      "Trades only on new candle formation, avoiding repeated entries within the same bar",
+      "Uses CheckVolumeValue to validate lot size before placing orders"
+    ],
+    "cons": [
+      "马丁格尔策略本质危险，连续亏损后风险敞口呈指数增长，极易爆仓",
+      "TP和SL距离随马丁格尔倍数同步扩大，后期单笔亏损金额巨大",
+      "没有最大连续亏损次数限制，也没有账户权益回撤保护",
+      "止损是止盈的3倍，即使不加仓每次交易的期望值也是负的",
+      "MA交叉信号滞后严重，容易在震荡行情中频繁假突破导致连续亏损"
+    ],
+    "cons_en": [
+      "Martingale strategy is inherently dangerous; exponential risk growth after consecutive losses can easily blow the account",
+      "TP and SL distances scale with the Martingale multiplier, making individual losses enormous in later stages",
+      "No maximum consecutive loss limit and no account equity drawdown protection",
+      "Stop loss is 3x the take profit, so even without position scaling each trade has negative expected value",
+      "MA crossover signals are heavily lagging, prone to frequent false breakouts in ranging markets leading to consecutive losses"
+    ],
+    "improvements": [
+      "添加最大马丁格尔步数限制和账户回撤保护，超过阈值后停止加仓或平仓",
+      "将TP/SL距离与手数倍增解耦，只增加手数而不扩大止损距离，控制单笔最大风险",
+      "添加趋势过滤器和震荡识别机制，避免在横盘行情中频繁开仓"
+    ],
+    "improvements_en": [
+      "Add a maximum Martingale step limit and account drawdown protection to stop scaling or close positions when thresholds are breached",
+      "Decouple TP/SL distance scaling from lot multiplier — only increase lot size without widening stop loss to cap per-trade risk",
+      "Add a trend filter and ranging market detection to avoid frequent entries during sideways conditions"
+    ],
+    "risk_assessment": {
+      "overall": "dangerous",
+      "risk_points": [
+        "马丁格尔策略导致连续亏损后风险敞口指数增长，后期单笔亏损可能远超账户承受能力",
+        "止损距离同步倍增放大了每笔交易的实际亏损金额",
+        "1:3的风险收益比配合马丁格尔策略，在趋势反转时可能产生灾难性亏损"
+      ],
+      "risk_points_en": [
+        "Martingale strategy causes exponential risk growth after consecutive losses; later-stage single-trade losses can far exceed account capacity",
+        "Stop loss distance scaling multiplies the actual monetary loss per trade",
+        "1:3 risk-reward ratio combined with Martingale can produce catastrophic losses during trend reversals"
+      ]
+    },
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 2.0,
+      "risk_management": 1.0,
+      "robustness": 2.0,
+      "innovation": 1.0,
+      "documentation": 2.0,
+      "overall": 1.83
+    },
+    "rating": 1,
+    "timeframes": [
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [
+      "SMA"
+    ],
+    "id": "EA-50198"
+  },
+  "EA-50353": {
+    "name": "Screenshot",
+    "category": "Utility",
+    "category_zh": "工具",
+    "is_trading": false,
+    "trading_style": "utility",
+    "summary": "This EA captures a screenshot of the current chart when the 's' key is pressed, saving it as a PNG file in the MQL5/Files directory. The screenshot filename includes a user-defined prefix and the current date. It also disables chart autoscroll and sets the chart to candlestick mode on initialization.",
+    "summary_zh": "这个EA在按下's'键时截取当前图表的屏幕截图，并将PNG文件保存到MQL5/Files目录中。截图文件名包含用户自定义的前缀和当前日期。初始化时会禁用图表自动滚动并设置图表为K线模式。",
+    "strategy_analysis": "这个EA不是一个交易策略，而是一个实用工具，用于在用户按下's'键时截取当前图表的屏幕截图。入场条件为键盘's'键被按下（ASCII码83），通过OnChartEvent事件处理函数检测CHARTEVENT_KEYDOWN事件。出场条件不适用，因为该EA不进行任何交易操作。仓位管理和资金管理均不适用，该EA不涉及任何订单或持仓操作。EA在初始化时禁用了图表自动滚动、关闭右边缘偏移、并将图表模式设置为K线图，以确保截图的一致性。截图分辨率为固定的1920x1080像素，对齐方式为居中。",
+    "strategy_analysis_en": "This EA is not a trading strategy but a utility tool that captures a screenshot of the current chart when the user presses the 's' key. The entry condition is a CHARTEVENT_KEYDOWN event where the key parameter matches the ASCII code 83 (the 's' key). Exit conditions are not applicable since the EA does not execute any trades. Position sizing and money management are not applicable as the EA does not handle any orders or positions. On initialization, the EA disables chart autoscroll, turns off the right-edge shift, and sets the chart to candlestick mode to ensure consistent screenshot output. The screenshot resolution is fixed at 1920x1080 pixels with center alignment, and the output file is saved in the terminal's MQL5/Files directory with a date-stamped filename.",
+    "parameters": [
+      {
+        "name": "screenshot_name",
+        "default_value": "Unnamed",
+        "description": "截图文件名的前缀",
+        "description_en": "截图文件名的前缀"
+      }
+    ],
+    "pros": [
+      "功能简单明确，按's'键即可快速截取图表截图，操作便捷",
+      "截图文件名自动包含日期信息，便于归档和管理",
+      "初始化时统一设置图表显示模式，确保截图的一致性",
+      "代码简洁，只有55行，易于理解和修改"
+    ],
+    "pros_en": [
+      "Simple and clear functionality — pressing 's' quickly captures a chart screenshot with convenient operation",
+      "Screenshot filenames automatically include date information for easy archiving and management",
+      "Initialization standardizes chart display settings to ensure consistent screenshot output",
+      "Clean and concise code at only 55 lines, easy to understand and modify"
+    ],
+    "cons": [
+      "截图分辨率硬编码为1920x1080，无法通过参数调整，灵活性不足",
+      "仅支持's'键触发，无法自定义快捷键",
+      "缺少错误处理，当ChartScreenShot失败时没有给用户失败反馈",
+      "文件名中日期格式可能包含冒号导致部分系统兼容性问题"
+    ],
+    "cons_en": [
+      "Screenshot resolution is hardcoded to 1920x1080 with no parameter to adjust it, lacking flexibility",
+      "Only the 's' key triggers the screenshot with no way to customize the hotkey",
+      "Lacks error handling — no user feedback when ChartScreenShot fails",
+      "The date format in the filename may contain colons causing compatibility issues on some systems"
+    ],
+    "improvements": [
+      "将截图宽度和高度改为可配置的输入参数，增加灵活性",
+      "添加对齐方式（ALIGN_LEFT/ALIGN_RIGHT/ALIGN_CENTER）作为可配置参数",
+      "增加ChartScreenShot失败时的错误提示，改善用户体验"
+    ],
+    "improvements_en": [
+      "Make screenshot width and height configurable input parameters for greater flexibility",
+      "Add alignment option (ALIGN_LEFT/ALIGN_RIGHT/ALIGN_CENTER) as a configurable parameter",
+      "Add error notification when ChartScreenShot fails to improve user experience"
+    ],
+    "risk_assessment": {
+      "overall": "safe",
+      "risk_points": [
+        "该EA不进行任何交易操作，无交易风险",
+        "截图文件保存在本地目录，无网络或安全风险"
+      ],
+      "risk_points_en": [
+        "This EA does not perform any trading operations, posing no trading risk",
+        "Screenshot files are saved locally, with no network or security risks"
+      ]
+    },
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 1.0,
+      "risk_management": 5.0,
+      "robustness": 2.0,
+      "innovation": 1.0,
+      "documentation": 3.0,
+      "overall": 2.5
+    },
+    "rating": 2,
+    "timeframes": [
+      "M1",
+      "M5",
+      "M15",
+      "M30",
+      "H1",
+      "H4",
+      "D1",
+      "W1",
+      "MN"
+    ],
+    "indicators_used": [],
+    "id": "EA-50353"
+  },
+  "EA-50850": {
+    "name": "Raymond Cloudy Day for EA",
+    "category": "Candlestick Pattern",
+    "category_zh": "K线形态",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "This EA trades based on the 'Cloudy Day' candlestick pattern, a bearish reversal signal identified by a specific candle formation. It enters short positions when the pattern is detected and manages exits via stop loss and take profit levels. The strategy is a purely systematic pattern-recognition approach to capturing short-term reversals.",
+    "summary_zh": "该EA基于'阴天'(Cloudy Day)K线形态进行交易，这是一种由特定K线组合识别的看跌反转信号。当检测到该形态时，EA开立空头仓位，并通过止损和止盈水平管理出场。该策略是纯系统化的形态识别方法，用于捕捉短期反转。",
+    "strategy_analysis": "该EA的核心策略是基于'Cloudy Day'(阴天)K线形态识别看跌反转信号入场。入场条件为检测到特定的K线组合形态——通常涉及一根大阳线后跟一根阴线且阴线实体深入阳线实体内部，暗示多头力量衰竭和空方接管。出场条件依赖预设的止损和止盈参数，没有追踪止损或动态出场机制。仓位管理通过手数参数控制，但未发现基于账户余额或风险比例的动态仓位调整。资金管理方面较为简单，仅依赖固定的止损距离来控制单笔风险，缺乏整体账户风险控制机制如最大回撤限制或连续亏损后的仓位缩减。策略逻辑清晰但单一，完全依赖形态识别，未结合趋势过滤或其他确认指标。",
+    "strategy_analysis_en": "The core strategy of this EA is based on identifying bearish reversal signals through the 'Cloudy Day' candlestick pattern. The entry condition relies on detecting a specific candle formation—typically a large bullish candle followed by a bearish candle whose body penetrates deep into the bullish candle's body, signaling waning bullish momentum and bearish takeover. Exit conditions depend on preset stop loss and take profit parameters, with no trailing stop or dynamic exit mechanism. Position sizing is controlled via a fixed lot parameter, but there is no dynamic lot calculation based on account balance or risk percentage. Money management is relatively simple, relying only on a fixed stop loss distance to control per-trade risk, lacking overall account risk controls such as maximum drawdown limits or position reduction after consecutive losses. The strategy logic is clear but singular, relying entirely on pattern recognition without combining trend filters or other confirming indicators.",
+    "parameters": [
+      {
+        "name": "LotSize",
+        "default_value": "0.1",
+        "description": "每笔交易的手数大小",
+        "description_en": "每笔交易的手数大小"
+      },
+      {
+        "name": "StopLoss",
+        "default_value": "500",
+        "description": "止损点数",
+        "description_en": "止损点数"
+      },
+      {
+        "name": "TakeProfit",
+        "default_value": "1000",
+        "description": "止盈点数",
+        "description_en": "止盈点数"
+      },
+      {
+        "name": "MagicNumber",
+        "default_value": "123456",
+        "description": "EA魔术编号，用于标识本EA的订单",
+        "description_en": "EA魔术编号，用于标识本EA的订单"
+      },
+      {
+        "name": "MaxSpread",
+        "default_value": "30",
+        "description": "最大允许点差",
+        "description_en": "最大允许点差"
+      }
+    ],
+    "pros": [
+      "策略逻辑清晰简洁，基于经典K线形态，易于理解和验证",
+      "有止损和止盈设置，具备基本的风险控制",
+      "使用魔术编号管理订单，避免与其他EA冲突",
+      "形态识别策略在适当的市场条件下可提供高胜率反转交易"
+    ],
+    "pros_en": [
+      "Clear and concise strategy logic based on a classic candlestick pattern, easy to understand and verify",
+      "Has stop loss and take profit settings providing basic risk control",
+      "Uses magic number for order management to avoid conflicts with other EAs",
+      "Pattern recognition strategy can provide high win-rate reversal trades under appropriate market conditions"
+    ],
+    "cons": [
+      "仅依赖单一K线形态，缺乏趋势过滤和多时间框架确认，容易在趋势行情中产生虚假信号",
+      "固定手数仓位管理，未根据账户风险动态调整，可能导致风险暴露不一致",
+      "缺少追踪止损和部分平仓等高级出场机制，无法在有利行情中最大化收益",
+      "没有连续亏损后的仓位调整或最大回撤保护机制"
+    ],
+    "cons_en": [
+      "Relies solely on a single candlestick pattern without trend filter or multi-timeframe confirmation, prone to false signals in trending markets",
+      "Fixed lot position sizing without dynamic adjustment based on account risk may lead to inconsistent risk exposure",
+      "Lacks advanced exit mechanisms such as trailing stop or partial close, unable to maximize profits in favorable moves",
+      "No position adjustment after consecutive losses or maximum drawdown protection mechanism"
+    ],
+    "improvements": [
+      "增加趋势过滤器（如均线方向），仅在主趋势方向上交易反转信号，减少逆势交易",
+      "实现基于账户余额和风险比例的动态仓位计算，并加入最大回撤保护和连续亏损后缩减仓位的机制"
+    ],
+    "improvements_en": [
+      "Add a trend filter (e.g., moving average direction) to only trade reversal signals in the direction of the main trend, reducing counter-trend trades",
+      "Implement dynamic position sizing based on account balance and risk percentage, and add maximum drawdown protection with position reduction after consecutive losses"
+    ],
+    "risk_assessment": {
+      "overall": "medium",
+      "risk_points": [
+        "单一K线形态信号可靠性有限，在强趋势市场中可能频繁触发虚假反转信号导致连续亏损",
+        "固定手数缺乏动态风险调整，在小账户中可能过度杠杆，在大账户中则资金利用率不足"
+      ],
+      "risk_points_en": [
+        "Single candlestick pattern has limited signal reliability and may frequently trigger false reversal signals in strong trending markets leading to consecutive losses",
+        "Fixed lot size lacks dynamic risk adjustment, potentially over-leveraging small accounts while under-utilizing capital in large accounts"
+      ]
+    },
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 3.0,
+      "risk_management": 2.0,
+      "robustness": 2.0,
+      "innovation": 2.0,
+      "documentation": 2.0,
+      "overall": 2.33
+    },
+    "rating": 2,
+    "timeframes": [
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [
+      "Candlestick Pattern"
+    ],
+    "id": "EA-50850"
+  },
+  "EA-51014": {
+    "name": "Arbitrage",
+    "category": "Statistical Arbitrage",
+    "category_zh": "统计套利",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "This EA implements a triangular arbitrage strategy across EURUSD, GBPUSD, and EURGBP currency pairs. It monitors the price difference between the synthetic EURGBP rate (derived from EURUSD/GBPUSD) and the actual EURGBP market rate, entering a three-legged arbitrage position when the spread exceeds commission costs. Trades are opened simultaneously in all three pairs to capture the pricing inefficiency.",
+    "summary_zh": "该EA实现了一个跨EURUSD、GBPUSD和EURGBP三个货币对的三角套利策略。它监控合成的EURGBP汇率（由EURUSD/GBPUSD推导）与实际EURGBP市场汇率之间的价差，当价差超过佣金成本时，同时在三个货币对开仓以捕获定价低效。",
+    "strategy_analysis": "该策略采用三角套利原理，通过比较合成汇率与实际汇率之间的差异来发现套利机会。入场条件：当EURUSD卖价/GBPUSD买价与EURGBP卖价的差额超过点差加三倍佣金成本时，卖出EURGBP（即卖出EURUSD、买入GBPUSD、买入EURGBP）；当EURUSD买价/GBPUSD卖价与EURGBP买价的反向差额超过成本时，买入EURGBP。出场条件：当检测到反向套利机会时，先平掉对应侧的仓位，再开反向仓位。仓位管理：根据账户余额按每千美元对应Lot_Size_Per_Thousand手数计算，并取该值与EURGBP最大手数的较小值。资金管理：通过CheckVolumeValue函数检查最小/最大手数限制、手数步长合规性以及可用保证金是否充足。然而，策略没有设置止损，且平仓逻辑仅在新的反向信号出现时触发，存在长期持仓风险。",
+    "strategy_analysis_en": "This strategy employs triangular arbitrage by comparing the synthetic EURGBP rate (EURUSD ask / GBPUSD bid) against the actual EURGBP market rate to detect pricing inefficiencies. Entry conditions: when the difference between the synthetic rate and the actual EURGBP ask exceeds the spread plus triple commission costs, the EA sells EURGBP (sell EURUSD, buy GBPUSD, buy EURGBP); conversely, when the inverse difference exceeds costs, it buys EURGBP (buy EURUSD, sell GBPUSD, sell EURGBP). Exit conditions: when an opposite arbitrage signal appears, the EA first closes the corresponding side positions before opening the reverse leg. Position sizing is calculated based on account balance multiplied by Lot_Size_Per_Thousand per thousand dollars, capped at the EURGBP symbol's maximum volume. Money management includes the CheckVolumeValue function which validates minimum/maximum volume constraints, volume step compliance, and available free margin. However, the strategy lacks any stop-loss mechanism, and the closing logic only triggers upon detecting a reverse arbitrage signal, creating risk of prolonged open positions.",
+    "parameters": [
+      {
+        "name": "Lot_Size_Per_Thousand",
+        "default_value": "0.01",
+        "description": "每千美元账户余额对应的手数大小",
+        "description_en": "每千美元账户余额对应的手数大小"
+      },
+      {
+        "name": "Total_Commission_for_Lot_Traded",
+        "default_value": "7.0",
+        "description": "每手交易的总佣金成本",
+        "description_en": "每手交易的总佣金成本"
+      },
+      {
+        "name": "Plot_Max_Difference",
+        "default_value": "false",
+        "description": "是否绘制/记录最大价差用于分析",
+        "description_en": "是否绘制/记录最大价差用于分析"
+      }
+    ],
+    "pros": [
+      "利用三角套利原理，理论上属于市场中性策略，风险相对方向性交易较低",
+      "考虑了交易佣金和点差成本，只有当套利利润超过成本时才入场，避免亏损交易",
+      "包含保证金检查和手数合规性验证，防止因资金不足或手数不规范导致下单失败",
+      "三腿同时开仓的设计符合套利交易的基本要求，确保锁定价差"
+    ],
+    "pros_en": [
+      "Employs triangular arbitrage which is theoretically market-neutral, carrying lower risk than directional trading",
+      "Accounts for commission and spread costs, only entering when arbitrage profit exceeds total costs",
+      "Includes margin check and volume compliance validation to prevent order failures due to insufficient funds or invalid lot sizes",
+      "Simultaneous three-leg execution design properly captures the pricing inefficiency as required by arbitrage logic"
+    ],
+    "cons": [
+      "没有止损机制，如果套利价差持续不收敛，仓位将无限期持有并承受浮动亏损",
+      "存在拼写错误'GPBUSD'应为'GBPUSD'，导致该手数检查永远不会通过，买卖EURGBP方向的交易实际上被阻止",
+      "使用SymbolInfoDouble实时获取价格存在滑点风险，三腿无法同时成交时可能产生单边敞口",
+      "套利窗口在高效市场中极其短暂，OnTick级别的检测可能无法及时捕获机会",
+      "平仓逻辑在遍历PositionsTotal时可能因索引变化导致跳过某些仓位"
+    ],
+    "cons_en": [
+      "No stop-loss mechanism; if the price difference fails to converge, positions are held indefinitely with floating losses",
+      "Typo 'GPBUSD' instead of 'GBPUSD' in CheckVolumeValue calls causes volume validation to always fail for that symbol, effectively blocking the buy-EURGBP arbitrage leg from executing",
+      "Using SymbolInfoDouble for live prices introduces slippage risk; if all three legs cannot be filled simultaneously, unhedged exposure results",
+      "Arbitrage windows are extremely brief in efficient markets, and OnTick-level detection may not capture opportunities fast enough",
+      "Position closing logic iterating over PositionsTotal may skip positions due to index shifts when positions are closed during iteration"
+    ],
+    "improvements": [
+      "修复'GPBUSD'拼写错误为'GBPUSD'，否则买入EURGBP方向的套利交易完全无法执行",
+      "添加止损或最大持仓时间限制，防止价差不收敛时长期持有亏损仓位",
+      "使用PositionGetTicket从后向前遍历仓位来平仓，避免删除元素导致索引跳过的问题",
+      "添加滑点控制和重试机制，确保三腿交易尽可能同时成交",
+      "考虑使用限价单而非市价单执行套利，以更好控制成交价格"
+    ],
+    "improvements_en": [
+      "Fix the 'GPBUSD' typo to 'GBPUSD', otherwise the buy-EURGBP arbitrage direction is completely non-functional",
+      "Add stop-loss or maximum holding period limits to prevent prolonged loss positions when spreads fail to converge",
+      "Iterate positions in reverse order (from total-1 to 0) when closing to avoid index skipping issues caused by position removal during iteration",
+      "Add slippage control and retry mechanisms to ensure all three legs are filled as simultaneously as possible",
+      "Consider using limit orders instead of market orders for arbitrage execution to better control fill prices"
+    ],
+    "risk_assessment": {
+      "overall": "high",
+      "risk_points": [
+        "关键拼写错误'GPBUSD'导致买入EURGBP方向的套利交易完全无法执行，但相关代码仍会尝试开仓EURUSD和GBPUSD，可能造成单边敞口",
+        "没有止损机制，价差不收敛时仓位无限持有",
+        "三腿套利可能因滑点或部分成交导致未对冲的定向风险敞口",
+        "平仓遍历顺序错误可能导致部分仓位未被关闭"
+      ],
+      "risk_points_en": [
+        "Critical typo 'GPBUSD' causes the buy-EURGBP arbitrage path to fail validation, but the code still attempts to open EURUSD and GBPUSD positions, potentially creating unhedged directional exposure",
+        "No stop-loss mechanism; positions held indefinitely when price difference fails to converge",
+        "Three-leg arbitrage may result in unhedged directional exposure due to slippage or partial fills",
+        "Incorrect iteration order when closing positions may cause some positions to be skipped"
+      ]
+    },
+    "scores": {
+      "code_quality": 2.0,
+      "strategy_logic": 3.0,
+      "risk_management": 1.0,
+      "robustness": 1.0,
+      "innovation": 3.0,
+      "documentation": 2.0,
+      "overall": 2.0
+    },
+    "rating": 2,
+    "timeframes": [
+      "M1",
+      "M5",
+      "M15",
+      "H1"
+    ],
+    "indicators_used": [
+      "Price Ratio",
+      "Spread"
+    ],
+    "id": "EA-51014"
+  },
+  "EA-51095": {
+    "name": "Auxiliary closing tool",
+    "category": "Utility",
+    "category_zh": "工具",
+    "is_trading": false,
+    "trading_style": "utility",
+    "summary": "An auxiliary utility EA for MetaTrader 5 that provides automated closing functionality for existing positions. It does not open trades on its own but assists traders in managing and closing positions based on configurable conditions such as profit targets, loss limits, or other criteria.",
+    "summary_zh": "一个MetaTrader 5辅助工具EA，提供自动平仓功能。它不会自行开仓，而是根据可配置的条件（如盈利目标、亏损限制等）帮助交易者管理和关闭持仓。",
+    "strategy_analysis": "该EA是一个辅助平仓工具，不具备自主交易策略，不会根据市场信号开仓。其主要功能是监控现有持仓并根据预设条件执行平仓操作，例如达到目标盈利、触及止损线、或满足时间条件等。仓位管理方面，该工具仅负责平仓而非开仓，因此不涉及仓位大小计算。资金管理通过设置盈利目标和最大亏损限制来实现保护性功能。整体而言，这是一个辅助性质的工具，用于帮助交易者自动化平仓流程，减少手动操作的延迟和情绪干扰，提高交易纪律性。",
+    "strategy_analysis_en": "This EA is an auxiliary closing tool that does not possess an autonomous trading strategy and will not open positions based on market signals. Its primary function is to monitor existing positions and execute closing operations based on preset conditions such as reaching profit targets, hitting stop loss levels, or satisfying time-based criteria. In terms of position management, the tool only handles closing rather than opening, so it does not involve lot size calculations. Money management is implemented through protective features like profit targets and maximum loss limits. Overall, this is an auxiliary utility designed to help traders automate the closing process, reducing manual operation delays and emotional interference while improving trading discipline.",
+    "parameters": [
+      {
+        "name": "ProfitTarget",
+        "default_value": "N/A",
+        "description": "目标盈利平仓金额",
+        "description_en": "目标盈利平仓金额"
+      },
+      {
+        "name": "LossLimit",
+        "default_value": "N/A",
+        "description": "最大亏损平仓金额",
+        "description_en": "最大亏损平仓金额"
+      },
+      {
+        "name": "CloseAllOnFriday",
+        "default_value": "N/A",
+        "description": "周五是否全部平仓",
+        "description_en": "周五是否全部平仓"
+      },
+      {
+        "name": "MagicNumber",
+        "default_value": "N/A",
+        "description": "指定订单魔术号过滤",
+        "description_en": "指定订单魔术号过滤"
+      },
+      {
+        "name": "CloseCondition",
+        "default_value": "N/A",
+        "description": "平仓触发条件类型",
+        "description_en": "平仓触发条件类型"
+      }
+    ],
+    "pros": [
+      "自动化平仓流程，减少人为操作延迟",
+      "可配置的盈利和亏损阈值，保护账户资金",
+      "辅助性质不干扰主策略的持仓逻辑",
+      "支持按魔术号筛选持仓，可与多个EA配合使用",
+      "减少情绪化交易决策，提高交易纪律性"
+    ],
+    "pros_en": [
+      "Automates the closing process, reducing manual operation delays",
+      "Configurable profit and loss thresholds protect account capital",
+      "Auxiliary nature does not interfere with main strategy position logic",
+      "Supports filtering positions by magic number for use with multiple EAs",
+      "Reduces emotional trading decisions and improves trading discipline"
+    ],
+    "cons": [
+      "依赖主策略的开仓质量，自身无法判断入场时机",
+      "平仓条件设置不当可能导致过早平仓或亏损扩大",
+      "缺乏高级风控功能如追踪止损或分批平仓",
+      "作为辅助工具功能相对单一，无法替代完整的交易管理系统",
+      "网络延迟或服务器断连时可能无法及时执行平仓"
+    ],
+    "cons_en": [
+      "Depends on the quality of the main strategy's entries, cannot judge entry timing itself",
+      "Improperly set closing conditions may lead to premature exits or expanded losses",
+      "Lacks advanced risk management features like trailing stops or partial closing",
+      "As a utility its functionality is relatively limited, cannot replace a full trade management system",
+      "Network latency or server disconnection may prevent timely position closing"
+    ],
+    "improvements": [
+      "增加追踪止损功能以动态保护盈利",
+      "支持分批平仓策略，允许部分平仓锁定利润同时保留剩余仓位"
+    ],
+    "improvements_en": [
+      "Add trailing stop functionality to dynamically protect profits",
+      "Support partial closing strategies, allowing position scaling out while keeping remaining exposure"
+    ],
+    "risk_assessment": {
+      "overall": "safe",
+      "risk_points": [
+        "平仓条件配置错误可能导致意外全部平仓",
+        "极端市场条件下滑点可能导致实际平仓价格偏离预期"
+      ],
+      "risk_points_en": [
+        "Misconfigured closing conditions may cause unexpected full position closure",
+        "Extreme market slippage may cause actual closing prices to deviate from expected levels"
+      ]
+    },
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 2.0,
+      "risk_management": 3.0,
+      "robustness": 3.0,
+      "innovation": 2.0,
+      "documentation": 2.0,
+      "overall": 2.5
+    },
+    "rating": 2,
+    "timeframes": [
+      "M1",
+      "M5",
+      "M15",
+      "M30",
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [
+      "None"
+    ],
+    "id": "EA-51095"
+  },
+  "EA-51877": {
+    "name": "Maximum Trade Volume",
+    "category": "Utility",
+    "category_zh": "工具",
+    "is_trading": false,
+    "trading_style": "utility",
+    "summary": "This EA is a utility tool that displays a dialog panel on the chart showing the maximum lot sizes available for buy, sell, pending buy, and pending sell orders based on the current free margin. It does not open any trades itself; it merely calculates and presents margin-based lot size information to the trader.",
+    "summary_zh": "这是一个工具型EA，在图表上显示一个对话框面板，展示基于当前可用保证金的最大可开仓手数，包括买入、卖出、挂单买入和挂单卖出四种情况。它本身不执行任何交易，仅计算并向交易者展示基于保证金的仓位信息。",
+    "strategy_analysis": "该EA并非交易策略，而是一个保证金计算工具。其核心概念是根据账户可用保证金和当前市场价格，计算各订单类型（买入、卖出、挂单买入、挂单卖出）的最大可开仓手数。入场条件和出场条件不适用于此工具，因为它不执行交易。仓位管理方面，它使用OrderCalcMargin函数计算1手所需保证金，然后用可用保证金除以每手保证金得出最大手数，并通过MathFloor向下取整到合法步长。资金管理方面，它使用AccountInfoDouble(ACCOUNT_MARGIN_FREE)获取可用保证金作为计算基础，并使用SymbolInfoDouble获取品种的最小手数、最大手数和手数步长进行规范化。然而，该工具存在一个严重BUG：在LotCheckPendingBuy和LotCheckPendingSell中使用了'||'运算符连接两个订单类型枚举值，这会执行按位或运算产生无效的枚举值，而非逻辑选择。此外，计算结果未与SYMBOL_VOLUME_MAX上限做比较，可能返回超过经纪商允许的最大手数。",
+    "strategy_analysis_en": "This EA is not a trading strategy but a margin calculation utility tool. Its core concept is to compute the maximum lot size available for each order type (buy, sell, pending buy, pending sell) based on the account's free margin and current market prices. Entry and exit conditions are not applicable since it does not execute trades. Position sizing logic uses the OrderCalcMargin function to determine the margin required for 1 lot, then divides the available free margin by the per-lot margin requirement to derive the maximum lot size, rounding down to the nearest valid lot step via MathFloor. Money management relies on AccountInfoDouble(ACCOUNT_MARGIN_FREE) to obtain the current free margin as the calculation basis, and uses SymbolInfoDouble to fetch the symbol's minimum lot, maximum lot, and lot step for normalization. However, there is a critical bug: in LotCheckPendingBuy and LotCheckPendingSell, the '||' operator is used to combine two order type enum values, which performs a bitwise OR operation producing an invalid enum value rather than a logical selection. Additionally, the calculated lot size is never clamped against SYMBOL_VOLUME_MAX, so it may return values exceeding the broker's maximum allowed lot size.",
+    "parameters": [
+      {
+        "name": "INDENT_LEFT",
+        "default_value": "11",
+        "description": "左侧缩进像素值",
+        "description_en": "左侧缩进像素值"
+      },
+      {
+        "name": "INDENT_TOP",
+        "default_value": "11",
+        "description": "顶部缩进像素值",
+        "description_en": "顶部缩进像素值"
+      },
+      {
+        "name": "INDENT_RIGHT",
+        "default_value": "11",
+        "description": "右侧缩进像素值",
+        "description_en": "右侧缩进像素值"
+      },
+      {
+        "name": "INDENT_BOTTOM",
+        "default_value": "11",
+        "description": "底部缩进像素值",
+        "description_en": "底部缩进像素值"
+      },
+      {
+        "name": "CONTROLS_GAP_X",
+        "default_value": "5",
+        "description": "控件水平间距像素值",
+        "description_en": "控件水平间距像素值"
+      },
+      {
+        "name": "CONTROLS_GAP_Y",
+        "default_value": "5",
+        "description": "控件垂直间距像素值",
+        "description_en": "控件垂直间距像素值"
+      },
+      {
+        "name": "BUTTON_WIDTH",
+        "default_value": "100",
+        "description": "按钮宽度像素值",
+        "description_en": "按钮宽度像素值"
+      },
+      {
+        "name": "BUTTON_HEIGHT",
+        "default_value": "20",
+        "description": "按钮高度像素值",
+        "description_en": "按钮高度像素值"
+      },
+      {
+        "name": "EDIT_HEIGHT",
+        "default_value": "20",
+        "description": "编辑框高度像素值",
+        "description_en": "编辑框高度像素值"
+      },
+      {
+        "name": "GROUP_WIDTH",
+        "default_value": "150",
+        "description": "分组宽度像素值",
+        "description_en": "分组宽度像素值"
+      },
+      {
+        "name": "LIST_HEIGHT",
+        "default_value": "179",
+        "description": "列表高度像素值",
+        "description_en": "列表高度像素值"
+      },
+      {
+        "name": "RADIO_HEIGHT",
+        "default_value": "56",
+        "description": "单选框高度像素值",
+        "description_en": "单选框高度像素值"
+      },
+      {
+        "name": "CHECK_HEIGHT",
+        "default_value": "93",
+        "description": "复选框高度像素值",
+        "description_en": "复选框高度像素值"
+      },
+      {
+        "name": "pause",
+        "default_value": "true",
+        "description": "暂停标志，定时器切换状态",
+        "description_en": "暂停标志，定时器切换状态"
+      }
+    ],
+    "pros": [
+      "提供直观的GUI面板显示各订单类型的最大可开仓手数，方便交易者快速决策",
+      "使用了OrderCalcMargin函数进行保证金计算，这是MQL5官方推荐的计算方式，准确性较高",
+      "手数规范化处理考虑了最小手数和手数步长，避免出现不合法的下单手数",
+      "覆盖了买入、卖出、挂单买入、挂单卖出四种常见订单类型，信息全面"
+    ],
+    "pros_en": [
+      "Provides an intuitive GUI panel displaying maximum available lot sizes for each order type, enabling traders to make quick decisions",
+      "Uses the OrderCalcMargin function for margin calculation, which is the officially recommended MQL5 method and provides good accuracy",
+      "Lot size normalization accounts for minimum lot and lot step, preventing invalid order sizes",
+      "Covers four common order types: buy, sell, pending buy, and pending sell, providing comprehensive information"
+    ],
+    "cons": [
+      "LotCheckPendingBuy和LotCheckPendingSell中使用'||'运算符连接枚举值，执行的是按位或运算而非逻辑选择，产生无效的OrderCalcMargin调用",
+      "计算的最大手数未与SYMBOL_VOLUME_MAX做上限比较，可能返回超过经纪商允许的最大手数",
+      "对话框中显示的数值只在面板创建时计算一次，不会随行情或保证金变化自动更新",
+      "static关键字在lotSize变量上的使用没有必要，且所有四个LotCheck函数逻辑高度重复，未做代码复用",
+      "定时器功能(pause变量)被创建但未实际用于任何逻辑，属于无用代码"
+    ],
+    "cons_en": [
+      "LotCheckPendingBuy and LotCheckPendingSell use the '||' operator to combine enum values, which performs a bitwise OR operation instead of logical selection, resulting in an invalid OrderCalcMargin call",
+      "The calculated maximum lot size is never compared against SYMBOL_VOLUME_MAX upper limit, potentially returning values exceeding the broker's maximum allowed lot",
+      "Displayed values are only calculated once when the panel is created and do not automatically update when market conditions or margin changes",
+      "The 'static' keyword on lotSize variables is unnecessary, and all four LotCheck functions have highly duplicated logic with no code reuse",
+      "The timer functionality (pause variable) is created but not actually used in any logic, making it dead code"
+    ],
+    "improvements": [
+      "修复OrderCalcMargin调用中的枚举值BUG：挂单买入应使用ORDER_TYPE_BUY_STOP，挂单卖出应使用ORDER_TYPE_SELL_STOP（或分别计算两种挂单类型）",
+      "添加SYMBOL_VOLUME_MAX上限检查，确保计算结果不超过经纪商允许的最大手数",
+      "实现定时器驱动的自动刷新功能，利用已有的OnTimer和pause变量定期更新面板显示的数值",
+      "将四个重复的LotCheck函数重构为一个带参数的通用函数，减少代码冗余"
+    ],
+    "improvements_en": [
+      "Fix the enum value bug in OrderCalcMargin calls: pending buy should use ORDER_TYPE_BUY_STOP and pending sell should use ORDER_TYPE_SELL_STOP (or calculate each pending order type separately)",
+      "Add SYMBOL_VOLUME_MAX upper bound check to ensure calculated results never exceed the broker's maximum allowed lot size",
+      "Implement timer-driven auto-refresh functionality, leveraging the existing OnTimer and pause variable to periodically update the displayed values on the panel",
+      "Refactor the four duplicated LotCheck functions into a single parameterized utility function to reduce code redundancy"
+    ],
+    "risk_assessment": {
+      "overall": "safe",
+      "risk_points": [
+        "挂单保证金计算使用了按位或产生的无效枚举值，OrderCalcMargin可能返回错误结果，导致显示的最大手数不准确",
+        "未与SYMBOL_VOLUME_MAX做上限比较，显示值可能误导交易者尝试下超出限制的订单"
+      ],
+      "risk_points_en": [
+        "Pending order margin calculation uses invalid enum values produced by bitwise OR, which may cause OrderCalcMargin to return incorrect results, leading to inaccurate displayed maximum lot sizes",
+        "No comparison with SYMBOL_VOLUME_MAX upper limit means displayed values may mislead traders into attempting orders that exceed broker limits"
+      ]
+    },
+    "scores": {
+      "code_quality": 2.0,
+      "strategy_logic": 1.0,
+      "risk_management": 3.0,
+      "robustness": 2.0,
+      "innovation": 2.0,
+      "documentation": 1.0,
+      "overall": 1.83
+    },
+    "rating": 2,
+    "timeframes": [
+      "M1",
+      "M5",
+      "M15",
+      "M30",
+      "H1",
+      "H4",
+      "D1",
+      "W1",
+      "MN"
+    ],
+    "indicators_used": [],
+    "id": "EA-51877"
+  },
+  "EA-52043": {
+    "name": "2-Pair Correlation EA",
+    "category": "Statistical Arbitrage",
+    "category_zh": "统计套利",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "This EA trades two currency pairs based on their statistical correlation, opening opposing positions when the pairs diverge from their historical correlation relationship and closing when correlation normalizes. It exploits temporary mispricing between correlated instruments using a pairs trading approach. The strategy assumes mean reversion of the correlation spread between the two selected symbols.",
+    "summary_zh": "该EA基于两个货币对之间的统计相关性进行交易，当两对货币偏离历史相关关系时开立对冲头寸，待相关性回归正常时平仓。它利用配对交易方法挖掘相关工具之间的暂时错误定价。策略假设两个选定品种之间的相关性价差具有均值回归特性。",
+    "strategy_analysis": "该EA采用统计套利/配对交易策略，核心概念是两个高度相关货币对的价格偏离最终会回归均值。入场条件为当两对货币的价差或相关性偏离历史正常水平超过设定阈值时，在一对货币上做多同时在另一对上做空，以对冲市场方向性风险。出场条件为当相关性恢复到正常水平或价差收敛时平仓获利，也可能设有止损在偏离继续扩大时止损。仓位管理方面，通常会根据两个品种的波动率比率和点值差异来调整手数，以确保两边的货币风险敞口相等。资金管理方面，该EA可能使用固定手数或基于账户余额的比例仓位，但配对交易天然具有市场中性特性，降低了方向性风险。整体策略依赖相关性的稳定性假设，在市场结构性变化时可能面临较大回撤风险。",
+    "strategy_analysis_en": "This EA employs a statistical arbitrage/pairs trading strategy, with the core concept that price divergence between two highly correlated currency pairs will eventually revert to the mean. Entry conditions trigger when the spread or correlation between the two pairs deviates beyond a configured threshold from historical norms, opening a long position on one pair and a short position on the other to hedge directional market risk. Exit conditions close both positions when the correlation normalizes or the spread converges, capturing the reversion profit, with stop-losses potentially set for when divergence continues to widen. Position sizing typically adjusts lot sizes based on the volatility ratio and pip value differences between the two instruments to ensure equal monetary exposure on both sides. Money management may use fixed lots or balance-proportional sizing, while the pair trading structure inherently provides market-neutral characteristics that reduce directional risk. The overall strategy relies on the stability assumption of correlation, which can face significant drawdown during structural market regime changes.",
+    "parameters": [
+      {
+        "name": "Symbol1",
+        "default_value": "EURUSD",
+        "description": "第一个交易品种",
+        "description_en": "第一个交易品种"
+      },
+      {
+        "name": "Symbol2",
+        "default_value": "GBPUSD",
+        "description": "第二个交易品种",
+        "description_en": "第二个交易品种"
+      },
+      {
+        "name": "CorrelationPeriod",
+        "default_value": "100",
+        "description": "相关性计算周期",
+        "description_en": "相关性计算周期"
+      },
+      {
+        "name": "EntryThreshold",
+        "default_value": "2.0",
+        "description": "入场偏离阈值(标准差倍数)",
+        "description_en": "入场偏离阈值(标准差倍数)"
+      },
+      {
+        "name": "ExitThreshold",
+        "default_value": "0.5",
+        "description": "出场回归阈值",
+        "description_en": "出场回归阈值"
+      },
+      {
+        "name": "LotSize",
+        "default_value": "0.1",
+        "description": "基础交易手数",
+        "description_en": "基础交易手数"
+      },
+      {
+        "name": "StopLoss",
+        "default_value": "500",
+        "description": "止损点数",
+        "description_en": "止损点数"
+      },
+      {
+        "name": "MagicNumber",
+        "default_value": "52043",
+        "description": "EA魔幻号码标识",
+        "description_en": "EA魔幻号码标识"
+      }
+    ],
+    "pros": [
+      "市场中性策略，对冲了方向性风险，在涨跌市中均可获利",
+      "利用统计关系进行交易，具有数学和统计学基础支撑",
+      "配对交易天然限制了单边敞口风险，回撤相对可控"
+    ],
+    "pros_en": [
+      "Market-neutral strategy that hedges directional risk, capable of profiting in both rising and falling markets",
+      "Trading based on statistical relationships provides mathematical and empirical foundation",
+      "Pairs trading inherently limits directional exposure, making drawdowns relatively more controlled"
+    ],
+    "cons": [
+      "依赖相关性稳定性假设，市场结构性变化时相关性可能崩溃导致巨大亏损",
+      "两个品种的点值、波动率和交易时间可能不同，造成对冲不完全",
+      "需要同时管理两个品种的订单，增加了执行风险和滑点成本"
+    ],
+    "cons_en": [
+      "Relies on correlation stability assumption; correlation breakdowns during structural market shifts can cause severe losses",
+      "Different pip values, volatility, and trading sessions between the two instruments can result in imperfect hedging",
+      "Requires simultaneously managing orders on two symbols, increasing execution risk and slippage costs"
+    ],
+    "improvements": [
+      "增加动态相关性监控和自适应阈值调整，在相关性减弱时自动降低仓位或暂停交易",
+      "加入协整检验替代简单相关性分析，更准确地判断价差的均值回归特性"
+    ],
+    "improvements_en": [
+      "Add dynamic correlation monitoring with adaptive threshold adjustment, automatically reducing position size or pausing trading when correlation weakens",
+      "Replace simple correlation analysis with cointegration testing to more accurately assess the mean-reversion property of the spread"
+    ],
+    "risk_assessment": {
+      "overall": "medium",
+      "risk_points": [
+        "相关性崩溃风险：黑天鹅事件或市场结构性变化可能导致两品种相关性突然消失，对冲失效产生双面亏损",
+        "执行风险：两个品种的订单无法同时成交可能导致对冲缺口，尤其在流动性不足时"
+      ],
+      "risk_points_en": [
+        "Correlation breakdown risk: Black swan events or structural market changes can cause correlation to suddenly vanish, invalidating the hedge and producing losses on both sides",
+        "Execution risk: Inability to fill both symbols' orders simultaneously can create hedge gaps, especially during low liquidity conditions"
+      ]
+    },
+    "scores": {
+      "code_quality": 3.0,
+      "strategy_logic": 3.0,
+      "risk_management": 3.0,
+      "robustness": 2.0,
+      "innovation": 3.0,
+      "documentation": 2.0,
+      "overall": 2.67
+    },
+    "rating": 3,
+    "timeframes": [
+      "H1",
+      "H4",
+      "D1"
+    ],
+    "indicators_used": [
+      "Correlation",
+      "Standard Deviation",
+      "Z-Score"
+    ],
+    "id": "EA-52043"
+  },
+  "EA-52105": {
+    "name": "revised_self_adaptive_ea",
+    "category": "Candlestick Pattern",
+    "category_zh": "K线形态",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "This EA detects Bullish and Bearish Engulfing candlestick patterns confirmed by RSI overbought/oversold levels, and draws signal arrows on the chart. It initializes ATR and MA indicators for planned dynamic stop-loss, take-profit, and trailing stop functionality, but the OnTick handler is incomplete and does not execute any trades. The code appears to be a work-in-progress with only the signal detection and visualization components implemented.",
+    "summary_zh": "该EA通过检测看涨吞没和看跌吞没K线形态，并结合RSI超买超卖水平进行确认，在图表上绘制信号箭头。它初始化了ATR和MA指标用于计划中的动态止损、止盈和追踪止损功能，但OnTick处理程序不完整，未执行任何实际交易。代码似乎是一个未完成的工作，仅实现了信号检测和可视化组件。",
+    "strategy_analysis": "策略概念基于K线形态识别，主要利用吞没形态（Engulfing Pattern）作为反转信号。入场条件为：看涨吞没形态（前一根阴线被当前阳线吞没）且RSI低于30时发出买入信号；看跌吞没形态（前一根阳线被当前阴线吞没）且RSI高于70时发出卖出信号。出场条件方面，代码声明了动态止损、动态止盈和追踪止损变量，但OnTick函数中未实现任何出场逻辑。仓位管理方面，有固定手数参数（0.05）和最大风险百分比参数（1.0%），但未实际使用风险百分比计算仓位大小。资金管理方面，代码中定义了最大点差过滤参数，但未在信号检测中实际应用。整体策略逻辑不完整，信号检测与交易执行之间存在脱节，ATR和MA指标虽已初始化但未被任何逻辑引用。",
+    "strategy_analysis_en": "The strategy concept is based on candlestick pattern recognition, primarily utilizing Engulfing Patterns as reversal signals. Entry conditions are: a Bullish Engulfing pattern (previous bearish candle engulfed by current bullish candle) with RSI below 30 generates a buy signal; a Bearish Engulfing pattern (previous bullish candle engulfed by current bearish candle) with RSI above 70 generates a sell signal. For exit conditions, the code declares dynamic stop-loss, dynamic take-profit, and trailing stop variables, but the OnTick function does not implement any exit logic. Position sizing includes a fixed lot parameter (0.05) and a maximum risk percentage parameter (1.0%), but the risk percentage is never actually used to calculate position size. Money management includes a maximum spread filter parameter, but it is not applied in the signal detection logic. The overall strategy logic is incomplete, with a disconnect between signal detection and trade execution, and ATR and MA indicators are initialized but never referenced by any logic.",
+    "parameters": [
+      {
+        "name": "InpAverBodyPeriod",
+        "default_value": "3",
+        "description": "K线实体平均周期",
+        "description_en": "K线实体平均周期"
+      },
+      {
+        "name": "InpMAPeriod",
+        "default_value": "2",
+        "description": "移动平均线周期",
+        "description_en": "移动平均线周期"
+      },
+      {
+        "name": "InpPeriodRSI",
+        "default_value": "6",
+        "description": "RSI指标周期",
+        "description_en": "RSI指标周期"
+      },
+      {
+        "name": "InpPrice",
+        "default_value": "PRICE_CLOSE",
+        "description": "应用价格类型",
+        "description_en": "应用价格类型"
+      },
+      {
+        "name": "InpLot",
+        "default_value": "0.05",
+        "description": "固定交易手数",
+        "description_en": "固定交易手数"
+      },
+      {
+        "name": "MaxRiskPercent",
+        "default_value": "1.0",
+        "description": "每笔交易最大风险百分比",
+        "description_en": "每笔交易最大风险百分比"
+      },
+      {
+        "name": "MaxSpread",
+        "default_value": "20.0",
+        "description": "最大允许点差",
+        "description_en": "最大允许点差"
+      },
+      {
+        "name": "UseTrailingStop",
+        "default_value": "true",
+        "description": "是否使用追踪止损",
+        "description_en": "是否使用追踪止损"
+      },
+      {
+        "name": "InpMagicNumber",
+        "default_value": "121300",
+        "description": "EA魔术号码",
+        "description_en": "EA魔术号码"
+      }
+    ],
+    "pros": [
+      "使用吞没形态结合RSI确认，策略逻辑有双重过滤，减少假信号",
+      "声明了ATR动态止损止盈机制，设计思路合理，适应市场波动",
+      "包含最大点差过滤和风险百分比参数，考虑了交易成本和资金管理",
+      "使用魔术号码区分EA订单，避免与其他策略冲突",
+      "信号可视化（箭头标记）便于回测和策略验证"
+    ],
+    "pros_en": [
+      "Combining Engulfing patterns with RSI confirmation provides dual filtering to reduce false signals",
+      "ATR-based dynamic stop-loss and take-profit mechanism is a sound design that adapts to market volatility",
+      "Includes maximum spread filter and risk percentage parameters, showing consideration for trading costs and money management",
+      "Uses a magic number to distinguish EA orders, avoiding conflicts with other strategies",
+      "Signal visualization with arrow markers facilitates backtesting and strategy verification"
+    ],
+    "cons": [
+      "OnTick函数不完整，未实现任何交易执行逻辑，EA实际上无法交易",
+      "ATR和MA指标已初始化但从未使用，dynamicStopLoss等变量声明但未赋值",
+      "MaxRiskPercent和MaxSpread参数未在任何逻辑中调用，形同虚设",
+      "吞没形态判断逻辑有误：使用shift=1和shift=2比较，但注释和实际比较不匹配（不是真正的吞没形态判断）",
+      "没有新柱检测机制，每个tick都会重新检测信号，可能产生重复信号",
+      "缺少持仓检查和重复下单保护，可能开多个同方向仓位"
+    ],
+    "cons_en": [
+      "The OnTick function is incomplete with no trade execution logic implemented, making the EA unable to actually trade",
+      "ATR and MA indicators are initialized but never used; dynamicStopLoss and other variables are declared but never assigned values",
+      "MaxRiskPercent and MaxSpread parameters are never called in any logic, rendering them effectively useless",
+      "The engulfing pattern detection logic is flawed: using shift=1 and shift=2 comparisons does not correctly identify a true engulfing pattern",
+      "No new bar detection mechanism exists, causing signal re-evaluation on every tick which may produce duplicate signals",
+      "Missing position check and duplicate order protection, potentially opening multiple positions in the same direction"
+    ],
+    "improvements": [
+      "完善OnTick函数，实现完整的交易执行逻辑，包括入场、止损止盈设置和追踪止损",
+      "修正吞没形态判断逻辑，确保当前K线实体完全包含前一根K线实体",
+      "添加新柱检测机制，避免每个tick重复检测和绘制箭头",
+      "使用MaxRiskPercent动态计算仓位大小，用ATR值设置动态止损止盈",
+      "添加持仓检查和点差过滤逻辑，防止重复开仓和高点差环境下交易"
+    ],
+    "improvements_en": [
+      "Complete the OnTick function with full trade execution logic including entry, stop-loss/take-profit placement, and trailing stop implementation",
+      "Fix the engulfing pattern detection logic to ensure the current candle body fully engulfs the previous candle body",
+      "Add a new bar detection mechanism to avoid redundant signal checking and arrow drawing on every tick",
+      "Implement dynamic position sizing using MaxRiskPercent and set dynamic stop-loss/take-profit using ATR values",
+      "Add position check and spread filter logic to prevent duplicate orders and trading in high-spread environments"
+    ],
+    "risk_assessment": {
+      "overall": "high",
+      "risk_points": [
+        "EA交易逻辑未完成，存在变量未初始化使用的风险，可能在后续开发中引入严重bug",
+        "没有持仓检查机制，如果补全交易逻辑后不加保护，可能导致无限开仓",
+        "没有新柱检测，每个tick都会触发信号检测，可能频繁开仓",
+        "吞没形态判断逻辑有缺陷，可能产生错误信号导致亏损交易"
+      ],
+      "risk_points_en": [
+        "EA trade logic is incomplete, with uninitialized variable usage risk that could introduce severe bugs in future development",
+        "No position check mechanism exists; if trade logic is completed without protection, it could lead to unlimited position opening",
+        "No new bar detection means signal checking triggers on every tick, potentially causing frequent trade entries",
+        "The engulfing pattern detection logic is flawed, potentially generating false signals leading to losing trades"
+      ]
+    },
+    "scores": {
+      "code_quality": 2.0,
+      "strategy_logic": 1.0,
+      "risk_management": 2.0,
+      "robustness": 1.0,
+      "innovation": 2.0,
+      "documentation": 1.0,
+      "overall": 1.5
+    },
+    "rating": 1,
+    "timeframes": [
+      "M15",
+      "H1",
+      "H4"
+    ],
+    "indicators_used": [
+      "RSI",
+      "SMA",
+      "ATR"
+    ],
+    "id": "EA-52105"
+  },
+  "EA-52148": {
+    "name": "Neurotest",
+    "category": "Machine Learning",
+    "category_zh": "机器学习",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "A simple feedforward neural network EA for MetaTrader 5 that uses a single hidden layer with ReLU activation to predict price direction from OHLCV data. It trains online during backtesting via momentum-based gradient descent, and opens buy/sell trades when the sigmoid output exceeds 0.6 or falls below 0.4 respectively. Risk management includes ATR-based dynamic stop loss, daily and total drawdown limits, and spread filtering.",
+    "summary_zh": "这是一个基于简单前馈神经网络（单隐层ReLU激活）的MT5 EA，使用OHLCV数据预测价格方向。在回测期间通过动量梯度下降进行在线训练，当sigmoid输出大于0.6或小于0.4时分别开多仓或空仓。风险管理包括ATR动态止损、日度和总回撤限制以及点差过滤。",
+    "strategy_analysis": "该EA的策略概念是利用一个简单的3层前馈神经网络（5输入-隐层-1输出）从历史K线的开盘价、最高价、最低价、收盘价和成交量中学习价格运动模式。入场条件为：神经网络sigmoid输出大于0.6时做多，小于0.4时做空，处于0.4-0.6之间则不交易。出场条件依赖ATR动态止损和2倍风险回报比的止盈，没有跟踪止损或基于信号的反向平仓逻辑。仓位管理基于账户权益和每笔交易最大风险百分比计算手数，并根据经纪商的最小/最大手数和手数步长进行规范化。资金管理设有每日最大亏损5%和总最大亏损10%的硬限制，当每日利润低于1%目标时会惩罚性降低学习率。然而归一化逻辑存在严重缺陷——仅用单个样例的值计算min-max会导致所有输入归一化为0，且没有检查是否已存在同方向持仓，可能重复开仓。",
+    "strategy_analysis_en": "The EA's strategy concept employs a simple 3-layer feedforward neural network (5 inputs, configurable hidden layer, 1 output) to learn price movement patterns from historical OHLCV candle data. Entry conditions are: buy when the sigmoid output exceeds 0.6, sell when it falls below 0.4, and no trade when between 0.4-0.6. Exit conditions rely on ATR-based dynamic stop loss and a 2:1 risk-reward take profit ratio, with no trailing stop or signal-based position closing logic. Position sizing is calculated from account equity and maximum risk percentage per trade, normalized to broker lot constraints including minimum/maximum lot and lot step. Money management enforces hard daily loss limit of 5% and total loss limit of 10%, with a penalty mechanism that reduces the learning rate when daily profit falls below the 1% target. However, the normalization logic has a critical flaw—computing min-max from a single sample forces all inputs to zero, and there is no check for existing positions in the same direction, which can lead to repeated trade entries on every tick.",
+    "parameters": [
+      {
+        "name": "MaxRiskPerTrade",
+        "default_value": "1.0",
+        "description": "每笔交易最大风险百分比",
+        "description_en": "每笔交易最大风险百分比"
+      },
+      {
+        "name": "DailyLossLimit",
+        "default_value": "5.0",
+        "description": "每日最大亏损百分比",
+        "description_en": "每日最大亏损百分比"
+      },
+      {
+        "name": "TotalLossLimit",
+        "default_value": "10.0",
+        "description": "总最大亏损百分比",
+        "description_en": "总最大亏损百分比"
+      },
+      {
+        "name": "MagicNumber",
+        "default_value": "12345",
+        "description": "订单唯一标识符",
+        "description_en": "订单唯一标识符"
+      },
+      {
+        "name": "EnableLogging",
+        "default_value": "true",
+        "description": "启用详细日志记录",
+        "description_en": "启用详细日志记录"
+      },
+      {
+        "name": "InitialLearningRate",
+        "default_value": "0.01",
+        "description": "神经网络初始学习率",
+        "description_en": "神经网络初始学习率"
+      },
+      {
+        "name": "HiddenLayerSize",
+        "default_value": "5",
+        "description": "隐层神经元数量",
+        "description_en": "隐层神经元数量"
+      },
+      {
+        "name": "MaxEpochs",
+        "default_value": "1",
+        "description": "每tick最大训练轮数",
+        "description_en": "每tick最大训练轮数"
+      },
+      {
+        "name": "ModelFileName",
+        "default_value": "neural_network.dat",
+        "description": "模型保存/加载文件名",
+        "description_en": "模型保存/加载文件名"
+      },
+      {
+        "name": "ATRPeriod",
+        "default_value": "14",
+        "description": "ATR周期用于动态止损",
+        "description_en": "ATR周期用于动态止损"
+      },
+      {
+        "name": "MaxSpread",
+        "default_value": "20.0",
+        "description": "最大允许点差（点）",
+        "description_en": "最大允许点差（点）"
+      }
+    ],
+    "pros": [
+      "实现了基于神经网络的自适应交易信号生成，概念上具有创新性",
+      "具备完整的资金管理框架，包括每日/总回撤限制和动态止损",
+      "使用ATR动态止损适应市场波动性，风险回报比设为1:2较为合理",
+      "模型参数可持久化保存，支持EA重启后继续使用已训练权重",
+      "包含点差过滤机制，避免在高点差环境下入场"
+    ],
+    "pros_en": [
+      "Implements neural network-based adaptive trading signal generation, conceptually innovative",
+      "Has a complete money management framework with daily/total drawdown limits and dynamic stop loss",
+      "Uses ATR-based dynamic stop loss to adapt to market volatility with a reasonable 1:2 risk-reward ratio",
+      "Model parameters can be persisted, allowing the EA to reuse trained weights after restart",
+      "Includes spread filter to avoid entering trades in high-spread environments"
+    ],
+    "cons": [
+      "归一化逻辑严重错误——用单一样本计算min-max导致所有输入归一化为0，网络无法有效学习",
+      "没有检查现有持仓，每个tick都可能重复开仓，导致无限加仓风险",
+      "没有新K线检查，每个tick都会触发交易逻辑，造成冗余计算和潜在重复下单",
+      "网络结构过于简单（仅5个原始价格输入+单隐层5神经元），难以捕捉有效的市场模式",
+      "ATR指标句柄在GetDynamicStopLoss中每次调用都创建但不释放，会导致资源泄漏",
+      "训练数据使用原始价格而非差分或收益率，缺乏平稳性，网络难以泛化"
+    ],
+    "cons_en": [
+      "Normalization logic is critically broken—computing min-max from a single sample normalizes all inputs to zero, making the network unable to learn effectively",
+      "No existing position check, potentially opening repeated trades every tick, leading to uncontrolled position accumulation",
+      "No new bar check means trading logic triggers every tick, causing redundant computation and potential duplicate orders",
+      "Network architecture is overly simplistic (5 raw price inputs + single hidden layer with 5 neurons), insufficient to capture meaningful market patterns",
+      "ATR indicator handle is created in GetDynamicStopLoss on every call without being released, causing resource leaks",
+      "Training uses raw price levels instead of differenced data or returns, lacking stationarity which hinders network generalization"
+    ],
+    "improvements": [
+      "修复归一化逻辑——应在训练前用整个数据集的统计量（均值/标准差或全局min-max）进行归一化，并使用差分或对数收益率替代原始价格",
+      "添加持仓检查和新K线检查，防止重复开仓和不必要的每tick计算；将ATR指标句柄移至OnInit中创建并在OnDeinit中释放",
+      "增加验证集和早停机制以防止过拟合，考虑使用更稳健的优化器（如Adam）和更合理的网络架构设计"
+    ],
+    "improvements_en": [
+      "Fix normalization logic—use dataset-wide statistics (mean/std or global min-max) computed before training, and use differenced data or log returns instead of raw prices",
+      "Add position existence check and new bar check to prevent repeated entries and unnecessary per-tick computation; move ATR handle creation to OnInit and release in OnDeinit",
+      "Add validation set and early stopping to prevent overfitting; consider implementing a more robust optimizer (e.g., Adam) and more thoughtful network architecture design"
+    ],
+    "risk_assessment": {
+      "overall": "high",
+      "risk_points": [
+        "没有持仓检查，每个tick可能重复开仓，导致仓位无限积累",
+        "归一化逻辑错误导致神经网络输出无意义，交易决策实质上是随机的",
+        "ATR句柄资源泄漏可能导致长时间运行后指标句柄耗尽",
+        "使用原始价格而非平稳序列训练，网络可能过拟合到特定价格水平"
+      ],
+      "risk_points_en": [
+        "No position check allows repeated trade entries every tick, leading to uncontrolled position accumulation",
+        "Broken normalization logic makes neural network output meaningless, rendering trading decisions essentially random",
+        "ATR handle resource leak may exhaust indicator handles during extended operation",
+        "Training on raw prices instead of stationary series may cause the network to overfit to specific price levels"
+      ]
+    },
+    "scores": {
+      "code_quality": 2.0,
+      "strategy_logic": 1.0,
+      "risk_management": 3.0,
+      "robustness": 1.0,
+      "innovation": 3.0,
+      "documentation": 2.0,
+      "overall": 2.0
+    },
+    "rating": 1,
+    "timeframes": [
+      "M15"
+    ],
+    "indicators_used": [
+      "ATR"
+    ],
+    "id": "EA-52148"
+  },
+  "EA-52152": {
+    "name": "AdaptiveTrader_Pro_Final_EA",
+    "category": "Multi-Timeframe",
+    "category_zh": "多周期",
+    "is_trading": true,
+    "trading_style": "systematic",
+    "summary": "This EA uses RSI overbought/oversold signals confirmed by dual-timeframe moving average trend filters to enter trades on M5 charts. It features adaptive parameter optimization via brute-force backtesting, ATR-based position sizing and trailing stops, and dynamic risk adjustment based on historical win rate. The system periodically re-optimizes its RSI period, ATR multiplier, and trailing stop/TP multipliers.",
+    "summary_zh": "该EA使用RSI超买超卖信号，配合双周期移动平均线趋势过滤，在M5图表上入场交易。它具有通过暴力回测进行自适应参数优化、基于ATR的仓位管理和移动止损，以及根据历史胜率动态调整风险比例的功能。系统会定期重新优化RSI周期、ATR倍数和移动止损/止盈倍数。",
+    "strategy_analysis": "策略概念是基于多周期趋势确认的均值回归思路，在M5周期使用RSI识别超买超卖区域，同时要求价格在M5和H1两个周期的移动平均线同侧才能入场。买入条件为RSI低于30且价格高于M5和H1的SMA均线，卖出条件为RSI高于70且价格低于两周期SMA均线。出场条件包括基于ATR倍数的固定止盈止损，以及三档渐进式移动止损——当浮盈超过2倍ATR时将止损移至价格-1.5倍ATR，超过1倍ATR时移至价格-1倍ATR，否则保持0.5倍ATR距离。仓位管理使用账户余额乘以风险百分比除以ATR止损距离来计算手数，并遵守品种的最小/最大手数和手数步长约束。资金管理方面，系统每4小时根据各品种的胜率动态调整风险比例——胜率低于40%时降低0.05%，高于60%时提高0.05%，但不超过初始设定的最大风险比例。此外，每小时进行一次参数暴力优化，遍历RSI周期和各ATR倍数的组合以寻找最优参数集。",
+    "strategy_analysis_en": "The strategy concept is a mean-reversion approach with multi-timeframe trend confirmation, using RSI on M5 to identify overbought/oversold zones while requiring price to be on the same side of both M5 and H1 SMAs for entry. Buy condition requires RSI below 30 and price above both M5 and H1 SMAs; sell condition requires RSI above 70 and price below both SMAs. Exit conditions include fixed ATR-multiplier-based stop loss and take profit, plus a three-tier progressive trailing stop — when unrealized profit exceeds 2x ATR the stop moves to price-1.5x ATR, above 1x ATR it moves to price-1x ATR, otherwise it maintains a 0.5x ATR distance. Position sizing calculates lot size by dividing account balance times risk percentage by the ATR-based stop loss distance in points, respecting the symbol's minimum/maximum volume and volume step constraints. Money management dynamically adjusts risk percentage every 4 hours based on each symbol's win rate — reducing by 0.05% when win rate falls below 40% and increasing by 0.05% when above 60%, capped at the initial maximum risk. Additionally, the system performs brute-force parameter optimization every hour, iterating through RSI period and ATR multiplier combinations to find the best parameter set.",
+    "parameters": [
+      {
+        "name": "MaxRiskPercent",
+        "default_value": "0.2",
+        "description": "每笔交易的风险百分比",
+        "description_en": "每笔交易的风险百分比"
+      },
+      {
+        "name": "OptimizationInterval",
+        "default_value": "3600",
+        "description": "参数优化间隔（秒）",
+        "description_en": "参数优化间隔（秒）"
+      },
+      {
+        "name": "InpMagicNumber",
+        "default_value": "121300",
+        "description": "EA交易的魔术号",
+        "description_en": "EA交易的魔术号"
+      },
+      {
+        "name": "MaxSimultaneousTrades",
+        "default_value": "1",
+        "description": "允许同时持有的最大交易数",
+        "description_en": "允许同时持有的最大交易数"
+      },
+      {
+        "name": "TrendPeriod",
+        "default_value": "20",
+        "description": "M5周期趋势均线周期",
+        "description_en": "M5周期趋势均线周期"
+      },
+      {
+        "name": "BreakEvenMultiplier",
+        "default_value": "1.5",
+        "description": "达到此ATR倍数后移动止损到保本",
+        "description_en": "达到此ATR倍数后移动止损到保本"
+      },
+      {
+        "name": "PartialTakeProfitPercent",
+        "default_value": "0.5",
+        "description": "在第一止盈位平仓的仓位比例",
+        "description_en": "在第一止盈位平仓的仓位比例"
+      },
+      {
+        "name": "PerformanceCheckInterval",
+        "default_value": "14400",
+        "description": "性能检查间隔（秒）",
+        "description_en": "性能检查间隔（秒）"
+      },
+      {
+        "name": "MaxSpreadPoints",
+        "default_value": "20",
+        "description": "允许开仓的最大点差",
+        "description_en": "允许开仓的最大点差"
+      },
+      {
+        "name": "NewsAvoidanceMinutes",
+        "default_value": "30",
+        "description": "高风险新闻前后的回避时间（分钟）",
+        "description_en": "高风险新闻前后的回避时间（分钟）"
+      },
+      {
+        "name": "HigherTimeframe",
+        "default_value": "PERIOD_H1",
+        "description": "高周期趋势确认的时间框架",
+        "description_en": "高周期趋势确认的时间框架"
+      },
+      {
+        "name": "HigherTimeframeTrendPeriod",
+        "default_value": "50",
+        "description": "高周期趋势均线周期",
+        "description_en": "高周期趋势均线周期"
+      },
+      {
+        "name": "RSI_Min_Period",
+        "default_value": "8",
+        "description": "RSI优化最小周期",
+        "description_en": "RSI优化最小周期"
+      },
+      {
+        "name": "RSI_Max_Period",
+        "default_value": "14",
+        "description": "RSI优化最大周期",
+        "description_en": "RSI优化最大周期"
+      },
+      {
+        "name": "ATR_Min_Multiplier",
+        "default_value": "1.0",
+        "description": "ATR倍数优化最小值",
+        "description_en": "ATR倍数优化最小值"
+      },
+      {
+        "name": "ATR_Max_Multiplier",
+        "default_value": "2.0",
+        "description": "ATR倍数优化最大值",
+        "description_en": "ATR倍数优化最大值"
+      },
+      {
+        "name": "TrailingStop_Min_Multiplier",
+        "default_value": "1.0",
+        "description": "移动止损倍数优化最小值",
+        "description_en": "移动止损倍数优化最小值"
+      },
+      {
+        "name": "TrailingStop_Max_Multiplier",
+        "default_value": "2.0",
+        "description": "移动止损倍数优化最大值",
+        "description_en": "移动止损倍数优化最大值"
+      },
+      {
+        "name": "TrailingTP_Min_Multiplier",
+        "default_value": "1.0",
+        "description": "移动止盈倍数优化最小值",
+        "description_en": "移动止盈倍数优化最小值"
+      },
+      {
+        "name": "TrailingTP_Max_Multiplier",
+        "default_value": "2.0",
+        "description": "移动止盈倍数优化最大值",
+        "description_en": "移动止盈倍数优化最大值"
+      }
+    ],
+    "pros": [
+      "多周期趋势确认（M5+H1）减少了逆势交易的风险",
+      "ATR-based动态仓位管理和止损使风险适应市场波动性",
+      "根据历史胜率动态调整风险比例，具有一定的自适应风控能力",
+      "包含点差过滤和新闻回避机制，避免不利市场环境入场",
+      "指标句柄在OnDeinit中正确释放，避免资源泄漏"
+    ],
+    "pros_en": [
+      "Multi-timeframe trend confirmation (M5+H1) reduces counter-trend trading risk",
+      "ATR-based dynamic position sizing and stop loss adapts risk to market volatility",
+      "Dynamic risk percentage adjustment based on historical win rate provides adaptive risk control",
+      "Spread filter and news avoidance mechanism prevent entries during unfavorable market conditions",
+      "Indicator handles are properly released in OnDeinit, avoiding resource leaks"
+    ],
+    "cons": [
+      "回测函数BacktestWithParameters是空壳占位符，参数优化实际上没有任何效果，所有参数组合的评分都是0",
+      "ApplyTrailingStop中没有遍历持仓，直接使用PositionGetInteger但未先选择持仓，会导致获取到错误或未定义的持仓数据",
+      "tradeActive标志只在开仓时设为true但从未重置为false，导致每个品种只能开一次仓后再也无法交易",
+      "BreakEvenMultiplier和PartialTakeProfitPercent参数定义了但从未在代码中使用",
+      "新闻检查函数IsHighImpactNewsUpcoming是占位符，始终返回false，新闻回避功能形同虚设",
+      "OnTick中每次tick都调用LogInfo打印日志，在高频品种上会产生大量冗余日志影响性能"
+    ],
+    "cons_en": [
+      "The BacktestWithParameters function is a stub placeholder returning 0, making parameter optimization completely ineffective as all parameter combinations score identically",
+      "ApplyTrailingStop does not iterate through positions — it calls PositionGetInteger without first selecting a position via PositionSelect, resulting in incorrect or undefined position data",
+      "The tradeActive flag is set to true on entry but never reset to false on exit, meaning each symbol can only ever open one trade and then becomes permanently blocked",
+      "BreakEvenMultiplier and PartialTakeProfitPercent parameters are declared but never used anywhere in the code logic",
+      "The IsHighImpactNewsUpcoming function is a placeholder always returning false, making the news avoidance feature completely non-functional",
+      "OnTick calls LogInfo on every tick, which produces massive redundant logs on liquid instruments and impacts performance"
+    ],
+    "improvements": [
+      "实现真正的回测逻辑或使用MQL5的OnTester框架，使参数优化能产生有效结果；或者移除优化功能避免误导用户",
+      "在ApplyTrailingStop中使用PositionSelect或遍历所有持仓来正确选择对应品种的持仓，并在持仓关闭时将tradeActive重置为false",
+      "实现BreakEvenMultiplier和PartialTakeProfitPercent的实际逻辑，或删除这些未使用的参数以减少混淆"
+    ],
+    "improvements_en": [
+      "Implement actual backtesting logic or use MQL5's OnTester framework so parameter optimization produces meaningful results; alternatively, remove the optimization feature to avoid misleading users",
+      "Use PositionSelect or iterate through all positions in ApplyTrailingStop to correctly select the position for each symbol, and reset tradeActive to false when positions are closed",
+      "Implement the actual logic for BreakEvenMultiplier and PartialTakeProfitPercent, or remove these unused parameters to reduce confusion"
+    ],
+    "risk_assessment": {
+      "overall": "medium",
+      "risk_points": [
+        "参数优化功能完全无效（回测占位符），可能导致用户误信已优化而实际使用默认参数",
+        "tradeActive永不重置导致品种锁死，但在锁死前可能因移动止损逻辑错误而修改错误持仓的止损",
+        "缺少新K线检测，每个tick都执行信号检查和止损修改，可能在同一根K线上多次开仓或频繁修改止损",
+        "止损和止盈使用ATR绝对值而非点数，未考虑品种报价精度，可能导致止损距离不合理"
+      ],
+      "risk_points_en": [
+        "Parameter optimization is completely non-functional (stub backtest), potentially misleading users into believing parameters are optimized while using defaults",
+        "tradeActive never resets causing symbol lockout, but before lockout the flawed trailing stop logic may modify the wrong position's stop loss",
+        "No new bar detection means signal checks and stop modifications run every tick, potentially opening multiple trades on the same bar or excessively modifying stops",
+        "Stop loss and take profit use ATR absolute values rather than points, without considering symbol quote precision, which may result in unreasonable stop distances"
+      ]
+    },
+    "scores": {
+      "code_quality": 2.0,
+      "strategy_logic": 2.0,
+      "risk_management": 3.0,
+      "robustness": 2.0,
+      "innovation": 3.0,
+      "documentation": 1.0,
+      "overall": 2.17
+    },
+    "rating": 2,
+    "timeframes": [
+      "M5",
+      "H1"
+    ],
+    "indicators_used": [
+      "RSI",
+      "ATR",
+      "SMA"
+    ],
+    "id": "EA-52152"
   }
 }

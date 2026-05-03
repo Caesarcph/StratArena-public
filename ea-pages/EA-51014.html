@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arbitrage - EA Analysis | QuantArena</title>
+<meta name="description" content="This EA implements a triangular arbitrage strategy across EURUSD, GBPUSD, and EURGBP currency pairs. It monitors the price difference between the synthetic EURG">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.6;min-height:100vh}
+.container{max-width:960px;margin:0 auto;padding:24px 16px}
+.back{display:inline-block;color:#94a3b8;text-decoration:none;margin-bottom:20px;font-size:14px}
+.back:hover{color:#e2e8f0}
+.header{margin-bottom:32px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge-id{background:#1e293b;color:#94a3b8}
+.badge-cat{background:#10b98122;color:#10b981;border:1px solid #10b98144}
+.badge-risk{background:#ef444422;color:#ef4444;border:1px solid #ef444444}
+.badge-type{background:#1e293b;color:#94a3b8;border:1px solid #334155}
+h1{font-size:28px;font-weight:700;margin-bottom:8px;color:#f1f5f9}
+.desc{color:#94a3b8;font-size:14px;margin-bottom:12px}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:32px}
+.meta-item{background:#1e293b;border-radius:8px;padding:12px}
+.meta-key{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
+.meta-val{font-size:14px;color:#e2e8f0;margin-top:2px}
+.meta-val a{color:#3b82f6;text-decoration:none}
+.section{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px}
+.section h2{font-size:18px;font-weight:600;color:#f1f5f9;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #334155}
+.section h3{font-size:15px;font-weight:600;color:#94a3b8;margin-bottom:8px}
+.lang-toggle{display:flex;gap:4px;margin-bottom:16px}
+.lang-btn{padding:4px 12px;border-radius:6px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:13px}
+.lang-btn.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.pros-cons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:768px){.pros-cons{grid-template-columns:1fr}}
+.pros ul{color:#4ade80;list-style:disc;padding-left:20px}
+.cons ul{color:#f87171;list-style:disc;padding-left:20px}
+.improvements ul{color:#60a5fa;list-style:disc;padding-left:20px}
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.score-label{width:100px;font-size:13px;color:#94a3b8;flex-shrink:0}
+.score-bar{flex:1;height:8px;background:#0f172a;border-radius:4px;overflow:hidden}
+.score-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:4px}
+.score-value{width:36px;font-size:13px;color:#94a3b8;text-align:right;flex-shrink:0}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:8px 12px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #334155}
+td{padding:8px 12px;color:#e2e8f0;font-size:14px;border-bottom:1px solid #1e293b}
+code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px;color:#60a5fa}
+.risk-summary{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.risk-item{display:flex;align-items:center;gap:8px}
+.risk-key{font-size:13px;color:#94a3b8}
+[lang]{display:none}
+[lang].visible{display:block}
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back" href="https://quantarenas.com/?page=ea-arena">← 返回 EA 竞技场 / Back to EA Arena</a>
+
+<div class="header">
+  <div class="badges">
+    <span class="badge badge-id">EA-51014</span>
+    <span class="badge badge-cat">Statistical Arbitrage / 统计套利</span>
+    <span class="badge badge-risk">HIGH</span>
+    <span class="badge badge-type">交易 EA</span>
+    <span style="color:#eab308">★★</span><span style="color:#374151">☆☆☆</span>
+  </div>
+  <h1>Arbitrage</h1>
+  <p class="desc">该EA实现了一个跨EURUSD、GBPUSD和EURGBP三个货币对的三角套利策略。它监控合成的EURGBP汇率（由EURUSD/GBPUSD推导）与实际EURGBP市场汇率之间的价差，当价差超过佣金成本时，同时在三个货币对开仓以捕获定价低效。</p>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-item"><div class="meta-key">策略类型 / Category</div><div class="meta-val">Statistical Arbitrage (统计套利)</div></div>
+  <div class="meta-item"><div class="meta-key">风险等级 / Risk</div><div class="meta-val" style="color:#ef4444">HIGH</div></div>
+  <div class="meta-item"><div class="meta-key">评分 / Rating</div><div class="meta-val"><span style="color:#eab308">★★</span><span style="color:#374151">☆☆☆</span></div></div>
+  <div class="meta-item"><div class="meta-key">时间框架 / Timeframes</div><div class="meta-val">M1, M5, M15, H1</div></div>
+  <div class="meta-item"><div class="meta-key">指标 / Indicators</div><div class="meta-val">Price Ratio, Spread</div></div>
+  <div class="meta-item"><div class="meta-key">作者 / Author</div><div class="meta-val">MetaQuotes Ltd.</div></div>
+  <div class="meta-item"><div class="meta-key">来源 / Source</div><div class="meta-val"><a href="https://www.mql5.com/en/code/51014" target="_blank" rel="noopener">MQL5 Code</a></div></div>
+  <div class="meta-item"><div class="meta-key">类型 / Type</div><div class="meta-val">交易策略 / Trading EA</div></div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang(this,'en')">English</button>
+  </div>
+  <div lang="zh" class="visible">
+    <h2>摘要</h2>
+    <p>该EA实现了一个跨EURUSD、GBPUSD和EURGBP三个货币对的三角套利策略。它监控合成的EURGBP汇率（由EURUSD/GBPUSD推导）与实际EURGBP市场汇率之间的价差，当价差超过佣金成本时，同时在三个货币对开仓以捕获定价低效。</p>
+    <h2>策略分析</h2><p>该策略采用三角套利原理，通过比较合成汇率与实际汇率之间的差异来发现套利机会。入场条件：当EURUSD卖价/GBPUSD买价与EURGBP卖价的差额超过点差加三倍佣金成本时，卖出EURGBP（即卖出EURUSD、买入GBPUSD、买入EURGBP）；当EURUSD买价/GBPUSD卖价与EURGBP买价的反向差额超过成本时，买入EURGBP。出场条件：当检测到反向套利机会时，先平掉对应侧的仓位，再开反向仓位。仓位管理：根据账户余额按每千美元对应Lot_Size_Per_Thousand手数计算，并取该值与EURGBP最大手数的较小值。资金管理：通过CheckVolumeValue函数检查最小/最大手数限制、手数步长合规性以及可用保证金是否充足。然而，策略没有设置止损，且平仓逻辑仅在新的反向信号出现时触发，存在长期持仓风险。</p>
+  </div>
+  <div lang="en">
+    <h2>Summary</h2>
+    <p>This EA implements a triangular arbitrage strategy across EURUSD, GBPUSD, and EURGBP currency pairs. It monitors the price difference between the synthetic EURGBP rate (derived from EURUSD/GBPUSD) and the actual EURGBP market rate, entering a three-legged arbitrage position when the spread exceeds commission costs. Trades are opened simultaneously in all three pairs to capture the pricing inefficiency.</p>
+    <h2>Strategy Analysis</h2><p>This strategy employs triangular arbitrage by comparing the synthetic EURGBP rate (EURUSD ask / GBPUSD bid) against the actual EURGBP market rate to detect pricing inefficiencies. Entry conditions: when the difference between the synthetic rate and the actual EURGBP ask exceeds the spread plus triple commission costs, the EA sells EURGBP (sell EURUSD, buy GBPUSD, buy EURGBP); conversely, when the inverse difference exceeds costs, it buys EURGBP (buy EURUSD, sell GBPUSD, sell EURGBP). Exit conditions: when an opposite arbitrage signal appears, the EA first closes the corresponding side positions before opening the reverse leg. Position sizing is calculated based on account balance multiplied by Lot_Size_Per_Thousand per thousand dollars, capped at the EURGBP symbol&#x27;s maximum volume. Money management includes the CheckVolumeValue function which validates minimum/maximum volume constraints, volume step compliance, and available free margin. However, the strategy lacks any stop-loss mechanism, and the closing logic only triggers upon detecting a reverse arbitrage signal, creating risk of prolonged open positions.</p>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang2(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang2(this,'en')">English</button>
+  </div>
+  <div lang2="zh" class="visible pros-cons">
+    <div class="pros"><h3>优势</h3><ul><li>利用三角套利原理，理论上属于市场中性策略，风险相对方向性交易较低</li>
+<li>考虑了交易佣金和点差成本，只有当套利利润超过成本时才入场，避免亏损交易</li>
+<li>包含保证金检查和手数合规性验证，防止因资金不足或手数不规范导致下单失败</li>
+<li>三腿同时开仓的设计符合套利交易的基本要求，确保锁定价差</li></ul></div>
+    <div class="cons"><h3>劣势</h3><ul><li>没有止损机制，如果套利价差持续不收敛，仓位将无限期持有并承受浮动亏损</li>
+<li>存在拼写错误&#x27;GPBUSD&#x27;应为&#x27;GBPUSD&#x27;，导致该手数检查永远不会通过，买卖EURGBP方向的交易实际上被阻止</li>
+<li>使用SymbolInfoDouble实时获取价格存在滑点风险，三腿无法同时成交时可能产生单边敞口</li>
+<li>套利窗口在高效市场中极其短暂，OnTick级别的检测可能无法及时捕获机会</li>
+<li>平仓逻辑在遍历PositionsTotal时可能因索引变化导致跳过某些仓位</li></ul></div>
+    <div class="improvements"><h3>改进建议</h3><ul><li>修复&#x27;GPBUSD&#x27;拼写错误为&#x27;GBPUSD&#x27;，否则买入EURGBP方向的套利交易完全无法执行</li>
+<li>添加止损或最大持仓时间限制，防止价差不收敛时长期持有亏损仓位</li>
+<li>使用PositionGetTicket从后向前遍历仓位来平仓，避免删除元素导致索引跳过的问题</li>
+<li>添加滑点控制和重试机制，确保三腿交易尽可能同时成交</li>
+<li>考虑使用限价单而非市价单执行套利，以更好控制成交价格</li></ul></div>
+  </div>
+  <div lang2="en" class="pros-cons">
+    <div class="pros"><h3>Strengths</h3><ul><li>Employs triangular arbitrage which is theoretically market-neutral, carrying lower risk than directional trading</li>
+<li>Accounts for commission and spread costs, only entering when arbitrage profit exceeds total costs</li>
+<li>Includes margin check and volume compliance validation to prevent order failures due to insufficient funds or invalid lot sizes</li>
+<li>Simultaneous three-leg execution design properly captures the pricing inefficiency as required by arbitrage logic</li></ul></div>
+    <div class="cons"><h3>Weaknesses</h3><ul><li>No stop-loss mechanism; if the price difference fails to converge, positions are held indefinitely with floating losses</li>
+<li>Typo &#x27;GPBUSD&#x27; instead of &#x27;GBPUSD&#x27; in CheckVolumeValue calls causes volume validation to always fail for that symbol, effectively blocking the buy-EURGBP arbitrage leg from executing</li>
+<li>Using SymbolInfoDouble for live prices introduces slippage risk; if all three legs cannot be filled simultaneously, unhedged exposure results</li>
+<li>Arbitrage windows are extremely brief in efficient markets, and OnTick-level detection may not capture opportunities fast enough</li>
+<li>Position closing logic iterating over PositionsTotal may skip positions due to index shifts when positions are closed during iteration</li></ul></div>
+    <div class="improvements"><h3>Improvements</h3><ul><li>Fix the &#x27;GPBUSD&#x27; typo to &#x27;GBPUSD&#x27;, otherwise the buy-EURGBP arbitrage direction is completely non-functional</li>
+<li>Add stop-loss or maximum holding period limits to prevent prolonged loss positions when spreads fail to converge</li>
+<li>Iterate positions in reverse order (from total-1 to 0) when closing to avoid index skipping issues caused by position removal during iteration</li>
+<li>Add slippage control and retry mechanisms to ensure all three legs are filled as simultaneously as possible</li>
+<li>Consider using limit orders instead of market orders for arbitrage execution to better control fill prices</li></ul></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="switchLang3(this,'zh')">中文</button>
+    <button class="lang-btn" onclick="switchLang3(this,'en')">English</button>
+  </div>
+  <div lang3="zh" class="visible">
+    <h2>风险评估 / Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">总体 / Overall:</span><span class="badge badge-risk">HIGH</span></div>
+    </div>
+    <h3>风险点</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>关键拼写错误&#x27;GPBUSD&#x27;导致买入EURGBP方向的套利交易完全无法执行，但相关代码仍会尝试开仓EURUSD和GBPUSD，可能造成单边敞口</li>
+<li>没有止损机制，价差不收敛时仓位无限持有</li>
+<li>三腿套利可能因滑点或部分成交导致未对冲的定向风险敞口</li>
+<li>平仓遍历顺序错误可能导致部分仓位未被关闭</li></ul>
+  </div>
+  <div lang3="en">
+    <h2>Risk Assessment</h2>
+    <div class="risk-summary">
+      <div class="risk-item"><span class="risk-key">Overall:</span><span class="badge badge-risk">HIGH</span></div>
+    </div>
+    <h3>Risk Points</h3>
+    <ul style="list-style:disc;padding-left:20px;color:#f87171"><li>Critical typo &#x27;GPBUSD&#x27; causes the buy-EURGBP arbitrage path to fail validation, but the code still attempts to open EURUSD and GBPUSD positions, potentially creating unhedged directional exposure</li>
+<li>No stop-loss mechanism; positions held indefinitely when price difference fails to converge</li>
+<li>Three-leg arbitrage may result in unhedged directional exposure due to slippage or partial fills</li>
+<li>Incorrect iteration order when closing positions may cause some positions to be skipped</li></ul>
+  </div>
+</div>
+
+<div class="section">
+  <h2>评估评分 / Evaluation Scores</h2>
+  <div class="score-row"><span class="score-label">代码质量 Code Quality</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">策略逻辑 Strategy Logic</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">风险管理 Risk Management</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
+  <div class="score-row"><span class="score-label">稳健性 Robustness</span><div class="score-bar"><div class="score-fill" style="width:20.0%"></div></div><span class="score-value">1.0/5</span></div>
+  <div class="score-row"><span class="score-label">创新性 Innovation</span><div class="score-bar"><div class="score-fill" style="width:60.0%"></div></div><span class="score-value">3.0/5</span></div>
+  <div class="score-row"><span class="score-label">文档 Documentation</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+  <div class="score-row"><span class="score-label">总体 Overall</span><div class="score-bar"><div class="score-fill" style="width:40.0%"></div></div><span class="score-value">2.0/5</span></div>
+</div>
+
+<div class="section">
+  <h2>参数 / Parameters</h2>
+  <table>
+    <thead><tr><th>参数 / Parameter</th><th>默认值 / Default</th><th>说明 / Description</th></tr></thead>
+    <tbody><tr><td>Lot_Size_Per_Thousand</td><td><code>0.01</code></td><td>每千美元账户余额对应的手数大小</td></tr>
+<tr><td>Total_Commission_for_Lot_Traded</td><td><code>7.0</code></td><td>每手交易的总佣金成本</td></tr>
+<tr><td>Plot_Max_Difference</td><td><code>false</code></td><td>是否绘制/记录最大价差用于分析</td></tr></tbody>
+  </table>
+</div>
+
+</div>
+
+<script>
+function switchLang(btn,lang){
+  btn.parentElement.parentElement.querySelectorAll("[lang]").forEach(el=>{el.classList.toggle("visible",el.getAttribute("lang")===lang)});
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang2(btn,lang){
+  document.querySelectorAll("[lang2]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang2")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+function switchLang3(btn,lang){
+  document.querySelectorAll("[lang3]").forEach(el=>el.classList.toggle("visible",el.getAttribute("lang3")===lang));
+  btn.parentElement.querySelectorAll(".lang-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");
+}
+</script>
+</body>
+</html>
