@@ -5,7 +5,7 @@ const DATA_FILES = {
   performance: "data/performance.json",
   changelog: "data/changelog.json",
   eaCatalog: "data/ea_catalog.json",
-  eaAnalysis: "data/ea_analysis.json"
+  eaAnalyzedIndex: "data/ea_analyzed_index.json"
 };
 const FAVORITES_KEY = "favorites";
 const CATEGORY_TOP_COUNT = 5;
@@ -117,6 +117,7 @@ const store = {
   performance: null,
   changelog: [],
   eaCatalog: [],
+  eaAnalyzedIndex: new Set(),
   eaAnalysis: {}
 };
 let favorites = new Set();
@@ -141,19 +142,19 @@ async function init() {
 }
 
 async function loadData() {
-  const [strategies, performance, changelog, eaCatalog, eaAnalysis] = await Promise.all([
+  const [strategies, performance, changelog, eaCatalog, eaAnalyzedIndex] = await Promise.all([
     fetchJson(DATA_FILES.strategies),
     fetchJson(DATA_FILES.performance),
     fetchJson(DATA_FILES.changelog),
     fetchJson(DATA_FILES.eaCatalog).catch(() => []),
-    fetchJson(DATA_FILES.eaAnalysis).catch(() => ({}))
+    fetchJson(DATA_FILES.eaAnalyzedIndex).catch(() => [])
   ]);
 
   store.strategies = strategies.strategies || [];
   store.performance = performance || { instruments: [], windows: [] };
   store.changelog = changelog.entries || [];
   if (Array.isArray(eaCatalog)) store.eaCatalog = eaCatalog;
-  if (eaAnalysis && typeof eaAnalysis === "object" && !Array.isArray(eaAnalysis)) store.eaAnalysis = eaAnalysis;
+  if (Array.isArray(eaAnalyzedIndex)) store.eaAnalyzedIndex = new Set(eaAnalyzedIndex);
 }
 
 async function fetchJson(path) {
@@ -162,6 +163,17 @@ async function fetchJson(path) {
     throw new Error(`Failed to load ${path}`);
   }
   return res.json();
+}
+
+async function loadEAAnalysis(id) {
+  if (store.eaAnalysis[id]) return store.eaAnalysis[id];
+  try {
+    const data = await fetchJson(`data/ea-analysis/${id}.json`);
+    store.eaAnalysis[id] = data;
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 function bindGlobal() {
@@ -488,10 +500,12 @@ function render() {
       app.innerHTML = renderEAArena(route);
       bindEAArena(route);
       break;
-    case "ea-detail":
-      app.innerHTML = renderEADetail(route);
-      bindEADetail(route);
-      break;
+      case "ea-detail": {
+        const loadingHtml = `<section class="section" style="text-align:center;padding:4rem"><p>${getLang() === "zh" ? "加载分析数据…" : "Loading analysis…"}</p></section>`;
+        app.innerHTML = loadingHtml;
+        renderEADetail(route).then((html) => { app.innerHTML = html; bindEADetail(route); });
+        break;
+      }
     case "about":
       app.innerHTML = renderAbout();
       break;
@@ -650,7 +664,7 @@ function renderHome() {
         <p>${t("home.ea_promo_desc", { count: store.eaCatalog.length })}</p>
         <div class="ea-promo-stats">
           <span><strong>${store.eaCatalog.length}</strong> ${t("home.ea_count")}</span>
-          <span><strong>${Object.keys(store.eaAnalysis).length}</strong> ${t("common.analyzed")}</span>
+          <span><strong>${store.eaAnalyzedIndex.size}</strong> ${t("common.analyzed")}</span>
         </div>
         <a class="button primary small" href="?page=ea-arena" style="margin-top:0.75rem">${t("home.explore_ea_arena")}</a>
       </div>

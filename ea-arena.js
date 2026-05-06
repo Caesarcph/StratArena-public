@@ -58,7 +58,8 @@ function eaArenaState(route) {
     rating: route.params.get("rating") || "",
     sort: route.params.get("sort") || "name",
     analyzed: route.params.get("analyzed") === "1",
-    view: route.params.get("view") || "grid"
+    view: route.params.get("view") || "grid",
+    compare: (route.params.get("compare") || "").split(",").filter(Boolean)
   };
 }
 
@@ -119,7 +120,7 @@ function renderEAArena(route) {
   if (s.category) items = items.filter((ea) => ea.category === s.category);
   if (s.risk) items = items.filter((ea) => ea.overall_risk === s.risk);
   if (s.rating) items = items.filter((ea) => String(ea.rating) === s.rating);
-  if (s.analyzed) items = items.filter((ea) => store.eaAnalysis[ea.id]);
+  if (s.analyzed) items = items.filter((ea) => store.eaAnalyzedIndex.has(ea.id));
 
   items.sort((a, b) => {
     switch (s.sort) {
@@ -151,7 +152,7 @@ function renderEAArena(route) {
     const value = ea.rating || 0;
     ratingCounts[value] = (ratingCounts[value] || 0) + 1;
   });
-  const analyzedCount = all.filter((ea) => store.eaAnalysis[ea.id]).length;
+  const analyzedCount = all.filter((ea) => store.eaAnalyzedIndex.has(ea.id)).length;
 
   const catChips = EA_CATEGORIES.filter((c) => catCounts[c.value])
     .map(
@@ -172,12 +173,15 @@ function renderEAArena(route) {
 
   const cards = items
     .map((ea) => {
-      const analysis = store.eaAnalysis[ea.id];
-      return `
-      <a class="ea-card" href="?page=ea-detail&id=${ea.id}" data-ea-id="${ea.id}">
-        <div class="ea-card-header">
-          <span class="ea-card-id">${ea.id}</span>
-          ${analysis ? `<span class="ea-analyzed-badge">${t("common.analyzed")}</span>` : ""}
+    const isChecked = s.compare.includes(ea.id);
+    const analyzed = store.eaAnalyzedIndex.has(ea.id);
+    return `
+      <div class="ea-card-wrap">
+        <label class="ea-compare-check" title="${getLang() === "zh" ? "选择对比" : "Select to compare"}"><input type="checkbox" data-ea-compare="${ea.id}" ${isChecked ? "checked" : ""} /><span></span></label>
+        <a class="ea-card" href="?page=ea-detail&id=${ea.id}" data-ea-id="${ea.id}">
+          <div class="ea-card-header">
+            <span class="ea-card-id">${ea.id}</span>
+            ${analyzed ? `<span class="ea-analyzed-badge">${t("common.analyzed")}</span>` : ""}
           ${ea.absorbed_by ? `<span class="ea-absorbed-badge">${t("common.absorbed")}</span>` : ""}
         </div>
         <h3 class="ea-card-name">${ea.name || t("common.unknown")}</h3>
@@ -189,7 +193,8 @@ function renderEAArena(route) {
           <span class="ea-card-author">${ea.author || t("common.unknown")}</span>
           <span class="ea-card-rating">${eaStars(ea.rating)}</span>
         </div>
-      </a>`;
+      </a>
+      </div>`;
     })
     .join("");
 
@@ -212,11 +217,13 @@ function renderEAArena(route) {
         <button class="ea-view-toggle" data-ea-view="${s.view === "grid" ? "list" : "grid"}" title="${getLang() === "zh" ? "切换视图" : "Toggle view"}">
           ${s.view === "grid" ? "☰" : "⊞"}
         </button>
-        <label class="ea-analyzed-toggle">
-          <input type="checkbox" ${s.analyzed ? "checked" : ""} data-ea-analyzed /> ${getLang() === "zh" ? "仅看已分析" : "Analyzed only"}
-        </label>
+      <label class="ea-analyzed-toggle">
+        <input type="checkbox" ${s.analyzed ? "checked" : ""} data-ea-analyzed /> ${getLang() === "zh" ? "仅看已分析" : "Analyzed only"}
+      </label>
+      ${s.compare.length >= 2 ? `<button class="ea-compare-btn" data-ea-compare-open>${getLang() === "zh" ? `对比 (${s.compare.length})` : `Compare (${s.compare.length})`}</button>` : ""}
+      ${s.compare.length > 0 ? `<button class="ea-compare-clear" data-ea-compare-clear>${getLang() === "zh" ? "清除选择" : "Clear"}</button>` : ""}
       </div>
-    </div>
+      </div>
 
     <div class="ea-filters">
       <div class="ea-filter-row">
@@ -232,10 +239,67 @@ function renderEAArena(route) {
 
     <p class="ea-results-count">${getLang() === "zh" ? `显示 ${items.length} / ${all.length} 个 EA` : `${items.length} of ${all.length} EAs`}</p>
 
-    <div class="ea-${s.view} ${items.length === 0 ? "ea-empty" : ""}">
-      ${cards || `<p class="ea-no-results">${getLang() === "zh" ? "没有 EA 符合当前筛选条件。" : "No EAs match your filters."}</p>`}
+  <div class="ea-${s.view} ${items.length === 0 ? "ea-empty" : ""}">
+    ${cards || `<p class="ea-no-results">${getLang() === "zh" ? "没有 EA 符合当前筛选条件。" : "No EAs match your filters."}</p>`}
+  </div>
+  <div id="ea-compare-panel" class="ea-compare-panel" style="display:none"></div>
+</section>`;
+}
+
+function renderEACompare(ids) {
+  const isEn = getLang() === "en";
+  const eas = ids.map((id) => {
+    const ea = (store.eaCatalog || []).find((e) => e.id === id);
+    const ea = (store.eaCatalog || []).find((e) => e.id === id);
+    const analysis = store.eaAnalysis[id];
+    return ea ? { id: ea.id, name: ea.name || "Unknown", category: ea.category || "Unclassified", risk: ea.overall_risk || "na", rating: ea.rating || 0, scores: (analysis && analysis.scores) || {}, isTrading: analysis ? analysis.is_trading : true } : null;
+  }).filter(Boolean);
+
+  if (eas.length < 2) return "";
+
+  function cell(val) { return `<td>${val || "—"}</td>`; }
+
+  const rows = [
+    [isEn ? "Category" : "分类", eas.map((e) => cell(getEACategoryLabel(e.category)))],
+    [isEn ? "Type" : "类型", eas.map((e) => cell(e.isTrading === false ? (isEn ? "Utility" : "工具") : (isEn ? "Trading EA" : "交易EA")))],
+    [isEn ? "Risk" : "风险", eas.map((e) => cell(eaRiskBadge(e.risk)))],
+    [isEn ? "Rating" : "评分", eas.map((e) => cell(eaStars(e.rating)))]
+  ];
+
+  const scoreKeys = [
+    ["code_quality", isEn ? "Code Quality" : "代码质量"],
+    ["strategy_logic", isEn ? "Strategy Logic" : "策略逻辑"],
+    ["risk_management", isEn ? "Risk Mgmt" : "风险管理"],
+    ["robustness", isEn ? "Robustness" : "稳健性"],
+    ["overall", isEn ? "Overall" : "总体"]
+  ];
+  const hasScores = eas.some((e) => e.scores && Object.keys(e.scores).length);
+  if (hasScores) {
+    scoreKeys.forEach(([key, label]) => {
+      if (eas.some((e) => e.scores[key])) {
+        rows.push([label, eas.map((e) => { const v = e.scores[key]; return cell(v ? `${v}/5` : "—"); })]);
+      }
+    });
+  }
+
+  return `
+  <div class="ea-compare-overlay" id="ea-compare-overlay">
+    <div class="ea-compare-modal">
+      <div class="ea-compare-header">
+        <h2>${isEn ? "EA Comparison" : "EA 对比"}</h2>
+        <button class="ea-compare-close" id="ea-compare-close">&times;</button>
+      </div>
+      <div class="ea-compare-table-wrap">
+        <table class="ea-compare-table">
+          <thead><tr><th></th>${eas.map((e) => `<th><a href="?page=ea-detail&id=${e.id}">${e.name}</a><br><small>${e.id}</small></th>`).join("")}</tr></thead>
+          <tbody>
+            ${rows.map(([label, cells]) => `<tr><td class="ea-compare-label">${label}</td>${cells.join("")}</tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+      <p class="ea-compare-hint">${isEn ? "Click an EA name to view full details." : "点击 EA 名称查看完整详情。"}</p>
     </div>
-  </section>`;
+  </div>`;
 }
 
 function bindEAArena(route) {
@@ -292,16 +356,55 @@ function bindEAArena(route) {
       eaNavigate({ analyzed: analyzedCheck.checked ? "1" : "" });
     });
   }
+
+  document.querySelectorAll("[data-ea-compare]").forEach((cb) => {
+    cb.addEventListener("change", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = cb.dataset.eaCompare;
+      let selected = [...s.compare];
+      if (cb.checked) {
+        if (selected.length < 4 && !selected.includes(id)) selected.push(id);
+        else { cb.checked = false; return; }
+      } else {
+        selected = selected.filter((x) => x !== id);
+      }
+      eaNavigate({ compare: selected.length ? selected.join(",") : "" });
+    });
+  });
+
+  const compareBtn = document.querySelector("[data-ea-compare-open]");
+  if (compareBtn) {
+    compareBtn.addEventListener("click", async () => {
+      await Promise.all(s.compare.filter((id) => !store.eaAnalysis[id]).map((id) => loadEAAnalysis(id)));
+      const panel = document.getElementById("ea-compare-panel");
+      if (panel) {
+        panel.innerHTML = renderEACompare(s.compare);
+        panel.style.display = "block";
+        const closeBtn = document.getElementById("ea-compare-close");
+        if (closeBtn) closeBtn.addEventListener("click", () => { panel.style.display = "none"; });
+        const overlay = document.getElementById("ea-compare-overlay");
+        if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) panel.style.display = "none"; });
+      }
+    });
+  }
+
+  const clearBtn = document.querySelector("[data-ea-compare-clear]");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      eaNavigate({ compare: "" });
+    });
+  }
 }
 
-function renderEADetail(route) {
+async function renderEADetail(route) {
   const id = route.params.get("id");
   const ea = (store.eaCatalog || []).find((e) => e.id === id);
   if (!ea) {
     return `<section class="section"><h2>${getLang() === "zh" ? "未找到 EA" : "EA Not Found"}</h2><p>${getLang() === "zh" ? `不存在 ID 为 \"${id}\" 的智能交易系统。` : `No Expert Advisor with ID "${id}".`}</p><a class="button ghost" href="?page=ea-arena">${getLang() === "zh" ? "返回 EA 竞技场" : "Back to EA Arena"}</a></section>`;
   }
 
-  const analysis = store.eaAnalysis[id];
+  const analysis = store.eaAnalyzedIndex.has(id) ? (await loadEAAnalysis(id) || null) : null;
   const isEn = getLang() === "en";
   const mql5Url = `https://www.mql5.com/en/code/${id.replace(/^EA-/, "")}`;
 
@@ -405,7 +508,7 @@ if (analysis && analysis.parameters && analysis.parameters.length) {
         ${eaCategoryBadge(ea.category || "Unclassified")}
         ${eaRiskBadge(ea.overall_risk)}
         ${eaStars(ea.rating)}
-        ${store.eaAnalysis[id] ? `<span class="ea-analyzed-badge">${getLang() === "zh" ? "已分析" : "Analyzed"}</span>` : `<span class="ea-pending-badge">${getLang() === "zh" ? "待定" : "Pending"}</span>`}
+        ${store.eaAnalyzedIndex.has(id) ? `<span class="ea-analyzed-badge">${getLang() === "zh" ? "已分析" : "Analyzed"}</span>` : `<span class="ea-pending-badge">${getLang() === "zh" ? "待定" : "Pending"}</span>`}
         ${ea.absorbed_by ? `<span class="ea-absorbed-badge">${getLang() === "zh" ? "已吸收" : "Absorbed"}</span>` : ""}
       </div>
       <h1>${ea.name || (getLang() === "zh" ? "未知 EA" : "Unknown EA")}</h1>
