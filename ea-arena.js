@@ -250,7 +250,6 @@ function renderEACompare(ids) {
   const isEn = getLang() === "en";
   const eas = ids.map((id) => {
     const ea = (store.eaCatalog || []).find((e) => e.id === id);
-    const ea = (store.eaCatalog || []).find((e) => e.id === id);
     const analysis = store.eaAnalysis[id];
     return ea ? { id: ea.id, name: ea.name || "Unknown", category: ea.category || "Unclassified", risk: ea.overall_risk || "na", rating: ea.rating || 0, scores: (analysis && analysis.scores) || {}, isTrading: analysis ? analysis.is_trading : true } : null;
   }).filter(Boolean);
