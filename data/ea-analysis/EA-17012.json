@@ -1,1 +1,118 @@
-{"name": "Very Blonde System", "category": "Grid", "category_zh": "网格", "is_trading": true, "trading_style": "systematic", "summary": "This EA opens an initial market order when the price deviates significantly from the recent high/low, then places a series of 4 BuyLimit or SellLimit orders at fixed grid intervals with doubling lot sizes (Martingale-style). It closes all positions and pending orders when total floating profit reaches a target amount, and optionally moves stop loss to breakeven after a LockDown threshold is reached.", "summary_zh": "该EA在价格偏离近期高低点一定幅度后开仓，并在固定网格间距处放置4个限价挂单，仓位按2的幂次递增（马丁格尔式）。当浮动总盈利达到目标金额时平掉所有仓位和挂单，并在价格达到LockDown阈值后将止损移至保本。", "strategy_analysis": "策略概念：这是一个基于价格偏离极值的网格+马丁格尔混合策略。入场条件：当最高价减去当前Bid价超过ExtLimit*Point时做多，当当前Bid价减去最低价超过ExtLimit*Point时做空。入场后以ExtGrid为间距放置4个限价挂单，每个挂单手数为前一个的2倍（2^i*Lots），属于典型的马丁格尔加仓模式。出场条件：所有持仓浮动盈利达到Amount参数设定的金额时全部平仓并删除挂单。仓位管理：初始手数根据账户余额计算（Balance/100/1000），后续挂单手量按2的幂次倍增，这种几何级数增长在没有止损保护的情况下风险极大。资金管理：有LockDown保本机制，当持仓浮盈超过ExtLockDown点数时将止损移至开仓价±1点，但仅对未设置止损的仓位生效。整体而言，该策略依赖盈利覆盖亏损的思路，但在极端行情下多级加仓可能导致爆仓。", "strategy_analysis_en": "Strategy concept: This is a hybrid Grid + Martingale strategy based on price deviation from recent extremes. Entry conditions: Buy when the highest price minus current Bid exceeds ExtLimit*Point, Sell when current Bid minus the lowest price exceeds ExtLimit*Point. After entry, 4 limit pending orders are placed at ExtGrid intervals, with each order's volume doubling exponentially (2^i*Lots), which is a classic Martingale scaling-in pattern. Exit conditions: All positions and pending orders are closed when total floating profit reaches the Amount parameter threshold. Position sizing: Initial lot size is calculated from account balance (Balance/100/1000), and subsequent pending order volumes increase by powers of 2, creating geometric growth that carries extreme risk without proper stop loss protection. Money management: A LockDown breakeven mechanism exists — when floating profit exceeds ExtLockDown points, stop loss is moved to entry price ±1 point, but only for positions that have no stop loss already set. Overall, the strategy relies on the assumption that profits will eventually cover losses, but multi-level scaling in during extreme market conditions can lead to account blowout.", "parameters": [{"name": "CountBars", "default_value": "10", "description": "计算最高最低价的K线数量", "description_en": "Bar count for highest/lowest price calculation"}, {"name": "InpLimit", "default_value": "240", "description": "价格偏离阈值（点数），决定开仓条件", "description_en": "Price deviation threshold (points) for entry condition"}, {"name": "InpGrid", "default_value": "35", "description": "网格间距（点数），限价单之间的价格间隔", "description_en": "Grid spacing (points) between limit orders"}, {"name": "Amount", "default_value": "40", "description": "目标盈利金额，达到后全部平仓", "description_en": "Target profit amount; closes all on reach"}, {"name": "InpLockDown", "default_value": "0", "description": "保本止损触发点数，0表示不启用", "description_en": "Break-even stop trigger points, 0=disabled"}], "pros": ["网格加仓策略在震荡行情中能通过多层级限价单捕捉回调利润", "有浮盈目标自动平仓机制，锁定利润时同时清除所有挂单，避免残留订单", "LockDown保本机制能在趋势有利时将止损移至保本位，降低风险敞口", "手数经过LotCheck规范化处理，遵守品种最小最大手数和手数步长限制"], "pros_en": ["Grid scaling-in captures pullback profits in ranging markets through multi-level limit orders", "Automatic close-all on profit target hit also removes all pending orders, preventing orphan orders", "LockDown breakeven mechanism reduces risk exposure by moving stop loss to entry when price moves favorably", "Lot sizes are normalized via LotCheck, respecting symbol volume min/max and step constraints"], "cons": ["马丁格尔倍量加仓在单边行情中会导致仓位和亏损呈指数级增长，极易爆仓", "没有任何硬性止损保护，LockDown默认值为0即不启用，即使启用也仅移至保本而非真正止损", "IsTradeAllowed函数中重复检查了TERMINAL_TRADE_ALLOWED，存在冗余代码", "iLowest/iHighest返回的是索引而非价格值，但代码将其直接与Bid比较，存在逻辑错误", "没有新K线检测机制，每个tick都可能触发逻辑判断，增加不必要的计算负担"], "cons_en": ["Martingale lot doubling causes exponential position and loss growth in trending markets,极易leading to account blowout", "No hard stop loss protection — LockDown defaults to 0 (disabled), and even when enabled it only moves to breakeven not a true stop", "IsTradeAllowed has a redundant duplicate check of TERMINAL_TRADE_ALLOWED (lines 230 and 235)", "iLowest/iHighest return bar indices not price values, but code compares them directly with Bid — this is a critical logic bug", "No new bar detection mechanism, every tick triggers logic evaluation, adding unnecessary computational overhead"], "improvements": ["修复iLowest/iHighest返回值问题，应使用iLow()/iHigh()获取价格而非索引", "增加硬性止损保护，避免单笔或累计亏损无限扩大", "添加新K线检测，避免每个tick重复计算", "限制最大加仓层数和最大总仓位，防止极端行情下过度暴露", "添加点差过滤，避免在大点差时开仓"], "improvements_en": ["Fix iLowest/iHighest return value issue — should use iLow()/iHigh() to get price values, not bar indices", "Add hard stop loss protection to prevent unlimited single-trade or cumulative losses", "Add new bar detection to avoid redundant calculations on every tick", "Limit maximum grid levels and total exposure to prevent over-leveraging in extreme markets", "Add spread filter to avoid opening positions during wide spread conditions"], "risk_assessment": {"overall": "dangerous", "risk_points": ["马丁格尔倍量加仓无止损保护，单边行情可能导致账户爆仓", "iLowest/iHighest返回索引而非价格，与Bid比较属于逻辑错误，可能导致错误开仓", "LockDown保本机制默认关闭（值为0），即使启用也仅在浮盈时生效，不提供亏损保护", "没有最大持仓限制，4级网格加仓后总手数为基础手数的15倍(1+2+4+8+16)，杠杆风险极高"], "risk_points_en": ["Martingale doubling with no stop loss — trending markets can blow the account", "iLowest/iHighest returns bar index not price — comparison with Bid is a logic bug causing potentially wrong entries", "LockDown breakeven defaults to 0 (disabled), and even enabled only protects profitable positions, not losing ones", "No maximum position limit — 4 grid levels create 15x base lot exposure (1+2+4+8+16), extremely high leverage risk"]}, "scores": {"code_quality": 2.0, "strategy_logic": 1.0, "risk_management": 1.0, "robustness": 2.0, "innovation": 1.0, "documentation": 1.0, "overall": 1.33}, "rating": 1, "timeframes": ["M15", "H1", "H4"], "indicators_used": ["Highest/Lowest"], "id": "EA-17012", "summary_en": "This EA opens an initial market order when the price deviates significantly from the recent high/low, then places a series of 4 BuyLimit or SellLimit orders at fixed grid intervals with doubling lot sizes (Martingale-style). It closes all positions and pending orders when total floating profit reaches a target amount, and optionally moves stop loss to breakeven after a LockDown threshold is reached."}
+{
+  "name": "Very Blonde System",
+  "category": "Grid",
+  "category_zh": "网格",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA opens an initial market order when the price deviates significantly from the recent high/low, then places a series of 4 BuyLimit or SellLimit orders at fixed grid intervals with doubling lot sizes (Martingale-style). It closes all positions and pending orders when total floating profit reaches a target amount, and optionally moves stop loss to breakeven after a LockDown threshold is reached.",
+  "summary_zh": "该EA在价格偏离近期高低点一定幅度后开仓，并在固定网格间距处放置4个限价挂单，仓位按2的幂次递增（马丁格尔式）。当浮动总盈利达到目标金额时平掉所有仓位和挂单，并在价格达到LockDown阈值后将止损移至保本。",
+  "strategy_analysis": "策略概念：这是一个基于价格偏离极值的网格+马丁格尔混合策略。入场条件：当最高价减去当前Bid价超过ExtLimit*Point时做多，当当前Bid价减去最低价超过ExtLimit*Point时做空。入场后以ExtGrid为间距放置4个限价挂单，每个挂单手数为前一个的2倍（2^i*Lots），属于典型的马丁格尔加仓模式。出场条件：所有持仓浮动盈利达到Amount参数设定的金额时全部平仓并删除挂单。仓位管理：初始手数根据账户余额计算（Balance/100/1000），后续挂单手量按2的幂次倍增，这种几何级数增长在没有止损保护的情况下风险极大。资金管理：有LockDown保本机制，当持仓浮盈超过ExtLockDown点数时将止损移至开仓价±1点，但仅对未设置止损的仓位生效。整体而言，该策略依赖盈利覆盖亏损的思路，但在极端行情下多级加仓可能导致爆仓。",
+  "strategy_analysis_en": "Strategy concept: This is a hybrid Grid + Martingale strategy based on price deviation from recent extremes. Entry conditions: Buy when the highest price minus current Bid exceeds ExtLimit*Point, Sell when current Bid minus the lowest price exceeds ExtLimit*Point. After entry, 4 limit pending orders are placed at ExtGrid intervals, with each order's volume doubling exponentially (2^i*Lots), which is a classic Martingale scaling-in pattern. Exit conditions: All positions and pending orders are closed when total floating profit reaches the Amount parameter threshold. Position sizing: Initial lot size is calculated from account balance (Balance/100/1000), and subsequent pending order volumes increase by powers of 2, creating geometric growth that carries extreme risk without proper stop loss protection. Money management: A LockDown breakeven mechanism exists — when floating profit exceeds ExtLockDown points, stop loss is moved to entry price ±1 point, but only for positions that have no stop loss already set. Overall, the strategy relies on the assumption that profits will eventually cover losses, but multi-level scaling in during extreme market conditions can lead to account blowout.",
+  "parameters": [
+    {
+      "name": "CountBars",
+      "default_value": "10",
+      "description": "计算最高最低价的K线数量",
+      "description_en": "Bar count for highest/lowest price calculation"
+    },
+    {
+      "name": "InpLimit",
+      "default_value": "240",
+      "description": "价格偏离阈值（点数），决定开仓条件",
+      "description_en": "Price deviation threshold (points) for entry condition"
+    },
+    {
+      "name": "InpGrid",
+      "default_value": "35",
+      "description": "网格间距（点数），限价单之间的价格间隔",
+      "description_en": "Grid spacing (points) between limit orders"
+    },
+    {
+      "name": "Amount",
+      "default_value": "40",
+      "description": "目标盈利金额，达到后全部平仓",
+      "description_en": "Target profit amount; closes all on reach"
+    },
+    {
+      "name": "InpLockDown",
+      "default_value": "0",
+      "description": "保本止损触发点数，0表示不启用",
+      "description_en": "Break-even stop trigger points, 0=disabled"
+    }
+  ],
+  "pros": [
+    "网格加仓策略在震荡行情中能通过多层级限价单捕捉回调利润",
+    "有浮盈目标自动平仓机制，锁定利润时同时清除所有挂单，避免残留订单",
+    "LockDown保本机制能在趋势有利时将止损移至保本位，降低风险敞口",
+    "手数经过LotCheck规范化处理，遵守品种最小最大手数和手数步长限制"
+  ],
+  "pros_en": [
+    "Grid scaling-in captures pullback profits in ranging markets through multi-level limit orders",
+    "Automatic close-all on profit target hit also removes all pending orders, preventing orphan orders",
+    "LockDown breakeven mechanism reduces risk exposure by moving stop loss to entry when price moves favorably",
+    "Lot sizes are normalized via LotCheck, respecting symbol volume min/max and step constraints"
+  ],
+  "cons": [
+    "马丁格尔倍量加仓在单边行情中会导致仓位和亏损呈指数级增长，极易爆仓",
+    "没有任何硬性止损保护，LockDown默认值为0即不启用，即使启用也仅移至保本而非真正止损",
+    "IsTradeAllowed函数中重复检查了TERMINAL_TRADE_ALLOWED，存在冗余代码",
+    "iLowest/iHighest返回的是索引而非价格值，但代码将其直接与Bid比较，存在逻辑错误",
+    "没有新K线检测机制，每个tick都可能触发逻辑判断，增加不必要的计算负担"
+  ],
+  "cons_en": [
+    "Martingale lot doubling causes exponential position and loss growth in trending markets,easilyleading to account blowout",
+    "No hard stop loss protection — LockDown defaults to 0 (disabled), and even when enabled it only moves to breakeven not a true stop",
+    "IsTradeAllowed has a redundant duplicate check of TERMINAL_TRADE_ALLOWED (lines 230 and 235)",
+    "iLowest/iHighest return bar indices not price values, but code compares them directly with Bid — this is a critical logic bug",
+    "No new bar detection mechanism, every tick triggers logic evaluation, adding unnecessary computational overhead"
+  ],
+  "improvements": [
+    "修复iLowest/iHighest返回值问题，应使用iLow()/iHigh()获取价格而非索引",
+    "增加硬性止损保护，避免单笔或累计亏损无限扩大",
+    "添加新K线检测，避免每个tick重复计算",
+    "限制最大加仓层数和最大总仓位，防止极端行情下过度暴露",
+    "添加点差过滤，避免在大点差时开仓"
+  ],
+  "improvements_en": [
+    "Fix iLowest/iHighest return value issue — should use iLow()/iHigh() to get price values, not bar indices",
+    "Add hard stop loss protection to prevent unlimited single-trade or cumulative losses",
+    "Add new bar detection to avoid redundant calculations on every tick",
+    "Limit maximum grid levels and total exposure to prevent over-leveraging in extreme markets",
+    "Add spread filter to avoid opening positions during wide spread conditions"
+  ],
+  "risk_assessment": {
+    "overall": "dangerous",
+    "risk_points": [
+      "马丁格尔倍量加仓无止损保护，单边行情可能导致账户爆仓",
+      "iLowest/iHighest返回索引而非价格，与Bid比较属于逻辑错误，可能导致错误开仓",
+      "LockDown保本机制默认关闭（值为0），即使启用也仅在浮盈时生效，不提供亏损保护",
+      "没有最大持仓限制，4级网格加仓后总手数为基础手数的15倍(1+2+4+8+16)，杠杆风险极高"
+    ],
+    "risk_points_en": [
+      "Martingale doubling with no stop loss — trending markets can blow the account",
+      "iLowest/iHighest returns bar index not price — comparison with Bid is a logic bug causing potentially wrong entries",
+      "LockDown breakeven defaults to 0 (disabled), and even enabled only protects profitable positions, not losing ones",
+      "No maximum position limit — 4 grid levels create 15x base lot exposure (1+2+4+8+16), extremely high leverage risk"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 1.0,
+    "risk_management": 1.0,
+    "robustness": 2.0,
+    "innovation": 1.0,
+    "documentation": 1.0,
+    "overall": 1.33
+  },
+  "rating": 1,
+  "timeframes": [
+    "M15",
+    "H1",
+    "H4"
+  ],
+  "indicators_used": [
+    "Highest/Lowest"
+  ],
+  "id": "EA-17012",
+  "summary_en": "This EA opens an initial market order when the price deviates significantly from the recent high/low, then places a series of 4 BuyLimit or SellLimit orders at fixed grid intervals with doubling lot sizes (Martingale-style). It closes all positions and pending orders when total floating profit reaches a target amount, and optionally moves stop loss to breakeven after a LockDown threshold is reached."
+}

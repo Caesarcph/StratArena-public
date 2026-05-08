@@ -1,1 +1,102 @@
-{"name": "SampleCheckPendingOrder", "category": "Breakout", "category_zh": "突破", "is_trading": true, "trading_style": "systematic", "summary": "This EA places BuyStop and SellStop pending orders on every tick if no existing pending order of the same type is found. It uses a breakout-style entry where buy stops are placed above the current ask and sell stops below the current bid, both with fixed SL/TP values and daily expiration.", "summary_zh": "该EA在每个tick检查是否存在同类型挂单，若不存在则同时放置BuyStop和SellStop挂单，采用突破式入场逻辑，买入止损单挂在当前卖价上方，卖出止损单挂在当前买价下方，均设置固定止损止盈及当日到期时间。", "strategy_analysis": "该EA采用突破挂单策略，核心概念是在当前价格上下方同时放置止损挂单，等待价格突破后成交。入场条件为：当前不存在同方向同品种的挂单时，在当前Ask价上方放置BuyStop单，在当前Bid价下方放置SellStop单。出场条件通过固定点数的止损（300点）和止盈（900点）实现，止盈是止损的3倍，体现了1:3的风险收益比设计。仓位管理仅使用固定的手数输入参数（0.01），并通过CheckVolumeValue函数验证手数是否符合品种的最小/最大手数和手数步长要求。资金管理方面，通过CheckMoneyForTrade函数检查可用保证金是否足够开仓，不足则跳过本次tick。挂单设有每日到期时间（PERIOD_D1），过期未成交则自动取消。然而策略缺乏对市场趋势、波动率或任何技术指标的判断，属于纯机械式双向挂单。", "strategy_analysis_en": "This EA employs a breakout pending order strategy, placing BuyStop and SellStop orders simultaneously above and below the current price to catch directional breakouts. Entry conditions: when no existing pending order of the same type and symbol is detected, a BuyStop is placed at the current Ask price and a SellStop at the current Bid price. Exit conditions use fixed pip-based stop loss (300 points) and take profit (900 points), yielding a 1:3 risk-reward ratio. Position sizing relies on a fixed lot size input (0.01), validated by CheckVolumeValue which verifies the lot conforms to the symbol's minimum/maximum volume and volume step requirements. Money management is handled by CheckMoneyForTrade, which calculates required margin and compares it against free margin, skipping the tick if insufficient funds are available. Orders carry a daily expiration (PERIOD_D1), automatically canceling unfilled orders after one day. However, the strategy completely lacks market direction analysis, volatility assessment, or any technical indicator, making it a purely mechanical bidirectional pending order system.", "parameters": [{"name": "PriceVolume", "default_value": "0.01", "description": "每笔交易的手数", "description_en": "Lot size per trade"}, {"name": "PriceSL", "default_value": "300", "description": "止损点数（以_Point为单位）", "description_en": "Stop loss points (0=disabled)"}, {"name": "PriceTP", "default_value": "900", "description": "止盈点数（以_Point为单位）", "description_en": "Take profit points (0=disabled)"}], "pros": ["1:3的风险收益比设计合理，符合趋势跟踪和突破策略的常见比例", "具备完整的资金检查机制，包括保证金充足性验证和手数合法性验证", "挂单设有到期时间，避免过期挂单长期占用保证金或在不合适的时点成交", "每次仅维持一个方向的挂单，避免重复下单导致仓位失控"], "pros_en": ["The 1:3 risk-reward ratio is well-designed and aligns with common breakout strategy practices", "Comprehensive money checking including margin sufficiency validation and lot size legality verification", "Pending orders have expiration times, preventing stale orders from tying up margin or triggering at inappropriate times", "Only one pending order per direction is maintained, preventing duplicate orders and uncontrolled position buildup"], "cons": ["缺少任何市场方向判断，每个tick都试图双向挂单，在震荡行情中容易两面挨打", "BuyStop直接放在当前Ask价、SellStop直接放在当前Bid价，实际几乎会立即成交而非等待突破", "OnTick中存在重复代码：IsCheckMoneySell和IsCheckMoneyBuy各检查了两次（第59-69行）", "OrdersTotal()循环从OrdersTotal()开始而非OrdersTotal()-1，存在越界访问风险", "没有新K线检查机制，每次tick都可能尝试下单，增加服务器负载和被券商限制的风险"], "cons_en": ["No market direction analysis whatsoever — placing bidirectional orders every tick leads to whipsaw losses in ranging markets", "BuyStop is placed at the current Ask price and SellStop at the current Bid price, meaning orders will be filled almost immediately rather than acting as true breakout orders", "Duplicated money check code in OnTick: IsCheckMoneySell and IsCheckMoneyBuy are each checked twice (lines 59-69)", "OrdersTotal() loop starts at OrdersTotal() instead of OrdersTotal()-1, causing an out-of-bounds access risk on the first iteration", "No new bar check mechanism — every tick triggers order placement attempts, increasing server load and risk of broker restrictions"], "improvements": ["将BuyStop价格设在Ask上方一定距离（如ATR的倍数），SellStop设在Bid下方一定距离，实现真正的突破策略而非即时成交", "添加新K线检测机制，避免每个tick重复执行逻辑，减少不必要的资源消耗", "加入趋势过滤指标（如均线方向或ADX），避免在震荡行情中双向挂单两面亏损", "修复OrdersTotal()循环的越界bug，应从OrdersTotal()-1开始遍历"], "improvements_en": ["Place BuyStop above Ask and SellStop below Bid by a meaningful distance (e.g., ATR multiple) to create genuine breakout orders rather than near-instant fills", "Add new bar detection to avoid redundant logic execution on every tick, reducing unnecessary resource consumption", "Incorporate trend filtering indicators (e.g., MA direction or ADX) to avoid placing bidirectional orders in ranging markets where both sides lose", "Fix the OrdersTotal() loop off-by-one bug — iteration should start from OrdersTotal()-1"], "risk_assessment": {"overall": "medium", "risk_points": ["BuyStop/SellStop定价与当前市价几乎相同，挂单会立即成交，实际效果等同于市价单而非突破单", "没有新K线检查，高频tick环境下可能频繁尝试下单增加券商限制风险", "OrdersTotal()循环越界访问可能导致检查遗漏，使得重复挂单防护失效", "双向同时挂单在震荡行情中可能连续止损"], "risk_points_en": ["BuyStop/SellStop prices are essentially at market price, causing near-instant fills rather than true breakout behavior", "No new bar check means high-frequency tick environments trigger repeated order attempts, risking broker restrictions", "OrdersTotal() loop off-by-one error may cause pending order check to miss entries, breaking duplicate order protection", "Simultaneous bidirectional orders in ranging markets can lead to consecutive stop-loss hits on both sides"]}, "scores": {"code_quality": 2.0, "strategy_logic": 2.0, "risk_management": 3.0, "robustness": 2.0, "innovation": 1.0, "documentation": 1.0, "overall": 1.83}, "rating": 2, "timeframes": ["M15", "H1", "H4"], "indicators_used": [], "id": "EA-36573", "summary_en": "This EA places BuyStop and SellStop pending orders on every tick if no existing pending order of the same type is found. It uses a breakout-style entry where buy stops are placed above the current ask and sell stops below the current bid, both with fixed SL/TP values and daily expiration."}
+{
+  "name": "SampleCheckPendingOrder",
+  "category": "Breakout",
+  "category_zh": "突破",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA places BuyStop and SellStop pending orders on every tick if no existing pending order of the same type is found. It uses a breakout-style entry where buy stops are placed above the current ask and sell stops below the current bid, both with fixed SL/TP values and daily expiration.",
+  "summary_zh": "该EA在每个tick检查是否存在同类型挂单，若不存在则同时放置BuyStop和SellStop挂单，采用突破式入场逻辑，买入止损单挂在当前卖价上方，卖出止损单挂在当前买价下方，均设置固定止损止盈及当日到期时间。",
+  "strategy_analysis": "该EA采用突破挂单策略，核心概念是在当前价格上下方同时放置止损挂单，等待价格突破后成交。入场条件为：当前不存在同方向同品种的挂单时，在当前Ask价上方放置BuyStop单，在当前Bid价下方放置SellStop单。出场条件通过固定点数的止损（300点）和止盈（900点）实现，止盈是止损的3倍，体现了1:3的风险收益比设计。仓位管理仅使用固定的手数输入参数（0.01），并通过CheckVolumeValue函数验证手数是否符合品种的最小/最大手数和手数步长要求。资金管理方面，通过CheckMoneyForTrade函数检查可用保证金是否足够开仓，不足则跳过本次tick。挂单设有每日到期时间（PERIOD_D1），过期未成交则自动取消。然而策略缺乏对市场趋势、波动率或任何技术指标的判断，属于纯机械式双向挂单。",
+  "strategy_analysis_en": "This EA employs a breakout pending order strategy, placing BuyStop and SellStop orders simultaneously above and below the current price to catch directional breakouts. Entry conditions: when no existing pending order of the same type and symbol is detected, a BuyStop is placed at the current Ask price and a SellStop at the current Bid price. Exit conditions use fixed pip-based stop loss (300 points) and take profit (900 points), yielding a 1:3 risk-reward ratio. Position sizing relies on a fixed lot size input (0.01), validated by CheckVolumeValue which verifies the lot conforms to the symbol's minimum/maximum volume and volume step requirements. Money management is handled by CheckMoneyForTrade, which calculates required margin and compares it against free margin, skipping the tick if insufficient funds are available. Orders carry a daily expiration (PERIOD_D1), automatically canceling unfilled orders after one day. However, the strategy completely lacks market direction analysis, volatility assessment, or any technical indicator, making it a purely mechanical bidirectional pending order system.",
+  "parameters": [
+    {
+      "name": "PriceVolume",
+      "default_value": "0.01",
+      "description": "每笔交易的手数",
+      "description_en": "Lot size per trade"
+    },
+    {
+      "name": "PriceSL",
+      "default_value": "300",
+      "description": "止损点数（以_Point为单位）",
+      "description_en": "Stop loss points (0=disabled)"
+    },
+    {
+      "name": "PriceTP",
+      "default_value": "900",
+      "description": "止盈点数（以_Point为单位）",
+      "description_en": "Take profit points (0=disabled)"
+    }
+  ],
+  "pros": [
+    "1:3的风险收益比设计合理，符合趋势跟踪和突破策略的常见比例",
+    "具备完整的资金检查机制，包括保证金充足性验证和手数合法性验证",
+    "挂单设有到期时间，避免过期挂单长期占用保证金或在不合适的时点成交",
+    "每次仅维持一个方向的挂单，避免重复下单导致仓位失控"
+  ],
+  "pros_en": [
+    "The 1:3 risk-reward ratio is well-designed and aligns with common breakout strategy practices",
+    "Comprehensive money checking including margin sufficiency validation and lot size legality verification",
+    "Pending orders have expiration times, preventing stale orders from tying up margin or triggering at inappropriate times",
+    "Only one pending order per direction is maintained, preventing duplicate orders and uncontrolled position buildup"
+  ],
+  "cons": [
+    "缺少任何市场方向判断，每个tick都试图双向挂单，在震荡行情中容易两面挨打",
+    "BuyStop直接放在当前Ask价、SellStop直接放在当前Bid价，实际几乎会立即成交而非等待突破",
+    "OnTick中存在重复代码：IsCheckMoneySell和IsCheckMoneyBuy各检查了两次（第59-69行）",
+    "OrdersTotal()循环从OrdersTotal()开始而非OrdersTotal()-1，存在越界访问风险",
+    "没有新K线检查机制，每次tick都可能尝试下单，增加服务器负载和被券商限制的风险"
+  ],
+  "cons_en": [
+    "No market direction analysis whatsoever — placing bidirectional orders every tick leads to whipsaw losses in ranging markets",
+    "BuyStop is placed at the current Ask price and SellStop at the current Bid price, meaning orders will be filled almost immediately rather than acting as true breakout orders",
+    "Duplicated money check code in OnTick: IsCheckMoneySell and IsCheckMoneyBuy are each checked twice (lines 59-69)",
+    "OrdersTotal() loop starts at OrdersTotal() instead of OrdersTotal()-1, causing an out-of-bounds access risk on the first iteration",
+    "No new bar check mechanism — every tick triggers order placement attempts, increasing server load and risk of broker restrictions"
+  ],
+  "improvements": [
+    "将BuyStop价格设在Ask上方一定距离（如ATR的倍数），SellStop设在Bid下方一定距离，实现真正的突破策略而非即时成交",
+    "添加新K线检测机制，避免每个tick重复执行逻辑，减少不必要的资源消耗",
+    "加入趋势过滤指标（如均线方向或ADX），避免在震荡行情中双向挂单两面亏损",
+    "修复OrdersTotal()循环的越界bug，应从OrdersTotal()-1开始遍历"
+  ],
+  "improvements_en": [
+    "Place BuyStop above Ask and SellStop below Bid by a meaningful distance (e.g., ATR multiple) to create genuine breakout orders rather than near-instant fills",
+    "Add new bar detection to avoid redundant logic execution on every tick, reducing unnecessary resource consumption",
+    "Incorporate trend filtering indicators (e.g., MA direction or ADX) to avoid placing bidirectional orders in ranging markets where both sides lose",
+    "Fix the OrdersTotal() loop off-by-one bug — iteration should start from OrdersTotal()-1"
+  ],
+  "risk_assessment": {
+    "overall": "medium",
+    "risk_points": [
+      "BuyStop/SellStop定价与当前市价几乎相同，挂单会立即成交，实际效果等同于市价单而非突破单",
+      "没有新K线检查，高频tick环境下可能频繁尝试下单增加券商限制风险",
+      "OrdersTotal()循环越界访问可能导致检查遗漏，使得重复挂单防护失效",
+      "双向同时挂单在震荡行情中可能连续止损"
+    ],
+    "risk_points_en": [
+      "BuyStop/SellStop prices are essentially at market price, causing near-instant fills rather than true breakout behavior",
+      "No new bar check means high-frequency tick environments trigger repeated order attempts, risking broker restrictions",
+      "OrdersTotal() loop off-by-one error may cause pending order check to miss entries, breaking duplicate order protection",
+      "Simultaneous bidirectional orders in ranging markets can lead to consecutive stop-loss hits on both sides"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 2.0,
+    "risk_management": 3.0,
+    "robustness": 2.0,
+    "innovation": 1.0,
+    "documentation": 1.0,
+    "overall": 1.83
+  },
+  "rating": 2,
+  "timeframes": [
+    "M15",
+    "H1",
+    "H4"
+  ],
+  "indicators_used": [],
+  "id": "EA-36573",
+  "summary_en": "This EA places BuyStop and SellStop pending orders on every tick if no existing pending order of the same type is found. It uses a breakout-style entry where buy stops are placed above the current ask and sell stops below the current bid, both with fixed SL/TP values and daily expiration."
+}

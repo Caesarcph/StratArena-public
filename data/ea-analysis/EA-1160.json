@@ -1,1 +1,164 @@
-{"name": "20_200 expert_v4.2_AntS", "category": "Martingale", "category_zh": "马丁格尔", "is_trading": true, "trading_style": "systematic", "summary": "This EA compares open prices of two bars at configurable shifts and opens a buy or sell position when the price difference exceeds a threshold. It employs a martingale-style lot multiplication after losses and uses a fixed trading hour for entries. Positions are closed by take-profit, stop-loss, or a maximum holding time.", "summary_zh": "该EA通过比较两个可配置偏移K线的开盘价，当价差超过阈值时开多或开仓。亏损后采用马丁格尔式加仓倍数放大手数，并在固定交易小时入场。仓位通过止盈、止损或最大持仓时间出场。", "strategy_analysis": "策略概念基于两根K线开盘价的差值判断方向：当第二根K线开盘价高于第一根K线超过Delta_L个点时做多，当第一根K线开盘价高于第二根K线超过Delta_S个点时做空。入场条件还包括限制在每天指定的小时(TradeTime)才允许开仓，且当前没有持仓。出场条件包括固定点数的止盈止损，以及最大持仓时间(MaxOpenTime)超时后强制平仓。仓位管理方面，提供固定手数和自动手数两种模式，自动手数根据账户余额按阶梯表递增。资金管理采用马丁格尔策略：当检测到上次记录的余额高于当前余额（即亏损后），手数乘以BigLotSize倍数放大；OneMult参数控制是一次性放大还是每笔新仓位都放大。该EA的LotSize函数是一段超长的if-else阶梯，将余额从300到273580分别映射到0.01到10.00手，完全没有使用数学公式计算。", "strategy_analysis_en": "The strategy concept is based on comparing the open prices of two bars at configurable shifts (t1 and t2): a buy signal triggers when the second bar's open price exceeds the first bar's by more than Delta_L points, and a sell signal triggers when the first bar's open exceeds the second by more than Delta_S points. Entry conditions also restrict trading to a specific hour of the day (TradeTime) and require no existing position. Exit conditions include fixed take-profit and stop-loss in points, plus a forced close after MaxOpenTime hours. Position sizing offers both fixed lots and an auto-lot mode that scales with account balance via a hard-coded lookup table. Money management employs a martingale approach: when the recorded balance from the last trade exceeds the current balance (indicating a loss), the lot size is multiplied by BigLotSize. The OneMult parameter controls whether the multiplied lot is used once or repeatedly for each new position until profit. The LotSize function is an extremely long if-else chain mapping balance from 300 to 273580 to lot sizes from 0.01 to 10.00, with no mathematical formula used.", "parameters": [{"name": "t1", "default_value": "6", "description": "第一根K线的偏移量", "description_en": "Offset of the first bar"}, {"name": "t2", "default_value": "2", "description": "第二根K线的偏移量", "description_en": "Offset of the second bar"}, {"name": "Delta_L", "default_value": "6", "description": "做多时两根K线开盘价的最小差值(点)", "description_en": "Min open price difference between two bars for longs (points)"}, {"name": "Delta_S", "default_value": "21", "description": "做空时两根K线开盘价的最小差值(点)", "description_en": "Min open price difference between two bars for shorts (points)"}, {"name": "TakeProfit_L", "default_value": "390", "description": "多头止盈(点)", "description_en": "Long take profit (points)"}, {"name": "StopLoss_L", "default_value": "1470", "description": "多头止损(点)", "description_en": "Long stop loss (points)"}, {"name": "TakeProfit_S", "default_value": "320", "description": "空头止盈(点)", "description_en": "Short take profit (points)"}, {"name": "StopLoss_S", "default_value": "2670", "description": "空头止损(点)", "description_en": "Short stop loss (points)"}, {"name": "Lots", "default_value": "0.1", "description": "AutoLot=false时的固定手数", "description_en": "Fixed lot size; 0 uses dynamic risk calculation"}, {"name": "AutoLot", "default_value": "true", "description": "是否启用根据余额的自动手数", "description_en": "Enable balance-based automatic lot sizing"}, {"name": "BigLotSize", "default_value": "6", "description": "亏损后的手数倍增系数", "description_en": "Lot multiplier coefficient after a loss"}, {"name": "OneMult", "default_value": "true", "description": "是否仅一次马丁格尔倍增(否则每笔新仓都倍增)", "description_en": "Single Martingale multiplier only (otherwise each new position multiplies)"}, {"name": "TradeTime", "default_value": "14", "description": "允许开仓的小时(服务器时间)", "description_en": "Allowed opening hour (server time)"}, {"name": "MaxOpenTime", "default_value": "504", "description": "最大持仓时间(小时)", "description_en": "Maximum position holding time (hours)"}], "pros": ["止损止盈设置明确，多头止损1470点、空头止损2670点，风控参数透明", "有最大持仓时间限制，避免长期套牢", "使用全局变量跟踪上次余额以检测亏损，状态持久化在重启后仍有效"], "pros_en": ["Clear stop-loss and take-profit settings with defined point values, making risk parameters transparent", "Maximum holding time limit prevents indefinite position trapping", "Uses global variables to track last balance for loss detection, persisting state across EA restarts"], "cons": ["马丁格尔策略在连续亏损时手数指数增长，可能导致爆仓", "LotSize函数用近1000行if-else硬编码，极难维护且容易出错", "SignalOpenSell函数中return(false)永远不会执行，存在死代码", "每天只在固定一小时开仓，交易机会极少，且不做多时段验证", "没有点差过滤，在小TP场景下点差波动可能吃掉利润"], "cons_en": ["Martingale strategy causes exponential lot growth on consecutive losses, potentially leading to account blowup", "LotSize function uses nearly 1000 lines of hard-coded if-else statements, extremely difficult to maintain and error-prone", "SignalOpenSell has unreachable return(false) on line 190 — dead code bug", "Only trades during one specific hour per day, severely limiting opportunities with no multi-session validation", "No spread filter, which can erode profits especially with relatively small take-profit values"], "improvements": ["用数学公式替换LotSize的1000行if-else阶梯，例如 lot = MathFloor((AcBal - 300) / 273.28) * 0.01 + 0.01", "增加点差过滤和滑点保护，避免在高点差时段入场", "增加连续亏损次数限制，防止马丁格尔无限放大手数"], "improvements_en": ["Replace the 1000-line if-else ladder in LotSize with a mathematical formula for maintainability", "Add spread filter and slippage protection to avoid entering during high-spread periods", "Add a maximum consecutive loss count limit to prevent infinite martingale lot escalation"], "risk_assessment": {"overall": "high", "risk_points": ["马丁格尔手数倍增(BigLotSize=6)在连续亏损时将手数放大6倍，极大概率导致爆仓", "没有检查账户可用保证金是否足够支撑放大后的手数", "SignalOpenSell函数存在死代码bug，sell信号可能工作异常"], "risk_points_en": ["Martingale lot multiplication (BigLotSize=6) amplifies lot size 6x after each loss, extremely likely to cause account blowup", "No free margin check before placing orders with multiplied lot sizes", "SignalOpenSell function has a dead code bug with unreachable return(false) on line 190"]}, "scores": {"code_quality": 1.0, "strategy_logic": 2.0, "risk_management": 2.0, "robustness": 2.0, "innovation": 1.0, "documentation": 2.0, "overall": 1.67}, "rating": 2, "timeframes": ["H1", "H4", "D1"], "indicators_used": ["Price Action (Bar Open Comparison)"], "id": "EA-1160", "summary_en": "This EA compares open prices of two bars at configurable shifts and opens a buy or sell position when the price difference exceeds a threshold. It employs a martingale-style lot multiplication after losses and uses a fixed trading hour for entries. Positions are closed by take-profit, stop-loss, or a maximum holding time."}
+{
+  "name": "20_200 expert_v4.2_AntS",
+  "category": "Martingale",
+  "category_zh": "马丁格尔",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA compares open prices of two bars at configurable shifts and opens a buy or sell position when the price difference exceeds a threshold. It employs a martingale-style lot multiplication after losses and uses a fixed trading hour for entries. Positions are closed by take-profit, stop-loss, or a maximum holding time.",
+  "summary_zh": "该EA通过比较两个可配置偏移K线的开盘价，当价差超过阈值时开多或开仓。亏损后采用马丁格尔式加仓倍数放大手数，并在固定交易小时入场。仓位通过止盈、止损或最大持仓时间出场。",
+  "strategy_analysis": "策略概念基于两根K线开盘价的差值判断方向：当第二根K线开盘价高于第一根K线超过Delta_L个点时做多，当第一根K线开盘价高于第二根K线超过Delta_S个点时做空。入场条件还包括限制在每天指定的小时(TradeTime)才允许开仓，且当前没有持仓。出场条件包括固定点数的止盈止损，以及最大持仓时间(MaxOpenTime)超时后强制平仓。仓位管理方面，提供固定手数和自动手数两种模式，自动手数根据账户余额按阶梯表递增。资金管理采用马丁格尔策略：当检测到上次记录的余额高于当前余额（即亏损后），手数乘以BigLotSize倍数放大；OneMult参数控制是一次性放大还是每笔新仓位都放大。该EA的LotSize函数是一段超长的if-else阶梯，将余额从300到273580分别映射到0.01到10.00手，完全没有使用数学公式计算。",
+  "strategy_analysis_en": "The strategy concept is based on comparing the open prices of two bars at configurable shifts (t1 and t2): a buy signal triggers when the second bar's open price exceeds the first bar's by more than Delta_L points, and a sell signal triggers when the first bar's open exceeds the second by more than Delta_S points. Entry conditions also restrict trading to a specific hour of the day (TradeTime) and require no existing position. Exit conditions include fixed take-profit and stop-loss in points, plus a forced close after MaxOpenTime hours. Position sizing offers both fixed lots and an auto-lot mode that scales with account balance via a hard-coded lookup table. Money management employs a martingale approach: when the recorded balance from the last trade exceeds the current balance (indicating a loss), the lot size is multiplied by BigLotSize. The OneMult parameter controls whether the multiplied lot is used once or repeatedly for each new position until profit. The LotSize function is an extremely long if-else chain mapping balance from 300 to 273580 to lot sizes from 0.01 to 10.00, with no mathematical formula used.",
+  "parameters": [
+    {
+      "name": "t1",
+      "default_value": "6",
+      "description": "第一根K线的偏移量",
+      "description_en": "Offset of the first bar"
+    },
+    {
+      "name": "t2",
+      "default_value": "2",
+      "description": "第二根K线的偏移量",
+      "description_en": "Offset of the second bar"
+    },
+    {
+      "name": "Delta_L",
+      "default_value": "6",
+      "description": "做多时两根K线开盘价的最小差值(点)",
+      "description_en": "Min open price difference between two bars for longs (points)"
+    },
+    {
+      "name": "Delta_S",
+      "default_value": "21",
+      "description": "做空时两根K线开盘价的最小差值(点)",
+      "description_en": "Min open price difference between two bars for shorts (points)"
+    },
+    {
+      "name": "TakeProfit_L",
+      "default_value": "390",
+      "description": "多头止盈(点)",
+      "description_en": "Long take profit (points)"
+    },
+    {
+      "name": "StopLoss_L",
+      "default_value": "1470",
+      "description": "多头止损(点)",
+      "description_en": "Long stop loss (points)"
+    },
+    {
+      "name": "TakeProfit_S",
+      "default_value": "320",
+      "description": "空头止盈(点)",
+      "description_en": "Short take profit (points)"
+    },
+    {
+      "name": "StopLoss_S",
+      "default_value": "2670",
+      "description": "空头止损(点)",
+      "description_en": "Short stop loss (points)"
+    },
+    {
+      "name": "Lots",
+      "default_value": "0.1",
+      "description": "AutoLot=false时的固定手数",
+      "description_en": "Fixed lot size; 0 uses dynamic risk calculation"
+    },
+    {
+      "name": "AutoLot",
+      "default_value": "true",
+      "description": "是否启用根据余额的自动手数",
+      "description_en": "Enable balance-based automatic lot sizing"
+    },
+    {
+      "name": "BigLotSize",
+      "default_value": "6",
+      "description": "亏损后的手数倍增系数",
+      "description_en": "Lot multiplier coefficient after a loss"
+    },
+    {
+      "name": "OneMult",
+      "default_value": "true",
+      "description": "是否仅一次马丁格尔倍增(否则每笔新仓都倍增)",
+      "description_en": "Single Martingale multiplier only (otherwise each new position multiplies)"
+    },
+    {
+      "name": "TradeTime",
+      "default_value": "14",
+      "description": "允许开仓的小时(服务器时间)",
+      "description_en": "Allowed opening hour (server time)"
+    },
+    {
+      "name": "MaxOpenTime",
+      "default_value": "504",
+      "description": "最大持仓时间(小时)",
+      "description_en": "Maximum position holding time (hours)"
+    }
+  ],
+  "pros": [
+    "止损止盈设置明确，多头止损1470点、空头止损2670点，风控参数透明",
+    "有最大持仓时间限制，避免长期套牢",
+    "使用全局变量跟踪上次余额以检测亏损，状态持久化在重启后仍有效"
+  ],
+  "pros_en": [
+    "Clear stop-loss and take-profit settings with defined point values, making risk parameters transparent",
+    "Maximum holding time limit prevents indefinite position trapping",
+    "Uses global variables to track last balance for loss detection, persisting state across EA restarts"
+  ],
+  "cons": [
+    "马丁格尔策略在连续亏损时手数指数增长，可能导致爆仓",
+    "LotSize函数用近1000行if-else硬编码，极难维护且容易出错",
+    "SignalOpenSell函数中return(false)永远不会执行，存在死代码",
+    "每天只在固定一小时开仓，交易机会极少，且不做多时段验证",
+    "没有点差过滤，在小TP场景下点差波动可能吃掉利润"
+  ],
+  "cons_en": [
+    "Martingale strategy causes exponential lot growth on consecutive losses, potentially leading to account blowup",
+    "LotSize function uses nearly 1000 lines of hard-coded if-else statements, extremely difficult to maintain and error-prone",
+    "SignalOpenSell has unreachable return(false) on line 190 — dead code bug",
+    "Only trades during one specific hour per day, severely limiting opportunities with no multi-session validation",
+    "No spread filter, which can erode profits especially with relatively small take-profit values"
+  ],
+  "improvements": [
+    "用数学公式替换LotSize的1000行if-else阶梯，例如 lot = MathFloor((AcBal - 300) / 273.28) * 0.01 + 0.01",
+    "增加点差过滤和滑点保护，避免在高点差时段入场",
+    "增加连续亏损次数限制，防止马丁格尔无限放大手数"
+  ],
+  "improvements_en": [
+    "Replace the 1000-line if-else ladder in LotSize with a mathematical formula for maintainability",
+    "Add spread filter and slippage protection to avoid entering during high-spread periods",
+    "Add a maximum consecutive loss count limit to prevent infinite martingale lot escalation"
+  ],
+  "risk_assessment": {
+    "overall": "high",
+    "risk_points": [
+      "马丁格尔手数倍增(BigLotSize=6)在连续亏损时将手数放大6倍，极大概率导致爆仓",
+      "没有检查账户可用保证金是否足够支撑放大后的手数",
+      "SignalOpenSell函数存在死代码bug，sell信号可能工作异常"
+    ],
+    "risk_points_en": [
+      "Martingale lot multiplication (BigLotSize=6) amplifies lot size 6x after each loss, extremely likely to cause account blowup",
+      "No free margin check before placing orders with multiplied lot sizes",
+      "SignalOpenSell function has a dead code bug with unreachable return(false) on line 190"
+    ]
+  },
+  "scores": {
+    "code_quality": 1.0,
+    "strategy_logic": 2.0,
+    "risk_management": 2.0,
+    "robustness": 2.0,
+    "innovation": 1.0,
+    "documentation": 2.0,
+    "overall": 1.67
+  },
+  "rating": 2,
+  "timeframes": [
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "indicators_used": [
+    "Price Action (Bar Open Comparison)"
+  ],
+  "id": "EA-1160",
+  "summary_en": "This EA compares open prices of two bars at configurable shifts and opens a buy or sell position when the price difference exceeds a threshold. It employs a martingale-style lot multiplication after losses and uses a fixed trading hour for entries. Positions are closed by take-profit, stop-loss, or a maximum holding time."
+}

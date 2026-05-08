@@ -1,1 +1,152 @@
-{"name": "Neurotest", "category": "Machine Learning", "category_zh": "机器学习", "is_trading": true, "trading_style": "systematic", "summary": "A simple feedforward neural network EA for MetaTrader 5 that uses a single hidden layer with ReLU activation to predict price direction from OHLCV data. It trains online during backtesting via momentum-based gradient descent, and opens buy/sell trades when the sigmoid output exceeds 0.6 or falls below 0.4 respectively. Risk management includes ATR-based dynamic stop loss, daily and total drawdown limits, and spread filtering.", "summary_zh": "这是一个基于简单前馈神经网络（单隐层ReLU激活）的MT5 EA，使用OHLCV数据预测价格方向。在回测期间通过动量梯度下降进行在线训练，当sigmoid输出大于0.6或小于0.4时分别开多仓或空仓。风险管理包括ATR动态止损、日度和总回撤限制以及点差过滤。", "strategy_analysis": "该EA的策略概念是利用一个简单的3层前馈神经网络（5输入-隐层-1输出）从历史K线的开盘价、最高价、最低价、收盘价和成交量中学习价格运动模式。入场条件为：神经网络sigmoid输出大于0.6时做多，小于0.4时做空，处于0.4-0.6之间则不交易。出场条件依赖ATR动态止损和2倍风险回报比的止盈，没有跟踪止损或基于信号的反向平仓逻辑。仓位管理基于账户权益和每笔交易最大风险百分比计算手数，并根据经纪商的最小/最大手数和手数步长进行规范化。资金管理设有每日最大亏损5%和总最大亏损10%的硬限制，当每日利润低于1%目标时会惩罚性降低学习率。然而归一化逻辑存在严重缺陷——仅用单个样例的值计算min-max会导致所有输入归一化为0，且没有检查是否已存在同方向持仓，可能重复开仓。", "strategy_analysis_en": "The EA's strategy concept employs a simple 3-layer feedforward neural network (5 inputs, configurable hidden layer, 1 output) to learn price movement patterns from historical OHLCV candle data. Entry conditions are: buy when the sigmoid output exceeds 0.6, sell when it falls below 0.4, and no trade when between 0.4-0.6. Exit conditions rely on ATR-based dynamic stop loss and a 2:1 risk-reward take profit ratio, with no trailing stop or signal-based position closing logic. Position sizing is calculated from account equity and maximum risk percentage per trade, normalized to broker lot constraints including minimum/maximum lot and lot step. Money management enforces hard daily loss limit of 5% and total loss limit of 10%, with a penalty mechanism that reduces the learning rate when daily profit falls below the 1% target. However, the normalization logic has a critical flaw—computing min-max from a single sample forces all inputs to zero, and there is no check for existing positions in the same direction, which can lead to repeated trade entries on every tick.", "parameters": [{"name": "MaxRiskPerTrade", "default_value": "1.0", "description": "每笔交易最大风险百分比", "description_en": "Maximum risk percentage per trade"}, {"name": "DailyLossLimit", "default_value": "5.0", "description": "每日最大亏损百分比", "description_en": "Maximum daily loss percentage"}, {"name": "TotalLossLimit", "default_value": "10.0", "description": "总最大亏损百分比", "description_en": "Maximum total loss percentage"}, {"name": "MagicNumber", "default_value": "12345", "description": "订单唯一标识符", "description_en": "EA identifier to distinguish orders"}, {"name": "EnableLogging", "default_value": "true", "description": "启用详细日志记录", "description_en": "Enable verbose logging"}, {"name": "InitialLearningRate", "default_value": "0.01", "description": "神经网络初始学习率", "description_en": "Neural network initial learning rate"}, {"name": "HiddenLayerSize", "default_value": "5", "description": "隐层神经元数量", "description_en": "Hidden layer neuron count"}, {"name": "MaxEpochs", "default_value": "1", "description": "每tick最大训练轮数", "description_en": "Max training epochs per tick"}, {"name": "ModelFileName", "default_value": "neural_network.dat", "description": "模型保存/加载文件名", "description_en": "Model save/load filename"}, {"name": "ATRPeriod", "default_value": "14", "description": "ATR周期用于动态止损", "description_en": "ATR period for dynamic stop loss"}, {"name": "MaxSpread", "default_value": "20.0", "description": "最大允许点差（点）", "description_en": "Maximum allowed spread in points"}], "pros": ["实现了基于神经网络的自适应交易信号生成，概念上具有创新性", "具备完整的资金管理框架，包括每日/总回撤限制和动态止损", "使用ATR动态止损适应市场波动性，风险回报比设为1:2较为合理", "模型参数可持久化保存，支持EA重启后继续使用已训练权重", "包含点差过滤机制，避免在高点差环境下入场"], "pros_en": ["Implements neural network-based adaptive trading signal generation, conceptually innovative", "Has a complete money management framework with daily/total drawdown limits and dynamic stop loss", "Uses ATR-based dynamic stop loss to adapt to market volatility with a reasonable 1:2 risk-reward ratio", "Model parameters can be persisted, allowing the EA to reuse trained weights after restart", "Includes spread filter to avoid entering trades in high-spread environments"], "cons": ["归一化逻辑严重错误——用单一样本计算min-max导致所有输入归一化为0，网络无法有效学习", "没有检查现有持仓，每个tick都可能重复开仓，导致无限加仓风险", "没有新K线检查，每个tick都会触发交易逻辑，造成冗余计算和潜在重复下单", "网络结构过于简单（仅5个原始价格输入+单隐层5神经元），难以捕捉有效的市场模式", "ATR指标句柄在GetDynamicStopLoss中每次调用都创建但不释放，会导致资源泄漏", "训练数据使用原始价格而非差分或收益率，缺乏平稳性，网络难以泛化"], "cons_en": ["Normalization logic is critically broken—computing min-max from a single sample normalizes all inputs to zero, making the network unable to learn effectively", "No existing position check, potentially opening repeated trades every tick, leading to uncontrolled position accumulation", "No new bar check means trading logic triggers every tick, causing redundant computation and potential duplicate orders", "Network architecture is overly simplistic (5 raw price inputs + single hidden layer with 5 neurons), insufficient to capture meaningful market patterns", "ATR indicator handle is created in GetDynamicStopLoss on every call without being released, causing resource leaks", "Training uses raw price levels instead of differenced data or returns, lacking stationarity which hinders network generalization"], "improvements": ["修复归一化逻辑——应在训练前用整个数据集的统计量（均值/标准差或全局min-max）进行归一化，并使用差分或对数收益率替代原始价格", "添加持仓检查和新K线检查，防止重复开仓和不必要的每tick计算；将ATR指标句柄移至OnInit中创建并在OnDeinit中释放", "增加验证集和早停机制以防止过拟合，考虑使用更稳健的优化器（如Adam）和更合理的网络架构设计"], "improvements_en": ["Fix normalization logic—use dataset-wide statistics (mean/std or global min-max) computed before training, and use differenced data or log returns instead of raw prices", "Add position existence check and new bar check to prevent repeated entries and unnecessary per-tick computation; move ATR handle creation to OnInit and release in OnDeinit", "Add validation set and early stopping to prevent overfitting; consider implementing a more robust optimizer (e.g., Adam) and more thoughtful network architecture design"], "risk_assessment": {"overall": "high", "risk_points": ["没有持仓检查，每个tick可能重复开仓，导致仓位无限积累", "归一化逻辑错误导致神经网络输出无意义，交易决策实质上是随机的", "ATR句柄资源泄漏可能导致长时间运行后指标句柄耗尽", "使用原始价格而非平稳序列训练，网络可能过拟合到特定价格水平"], "risk_points_en": ["No position check allows repeated trade entries every tick, leading to uncontrolled position accumulation", "Broken normalization logic makes neural network output meaningless, rendering trading decisions essentially random", "ATR handle resource leak may exhaust indicator handles during extended operation", "Training on raw prices instead of stationary series may cause the network to overfit to specific price levels"]}, "scores": {"code_quality": 2.0, "strategy_logic": 1.0, "risk_management": 3.0, "robustness": 1.0, "innovation": 3.0, "documentation": 2.0, "overall": 2.0}, "rating": 1, "timeframes": ["M15"], "indicators_used": ["ATR"], "id": "EA-52148", "summary_en": "A simple feedforward neural network EA for MetaTrader 5 that uses a single hidden layer with ReLU activation to predict price direction from OHLCV data. It trains online during backtesting via momentum-based gradient descent, and opens buy/sell trades when the sigmoid output exceeds 0.6 or falls below 0.4 respectively. Risk management includes ATR-based dynamic stop loss, daily and total drawdown limits, and spread filtering."}
+{
+  "name": "Neurotest",
+  "category": "Machine Learning",
+  "category_zh": "机器学习",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "A simple feedforward neural network EA for MetaTrader 5 that uses a single hidden layer with ReLU activation to predict price direction from OHLCV data. It trains online during backtesting via momentum-based gradient descent, and opens buy/sell trades when the sigmoid output exceeds 0.6 or falls below 0.4 respectively. Risk management includes ATR-based dynamic stop loss, daily and total drawdown limits, and spread filtering.",
+  "summary_zh": "这是一个基于简单前馈神经网络（单隐层ReLU激活）的MT5 EA，使用OHLCV数据预测价格方向。在回测期间通过动量梯度下降进行在线训练，当sigmoid输出大于0.6或小于0.4时分别开多仓或空仓。风险管理包括ATR动态止损、日度和总回撤限制以及点差过滤。",
+  "strategy_analysis": "该EA的策略概念是利用一个简单的3层前馈神经网络（5输入-隐层-1输出）从历史K线的开盘价、最高价、最低价、收盘价和成交量中学习价格运动模式。入场条件为：神经网络sigmoid输出大于0.6时做多，小于0.4时做空，处于0.4-0.6之间则不交易。出场条件依赖ATR动态止损和2倍风险回报比的止盈，没有跟踪止损或基于信号的反向平仓逻辑。仓位管理基于账户权益和每笔交易最大风险百分比计算手数，并根据经纪商的最小/最大手数和手数步长进行规范化。资金管理设有每日最大亏损5%和总最大亏损10%的硬限制，当每日利润低于1%目标时会惩罚性降低学习率。然而归一化逻辑存在严重缺陷——仅用单个样例的值计算min-max会导致所有输入归一化为0，且没有检查是否已存在同方向持仓，可能重复开仓。",
+  "strategy_analysis_en": "The EA's strategy concept employs a simple 3-layer feedforward neural network (5 inputs, configurable hidden layer, 1 output) to learn price movement patterns from historical OHLCV candle data. Entry conditions are: buy when the sigmoid output exceeds 0.6, sell when it falls below 0.4, and no trade when between 0.4-0.6. Exit conditions rely on ATR-based dynamic stop loss and a 2:1 risk-reward take profit ratio, with no trailing stop or signal-based position closing logic. Position sizing is calculated from account equity and maximum risk percentage per trade, normalized to broker lot constraints including minimum/maximum lot and lot step. Money management enforces hard daily loss limit of 5% and total loss limit of 10%, with a penalty mechanism that reduces the learning rate when daily profit falls below the 1% target. However, the normalization logic has a critical flaw—computing min-max from a single sample forces all inputs to zero, and there is no check for existing positions in the same direction, which can lead to repeated trade entries on every tick.",
+  "parameters": [
+    {
+      "name": "MaxRiskPerTrade",
+      "default_value": "1.0",
+      "description": "每笔交易最大风险百分比",
+      "description_en": "Maximum risk percentage per trade"
+    },
+    {
+      "name": "DailyLossLimit",
+      "default_value": "5.0",
+      "description": "每日最大亏损百分比",
+      "description_en": "Maximum daily loss percentage"
+    },
+    {
+      "name": "TotalLossLimit",
+      "default_value": "10.0",
+      "description": "总最大亏损百分比",
+      "description_en": "Maximum total loss percentage"
+    },
+    {
+      "name": "MagicNumber",
+      "default_value": "12345",
+      "description": "订单唯一标识符",
+      "description_en": "EA identifier to distinguish orders"
+    },
+    {
+      "name": "EnableLogging",
+      "default_value": "true",
+      "description": "启用详细日志记录",
+      "description_en": "Enable verbose logging"
+    },
+    {
+      "name": "InitialLearningRate",
+      "default_value": "0.01",
+      "description": "神经网络初始学习率",
+      "description_en": "Neural network initial learning rate"
+    },
+    {
+      "name": "HiddenLayerSize",
+      "default_value": "5",
+      "description": "隐层神经元数量",
+      "description_en": "Hidden layer neuron count"
+    },
+    {
+      "name": "MaxEpochs",
+      "default_value": "1",
+      "description": "每tick最大训练轮数",
+      "description_en": "Max training epochs per tick"
+    },
+    {
+      "name": "ModelFileName",
+      "default_value": "neural_network.dat",
+      "description": "模型保存/加载文件名",
+      "description_en": "Model save/load filename"
+    },
+    {
+      "name": "ATRPeriod",
+      "default_value": "14",
+      "description": "ATR周期用于动态止损",
+      "description_en": "ATR period for dynamic stop loss"
+    },
+    {
+      "name": "MaxSpread",
+      "default_value": "20.0",
+      "description": "最大允许点差（点）",
+      "description_en": "Maximum allowed spread in points"
+    }
+  ],
+  "pros": [
+    "实现了基于神经网络的自适应交易信号生成，概念上具有创新性",
+    "具备完整的资金管理框架，包括每日/总回撤限制和动态止损",
+    "使用ATR动态止损适应市场波动性，风险回报比设为1:2较为合理",
+    "模型参数可持久化保存，支持EA重启后继续使用已训练权重",
+    "包含点差过滤机制，避免在高点差环境下入场"
+  ],
+  "pros_en": [
+    "Implements neural network-based adaptive trading signal generation, conceptually innovative",
+    "Has a complete money management framework with daily/total drawdown limits and dynamic stop loss",
+    "Uses ATR-based dynamic stop loss to adapt to market volatility with a reasonable 1:2 risk-reward ratio",
+    "Model parameters can be persisted, allowing the EA to reuse trained weights after restart",
+    "Includes spread filter to avoid entering trades in high-spread environments"
+  ],
+  "cons": [
+    "归一化逻辑严重错误——用单一样本计算min-max导致所有输入归一化为0，网络无法有效学习",
+    "没有检查现有持仓，每个tick都可能重复开仓，导致无限加仓风险",
+    "没有新K线检查，每个tick都会触发交易逻辑，造成冗余计算和潜在重复下单",
+    "网络结构过于简单（仅5个原始价格输入+单隐层5神经元），难以捕捉有效的市场模式",
+    "ATR指标句柄在GetDynamicStopLoss中每次调用都创建但不释放，会导致资源泄漏",
+    "训练数据使用原始价格而非差分或收益率，缺乏平稳性，网络难以泛化"
+  ],
+  "cons_en": [
+    "Normalization logic is critically broken—computing min-max from a single sample normalizes all inputs to zero, making the network unable to learn effectively",
+    "No existing position check, potentially opening repeated trades every tick, leading to uncontrolled position accumulation",
+    "No new bar check means trading logic triggers every tick, causing redundant computation and potential duplicate orders",
+    "Network architecture is overly simplistic (5 raw price inputs + single hidden layer with 5 neurons), insufficient to capture meaningful market patterns",
+    "ATR indicator handle is created in GetDynamicStopLoss on every call without being released, causing resource leaks",
+    "Training uses raw price levels instead of differenced data or returns, lacking stationarity which hinders network generalization"
+  ],
+  "improvements": [
+    "修复归一化逻辑——应在训练前用整个数据集的统计量（均值/标准差或全局min-max）进行归一化，并使用差分或对数收益率替代原始价格",
+    "添加持仓检查和新K线检查，防止重复开仓和不必要的每tick计算；将ATR指标句柄移至OnInit中创建并在OnDeinit中释放",
+    "增加验证集和早停机制以防止过拟合，考虑使用更稳健的优化器（如Adam）和更合理的网络架构设计"
+  ],
+  "improvements_en": [
+    "Fix normalization logic—use dataset-wide statistics (mean/std or global min-max) computed before training, and use differenced data or log returns instead of raw prices",
+    "Add position existence check and new bar check to prevent repeated entries and unnecessary per-tick computation; move ATR handle creation to OnInit and release in OnDeinit",
+    "Add validation set and early stopping to prevent overfitting; consider implementing a more robust optimizer (e.g., Adam) and more thoughtful network architecture design"
+  ],
+  "risk_assessment": {
+    "overall": "high",
+    "risk_points": [
+      "没有持仓检查，每个tick可能重复开仓，导致仓位无限积累",
+      "归一化逻辑错误导致神经网络输出无意义，交易决策实质上是随机的",
+      "ATR句柄资源泄漏可能导致长时间运行后指标句柄耗尽",
+      "使用原始价格而非平稳序列训练，网络可能过拟合到特定价格水平"
+    ],
+    "risk_points_en": [
+      "No position check allows repeated trade entries every tick, leading to uncontrolled position accumulation",
+      "Broken normalization logic makes neural network output meaningless, rendering trading decisions essentially random",
+      "ATR handle resource leak may exhaust indicator handles during extended operation",
+      "Training on raw prices instead of stationary series may cause the network to overfit to specific price levels"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 1.0,
+    "risk_management": 3.0,
+    "robustness": 1.0,
+    "innovation": 3.0,
+    "documentation": 2.0,
+    "overall": 2.0
+  },
+  "rating": 1,
+  "timeframes": [
+    "M15"
+  ],
+  "indicators_used": [
+    "ATR"
+  ],
+  "id": "EA-52148",
+  "summary_en": "A simple feedforward neural network EA for MetaTrader 5 that uses a single hidden layer with ReLU activation to predict price direction from OHLCV data. It trains online during backtesting via momentum-based gradient descent, and opens buy/sell trades when the sigmoid output exceeds 0.6 or falls below 0.4 respectively. Risk management includes ATR-based dynamic stop loss, daily and total drawdown limits, and spread filtering."
+}

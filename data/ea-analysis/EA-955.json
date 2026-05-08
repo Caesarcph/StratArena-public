@@ -1,1 +1,160 @@
-{"name": "BeeLine", "category": "Statistical Arbitrage", "category_zh": "统计套利", "is_trading": true, "trading_style": "systematic", "summary": "This EA implements a pairs trading / statistical arbitrage strategy between two correlated currency pairs (e.g., EURUSD and GBPUSD). It measures the price deviation between a base and an indirect instrument using a compaction-normalized spread, opening hedged positions when deviation exceeds a dynamic signal border and closing when the spread reverts. Periodic re-optimization calibrates the relationship parameters from a rolling historical window.", "summary_zh": "该EA实现了两个相关货币对（如EURUSD和GBPUSD）之间的配对交易/统计套利策略。通过压缩系数归一化后的价差衡量基础工具与间接工具之间的价格偏离，当偏离超过动态信号边界时开立对冲仓位，当价差回归时平仓。定期重新优化从滚动历史窗口中校准关系参数。", "strategy_analysis": "策略核心是统计套利中的配对交易：选取两个具有相关性的货币对，通过历史价格区间计算压缩系数（Compaction），将间接工具的价格归一化到基础工具的价格尺度上，然后计算两者之间的偏离度（Deviation）。入场条件为：当前偏离度的绝对值超过信号边界（MaxDeviation），且当前偏离度大于前一根K线的偏离度（偏离在扩大），此时根据偏离方向和相关性符号决定买卖方向，同时在两个货币对上开立对冲仓位。出场条件有三个：一是价差交叉回归（偏离方向与持仓方向相反），二是偏离度缩小到信号边界的CloseCorr比例且持仓盈利，三是总盈利达到账户余额的Profit百分比。仓位管理方面，基础工具手数根据偏离倍数和已有持仓计算，间接工具手数通过压缩系数和Tick价值比进行换算归一化。资金管理支持固定手数和权益比例两种模式，且有最小/最大手数和手数步长的规范化处理。", "strategy_analysis_en": "The core strategy is pairs trading within statistical arbitrage: it selects two correlated currency pairs and calculates a compaction coefficient from their historical price ranges, normalizing the indirect instrument's price onto the base instrument's price scale, then computing the deviation between them. Entry conditions require the absolute current deviation to exceed the dynamic signal border (MaxDeviation) and the current deviation to be larger than the previous bar's deviation (indicating divergence is expanding), at which point hedged positions are opened on both instruments based on deviation direction and correlation sign. Exit conditions are threefold: first, spread crossover reversion (deviation direction opposite to position direction); second, deviation shrinks below CloseCorr ratio of the signal border while the position is profitable; third, total profit reaches Profit percentage of account balance. Position sizing calculates the base instrument lot from the deviation multiple and existing positions, while the indirect instrument lot is converted and normalized using the compaction coefficient and tick value ratio. Money management supports both fixed lot and equity-proportional modes, with normalization for minimum/maximum lot sizes and lot step increments.", "parameters": [{"name": "Symbol2", "default_value": "GBPUSD", "description": "间接工具（配对的第二个货币对）", "description_en": "Indirect instrument (second currency pair in the pair)"}, {"name": "Cross", "default_value": "", "description": "替代两个货币对交易的交叉货币对", "description_en": "Cross currency pair replacing two-pair trading"}, {"name": "CrossType", "default_value": "true", "description": "直接交叉汇率标志", "description_en": "Direct cross rate flag"}, {"name": "MagicNumber", "default_value": "1004", "description": "EA标识符（魔数）", "description_en": "EA unique identifier number"}, {"name": "Range", "default_value": "640", "description": "训练窗口（历史K线数量）", "description_en": "Training window (number of historical bars)"}, {"name": "Profit", "default_value": "3", "description": "最大盈利百分比（相对账户余额）", "description_en": "Max profit percentage (relative to account balance)"}, {"name": "CorrectLimit", "default_value": "0.70", "description": "信号边界修正系数", "description_en": "Signal boundary correction coefficient"}, {"name": "CorrectDist", "default_value": "1.20", "description": "搜索最大偏离的长度系数", "description_en": "Length coefficient for max deviation search"}, {"name": "Optimum", "default_value": "120", "description": "重新优化的间隔（K线数）", "description_en": "Re-optimization interval (number of bars)"}, {"name": "MaxDeals", "default_value": "3", "description": "最大交易笔数（加仓次数）", "description_en": "Max number of trades (position additions)"}, {"name": "CloseCorr", "default_value": "0.618034", "description": "偏离缩减平仓系数（黄金比例）", "description_en": "Deviation reduction closing coefficient (golden ratio)"}, {"name": "Correlation", "default_value": "1", "description": "相关系数（1=正相关，-1=负相关）", "description_en": "Correlation coefficient (1=positive, -1=negative)"}, {"name": "LOT", "default_value": "0.02", "description": "手数大小", "description_en": "Lot size"}, {"name": "LOT_TYPE", "default_value": "1", "description": "手数类型：0=固定，1=权益比例", "description_en": "Lot type: 0=fixed, 1=equity proportion"}], "pros": ["统计套利策略逻辑完整，基于价差均值回归原理，具有坚实的统计学基础", "支持正相关和负相关两种货币对关系，灵活性高", "参数化程度高，信号边界、平仓系数、优化间隔等均可调整，适应不同市场环境"], "pros_en": ["Complete statistical arbitrage logic based on spread mean reversion, with solid statistical foundation", "Supports both positive and negative correlation between currency pairs, offering high flexibility", "Highly parameterized with adjustable signal border, close coefficient, and optimization interval to adapt to different market conditions"], "cons": ["缺少止损机制，如果价差持续发散而不回归，可能导致巨额亏损", "压缩系数和信号边界基于历史窗口计算，在市场结构突变时可能失效", "包含时间保护代码（2011年9月后随机化信号），属于有意限制，降低了策略在实盘中的可靠性"], "cons_en": ["No stop-loss mechanism; if the spread diverges persistently without reverting, catastrophic losses are possible", "Compaction coefficient and signal border are calculated from a historical window, which may fail when market structure shifts abruptly", "Contains time-based protection code (randomizing signals after September 2011), which intentionally limits strategy reliability in live trading"], "improvements": ["增加硬止损和最大回撤限制，防止单次交易亏损过大", "添加价差稳定性检测和市场状态过滤器，避免在结构性突变时继续交易"], "improvements_en": ["Add hard stop-loss and maximum drawdown limits to prevent excessive single-trade losses", "Add spread stability detection and market regime filters to avoid trading during structural regime changes"], "risk_assessment": {"overall": "medium", "risk_points": ["无止损机制，价差持续发散时亏损无上限", "时间保护代码会在特定日期后随机化交易信号，造成不可预测的行为", "加仓机制（MaxDeals=3）在价差持续偏离时可能累积过大仓位"], "risk_points_en": ["No stop-loss mechanism means unlimited losses if spread divergence persists", "Time-based protection code randomizes trade signals after a specific date, causing unpredictable behavior", "Position accumulation mechanism (MaxDeals=3) may build excessively large positions during sustained divergence"]}, "scores": {"code_quality": 3.0, "strategy_logic": 4.0, "risk_management": 2.0, "robustness": 2.0, "innovation": 4.0, "documentation": 2.0, "overall": 2.83}, "rating": 3, "timeframes": ["H1", "H4", "D1"], "indicators_used": ["Price Spread", "Historical High/Low Range", "Compaction Coefficient"], "id": "EA-955", "summary_en": "This EA implements a pairs trading / statistical arbitrage strategy between two correlated currency pairs (e.g., EURUSD and GBPUSD). It measures the price deviation between a base and an indirect instrument using a compaction-normalized spread, opening hedged positions when deviation exceeds a dynamic signal border and closing when the spread reverts. Periodic re-optimization calibrates the relationship parameters from a rolling historical window."}
+{
+  "name": "BeeLine",
+  "category": "Statistical Arbitrage",
+  "category_zh": "统计套利",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA implements a pairs trading / statistical arbitrage strategy between two correlated currency pairs (e.g., EURUSD and GBPUSD). It measures the price deviation between a base and an indirect instrument using a compaction-normalized spread, opening hedged positions when deviation exceeds a dynamic signal border and closing when the spread reverts. Periodic re-optimization calibrates the relationship parameters from a rolling historical window.",
+  "summary_zh": "该EA实现了两个相关货币对（如EURUSD和GBPUSD）之间的配对交易/统计套利策略。通过压缩系数归一化后的价差衡量基础工具与间接工具之间的价格偏离，当偏离超过动态信号边界时开立对冲仓位，当价差回归时平仓。定期重新优化从滚动历史窗口中校准关系参数。",
+  "strategy_analysis": "策略核心是统计套利中的配对交易：选取两个具有相关性的货币对，通过历史价格区间计算压缩系数（Compaction），将间接工具的价格归一化到基础工具的价格尺度上，然后计算两者之间的偏离度（Deviation）。入场条件为：当前偏离度的绝对值超过信号边界（MaxDeviation），且当前偏离度大于前一根K线的偏离度（偏离在扩大），此时根据偏离方向和相关性符号决定买卖方向，同时在两个货币对上开立对冲仓位。出场条件有三个：一是价差交叉回归（偏离方向与持仓方向相反），二是偏离度缩小到信号边界的CloseCorr比例且持仓盈利，三是总盈利达到账户余额的Profit百分比。仓位管理方面，基础工具手数根据偏离倍数和已有持仓计算，间接工具手数通过压缩系数和Tick价值比进行换算归一化。资金管理支持固定手数和权益比例两种模式，且有最小/最大手数和手数步长的规范化处理。",
+  "strategy_analysis_en": "The core strategy is pairs trading within statistical arbitrage: it selects two correlated currency pairs and calculates a compaction coefficient from their historical price ranges, normalizing the indirect instrument's price onto the base instrument's price scale, then computing the deviation between them. Entry conditions require the absolute current deviation to exceed the dynamic signal border (MaxDeviation) and the current deviation to be larger than the previous bar's deviation (indicating divergence is expanding), at which point hedged positions are opened on both instruments based on deviation direction and correlation sign. Exit conditions are threefold: first, spread crossover reversion (deviation direction opposite to position direction); second, deviation shrinks below CloseCorr ratio of the signal border while the position is profitable; third, total profit reaches Profit percentage of account balance. Position sizing calculates the base instrument lot from the deviation multiple and existing positions, while the indirect instrument lot is converted and normalized using the compaction coefficient and tick value ratio. Money management supports both fixed lot and equity-proportional modes, with normalization for minimum/maximum lot sizes and lot step increments.",
+  "parameters": [
+    {
+      "name": "Symbol2",
+      "default_value": "GBPUSD",
+      "description": "间接工具（配对的第二个货币对）",
+      "description_en": "Indirect instrument (second currency pair in the pair)"
+    },
+    {
+      "name": "Cross",
+      "default_value": "",
+      "description": "替代两个货币对交易的交叉货币对",
+      "description_en": "Cross currency pair replacing two-pair trading"
+    },
+    {
+      "name": "CrossType",
+      "default_value": "true",
+      "description": "直接交叉汇率标志",
+      "description_en": "Direct cross rate flag"
+    },
+    {
+      "name": "MagicNumber",
+      "default_value": "1004",
+      "description": "EA标识符（魔数）",
+      "description_en": "EA unique identifier number"
+    },
+    {
+      "name": "Range",
+      "default_value": "640",
+      "description": "训练窗口（历史K线数量）",
+      "description_en": "Training window (number of historical bars)"
+    },
+    {
+      "name": "Profit",
+      "default_value": "3",
+      "description": "最大盈利百分比（相对账户余额）",
+      "description_en": "Max profit percentage (relative to account balance)"
+    },
+    {
+      "name": "CorrectLimit",
+      "default_value": "0.70",
+      "description": "信号边界修正系数",
+      "description_en": "Signal boundary correction coefficient"
+    },
+    {
+      "name": "CorrectDist",
+      "default_value": "1.20",
+      "description": "搜索最大偏离的长度系数",
+      "description_en": "Length coefficient for max deviation search"
+    },
+    {
+      "name": "Optimum",
+      "default_value": "120",
+      "description": "重新优化的间隔（K线数）",
+      "description_en": "Re-optimization interval (number of bars)"
+    },
+    {
+      "name": "MaxDeals",
+      "default_value": "3",
+      "description": "最大交易笔数（加仓次数）",
+      "description_en": "Max number of trades (position additions)"
+    },
+    {
+      "name": "CloseCorr",
+      "default_value": "0.618034",
+      "description": "偏离缩减平仓系数（黄金比例）",
+      "description_en": "Deviation reduction closing coefficient (golden ratio)"
+    },
+    {
+      "name": "Correlation",
+      "default_value": "1",
+      "description": "相关系数（1=正相关，-1=负相关）",
+      "description_en": "Correlation coefficient (1=positive, -1=negative)"
+    },
+    {
+      "name": "LOT",
+      "default_value": "0.02",
+      "description": "手数大小",
+      "description_en": "Lot size"
+    },
+    {
+      "name": "LOT_TYPE",
+      "default_value": "1",
+      "description": "手数类型：0=固定，1=权益比例",
+      "description_en": "Lot type: 0=fixed, 1=equity proportion"
+    }
+  ],
+  "pros": [
+    "统计套利策略逻辑完整，基于价差均值回归原理，具有坚实的统计学基础",
+    "支持正相关和负相关两种货币对关系，灵活性高",
+    "参数化程度高，信号边界、平仓系数、优化间隔等均可调整，适应不同市场环境"
+  ],
+  "pros_en": [
+    "Complete statistical arbitrage logic based on spread mean reversion, with solid statistical foundation",
+    "Supports both positive and negative correlation between currency pairs, offering high flexibility",
+    "Highly parameterized with adjustable signal border, close coefficient, and optimization interval to adapt to different market conditions"
+  ],
+  "cons": [
+    "缺少止损机制，如果价差持续发散而不回归，可能导致巨额亏损",
+    "压缩系数和信号边界基于历史窗口计算，在市场结构突变时可能失效",
+    "包含时间保护代码（2011年9月后随机化信号），属于有意限制，降低了策略在实盘中的可靠性"
+  ],
+  "cons_en": [
+    "No stop-loss mechanism; if the spread diverges persistently without reverting, catastrophic losses are possible",
+    "Compaction coefficient and signal border are calculated from a historical window, which may fail when market structure shifts abruptly",
+    "Contains time-based protection code (randomizing signals after September 2011), which intentionally limits strategy reliability in live trading"
+  ],
+  "improvements": [
+    "增加硬止损和最大回撤限制，防止单次交易亏损过大",
+    "添加价差稳定性检测和市场状态过滤器，避免在结构性突变时继续交易"
+  ],
+  "improvements_en": [
+    "Add hard stop-loss and maximum drawdown limits to prevent excessive single-trade losses",
+    "Add spread stability detection and market regime filters to avoid trading during structural regime changes"
+  ],
+  "risk_assessment": {
+    "overall": "medium",
+    "risk_points": [
+      "无止损机制，价差持续发散时亏损无上限",
+      "时间保护代码会在特定日期后随机化交易信号，造成不可预测的行为",
+      "加仓机制（MaxDeals=3）在价差持续偏离时可能累积过大仓位"
+    ],
+    "risk_points_en": [
+      "No stop-loss mechanism means unlimited losses if spread divergence persists",
+      "Time-based protection code randomizes trade signals after a specific date, causing unpredictable behavior",
+      "Position accumulation mechanism (MaxDeals=3) may build excessively large positions during sustained divergence"
+    ]
+  },
+  "scores": {
+    "code_quality": 3.0,
+    "strategy_logic": 4.0,
+    "risk_management": 2.0,
+    "robustness": 2.0,
+    "innovation": 4.0,
+    "documentation": 2.0,
+    "overall": 2.83
+  },
+  "rating": 3,
+  "timeframes": [
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "indicators_used": [
+    "Price Spread",
+    "Historical High/Low Range",
+    "Compaction Coefficient"
+  ],
+  "id": "EA-955",
+  "summary_en": "This EA implements a pairs trading / statistical arbitrage strategy between two correlated currency pairs (e.g., EURUSD and GBPUSD). It measures the price deviation between a base and an indirect instrument using a compaction-normalized spread, opening hedged positions when deviation exceeds a dynamic signal border and closing when the spread reverts. Periodic re-optimization calibrates the relationship parameters from a rolling historical window."
+}

@@ -1,1 +1,149 @@
-{"name": "MartingaleEA-5 Levels", "category": "Martingale", "category_zh": "马丁格尔", "is_trading": true, "trading_style": "systematic", "summary": "This EA implements a 5-level martingale strategy that adds to losing positions at predefined distance intervals with multiplied volume. It opens additional buy/sell positions when price moves against the initial trade by specified pip distances, doubling (or multiplying) the lot size each level. All positions of the same direction are closed when total profit or loss reaches a threshold.", "summary_zh": "该EA实现了5级马丁格尔策略，当价格逆向移动到预设距离时，以倍增仓位加仓。每当价格对初始头寸不利移动指定点数距离后，会以乘数倍增手数开立新的同向仓位。当同方向所有仓位总盈利或总亏损达到阈值时，全部平仓。", "strategy_analysis": "策略概念基于经典马丁格尔原理：亏损后加倍下注以期望一次回本。入场条件为：当已有的买入（或卖出）持仓处于亏损状态，且价格逆向移动达到累计距离阈值（如第1级300点、第2级700点等），则加开同方向仓位，手数为上一级乘以MartingaleVolumeMultiplier。出场条件为：所有同方向持仓的总盈利达到MartingaleTakeProfit（$200）或总亏损达到MartingaleStopLoss（-$500）时，全部平仓并重置计数器。仓位管理采用指数增长模式，每级手数乘以倍数（默认2倍），5级后手数可达初始的32倍。资金管理方面，止损线为总亏损-$500，但该止损可能因滑点和多级加仓而远远超出账户承受能力。代码中BCount和SCount用于限制加仓次数，但存在严重逻辑缺陷——每个tick都会遍历所有仓位并可能重复触发加仓条件。", "strategy_analysis_en": "The strategy is based on the classic martingale principle: doubling down after losses in hopes of recovering all losses with one winning trade. Entry conditions: when an existing buy (or sell) position is in loss and price has moved against it by cumulative distance thresholds (e.g., Level 1 at 300 pips, Level 2 at 700 pips, etc.), a new same-direction position is opened with volume multiplied by the MartingaleVolumeMultiplier. Exit conditions: all positions of the same direction are closed when total profit reaches MartingaleTakeProfit ($200) or total loss hits MartingaleStopLoss (-$500), after which counters and volumes reset. Position sizing follows exponential growth — each level multiplies the lot by the configured factor (default 2x), reaching 32x the initial volume by level 5. Money management relies on the total-loss threshold, but this stop-loss can be overwhelmed by slippage and the exponentially growing exposure across levels. A critical flaw exists in the counting logic — BCount and SCount are never reset between ticks properly, and the EA iterates all positions every tick without new-bar checks, risking duplicate entries.", "parameters": [{"name": "MartingaleMode", "default_value": "true", "description": "是否启用马丁格尔模式", "description_en": "Enable martingale mode"}, {"name": "Symbol_Name", "default_value": "EURUSD", "description": "交易品种名称", "description_en": "Trading symbol name to monitor"}, {"name": "MartingaleVolumeMultiplier", "default_value": "2", "description": "马丁格尔加仓手数倍数", "description_en": "martingaleposition additionlot size multiplier"}, {"name": "MargingaleNum", "default_value": "4", "description": "最大马丁格尔加仓次数（最多5次）", "description_en": "Maximum martingale add-on count (up to 5)"}, {"name": "MartingaleDis1", "default_value": "300", "description": "第1级加仓距离（点）", "description_en": "Level 1 add-on distance (points)"}, {"name": "MartingaleDis2", "default_value": "400", "description": "第2级加仓距离（点）", "description_en": "Level 2 add-on distance (points)"}, {"name": "MartingaleDis3", "default_value": "500", "description": "第3级加仓距离（点）", "description_en": "Level 3 add-on distance (points)"}, {"name": "MartingaleDis4", "default_value": "600", "description": "第4级加仓距离（点）", "description_en": "Level 4 add-on distance (points)"}, {"name": "MartingaleDis5", "default_value": "700", "description": "第5级加仓距离（点）", "description_en": "Level 5 add-on distance (points)"}, {"name": "MartingaleTakeProfit", "default_value": "200", "description": "同方向全部持仓止盈金额（美元）", "description_en": "Take profit amount for all same-direction positions (USD)"}, {"name": "MartingaleStopLoss", "default_value": "-500", "description": "同方向全部持仓止损金额（美元）", "description_en": "Stop loss amount for all same-direction positions (USD)"}], "pros": ["代码结构简单直观，易于理解马丁格尔逻辑", "设置了5级递增距离，加仓间距逐渐加大，给予市场一定回调空间", "有总盈利/亏损阈值平仓机制，提供了基本的风控框架"], "pros_en": ["Simple and intuitive code structure that makes the martingale logic easy to understand", "5-level progressively increasing distance intervals give the market room to retrace before next entry", "Total profit/loss threshold closing mechanism provides a basic risk control framework"], "cons": ["BCount/SCount在OnTick中不重置，导致加仓逻辑在后续tick中失效或错乱", "无新K线检测，每个tick都遍历全部仓位，可能重复下单或产生意外行为", "VOL变量从未初始化赋值，BMartingaleVol/SMartingaleVol初始值为0，首次加仓逻辑依赖第1级的特殊处理但后续级可能以0手数交易", "马丁格尔策略本身具有爆仓风险，5级2倍乘数下最后一级手数为初始32倍，极端行情下亏损呈指数增长", "使用Point()计算距离未考虑品种小数位数差异，在不同品种上可能产生错误距离"], "cons_en": ["BCount/SCount are never reset between ticks in OnTick, causing martingale level counting to malfunction after first cycle", "No new-bar detection — iterates all positions every tick, risking duplicate orders or unexpected behavior", "VOL variable is never assigned a value; BMartingaleVol/SMartingaleVol initialize to 0, which may cause zero-volume trades or logic failures", "Martingale strategy inherently carries blow-up risk — at 2x multiplier over 5 levels, final level is 32x initial size with exponential loss potential", "Using Point() for distance calculation doesn't account for symbol digit differences, producing incorrect distances on certain instruments"], "improvements": ["添加新K线检测机制（IsNewBar），避免每个tick重复触发交易逻辑", "修复VOL初始化问题，添加初始手数输入参数并在OnInit中初始化计数器变量", "将5级重复的if条件重构为循环结构，提高代码可维护性和可扩展性"], "improvements_en": ["Add new-bar detection (IsNewBar) to prevent trade logic from firing every tick", "Fix VOL initialization — add an input parameter for initial lot size and properly initialize counting variables in OnInit", "Refactor the 5 repeated if-blocks into a loop structure for better maintainability and extensibility"], "risk_assessment": {"overall": "dangerous", "risk_points": ["马丁格尔策略指数级加仓，极端行情下可能导致账户爆仓", "VOL未初始化可能导致零手数交易或不可预测行为", "BCount/SCount未在OnTick中重置，平仓后再次加仓逻辑将完全失效", "止损阈值-$500对于5级2倍加仓可能远不够，实际最大亏损可能远超此值"], "risk_points_en": ["Martingale exponential position sizing can blow up the account in extreme market conditions", "Uninitialized VOL variable may cause zero-volume trades or unpredictable behavior", "BCount/SCount not reset in OnTick, making re-entry logic after closing completely broken", "Stop-loss threshold of -$500 is likely insufficient for 5-level 2x martingale — actual max loss can far exceed this"]}, "scores": {"code_quality": 1.0, "strategy_logic": 2.0, "risk_management": 1.0, "robustness": 1.0, "innovation": 1.0, "documentation": 1.0, "overall": 1.17}, "rating": 1, "timeframes": ["M15", "H1", "H4", "D1"], "indicators_used": ["None"], "id": "EA-44558", "summary_en": "This EA implements a 5-level martingale strategy that adds to losing positions at predefined distance intervals with multiplied volume. It opens additional buy/sell positions when price moves against the initial trade by specified pip distances, doubling (or multiplying) the lot size each level. All positions of the same direction are closed when total profit or loss reaches a threshold."}
+{
+  "name": "MartingaleEA-5 Levels",
+  "category": "Martingale",
+  "category_zh": "马丁格尔",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA implements a 5-level martingale strategy that adds to losing positions at predefined distance intervals with multiplied volume. It opens additional buy/sell positions when price moves against the initial trade by specified pip distances, doubling (or multiplying) the lot size each level. All positions of the same direction are closed when total profit or loss reaches a threshold.",
+  "summary_zh": "该EA实现了5级马丁格尔策略，当价格逆向移动到预设距离时，以倍增仓位加仓。每当价格对初始头寸不利移动指定点数距离后，会以乘数倍增手数开立新的同向仓位。当同方向所有仓位总盈利或总亏损达到阈值时，全部平仓。",
+  "strategy_analysis": "策略概念基于经典马丁格尔原理：亏损后加倍下注以期望一次回本。入场条件为：当已有的买入（或卖出）持仓处于亏损状态，且价格逆向移动达到累计距离阈值（如第1级300点、第2级700点等），则加开同方向仓位，手数为上一级乘以MartingaleVolumeMultiplier。出场条件为：所有同方向持仓的总盈利达到MartingaleTakeProfit（$200）或总亏损达到MartingaleStopLoss（-$500）时，全部平仓并重置计数器。仓位管理采用指数增长模式，每级手数乘以倍数（默认2倍），5级后手数可达初始的32倍。资金管理方面，止损线为总亏损-$500，但该止损可能因滑点和多级加仓而远远超出账户承受能力。代码中BCount和SCount用于限制加仓次数，但存在严重逻辑缺陷——每个tick都会遍历所有仓位并可能重复触发加仓条件。",
+  "strategy_analysis_en": "The strategy is based on the classic martingale principle: doubling down after losses in hopes of recovering all losses with one winning trade. Entry conditions: when an existing buy (or sell) position is in loss and price has moved against it by cumulative distance thresholds (e.g., Level 1 at 300 pips, Level 2 at 700 pips, etc.), a new same-direction position is opened with volume multiplied by the MartingaleVolumeMultiplier. Exit conditions: all positions of the same direction are closed when total profit reaches MartingaleTakeProfit ($200) or total loss hits MartingaleStopLoss (-$500), after which counters and volumes reset. Position sizing follows exponential growth — each level multiplies the lot by the configured factor (default 2x), reaching 32x the initial volume by level 5. Money management relies on the total-loss threshold, but this stop-loss can be overwhelmed by slippage and the exponentially growing exposure across levels. A critical flaw exists in the counting logic — BCount and SCount are never reset between ticks properly, and the EA iterates all positions every tick without new-bar checks, risking duplicate entries.",
+  "parameters": [
+    {
+      "name": "MartingaleMode",
+      "default_value": "true",
+      "description": "是否启用马丁格尔模式",
+      "description_en": "Enable martingale mode"
+    },
+    {
+      "name": "Symbol_Name",
+      "default_value": "EURUSD",
+      "description": "交易品种名称",
+      "description_en": "Trading symbol name to monitor"
+    },
+    {
+      "name": "MartingaleVolumeMultiplier",
+      "default_value": "2",
+      "description": "马丁格尔加仓手数倍数",
+      "description_en": "martingaleposition additionlot size multiplier"
+    },
+    {
+      "name": "MargingaleNum",
+      "default_value": "4",
+      "description": "最大马丁格尔加仓次数（最多5次）",
+      "description_en": "Maximum martingale add-on count (up to 5)"
+    },
+    {
+      "name": "MartingaleDis1",
+      "default_value": "300",
+      "description": "第1级加仓距离（点）",
+      "description_en": "Level 1 add-on distance (points)"
+    },
+    {
+      "name": "MartingaleDis2",
+      "default_value": "400",
+      "description": "第2级加仓距离（点）",
+      "description_en": "Level 2 add-on distance (points)"
+    },
+    {
+      "name": "MartingaleDis3",
+      "default_value": "500",
+      "description": "第3级加仓距离（点）",
+      "description_en": "Level 3 add-on distance (points)"
+    },
+    {
+      "name": "MartingaleDis4",
+      "default_value": "600",
+      "description": "第4级加仓距离（点）",
+      "description_en": "Level 4 add-on distance (points)"
+    },
+    {
+      "name": "MartingaleDis5",
+      "default_value": "700",
+      "description": "第5级加仓距离（点）",
+      "description_en": "Level 5 add-on distance (points)"
+    },
+    {
+      "name": "MartingaleTakeProfit",
+      "default_value": "200",
+      "description": "同方向全部持仓止盈金额（美元）",
+      "description_en": "Take profit amount for all same-direction positions (USD)"
+    },
+    {
+      "name": "MartingaleStopLoss",
+      "default_value": "-500",
+      "description": "同方向全部持仓止损金额（美元）",
+      "description_en": "Stop loss amount for all same-direction positions (USD)"
+    }
+  ],
+  "pros": [
+    "代码结构简单直观，易于理解马丁格尔逻辑",
+    "设置了5级递增距离，加仓间距逐渐加大，给予市场一定回调空间",
+    "有总盈利/亏损阈值平仓机制，提供了基本的风控框架"
+  ],
+  "pros_en": [
+    "Simple and intuitive code structure that makes the martingale logic easy to understand",
+    "5-level progressively increasing distance intervals give the market room to retrace before next entry",
+    "Total profit/loss threshold closing mechanism provides a basic risk control framework"
+  ],
+  "cons": [
+    "BCount/SCount在OnTick中不重置，导致加仓逻辑在后续tick中失效或错乱",
+    "无新K线检测，每个tick都遍历全部仓位，可能重复下单或产生意外行为",
+    "VOL变量从未初始化赋值，BMartingaleVol/SMartingaleVol初始值为0，首次加仓逻辑依赖第1级的特殊处理但后续级可能以0手数交易",
+    "马丁格尔策略本身具有爆仓风险，5级2倍乘数下最后一级手数为初始32倍，极端行情下亏损呈指数增长",
+    "使用Point()计算距离未考虑品种小数位数差异，在不同品种上可能产生错误距离"
+  ],
+  "cons_en": [
+    "BCount/SCount are never reset between ticks in OnTick, causing martingale level counting to malfunction after first cycle",
+    "No new-bar detection — iterates all positions every tick, risking duplicate orders or unexpected behavior",
+    "VOL variable is never assigned a value; BMartingaleVol/SMartingaleVol initialize to 0, which may cause zero-volume trades or logic failures",
+    "Martingale strategy inherently carries blow-up risk — at 2x multiplier over 5 levels, final level is 32x initial size with exponential loss potential",
+    "Using Point() for distance calculation doesn't account for symbol digit differences, producing incorrect distances on certain instruments"
+  ],
+  "improvements": [
+    "添加新K线检测机制（IsNewBar），避免每个tick重复触发交易逻辑",
+    "修复VOL初始化问题，添加初始手数输入参数并在OnInit中初始化计数器变量",
+    "将5级重复的if条件重构为循环结构，提高代码可维护性和可扩展性"
+  ],
+  "improvements_en": [
+    "Add new-bar detection (IsNewBar) to prevent trade logic from firing every tick",
+    "Fix VOL initialization — add an input parameter for initial lot size and properly initialize counting variables in OnInit",
+    "Refactor the 5 repeated if-blocks into a loop structure for better maintainability and extensibility"
+  ],
+  "risk_assessment": {
+    "overall": "dangerous",
+    "risk_points": [
+      "马丁格尔策略指数级加仓，极端行情下可能导致账户爆仓",
+      "VOL未初始化可能导致零手数交易或不可预测行为",
+      "BCount/SCount未在OnTick中重置，平仓后再次加仓逻辑将完全失效",
+      "止损阈值-$500对于5级2倍加仓可能远不够，实际最大亏损可能远超此值"
+    ],
+    "risk_points_en": [
+      "Martingale exponential position sizing can blow up the account in extreme market conditions",
+      "Uninitialized VOL variable may cause zero-volume trades or unpredictable behavior",
+      "BCount/SCount not reset in OnTick, making re-entry logic after closing completely broken",
+      "Stop-loss threshold of -$500 is likely insufficient for 5-level 2x martingale — actual max loss can far exceed this"
+    ]
+  },
+  "scores": {
+    "code_quality": 1.0,
+    "strategy_logic": 2.0,
+    "risk_management": 1.0,
+    "robustness": 1.0,
+    "innovation": 1.0,
+    "documentation": 1.0,
+    "overall": 1.17
+  },
+  "rating": 1,
+  "timeframes": [
+    "M15",
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "indicators_used": [
+    "None"
+  ],
+  "id": "EA-44558",
+  "summary_en": "This EA implements a 5-level martingale strategy that adds to losing positions at predefined distance intervals with multiplied volume. It opens additional buy/sell positions when price moves against the initial trade by specified pip distances, doubling (or multiplying) the lot size each level. All positions of the same direction are closed when total profit or loss reaches a threshold."
+}

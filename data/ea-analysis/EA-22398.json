@@ -1,1 +1,104 @@
-{"name": "Volatility_HFT_EA", "category": "Scalping", "category_zh": "剥头皮", "is_trading": true, "trading_style": "systematic", "summary": "This EA uses two Simple Moving Averages (SMA 5 and SMA 25) to generate buy signals based on the deviation between the short-period MA and close price, combined with an upward MA slope condition. It operates on new bar events, executes market buy orders with fixed stop loss and MA-based take profit, and trades at minimum volume. The sell logic is entirely commented out, making it a buy-only scalping system.", "summary_zh": "该EA使用两条简单移动均线（SMA5和SMA25）生成买入信号，入场条件基于短期均线与收盘价的偏离值及均线上斜条件。它在新K线事件上运行，以固定止损和均线目标价执行市价买单，并以最小手数交易。卖出逻辑被完全注释掉，使其成为一个仅做多的剥头皮系统。", "strategy_analysis": "策略概念基于短期均线与价格之间的偏离作为波动性信号，当偏离值超过阈值（-0.0015）且短期均线呈上斜趋势时触发买入。入场条件为：val[0]（MA5与收盘价之差）小于-0.0015，且MA_Val1[0]大于MA_Val1[2]，表示价格低于均线且均线上升。出场条件依赖固定止损（15点，5/3位小数经纪商自动调整）和以MA5当前值作为止盈。仓位管理使用SymbolInfoDouble获取最小交易手数，未实现任何加仓或仓位调整逻辑。资金管理部分存在严重缺陷：margin变量未初始化即与free_margin比较，实际上条件判断形同虚设，几乎总是通过。卖出逻辑被完全注释掉，EA只做多不做空，策略不完整。", "strategy_analysis_en": "The strategy concept uses the deviation between a short-period SMA (period 5) and the close price as a volatility signal, triggering a buy when the deviation exceeds a threshold (-0.0015) and the MA is sloping upward. Entry conditions require val[0] (MA5 minus close) to be less than -0.0015, and MA_Val1[0] greater than MA_Val1[2], indicating the price is below the moving average while the MA is rising — a mean-reversion-within-trend approach. Exit conditions rely on a fixed stop loss of 15 points (auto-adjusted for 5/3-digit brokers) and the current MA5 value as take profit. Position sizing uses the broker's minimum lot size with no scaling or accumulation logic. Money management has a critical flaw: the margin variable is declared but never initialized before comparison with free_margin, making the margin check effectively useless since an uninitialized double could be anything. The sell logic is entirely commented out, leaving the EA as buy-only, making the strategy incomplete and asymmetric.", "parameters": [{"name": "StopLoss", "default_value": "15", "description": "止损点数", "description_en": "Stop loss in points"}, {"name": "TakeProfit", "default_value": "15", "description": "止盈点数（实际未使用，买单止盈以MA值为准）", "description_en": "Take profit in points (unused; buy TP follows MA value)"}, {"name": "EA_Magic", "default_value": "12345", "description": "EA魔术编号（实际买单硬编码为15489）", "description_en": "EA magic number (buy orders hardcoded to 15489)"}], "pros": ["使用新K线判断避免同一根K线重复交易，逻辑合理", "包含数据同步检查和重试机制，对历史数据加载有一定容错", "止损和止盈参数可配置，5/3位小数经纪商自动乘10调整", "交易前检查是否已有同方向持仓，防止重复开仓"], "pros_en": ["Uses new bar detection to prevent repeated trades on the same bar, which is logically sound", "Includes data synchronization checks and retry mechanism for historical data loading", "Stop loss and take profit are configurable with auto-adjustment for 5/3-digit brokers", "Checks for existing positions before opening new ones, preventing duplicate entries"], "cons": ["卖出逻辑被完全注释掉，EA只做多，策略严重不完整", "margin变量未初始化即用于条件判断，资金管理检查形同虚设", "EA_Magic参数未在买单中使用（硬编码15489），参数与实际行为不一致", "TakeProfit参数在买单中未使用（止盈设为MA值），参数名与功能不符", "偏离阈值-0.0015硬编码，对不同品种和价格水平不具适应性", "仅检查单品种单持仓，不支持多单同时存在的情况"], "cons_en": ["Sell logic is entirely commented out, making the EA buy-only and the strategy severely incomplete", "The margin variable is never initialized before comparison, rendering the money management check useless", "EA_Magic parameter is not used in buy orders (hardcoded as 15489), parameter does not match actual behavior", "TakeProfit parameter is unused in buy orders (TP set to MA value instead), parameter name is misleading", "The deviation threshold -0.0015 is hardcoded and not adaptive to different instruments or price levels", "Only checks for a single position per symbol, does not support scenarios with multiple concurrent orders"], "improvements": ["修复margin变量初始化问题，使用OrderCalcMargin正确计算所需保证金后再比较", "恢复卖出逻辑并使用EA_Magic参数，使策略完整且参数一致", "将偏离阈值改为可配置参数，或根据ATD/ATR动态计算以适应不同品种"], "improvements_en": ["Fix the margin variable initialization — use OrderCalcMargin() to properly calculate required margin before comparison with free margin", "Restore the sell logic and use the EA_Magic parameter consistently, making the strategy complete and parameters coherent", "Make the deviation threshold a configurable input parameter or dynamically calculate it based on ATR to adapt to different instruments"], "risk_assessment": {"overall": "caution", "risk_points": ["margin变量未初始化导致资金检查失效，可能在不满足保证金条件时下单", "硬编码止盈以MA值为目标，可能过于接近入场价导致频繁微利平仓", "仅做多策略在下跌行情中完全无法获利，存在方向性风险敞口", "ORDER_FILLING_FOK填充模式在某些经纪商可能被拒绝"], "risk_points_en": ["Uninitialized margin variable bypasses the margin check, potentially placing orders when insufficient funds exist", "Hardcoded MA-based take profit may be too close to entry price, causing frequent micro-profit exits", "Buy-only strategy cannot profit in downtrends, creating directional risk exposure", "ORDER_FILLING_FOK fill mode may be rejected by some brokers"]}, "scores": {"code_quality": 2.0, "strategy_logic": 1.0, "risk_management": 2.0, "robustness": 2.0, "innovation": 1.0, "documentation": 1.0, "overall": 1.5}, "rating": 1, "timeframes": ["M1", "M5", "M15"], "indicators_used": ["SMA"], "id": "EA-22398", "summary_en": "This EA uses two Simple Moving Averages (SMA 5 and SMA 25) to generate buy signals based on the deviation between the short-period MA and close price, combined with an upward MA slope condition. It operates on new bar events, executes market buy orders with fixed stop loss and MA-based take profit, and trades at minimum volume. The sell logic is entirely commented out, making it a buy-only scalping system."}
+{
+  "name": "Volatility_HFT_EA",
+  "category": "Scalping",
+  "category_zh": "剥头皮",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA uses two Simple Moving Averages (SMA 5 and SMA 25) to generate buy signals based on the deviation between the short-period MA and close price, combined with an upward MA slope condition. It operates on new bar events, executes market buy orders with fixed stop loss and MA-based take profit, and trades at minimum volume. The sell logic is entirely commented out, making it a buy-only scalping system.",
+  "summary_zh": "该EA使用两条简单移动均线（SMA5和SMA25）生成买入信号，入场条件基于短期均线与收盘价的偏离值及均线上斜条件。它在新K线事件上运行，以固定止损和均线目标价执行市价买单，并以最小手数交易。卖出逻辑被完全注释掉，使其成为一个仅做多的剥头皮系统。",
+  "strategy_analysis": "策略概念基于短期均线与价格之间的偏离作为波动性信号，当偏离值超过阈值（-0.0015）且短期均线呈上斜趋势时触发买入。入场条件为：val[0]（MA5与收盘价之差）小于-0.0015，且MA_Val1[0]大于MA_Val1[2]，表示价格低于均线且均线上升。出场条件依赖固定止损（15点，5/3位小数经纪商自动调整）和以MA5当前值作为止盈。仓位管理使用SymbolInfoDouble获取最小交易手数，未实现任何加仓或仓位调整逻辑。资金管理部分存在严重缺陷：margin变量未初始化即与free_margin比较，实际上条件判断形同虚设，几乎总是通过。卖出逻辑被完全注释掉，EA只做多不做空，策略不完整。",
+  "strategy_analysis_en": "The strategy concept uses the deviation between a short-period SMA (period 5) and the close price as a volatility signal, triggering a buy when the deviation exceeds a threshold (-0.0015) and the MA is sloping upward. Entry conditions require val[0] (MA5 minus close) to be less than -0.0015, and MA_Val1[0] greater than MA_Val1[2], indicating the price is below the moving average while the MA is rising — a mean-reversion-within-trend approach. Exit conditions rely on a fixed stop loss of 15 points (auto-adjusted for 5/3-digit brokers) and the current MA5 value as take profit. Position sizing uses the broker's minimum lot size with no scaling or accumulation logic. Money management has a critical flaw: the margin variable is declared but never initialized before comparison with free_margin, making the margin check effectively useless since an uninitialized double could be anything. The sell logic is entirely commented out, leaving the EA as buy-only, making the strategy incomplete and asymmetric.",
+  "parameters": [
+    {
+      "name": "StopLoss",
+      "default_value": "15",
+      "description": "止损点数",
+      "description_en": "Stop loss in points"
+    },
+    {
+      "name": "TakeProfit",
+      "default_value": "15",
+      "description": "止盈点数（实际未使用，买单止盈以MA值为准）",
+      "description_en": "Take profit in points (unused; buy TP follows MA value)"
+    },
+    {
+      "name": "EA_Magic",
+      "default_value": "12345",
+      "description": "EA魔术编号（实际买单硬编码为15489）",
+      "description_en": "EA magic number (buy orders hardcoded to 15489)"
+    }
+  ],
+  "pros": [
+    "使用新K线判断避免同一根K线重复交易，逻辑合理",
+    "包含数据同步检查和重试机制，对历史数据加载有一定容错",
+    "止损和止盈参数可配置，5/3位小数经纪商自动乘10调整",
+    "交易前检查是否已有同方向持仓，防止重复开仓"
+  ],
+  "pros_en": [
+    "Uses new bar detection to prevent repeated trades on the same bar, which is logically sound",
+    "Includes data synchronization checks and retry mechanism for historical data loading",
+    "Stop loss and take profit are configurable with auto-adjustment for 5/3-digit brokers",
+    "Checks for existing positions before opening new ones, preventing duplicate entries"
+  ],
+  "cons": [
+    "卖出逻辑被完全注释掉，EA只做多，策略严重不完整",
+    "margin变量未初始化即用于条件判断，资金管理检查形同虚设",
+    "EA_Magic参数未在买单中使用（硬编码15489），参数与实际行为不一致",
+    "TakeProfit参数在买单中未使用（止盈设为MA值），参数名与功能不符",
+    "偏离阈值-0.0015硬编码，对不同品种和价格水平不具适应性",
+    "仅检查单品种单持仓，不支持多单同时存在的情况"
+  ],
+  "cons_en": [
+    "Sell logic is entirely commented out, making the EA buy-only and the strategy severely incomplete",
+    "The margin variable is never initialized before comparison, rendering the money management check useless",
+    "EA_Magic parameter is not used in buy orders (hardcoded as 15489), parameter does not match actual behavior",
+    "TakeProfit parameter is unused in buy orders (TP set to MA value instead), parameter name is misleading",
+    "The deviation threshold -0.0015 is hardcoded and not adaptive to different instruments or price levels",
+    "Only checks for a single position per symbol, does not support scenarios with multiple concurrent orders"
+  ],
+  "improvements": [
+    "修复margin变量初始化问题，使用OrderCalcMargin正确计算所需保证金后再比较",
+    "恢复卖出逻辑并使用EA_Magic参数，使策略完整且参数一致",
+    "将偏离阈值改为可配置参数，或根据ATD/ATR动态计算以适应不同品种"
+  ],
+  "improvements_en": [
+    "Fix the margin variable initialization — use OrderCalcMargin() to properly calculate required margin before comparison with free margin",
+    "Restore the sell logic and use the EA_Magic parameter consistently, making the strategy complete and parameters coherent",
+    "Make the deviation threshold a configurable input parameter or dynamically calculate it based on ATR to adapt to different instruments"
+  ],
+  "risk_assessment": {
+    "overall": "caution",
+    "risk_points": [
+      "margin变量未初始化导致资金检查失效，可能在不满足保证金条件时下单",
+      "硬编码止盈以MA值为目标，可能过于接近入场价导致频繁微利平仓",
+      "仅做多策略在下跌行情中完全无法获利，存在方向性风险敞口",
+      "ORDER_FILLING_FOK填充模式在某些经纪商可能被拒绝"
+    ],
+    "risk_points_en": [
+      "Uninitialized margin variable bypasses the margin check, potentially placing orders when insufficient funds exist",
+      "Hardcoded MA-based take profit may be too close to entry price, causing frequent micro-profit exits",
+      "Buy-only strategy cannot profit in downtrends, creating directional risk exposure",
+      "ORDER_FILLING_FOK fill mode may be rejected by some brokers"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 1.0,
+    "risk_management": 2.0,
+    "robustness": 2.0,
+    "innovation": 1.0,
+    "documentation": 1.0,
+    "overall": 1.5
+  },
+  "rating": 1,
+  "timeframes": [
+    "M1",
+    "M5",
+    "M15"
+  ],
+  "indicators_used": [
+    "SMA"
+  ],
+  "id": "EA-22398",
+  "summary_en": "This EA uses two Simple Moving Averages (SMA 5 and SMA 25) to generate buy signals based on the deviation between the short-period MA and close price, combined with an upward MA slope condition. It operates on new bar events, executes market buy orders with fixed stop loss and MA-based take profit, and trades at minimum volume. The sell logic is entirely commented out, making it a buy-only scalping system."
+}

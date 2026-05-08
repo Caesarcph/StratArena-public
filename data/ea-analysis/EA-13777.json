@@ -1,1 +1,166 @@
-{"id": "EA-13777", "name": "", "summary": "", "strategy_analysis": "分析\n\n### 2.1 核心策略概念\n\n这是一个**布林带与移动平均线双重过滤的趋势跟踪策略**。策略使用自定义i_Trend指标作为信号源，该指标通过计算价格相对于布林带的位置与价格相对于MA的偏离度来生成交易信号。\n\n**核心算法逻辑**：\n1. **指标计算**（i_Trend指标）：\n   - Buffer A = 价格 - 布林带值（价格偏离布林带的程度）\n   - Buffer B = -(最高价+最低价-2×MA)（价格相对于MA的波动范围）\n\n2. **信号生成**：\n   - 当Buffer A > Buffer B时，市场处于上升趋势\n   - 当Buffer A从上方穿越Buffer B向下时，产生买入信号（回调入场）\n   - 当Buffer A从下方穿越Buffer B向上时，产生卖出信号（回调入场）\n\n### 2.2 入场条件\n\n**买入条件**：\n1. 前一柱：Ind[1] > Sign[1]（趋势向上）\n2. 当前柱：Ind[0] <= Sign[0]（指标线交叉确认）\n3. BuyPosOpen参数为true\n4. 没有多头持仓\n\n**卖出条件**：\n1. 前一柱：Ind[1] < Sign[1]（趋势向下）\n2. 当前柱：Ind[0] >= Sign[0]（指标线交叉确认）\n3. SellPosOpen参数为true\n4. 没有空头持仓\n\n### 2.3 出场条件\n\n**平多仓**：\n- 当产生卖出信号时（Ind从上方穿越Sign向下）\n- SellPosClose参数为true\n\n**平空仓**：\n- 当产生买入信号时（Ind从下方穿越Sign向上）\n- BuyPosClose参数为true\n\n**止损/止盈**：\n- 固定止损：1000点（默认）\n- 固定止盈：2000点（默认）\n- 风险比：1:2（合理）\n\n### 2.4 风险管理\n\n- **止损/止盈逻辑**：固定点数止损止盈，风险比1:2\n- **手数管理**：支持5种资金管理模式\n  - FREEMARGIN：按可用保证金计算\n  - BALANCE：按账户余额计算\n  - LOSSFREEMARGIN：按可用保证金亏损计算\n  - LOSSBALANCE：按余额亏损计算\n  - LOT：固定手数\n- **其他风控**：\n  - 新柱检测（避免同一柱重复交易）\n  - 交易时间级别检查\n  - 经纪商止损级别验证", "parameters": [{"name": "MM", "default_value": "double", "description": "资金管理比例（10%）"}, {"name": "MMMode", "default_value": "enum", "description": "资金管理模式"}, {"name": "StopLoss_", "default_value": "int", "description": "止损点数"}, {"name": "TakeProfit_", "default_value": "int", "description": "止盈点数"}, {"name": "Deviation_", "default_value": "int", "description": "滑点容忍度"}, {"name": "BuyPosOpen", "default_value": "bool", "description": "允许开多仓"}, {"name": "SellPosOpen", "default_value": "bool", "description": "允许开空仓"}, {"name": "BuyPosClose", "default_value": "bool", "description": "允许平多仓"}, {"name": "SellPosClose", "default_value": "bool", "description": "允许平空仓"}, {"name": "InpInd_Timeframe", "default_value": "enum", "description": "指标时间框架"}, {"name": "Price_Type", "default_value": "enum", "description": "价格类型（12种可选）"}, {"name": "MAPeriod", "default_value": "uint", "description": "MA周期"}, {"name": "MAType", "default_value": "enum", "description": "MA类型"}, {"name": "MAPrice", "default_value": "enum", "description": "MA应用价格"}, {"name": "BBPeriod", "default_value": "uint", "description": "布林带周期"}, {"name": "Deviation", "default_value": "double", "description": "布林带偏差"}, {"name": "BBPrice", "default_value": "enum", "description": "布林带应用价格"}, {"name": "BBMode", "default_value": "enum", "description": "布林带模式（主线/上线/下线）"}, {"name": "SignalBar", "default_value": "uint", "description": "信号K线索引"}], "pros": ["双重过滤机制：布林带+MA双重确认，减少假信号", "灵活的价格类型：12种价格类型适应不同市场环境", "完善的资金管理：5种MM模式满足不同风险偏好", "回调入场策略：不在极端位置入场，相对安全", "合理的风险比：1:2的止盈止损比", "模块化设计：使用tradealgorithms.mqh库，代码复用性好", "专业的交易函数：包含完整的错误处理和验证逻辑"], "cons": ["默认止损过大：1000点默认止损极度危险", "无趋势强度确认：缺少ADX等趋势强度指标", "震荡市表现差：横盘市场频繁交叉产生亏损", "指标逻辑复杂：两个Buffer的计算方式不够直观", "时间框架单一：只支持单一时间框架，无多周期确认", "缺少追踪止损：没有移动止损或追踪止损机制", "回撤可能较大：固定止损在趋势反转时可能造成连续亏损"], "improvements": [], "risk_assessment": {"overall": "dangerous", "risk_points": []}, "scores": {}, "rating": 0}
+{
+  "id": "EA-13777",
+  "name": "",
+  "summary": "",
+  "strategy_analysis": "分析\n\n### 2.1 核心策略概念\n\n这是一个**布林带与移动平均线双重过滤的趋势跟踪策略**。策略使用自定义i_Trend指标作为信号源，该指标通过计算价格相对于布林带的位置与价格相对于MA的偏离度来生成交易信号。\n\n**核心算法逻辑**：\n1. **指标计算**（i_Trend指标）：\n   - Buffer A = 价格 - 布林带值（价格偏离布林带的程度）\n   - Buffer B = -(最高价+最低价-2×MA)（价格相对于MA的波动范围）\n\n2. **信号生成**：\n   - 当Buffer A > Buffer B时，市场处于上升趋势\n   - 当Buffer A从上方穿越Buffer B向下时，产生买入信号（回调入场）\n   - 当Buffer A从下方穿越Buffer B向上时，产生卖出信号（回调入场）\n\n### 2.2 入场条件\n\n**买入条件**：\n1. 前一柱：Ind[1] > Sign[1]（趋势向上）\n2. 当前柱：Ind[0] <= Sign[0]（指标线交叉确认）\n3. BuyPosOpen参数为true\n4. 没有多头持仓\n\n**卖出条件**：\n1. 前一柱：Ind[1] < Sign[1]（趋势向下）\n2. 当前柱：Ind[0] >= Sign[0]（指标线交叉确认）\n3. SellPosOpen参数为true\n4. 没有空头持仓\n\n### 2.3 出场条件\n\n**平多仓**：\n- 当产生卖出信号时（Ind从上方穿越Sign向下）\n- SellPosClose参数为true\n\n**平空仓**：\n- 当产生买入信号时（Ind从下方穿越Sign向上）\n- BuyPosClose参数为true\n\n**止损/止盈**：\n- 固定止损：1000点（默认）\n- 固定止盈：2000点（默认）\n- 风险比：1:2（合理）\n\n### 2.4 风险管理\n\n- **止损/止盈逻辑**：固定点数止损止盈，风险比1:2\n- **手数管理**：支持5种资金管理模式\n  - FREEMARGIN：按可用保证金计算\n  - BALANCE：按账户余额计算\n  - LOSSFREEMARGIN：按可用保证金亏损计算\n  - LOSSBALANCE：按余额亏损计算\n  - LOT：固定手数\n- **其他风控**：\n  - 新柱检测（避免同一柱重复交易）\n  - 交易时间级别检查\n  - 经纪商止损级别验证",
+  "parameters": [
+    {
+      "name": "MM",
+      "default_value": "double",
+      "description": "资金管理比例（10%）",
+      "description_en": "Money management ratio (10%)"
+    },
+    {
+      "name": "MMMode",
+      "default_value": "enum",
+      "description": "资金管理模式",
+      "description_en": "Money management mode"
+    },
+    {
+      "name": "StopLoss_",
+      "default_value": "int",
+      "description": "止损点数",
+      "description_en": "Stop loss in points"
+    },
+    {
+      "name": "TakeProfit_",
+      "default_value": "int",
+      "description": "止盈点数",
+      "description_en": "Take profit in points"
+    },
+    {
+      "name": "Deviation_",
+      "default_value": "int",
+      "description": "滑点容忍度",
+      "description_en": "Slippage tolerance"
+    },
+    {
+      "name": "BuyPosOpen",
+      "default_value": "bool",
+      "description": "允许开多仓",
+      "description_en": "Allow buy position opening"
+    },
+    {
+      "name": "SellPosOpen",
+      "default_value": "bool",
+      "description": "允许开空仓",
+      "description_en": "Allow sell position opening"
+    },
+    {
+      "name": "BuyPosClose",
+      "default_value": "bool",
+      "description": "允许平多仓",
+      "description_en": "Allow buy position closing"
+    },
+    {
+      "name": "SellPosClose",
+      "default_value": "bool",
+      "description": "允许平空仓",
+      "description_en": "Allow sell position closing"
+    },
+    {
+      "name": "InpInd_Timeframe",
+      "default_value": "enum",
+      "description": "指标时间框架",
+      "description_en": "Indicator timeframe"
+    },
+    {
+      "name": "Price_Type",
+      "default_value": "enum",
+      "description": "价格类型（12种可选）",
+      "description_en": "Price type (12 options)"
+    },
+    {
+      "name": "MAPeriod",
+      "default_value": "uint",
+      "description": "MA周期",
+      "description_en": "MA period"
+    },
+    {
+      "name": "MAType",
+      "default_value": "enum",
+      "description": "MA类型",
+      "description_en": "MA type"
+    },
+    {
+      "name": "MAPrice",
+      "default_value": "enum",
+      "description": "MA应用价格",
+      "description_en": "MA applied price"
+    },
+    {
+      "name": "BBPeriod",
+      "default_value": "uint",
+      "description": "布林带周期",
+      "description_en": "Bollinger Bands period"
+    },
+    {
+      "name": "Deviation",
+      "default_value": "double",
+      "description": "布林带偏差",
+      "description_en": "Bollinger Bands deviation"
+    },
+    {
+      "name": "BBPrice",
+      "default_value": "enum",
+      "description": "布林带应用价格",
+      "description_en": "Bollinger Bands applied price"
+    },
+    {
+      "name": "BBMode",
+      "default_value": "enum",
+      "description": "布林带模式（主线/上线/下线）",
+      "description_en": "Bollinger Bands mode (main/upper/lower)"
+    },
+    {
+      "name": "SignalBar",
+      "default_value": "uint",
+      "description": "信号K线索引",
+      "description_en": "Signal bar index"
+    }
+  ],
+  "pros": [
+    "双重过滤机制：布林带+MA双重确认，减少假信号",
+    "灵活的价格类型：12种价格类型适应不同市场环境",
+    "完善的资金管理：5种MM模式满足不同风险偏好",
+    "回调入场策略：不在极端位置入场，相对安全",
+    "合理的风险比：1:2的止盈止损比",
+    "模块化设计：使用tradealgorithms.mqh库，代码复用性好",
+    "专业的交易函数：包含完整的错误处理和验证逻辑"
+  ],
+  "cons": [
+    "默认止损过大：1000点默认止损极度危险",
+    "无趋势强度确认：缺少ADX等趋势强度指标",
+    "震荡市表现差：横盘市场频繁交叉产生亏损",
+    "指标逻辑复杂：两个Buffer的计算方式不够直观",
+    "时间框架单一：只支持单一时间框架，无多周期确认",
+    "缺少追踪止损：没有移动止损或追踪止损机制",
+    "回撤可能较大：固定止损在趋势反转时可能造成连续亏损"
+  ],
+  "improvements": [],
+  "risk_assessment": {
+    "overall": "dangerous",
+    "risk_points": []
+  },
+  "scores": {},
+  "rating": 0,
+  "strategy_analysis_en": "[Strategy analysis available in Chinese — English translation pending]",
+  "pros_en": [
+    "Dual filter mechanism: Bollinger Bands + MA dual confirmation, reducing false signals",
+    "Flexible price types: 12 price types adapt to different market conditions",
+    "Comprehensive money management: 5 MM modes for different risk preferences",
+    "[Strength documented in Chinese — translation pending]",
+    "[Strength documented in Chinese — translation pending]",
+    "[Strength documented in Chinese — translation pending]",
+    "[Strength documented in Chinese — translation pending]"
+  ],
+  "cons_en": [
+    "Default stop loss too large: 1000-point default stop loss is extremely dangerous",
+    "No trend strength confirmation: lacks ADX or similar trend strength indicators",
+    "Poor ranging-market performance: frequent crossovers cause losses in sideways markets",
+    "[Weakness documented in Chinese — translation pending]",
+    "[Weakness documented in Chinese — translation pending]",
+    "[Weakness documented in Chinese — translation pending]",
+    "[Weakness documented in Chinese — translation pending]"
+  ]
+}

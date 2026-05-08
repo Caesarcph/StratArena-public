@@ -1,1 +1,183 @@
-{"name": "HTH Trader", "category": "Hedging", "category_zh": "对冲", "is_trading": true, "trading_style": "systematic", "summary": "A multi-symbol hedging EA that trades four currency pairs simultaneously based on daily deviation from previous day's close. It opens correlated hedge positions at the start of each trading day and closes all positions at 23:00 or when profit/loss thresholds are hit, with an emergency doubling mechanism for losing portfolios.", "summary_zh": "这是一个多品种对冲EA，基于前一交易日相对前两交易日的偏离度，在四个货币对上同时开仓对冲。每日开盘时段入场，23:00强制平仓，达到盈利或亏损阈值时也会全部平仓，并设有紧急加仓机制。", "strategy_analysis": "策略概念基于多品种相关性对冲，通过计算四个货币对（EURUSD、USDCHF、GBPUSD、AUDUSD）当日收盘价相对前一日收盘价的百分比偏离度来判断市场方向。入场条件为：在每日0:00-1:00之间的5-12分钟窗口内，根据前一日的偏离度方向（d_c11>0为正偏差，d_c11<0为负偏差）同时开立四个对冲仓位。正偏差时做多EURUSD和USDCHF、做空GBPUSD、做多AUDUSD；负偏差时方向完全反转。出场条件有三种：一是23:00强制全部平仓，二是总盈利达到InpProfit(80点)时平仓，三是总亏损达到InpLoss(40点)时平仓。仓位管理采用固定手数InpLot(0.01)，但在紧急情况下（总亏损达到emergency_loss=60点）会对盈利仓位加倍加仓，使用不同的魔法号(E_MagicNumber)标识。资金管理较为薄弱，没有止损和止盈价格设置（均为0.0），完全依赖程序化平仓逻辑。", "strategy_analysis_en": "The strategy concept is based on multi-symbol correlation hedging, calculating the percentage deviation of four currency pairs (EURUSD, USDCHF, GBPUSD, AUDUSD) from the previous day's close to determine market direction. Entry conditions: within the 0:00-1:00 time window (minutes 5-12), four hedged positions are simultaneously opened based on the previous day's deviation direction (d_c11>0 for positive deviation, d_c11<0 for negative deviation). For positive deviation, it buys EURUSD and USDCHF, sells GBPUSD, and buys AUDUSD; for negative deviation, all directions are reversed. Exit conditions are threefold: forced close at 23:00, profit target at InpProfit (80 pips), or loss limit at InpLoss (40 pips). Position sizing uses a fixed lot size of InpLot (0.01), but in emergency situations (total loss reaching emergency_loss=60 pips), profitable positions are doubled with a different magic number (E_MagicNumber). Money management is weak as there are no stop-loss or take-profit price levels set (all 0.0), relying entirely on programmatic closing logic.", "parameters": [{"name": "trade", "default_value": "true", "description": "是否允许交易", "description_en": "Allow trading"}, {"name": "InpSymbol_1", "default_value": "EURUSD", "description": "第一个交易品种", "description_en": "First trading symbol"}, {"name": "InpSymbol_2", "default_value": "USDCHF", "description": "第二个交易品种", "description_en": "Second trading symbol"}, {"name": "InpSymbol_3", "default_value": "GBPUSD", "description": "第三个交易品种", "description_en": "Third trading symbol"}, {"name": "InpSymbol_4", "default_value": "AUDUSD", "description": "第四个交易品种", "description_en": "Fourth trading symbol"}, {"name": "show_profit", "default_value": "true", "description": "是否显示盈亏信息", "description_en": "Display profit/loss information"}, {"name": "enable_profit", "default_value": "false", "description": "是否启用止盈平仓", "description_en": "Enable take profitexit"}, {"name": "enable_loss", "default_value": "false", "description": "是否启用止损平仓", "description_en": "Enable stop lossexit"}, {"name": "emergency_loss", "default_value": "60", "description": "紧急亏损阈值(点)", "description_en": "Emergency loss threshold in points"}, {"name": "InpProfit", "default_value": "80", "description": "止盈目标(点)", "description_en": "Take profit target in points"}, {"name": "InpLoss", "default_value": "40", "description": "止损阈值(点)", "description_en": "Stop loss threshold in points"}, {"name": "MagicNumber1", "default_value": "243", "description": "EURUSD魔术号", "description_en": "EURUSD magic number"}, {"name": "MagicNumber2", "default_value": "244", "description": "USDCHF魔术号", "description_en": "USDCHF magic number"}, {"name": "MagicNumber3", "default_value": "245", "description": "GBPUSD魔术号", "description_en": "GBPUSD magic number"}, {"name": "MagicNumber4", "default_value": "256", "description": "AUDUSD魔术号", "description_en": "AUDUSD magic number"}, {"name": "E_MagicNumber", "default_value": "257", "description": "紧急加仓魔术号", "description_en": "Emergency add-on position magic number"}, {"name": "InpLot", "default_value": "0.01", "description": "交易手数", "description_en": "Trading lot size"}], "pros": ["多品种对冲策略降低了单一品种方向性风险，利用货币对相关性进行分散化交易", "有明确的交易时间窗口限制（0:00-1:00之间5-12分钟），避免非流动性时段交易", "内置紧急加仓和盈亏阈值平仓机制，提供多层风险控制"], "pros_en": ["Multi-symbol hedging strategy reduces directional risk on a single instrument, utilizing currency pair correlations for diversified trading", "Has a clearly defined trading time window (between 0:00-1:00, minutes 5-12), avoiding low-liquidity periods", "Built-in emergency doubling and profit/loss threshold closing mechanisms provide layered risk control"], "cons": ["所有订单均未设置止损和止盈价格（均为0.0），若程序意外停止则仓位将无限暴露于风险中", "紧急加仓机制(DoublePositions)实际上是一种变相马丁格尔策略，在亏损时加倍盈利仓位可能放大整体风险", "DoublePositions函数中的符号过滤逻辑有严重BUG：symbol!=A || symbol!=B 恒为真，导致无法正确过滤非目标品种", "IsTradeAllowed函数中重复检查了TERMINAL_TRADE_ALLOWED（第460行和第465行完全相同），存在冗余代码", "仅在每日特定分钟窗口开仓，如果该窗口错过则当日不再交易，缺乏重试机制"], "cons_en": ["All orders have no stop-loss or take-profit price levels set (all 0.0), meaning positions are infinitely exposed to risk if the program stops unexpectedly", "The emergency doubling mechanism (DoublePositions) is effectively a variant Martingale strategy, doubling profitable positions during losses which can amplify overall risk", "Critical BUG in DoublePositions: the symbol filter condition (symbol!=A || symbol!=B) is always true due to logical OR, making it impossible to correctly filter non-target symbols", "Redundant code in IsTradeAllowed: TERMINAL_TRADE_ALLOWED is checked twice identically (line 460 and 465)", "Only opens positions within a narrow daily time window (minutes 5-12 of hour 0), with no retry mechanism if the window is missed"], "improvements": ["修复DoublePositions中的逻辑BUG：将symbol!=A || symbol!=B改为symbol!=A && symbol!=B，否则该函数会错误处理非目标品种的仓位", "为每个订单设置实际的止损和止盈价格，而非依赖程序化平仓，防止EA异常退出时仓位失控", "紧急加仓机制应增加最大加仓次数限制，避免连续亏损导致仓位无限扩大", "添加点差过滤和滑点控制，避免在高点差时段开仓"], "improvements_en": ["Fix the critical logical BUG in DoublePositions: change (symbol!=A || symbol!=B) to (symbol!=A && symbol!=B), otherwise the function incorrectly processes non-target symbol positions", "Set actual stop-loss and take-profit price levels for each order instead of relying solely on programmatic closing, preventing uncontrolled positions when the EA exits unexpectedly", "Add a maximum number of emergency doubling iterations to prevent unlimited position expansion during consecutive losses", "Add spread filter and slippage control to avoid opening positions during high-spread periods"], "risk_assessment": {"overall": "high", "risk_points": ["DoublePositions函数中逻辑运算符BUG导致可能对非目标品种执行紧急加仓，造成意外交易", "所有仓位无止损止盈，程序崩溃或断线时仓位完全无保护", "紧急加仓机制在亏损时加倍仓位，本质上增加了风险敞口而非降低风险"], "risk_points_en": ["Logical operator BUG in DoublePositions may execute emergency doubling on non-target symbols, causing unintended trades", "All positions have no stop-loss or take-profit, leaving them completely unprotected if the program crashes or disconnects", "The emergency doubling mechanism increases position size during losses, fundamentally increasing risk exposure rather than reducing it"]}, "scores": {"code_quality": 2.0, "strategy_logic": 2.0, "risk_management": 2.0, "robustness": 1.0, "innovation": 3.0, "documentation": 1.0, "overall": 1.83}, "rating": 2, "timeframes": ["D1", "M1"], "indicators_used": ["Close Price Deviation"], "id": "EA-18229", "summary_en": "A multi-symbol hedging EA that trades four currency pairs simultaneously based on daily deviation from previous day's close. It opens correlated hedge positions at the start of each trading day and closes all positions at 23:00 or when profit/loss thresholds are hit, with an emergency doubling mechanism for losing portfolios."}
+{
+  "name": "HTH Trader",
+  "category": "Hedging",
+  "category_zh": "对冲",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "A multi-symbol hedging EA that trades four currency pairs simultaneously based on daily deviation from previous day's close. It opens correlated hedge positions at the start of each trading day and closes all positions at 23:00 or when profit/loss thresholds are hit, with an emergency doubling mechanism for losing portfolios.",
+  "summary_zh": "这是一个多品种对冲EA，基于前一交易日相对前两交易日的偏离度，在四个货币对上同时开仓对冲。每日开盘时段入场，23:00强制平仓，达到盈利或亏损阈值时也会全部平仓，并设有紧急加仓机制。",
+  "strategy_analysis": "策略概念基于多品种相关性对冲，通过计算四个货币对（EURUSD、USDCHF、GBPUSD、AUDUSD）当日收盘价相对前一日收盘价的百分比偏离度来判断市场方向。入场条件为：在每日0:00-1:00之间的5-12分钟窗口内，根据前一日的偏离度方向（d_c11>0为正偏差，d_c11<0为负偏差）同时开立四个对冲仓位。正偏差时做多EURUSD和USDCHF、做空GBPUSD、做多AUDUSD；负偏差时方向完全反转。出场条件有三种：一是23:00强制全部平仓，二是总盈利达到InpProfit(80点)时平仓，三是总亏损达到InpLoss(40点)时平仓。仓位管理采用固定手数InpLot(0.01)，但在紧急情况下（总亏损达到emergency_loss=60点）会对盈利仓位加倍加仓，使用不同的魔法号(E_MagicNumber)标识。资金管理较为薄弱，没有止损和止盈价格设置（均为0.0），完全依赖程序化平仓逻辑。",
+  "strategy_analysis_en": "The strategy concept is based on multi-symbol correlation hedging, calculating the percentage deviation of four currency pairs (EURUSD, USDCHF, GBPUSD, AUDUSD) from the previous day's close to determine market direction. Entry conditions: within the 0:00-1:00 time window (minutes 5-12), four hedged positions are simultaneously opened based on the previous day's deviation direction (d_c11>0 for positive deviation, d_c11<0 for negative deviation). For positive deviation, it buys EURUSD and USDCHF, sells GBPUSD, and buys AUDUSD; for negative deviation, all directions are reversed. Exit conditions are threefold: forced close at 23:00, profit target at InpProfit (80 pips), or loss limit at InpLoss (40 pips). Position sizing uses a fixed lot size of InpLot (0.01), but in emergency situations (total loss reaching emergency_loss=60 pips), profitable positions are doubled with a different magic number (E_MagicNumber). Money management is weak as there are no stop-loss or take-profit price levels set (all 0.0), relying entirely on programmatic closing logic.",
+  "parameters": [
+    {
+      "name": "trade",
+      "default_value": "true",
+      "description": "是否允许交易",
+      "description_en": "Allow trading"
+    },
+    {
+      "name": "InpSymbol_1",
+      "default_value": "EURUSD",
+      "description": "第一个交易品种",
+      "description_en": "First trading symbol"
+    },
+    {
+      "name": "InpSymbol_2",
+      "default_value": "USDCHF",
+      "description": "第二个交易品种",
+      "description_en": "Second trading symbol"
+    },
+    {
+      "name": "InpSymbol_3",
+      "default_value": "GBPUSD",
+      "description": "第三个交易品种",
+      "description_en": "Third trading symbol"
+    },
+    {
+      "name": "InpSymbol_4",
+      "default_value": "AUDUSD",
+      "description": "第四个交易品种",
+      "description_en": "Fourth trading symbol"
+    },
+    {
+      "name": "show_profit",
+      "default_value": "true",
+      "description": "是否显示盈亏信息",
+      "description_en": "Display profit/loss information"
+    },
+    {
+      "name": "enable_profit",
+      "default_value": "false",
+      "description": "是否启用止盈平仓",
+      "description_en": "Enable take profitexit"
+    },
+    {
+      "name": "enable_loss",
+      "default_value": "false",
+      "description": "是否启用止损平仓",
+      "description_en": "Enable stop lossexit"
+    },
+    {
+      "name": "emergency_loss",
+      "default_value": "60",
+      "description": "紧急亏损阈值(点)",
+      "description_en": "Emergency loss threshold in points"
+    },
+    {
+      "name": "InpProfit",
+      "default_value": "80",
+      "description": "止盈目标(点)",
+      "description_en": "Take profit target in points"
+    },
+    {
+      "name": "InpLoss",
+      "default_value": "40",
+      "description": "止损阈值(点)",
+      "description_en": "Stop loss threshold in points"
+    },
+    {
+      "name": "MagicNumber1",
+      "default_value": "243",
+      "description": "EURUSD魔术号",
+      "description_en": "EURUSD magic number"
+    },
+    {
+      "name": "MagicNumber2",
+      "default_value": "244",
+      "description": "USDCHF魔术号",
+      "description_en": "USDCHF magic number"
+    },
+    {
+      "name": "MagicNumber3",
+      "default_value": "245",
+      "description": "GBPUSD魔术号",
+      "description_en": "GBPUSD magic number"
+    },
+    {
+      "name": "MagicNumber4",
+      "default_value": "256",
+      "description": "AUDUSD魔术号",
+      "description_en": "AUDUSD magic number"
+    },
+    {
+      "name": "E_MagicNumber",
+      "default_value": "257",
+      "description": "紧急加仓魔术号",
+      "description_en": "Emergency add-on position magic number"
+    },
+    {
+      "name": "InpLot",
+      "default_value": "0.01",
+      "description": "交易手数",
+      "description_en": "Trading lot size"
+    }
+  ],
+  "pros": [
+    "多品种对冲策略降低了单一品种方向性风险，利用货币对相关性进行分散化交易",
+    "有明确的交易时间窗口限制（0:00-1:00之间5-12分钟），避免非流动性时段交易",
+    "内置紧急加仓和盈亏阈值平仓机制，提供多层风险控制"
+  ],
+  "pros_en": [
+    "Multi-symbol hedging strategy reduces directional risk on a single instrument, utilizing currency pair correlations for diversified trading",
+    "Has a clearly defined trading time window (between 0:00-1:00, minutes 5-12), avoiding low-liquidity periods",
+    "Built-in emergency doubling and profit/loss threshold closing mechanisms provide layered risk control"
+  ],
+  "cons": [
+    "所有订单均未设置止损和止盈价格（均为0.0），若程序意外停止则仓位将无限暴露于风险中",
+    "紧急加仓机制(DoublePositions)实际上是一种变相马丁格尔策略，在亏损时加倍盈利仓位可能放大整体风险",
+    "DoublePositions函数中的符号过滤逻辑有严重BUG：symbol!=A || symbol!=B 恒为真，导致无法正确过滤非目标品种",
+    "IsTradeAllowed函数中重复检查了TERMINAL_TRADE_ALLOWED（第460行和第465行完全相同），存在冗余代码",
+    "仅在每日特定分钟窗口开仓，如果该窗口错过则当日不再交易，缺乏重试机制"
+  ],
+  "cons_en": [
+    "All orders have no stop-loss or take-profit price levels set (all 0.0), meaning positions are infinitely exposed to risk if the program stops unexpectedly",
+    "The emergency doubling mechanism (DoublePositions) is effectively a variant Martingale strategy, doubling profitable positions during losses which can amplify overall risk",
+    "Critical BUG in DoublePositions: the symbol filter condition (symbol!=A || symbol!=B) is always true due to logical OR, making it impossible to correctly filter non-target symbols",
+    "Redundant code in IsTradeAllowed: TERMINAL_TRADE_ALLOWED is checked twice identically (line 460 and 465)",
+    "Only opens positions within a narrow daily time window (minutes 5-12 of hour 0), with no retry mechanism if the window is missed"
+  ],
+  "improvements": [
+    "修复DoublePositions中的逻辑BUG：将symbol!=A || symbol!=B改为symbol!=A && symbol!=B，否则该函数会错误处理非目标品种的仓位",
+    "为每个订单设置实际的止损和止盈价格，而非依赖程序化平仓，防止EA异常退出时仓位失控",
+    "紧急加仓机制应增加最大加仓次数限制，避免连续亏损导致仓位无限扩大",
+    "添加点差过滤和滑点控制，避免在高点差时段开仓"
+  ],
+  "improvements_en": [
+    "Fix the critical logical BUG in DoublePositions: change (symbol!=A || symbol!=B) to (symbol!=A && symbol!=B), otherwise the function incorrectly processes non-target symbol positions",
+    "Set actual stop-loss and take-profit price levels for each order instead of relying solely on programmatic closing, preventing uncontrolled positions when the EA exits unexpectedly",
+    "Add a maximum number of emergency doubling iterations to prevent unlimited position expansion during consecutive losses",
+    "Add spread filter and slippage control to avoid opening positions during high-spread periods"
+  ],
+  "risk_assessment": {
+    "overall": "high",
+    "risk_points": [
+      "DoublePositions函数中逻辑运算符BUG导致可能对非目标品种执行紧急加仓，造成意外交易",
+      "所有仓位无止损止盈，程序崩溃或断线时仓位完全无保护",
+      "紧急加仓机制在亏损时加倍仓位，本质上增加了风险敞口而非降低风险"
+    ],
+    "risk_points_en": [
+      "Logical operator BUG in DoublePositions may execute emergency doubling on non-target symbols, causing unintended trades",
+      "All positions have no stop-loss or take-profit, leaving them completely unprotected if the program crashes or disconnects",
+      "The emergency doubling mechanism increases position size during losses, fundamentally increasing risk exposure rather than reducing it"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 2.0,
+    "risk_management": 2.0,
+    "robustness": 1.0,
+    "innovation": 3.0,
+    "documentation": 1.0,
+    "overall": 1.83
+  },
+  "rating": 2,
+  "timeframes": [
+    "D1",
+    "M1"
+  ],
+  "indicators_used": [
+    "Close Price Deviation"
+  ],
+  "id": "EA-18229",
+  "summary_en": "A multi-symbol hedging EA that trades four currency pairs simultaneously based on daily deviation from previous day's close. It opens correlated hedge positions at the start of each trading day and closes all positions at 23:00 or when profit/loss thresholds are hit, with an emergency doubling mechanism for losing portfolios."
+}

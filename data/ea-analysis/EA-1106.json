@@ -1,1 +1,139 @@
-{"name": "TradeChannel (GO)", "category": "Momentum", "category_zh": "动量", "is_trading": true, "trading_style": "systematic", "summary": "This EA calculates a composite momentum indicator called GO, derived from the weighted sum of price deviations across multiple moving averages (Close, Open, High, Low) multiplied by volume. It opens a buy when GO exceeds a configurable positive level and opens a sell when GO falls below the negative of that level, closing positions when the GO value crosses back past a separate closing threshold.", "summary_zh": "该EA计算一个名为GO的复合动量指标，由多条均线（收盘价、开盘价、最高价、最低价）的偏差加权求和后乘以成交量得出。当GO值超过设定的正阈值时开多仓，低于负阈值时开空仓，当GO值反向穿越平仓阈值时平仓。", "strategy_analysis": "策略核心是GO指标，公式为GO=((C-O)+(H-O)+(L-O)+(C-L)+(C-H))*V，其中C、O、H、L分别为收盘价、开盘价、最高价、最低价的移动平均值，V为信号K线的成交量。该公式本质上是衡量价格相对于开盘价的偏移程度以及收盘价相对于高低价的偏向，再乘以成交量进行加权，从而捕捉带成交量确认的动量信号。入场条件为GO>OpenLevel时买入，GO<-OpenLevel时卖出，OpenLevel默认为0即任何正值开多、负值开空。出场条件为持多仓时GO<(OpenLevel-CloseLevelDif)平多，持空仓时GO>-(OpenLevel-CloseLevelDif)平空。仓位管理支持固定手数和基于自由保证金的风险比例计算两种模式。止损止盈参数默认为0即不设止损止盈，这是该策略的显著风险缺陷。资金管理通过MaximumRisk参数按账户自由保证金的百分比动态计算手数，并进行了手数标准化处理。", "strategy_analysis_en": "The strategy centers on the GO indicator, calculated as GO=((C-O)+(H-O)+(L-O)+(C-L)+(C-H))*V, where C, O, H, L are moving average values of Close, Open, High, and Low prices respectively, and V is the volume of the signal bar. This formula essentially measures how much price deviates from the open and whether the close leans toward the high or low, then weights the result by volume to capture momentum with volume confirmation. Entry conditions trigger a buy when GO exceeds OpenLevel and a sell when GO falls below -OpenLevel; with the default OpenLevel of 0, any positive GO opens a long and any negative GO opens a short. Exit conditions close a long position when GO drops below (OpenLevel-CloseLevelDif) and close a short when GO rises above -(OpenLevel-CloseLevelDif). Position sizing supports both fixed lot mode and a risk-based mode that calculates lots from free margin multiplied by MaximumRisk divided by 1000. StopLoss and TakeProfit default to zero, meaning positions have no protective stops, which is a significant risk deficiency. Lot normalization rounds the calculated lot size to the symbol's volume step and clamps it between minimum and maximum volume limits.", "parameters": [{"name": "Lots", "default_value": "0.1", "description": "固定手数，为0时使用动态计算", "description_en": "Fixed trading lot size"}, {"name": "MaximumRisk", "default_value": "0.05", "description": "风险比例，当Lots=0时按自由保证金的该比例计算手数", "description_en": "Risk percentage for dynamic lot sizing based on free margin"}, {"name": "Shift", "default_value": "1", "description": "指标检查的K线偏移：0为当前未完成K线，1为最近已完成K线", "description_en": "Price jump threshold in points; exceeds to trigger reverse entry"}, {"name": "MAPeriod", "default_value": "174", "description": "移动平均线周期", "description_en": "Moving average period"}, {"name": "MAShift", "default_value": "0", "description": "移动平均线偏移", "description_en": "Moving average shift"}, {"name": "MAMethod", "default_value": "MODE_EMA", "description": "移动平均线方法", "description_en": "Moving average method"}, {"name": "VolVolume", "default_value": "VOLUME_TICK", "description": "成交量类型（跳价成交量或真实成交量）", "description_en": "Volume type: tick volume or real volume"}, {"name": "OpenLevel", "default_value": "0", "description": "开仓阈值，GO大于该值开多，小于负该值开空", "description_en": "Opening threshold; GO above = long, below negative = short"}, {"name": "CloseLevelDif", "default_value": "0", "description": "平仓阈值与开仓阈值的差值，正值使平仓阈值低于开仓阈值", "description_en": "Difference between close and open thresholds; positive lowers close threshold"}, {"name": "ShowGO", "default_value": "true", "description": "是否在图表注释中显示GO值", "description_en": "Whether to display GO value in chart comments"}], "pros": ["GO指标综合了价格多个维度的偏移和成交量确认，比单一指标更具信息量", "支持基于风险比例的动态仓位计算，具备基本资金管理框架", "使用已完成K线（Shift=1）作为信号源，避免未完成K线的反复信号"], "pros_en": ["The GO indicator integrates multi-dimensional price deviations with volume confirmation, providing more information than a single indicator", "Supports dynamic position sizing based on risk percentage with a proper lot normalization function", "Uses completed bars (Shift=1) as signal source, avoiding repeated signals from unformed bars"], "cons": ["止损止盈默认为0，持仓完全没有保护，极端行情下可能遭受巨大亏损", "卖单建仓时错误地调用了SolveBuySL和SolveBuyTP而非SolveSellSL和SolveSellTP，这是严重的代码bug", "GO指标公式中(C-L)+(C-H)与(C-O)等项存在数学冗余，展开后等价于3C-2O-L，含义不够直观", "没有回撤控制、最大持仓限制或连续亏损保护机制"], "cons_en": ["StopLoss and TakeProfit default to zero, leaving positions completely unprotected during extreme market moves", "Critical bug: sell order block mistakenly calls SolveBuySL/SolveBuyTP instead of SolveSellSL/SolveSellTP, resulting in wrong SL/TP calculation", "The GO formula has mathematical redundancy — expanding (C-O)+(H-O)+(L-O)+(C-L)+(C-H) simplifies to 3C-2O-L, making the multi-component presentation misleading", "No drawdown control, maximum position limits, or consecutive loss protection mechanisms exist"], "improvements": ["修复卖单部分调用错误的SL/TP函数，应使用SolveSellSL和SolveSellTP", "添加非零默认止损止盈参数，并增加移动止损功能以保护利润", "简化GO公式或重新定义使其经济含义更清晰，并添加信号过滤条件（如趋势确认、波动率过滤）"], "improvements_en": ["Fix the sell order block to call SolveSellSL/SolveSellTP instead of the buy variants — this is a critical correctness bug", "Add non-zero default StopLoss/TakeProfit and implement a trailing stop to protect profits", "Simplify or redefine the GO formula for clearer economic interpretation, and add signal filters such as trend confirmation or volatility thresholds"], "risk_assessment": {"overall": "high", "risk_points": ["止损止盈默认为0，持仓无任何保护，单笔亏损无上限", "卖单SL/TP计算函数调用错误，可能导致止损设在错误方向", "无最大回撤限制、无日亏损限制、无连续亏损保护"], "risk_points_en": ["StopLoss and TakeProfit default to zero with no position protection, exposing unlimited single-trade loss potential", "Sell order block calls wrong SL/TP functions (buy instead of sell), potentially placing stops in the wrong direction", "No maximum drawdown limit, daily loss limit, or consecutive loss protection exists"]}, "scores": {"code_quality": 2.0, "strategy_logic": 2.0, "risk_management": 1.0, "robustness": 2.0, "innovation": 3.0, "documentation": 3.0, "overall": 2.17}, "rating": 2, "timeframes": ["H1", "H4", "D1"], "indicators_used": ["EMA", "iVolumes"], "id": "EA-1106", "summary_en": "This EA calculates a composite momentum indicator called GO, derived from the weighted sum of price deviations across multiple moving averages (Close, Open, High, Low) multiplied by volume. It opens a buy when GO exceeds a configurable positive level and opens a sell when GO falls below the negative of that level, closing positions when the GO value crosses back past a separate closing threshold."}
+{
+  "name": "TradeChannel (GO)",
+  "category": "Momentum",
+  "category_zh": "动量",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA calculates a composite momentum indicator called GO, derived from the weighted sum of price deviations across multiple moving averages (Close, Open, High, Low) multiplied by volume. It opens a buy when GO exceeds a configurable positive level and opens a sell when GO falls below the negative of that level, closing positions when the GO value crosses back past a separate closing threshold.",
+  "summary_zh": "该EA计算一个名为GO的复合动量指标，由多条均线（收盘价、开盘价、最高价、最低价）的偏差加权求和后乘以成交量得出。当GO值超过设定的正阈值时开多仓，低于负阈值时开空仓，当GO值反向穿越平仓阈值时平仓。",
+  "strategy_analysis": "策略核心是GO指标，公式为GO=((C-O)+(H-O)+(L-O)+(C-L)+(C-H))*V，其中C、O、H、L分别为收盘价、开盘价、最高价、最低价的移动平均值，V为信号K线的成交量。该公式本质上是衡量价格相对于开盘价的偏移程度以及收盘价相对于高低价的偏向，再乘以成交量进行加权，从而捕捉带成交量确认的动量信号。入场条件为GO>OpenLevel时买入，GO<-OpenLevel时卖出，OpenLevel默认为0即任何正值开多、负值开空。出场条件为持多仓时GO<(OpenLevel-CloseLevelDif)平多，持空仓时GO>-(OpenLevel-CloseLevelDif)平空。仓位管理支持固定手数和基于自由保证金的风险比例计算两种模式。止损止盈参数默认为0即不设止损止盈，这是该策略的显著风险缺陷。资金管理通过MaximumRisk参数按账户自由保证金的百分比动态计算手数，并进行了手数标准化处理。",
+  "strategy_analysis_en": "The strategy centers on the GO indicator, calculated as GO=((C-O)+(H-O)+(L-O)+(C-L)+(C-H))*V, where C, O, H, L are moving average values of Close, Open, High, and Low prices respectively, and V is the volume of the signal bar. This formula essentially measures how much price deviates from the open and whether the close leans toward the high or low, then weights the result by volume to capture momentum with volume confirmation. Entry conditions trigger a buy when GO exceeds OpenLevel and a sell when GO falls below -OpenLevel; with the default OpenLevel of 0, any positive GO opens a long and any negative GO opens a short. Exit conditions close a long position when GO drops below (OpenLevel-CloseLevelDif) and close a short when GO rises above -(OpenLevel-CloseLevelDif). Position sizing supports both fixed lot mode and a risk-based mode that calculates lots from free margin multiplied by MaximumRisk divided by 1000. StopLoss and TakeProfit default to zero, meaning positions have no protective stops, which is a significant risk deficiency. Lot normalization rounds the calculated lot size to the symbol's volume step and clamps it between minimum and maximum volume limits.",
+  "parameters": [
+    {
+      "name": "Lots",
+      "default_value": "0.1",
+      "description": "固定手数，为0时使用动态计算",
+      "description_en": "Fixed trading lot size"
+    },
+    {
+      "name": "MaximumRisk",
+      "default_value": "0.05",
+      "description": "风险比例，当Lots=0时按自由保证金的该比例计算手数",
+      "description_en": "Risk percentage for dynamic lot sizing based on free margin"
+    },
+    {
+      "name": "Shift",
+      "default_value": "1",
+      "description": "指标检查的K线偏移：0为当前未完成K线，1为最近已完成K线",
+      "description_en": "Price jump threshold in points; exceeds to trigger reverse entry"
+    },
+    {
+      "name": "MAPeriod",
+      "default_value": "174",
+      "description": "移动平均线周期",
+      "description_en": "Moving average period"
+    },
+    {
+      "name": "MAShift",
+      "default_value": "0",
+      "description": "移动平均线偏移",
+      "description_en": "Moving average shift"
+    },
+    {
+      "name": "MAMethod",
+      "default_value": "MODE_EMA",
+      "description": "移动平均线方法",
+      "description_en": "Moving average method"
+    },
+    {
+      "name": "VolVolume",
+      "default_value": "VOLUME_TICK",
+      "description": "成交量类型（跳价成交量或真实成交量）",
+      "description_en": "Volume type: tick volume or real volume"
+    },
+    {
+      "name": "OpenLevel",
+      "default_value": "0",
+      "description": "开仓阈值，GO大于该值开多，小于负该值开空",
+      "description_en": "Opening threshold; GO above = long, below negative = short"
+    },
+    {
+      "name": "CloseLevelDif",
+      "default_value": "0",
+      "description": "平仓阈值与开仓阈值的差值，正值使平仓阈值低于开仓阈值",
+      "description_en": "Difference between close and open thresholds; positive lowers close threshold"
+    },
+    {
+      "name": "ShowGO",
+      "default_value": "true",
+      "description": "是否在图表注释中显示GO值",
+      "description_en": "Whether to display GO value in chart comments"
+    }
+  ],
+  "pros": [
+    "GO指标综合了价格多个维度的偏移和成交量确认，比单一指标更具信息量",
+    "支持基于风险比例的动态仓位计算，具备基本资金管理框架",
+    "使用已完成K线（Shift=1）作为信号源，避免未完成K线的反复信号"
+  ],
+  "pros_en": [
+    "The GO indicator integrates multi-dimensional price deviations with volume confirmation, providing more information than a single indicator",
+    "Supports dynamic position sizing based on risk percentage with a proper lot normalization function",
+    "Uses completed bars (Shift=1) as signal source, avoiding repeated signals from unformed bars"
+  ],
+  "cons": [
+    "止损止盈默认为0，持仓完全没有保护，极端行情下可能遭受巨大亏损",
+    "卖单建仓时错误地调用了SolveBuySL和SolveBuyTP而非SolveSellSL和SolveSellTP，这是严重的代码bug",
+    "GO指标公式中(C-L)+(C-H)与(C-O)等项存在数学冗余，展开后等价于3C-2O-L，含义不够直观",
+    "没有回撤控制、最大持仓限制或连续亏损保护机制"
+  ],
+  "cons_en": [
+    "StopLoss and TakeProfit default to zero, leaving positions completely unprotected during extreme market moves",
+    "Critical bug: sell order block mistakenly calls SolveBuySL/SolveBuyTP instead of SolveSellSL/SolveSellTP, resulting in wrong SL/TP calculation",
+    "The GO formula has mathematical redundancy — expanding (C-O)+(H-O)+(L-O)+(C-L)+(C-H) simplifies to 3C-2O-L, making the multi-component presentation misleading",
+    "No drawdown control, maximum position limits, or consecutive loss protection mechanisms exist"
+  ],
+  "improvements": [
+    "修复卖单部分调用错误的SL/TP函数，应使用SolveSellSL和SolveSellTP",
+    "添加非零默认止损止盈参数，并增加移动止损功能以保护利润",
+    "简化GO公式或重新定义使其经济含义更清晰，并添加信号过滤条件（如趋势确认、波动率过滤）"
+  ],
+  "improvements_en": [
+    "Fix the sell order block to call SolveSellSL/SolveSellTP instead of the buy variants — this is a critical correctness bug",
+    "Add non-zero default StopLoss/TakeProfit and implement a trailing stop to protect profits",
+    "Simplify or redefine the GO formula for clearer economic interpretation, and add signal filters such as trend confirmation or volatility thresholds"
+  ],
+  "risk_assessment": {
+    "overall": "high",
+    "risk_points": [
+      "止损止盈默认为0，持仓无任何保护，单笔亏损无上限",
+      "卖单SL/TP计算函数调用错误，可能导致止损设在错误方向",
+      "无最大回撤限制、无日亏损限制、无连续亏损保护"
+    ],
+    "risk_points_en": [
+      "StopLoss and TakeProfit default to zero with no position protection, exposing unlimited single-trade loss potential",
+      "Sell order block calls wrong SL/TP functions (buy instead of sell), potentially placing stops in the wrong direction",
+      "No maximum drawdown limit, daily loss limit, or consecutive loss protection exists"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 2.0,
+    "risk_management": 1.0,
+    "robustness": 2.0,
+    "innovation": 3.0,
+    "documentation": 3.0,
+    "overall": 2.17
+  },
+  "rating": 2,
+  "timeframes": [
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "indicators_used": [
+    "EMA",
+    "iVolumes"
+  ],
+  "id": "EA-1106",
+  "summary_en": "This EA calculates a composite momentum indicator called GO, derived from the weighted sum of price deviations across multiple moving averages (Close, Open, High, Low) multiplied by volume. It opens a buy when GO exceeds a configurable positive level and opens a sell when GO falls below the negative of that level, closing positions when the GO value crosses back past a separate closing threshold."
+}

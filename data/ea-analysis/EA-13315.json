@@ -1,1 +1,173 @@
-{"name": "Well Martin", "category": "Martingale", "category_zh": "马丁格尔", "is_trading": true, "trading_style": "systematic", "summary": "This EA uses Bollinger Bands and ADX for mean-reversion entry signals, buying when price touches the lower band and selling when it touches the upper band, filtered by low ADX indicating a ranging market. It employs a Martingale position sizing system that multiplies the lot size by a factor (KLot) after each losing trade, capped at MaxLot. A stealth mode option hides actual SL/TP from the broker while managing exits internally via chart labels.", "summary_zh": "该EA使用布林带和ADX指标进行均值回归入场，价格触及下轨时买入、触及上轨时卖出，并以低ADX值作为震荡市过滤条件。采用马丁格尔仓位管理，亏损后将手数乘以倍率（KLot），直到达到最大手数上限后重置。提供隐身模式，不在订单上显示止损止盈，而是通过图表标签和内部逻辑管理出场。", "strategy_analysis": "策略概念基于布林带均值回归，当价格偏离均值到达布林带边界时预期回归。入场条件为：买入信号要求Ask价低于前一根K线的布林带下轨且ADX值低于阈值（表明市场处于震荡状态），同时上一笔交易非买入类型；卖出信号则要求Bid价高于前一根K线的布林带上轨且ADX低于阈值，同时上一笔交易非卖出类型。出场条件包括固定点数的止损和止盈，或在隐身模式下通过内部计算盈亏点数来手动平仓。仓位管理采用马丁格尔策略，亏损后手数按KLot倍率递增，盈利后重置为基础手数Lot，同时设置了MaxLot上限防止过度加仓，超过上限后回退到基础手数。资金管理方面没有净值回撤控制，仅依赖MaxLot作为安全阀，但MaxLot回退到基础手数后若继续亏损会重新从基础手数开始加倍，风险累积效应显著。", "strategy_analysis_en": "The strategy concept is based on Bollinger Bands mean reversion, expecting price to return to the mean when it reaches the band boundaries. Entry conditions: a buy signal requires Ask price below the previous bar's lower Bollinger Band and ADX below the threshold (indicating a ranging market), plus the last deal was not a buy; a sell signal requires Bid above the previous bar's upper Bollinger Band and ADX below the threshold, plus the last deal was not a sell. Exit conditions include fixed pip-based stop loss and take profit, or in stealth mode the EA internally calculates profit/loss in points and closes positions manually without broker-visible SL/TP. Position sizing follows a Martingale system where the lot size is multiplied by KLot after a loss, resets to the base Lot after a profit, and is capped at MaxLot — exceeding which it reverts to the base lot. Money management lacks equity drawdown controls, relying solely on MaxLot as a safety valve, but once MaxLot is exceeded and the lot reverts to base, consecutive losses restart the doubling cycle, creating significant cumulative risk.", "parameters": [{"name": "BBPeriod", "default_value": "84", "description": "布林带周期", "description_en": "Bollinger Bands period"}, {"name": "BBShift", "default_value": "0", "description": "布林带偏移量", "description_en": "Bollinger Bands shift"}, {"name": "BBDev", "default_value": "1.8", "description": "布林带标准差倍数", "description_en": "Bollinger Bands standard deviation multiplier"}, {"name": "ADXPeriod", "default_value": "40", "description": "ADX周期", "description_en": "ADX period"}, {"name": "ADXLevel", "default_value": "45", "description": "ADX阈值，低于此值视为震荡市", "description_en": "ADX threshold; below this = ranging market"}, {"name": "TP", "default_value": "1200", "description": "止盈点数", "description_en": "Take profit in points"}, {"name": "SL", "default_value": "1400", "description": "止损点数", "description_en": "Stop loss in points"}, {"name": "Slip", "default_value": "50", "description": "滑点容忍值", "description_en": "Slippage tolerance"}, {"name": "Stelth", "default_value": "0", "description": "隐身模式开关，1为隐藏止损止盈", "description_en": "Stealth mode switch; 1 = hide SL/TP"}, {"name": "KLot", "default_value": "2", "description": "马丁格尔加仓倍率", "description_en": "Martingale lot multiplier"}, {"name": "MaxLot", "default_value": "5", "description": "最大手数限制", "description_en": "Maximum lot size limit"}, {"name": "Lot", "default_value": "0.1", "description": "初始手数", "description_en": "Initial lot size"}, {"name": "LableClr", "default_value": "clrGreen", "description": "标签颜色", "description_en": "Label color"}], "pros": ["使用布林带和ADX组合过滤信号，在震荡市中寻找回归机会，逻辑清晰", "提供隐身模式保护止损止盈不被经纪商看到，减少被针对的风险", "新K线检查机制避免了同根K线内重复开仓", "MaxLot参数为马丁格尔策略提供了硬性上限保护", "代码结构简洁，逻辑分层清晰，易于理解和修改"], "pros_en": ["Bollinger Bands + ADX combination provides clear mean-reversion signals filtered for ranging markets", "Stealth mode hides SL/TP from the broker, reducing the risk of stop hunting", "New bar check prevents multiple entries within the same candle", "MaxLot parameter provides a hard cap to limit Martingale exposure", "Clean code structure with well-separated logic, easy to understand and modify"], "cons": ["马丁格尔仓位管理在连续亏损时会导致手数指数级增长，存在爆仓风险", "IsNewBar函数存在严重Bug——m_TOld为局部变量每次调用都重置为0，导致新K线检测失效", "PutLable函数中ObjectSetInteger代码写在return之后，永远不会被执行", "没有账户净值回撤保护机制，MaxLot回退后马丁格尔循环重新开始", "Volume函数通过HistoryDealGetTicket(orders-1)获取最后一笔交易，可能获取到入场交易而非出场交易导致利润判断错误", "缺少点差过滤，在新闻或高波动时段可能以过大滑点入场"], "cons_en": ["Martingale position sizing causes exponential lot growth during consecutive losses, risking account blowup", "Critical bug in IsNewBar: m_TOld is a local variable reset to 0 on every call, making new bar detection non-functional", "PutLable function has ObjectSetInteger calls after the return statement — they are unreachable dead code", "No equity drawdown protection; once MaxLot is hit and lot reverts, the Martingale cycle restarts from base", "Volume() function retrieves the last deal by index, which may get an entry deal instead of exit deal, causing incorrect profit/loss判断", "No spread filter — entries during news or high-volatility periods may suffer excessive slippage"], "improvements": ["修复IsNewBar函数，将m_TOld改为静态变量或类成员变量，确保新K线检测正常工作", "修复PutLable函数中return语句位置，使标签属性设置代码能够执行", "增加账户净值回撤保护，当回撤超过设定比例时停止交易或重置手数", "Volume函数应筛选DEAL_ENTRY_OUT类型的出场交易来判断盈亏，而非简单取最后一笔交易", "增加点差过滤，当点差超过阈值时暂停入场"], "improvements_en": ["Fix IsNewBar by making m_TOld a static or class member variable so new bar detection actually works", "Fix PutLable by moving the return statement after the ObjectSetInteger calls so label properties are actually set", "Add equity drawdown protection that stops trading or resets lot size when drawdown exceeds a threshold", "Volume() should filter for DEAL_ENTRY_OUT deals when determining profit/loss instead of blindly using the last deal", "Add a spread filter to pause entries when the current spread exceeds a configurable threshold"], "risk_assessment": {"overall": "dangerous", "risk_points": ["马丁格尔策略在连续亏损时手数指数增长，可能导致账户爆仓", "IsNewBar函数Bug导致每tick都可能开仓，远超预期频率", "隐身模式下止损止盈完全依赖EA运行，若EA断线则无保护", "没有净值回撤保护机制", "Volume函数可能错误判断最后一笔交易盈亏，导致马丁格尔逻辑混乱"], "risk_points_en": ["Martingale lot doubling during consecutive losses can lead to account blowup", "IsNewBar bug means trades can open every tick instead of per new bar, vastly exceeding intended frequency", "Stealth mode relies entirely on EA uptime for SL/TP — if EA disconnects, positions have no protection", "No equity drawdown protection mechanism exists", "Volume() may incorrectly judge the last deal's profit/loss, corrupting the Martingale logic"]}, "scores": {"code_quality": 2.0, "strategy_logic": 2.0, "risk_management": 1.0, "robustness": 1.0, "innovation": 2.0, "documentation": 1.0, "overall": 1.5}, "rating": 1, "timeframes": ["M15", "H1", "H4"], "indicators_used": ["Bollinger Bands", "ADX"], "id": "EA-13315", "summary_en": "This EA uses Bollinger Bands and ADX for mean-reversion entry signals, buying when price touches the lower band and selling when it touches the upper band, filtered by low ADX indicating a ranging market. It employs a Martingale position sizing system that multiplies the lot size by a factor (KLot) after each losing trade, capped at MaxLot. A stealth mode option hides actual SL/TP from the broker while managing exits internally via chart labels."}
+{
+  "name": "Well Martin",
+  "category": "Martingale",
+  "category_zh": "马丁格尔",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA uses Bollinger Bands and ADX for mean-reversion entry signals, buying when price touches the lower band and selling when it touches the upper band, filtered by low ADX indicating a ranging market. It employs a Martingale position sizing system that multiplies the lot size by a factor (KLot) after each losing trade, capped at MaxLot. A stealth mode option hides actual SL/TP from the broker while managing exits internally via chart labels.",
+  "summary_zh": "该EA使用布林带和ADX指标进行均值回归入场，价格触及下轨时买入、触及上轨时卖出，并以低ADX值作为震荡市过滤条件。采用马丁格尔仓位管理，亏损后将手数乘以倍率（KLot），直到达到最大手数上限后重置。提供隐身模式，不在订单上显示止损止盈，而是通过图表标签和内部逻辑管理出场。",
+  "strategy_analysis": "策略概念基于布林带均值回归，当价格偏离均值到达布林带边界时预期回归。入场条件为：买入信号要求Ask价低于前一根K线的布林带下轨且ADX值低于阈值（表明市场处于震荡状态），同时上一笔交易非买入类型；卖出信号则要求Bid价高于前一根K线的布林带上轨且ADX低于阈值，同时上一笔交易非卖出类型。出场条件包括固定点数的止损和止盈，或在隐身模式下通过内部计算盈亏点数来手动平仓。仓位管理采用马丁格尔策略，亏损后手数按KLot倍率递增，盈利后重置为基础手数Lot，同时设置了MaxLot上限防止过度加仓，超过上限后回退到基础手数。资金管理方面没有净值回撤控制，仅依赖MaxLot作为安全阀，但MaxLot回退到基础手数后若继续亏损会重新从基础手数开始加倍，风险累积效应显著。",
+  "strategy_analysis_en": "The strategy concept is based on Bollinger Bands mean reversion, expecting price to return to the mean when it reaches the band boundaries. Entry conditions: a buy signal requires Ask price below the previous bar's lower Bollinger Band and ADX below the threshold (indicating a ranging market), plus the last deal was not a buy; a sell signal requires Bid above the previous bar's upper Bollinger Band and ADX below the threshold, plus the last deal was not a sell. Exit conditions include fixed pip-based stop loss and take profit, or in stealth mode the EA internally calculates profit/loss in points and closes positions manually without broker-visible SL/TP. Position sizing follows a Martingale system where the lot size is multiplied by KLot after a loss, resets to the base Lot after a profit, and is capped at MaxLot — exceeding which it reverts to the base lot. Money management lacks equity drawdown controls, relying solely on MaxLot as a safety valve, but once MaxLot is exceeded and the lot reverts to base, consecutive losses restart the doubling cycle, creating significant cumulative risk.",
+  "parameters": [
+    {
+      "name": "BBPeriod",
+      "default_value": "84",
+      "description": "布林带周期",
+      "description_en": "Bollinger Bands period"
+    },
+    {
+      "name": "BBShift",
+      "default_value": "0",
+      "description": "布林带偏移量",
+      "description_en": "Bollinger Bands shift"
+    },
+    {
+      "name": "BBDev",
+      "default_value": "1.8",
+      "description": "布林带标准差倍数",
+      "description_en": "Bollinger Bands standard deviation multiplier"
+    },
+    {
+      "name": "ADXPeriod",
+      "default_value": "40",
+      "description": "ADX周期",
+      "description_en": "ADX period"
+    },
+    {
+      "name": "ADXLevel",
+      "default_value": "45",
+      "description": "ADX阈值，低于此值视为震荡市",
+      "description_en": "ADX threshold; below this = ranging market"
+    },
+    {
+      "name": "TP",
+      "default_value": "1200",
+      "description": "止盈点数",
+      "description_en": "Take profit in points"
+    },
+    {
+      "name": "SL",
+      "default_value": "1400",
+      "description": "止损点数",
+      "description_en": "Stop loss in points"
+    },
+    {
+      "name": "Slip",
+      "default_value": "50",
+      "description": "滑点容忍值",
+      "description_en": "Slippage tolerance"
+    },
+    {
+      "name": "Stelth",
+      "default_value": "0",
+      "description": "隐身模式开关，1为隐藏止损止盈",
+      "description_en": "Stealth mode switch; 1 = hide SL/TP"
+    },
+    {
+      "name": "KLot",
+      "default_value": "2",
+      "description": "马丁格尔加仓倍率",
+      "description_en": "Martingale lot multiplier"
+    },
+    {
+      "name": "MaxLot",
+      "default_value": "5",
+      "description": "最大手数限制",
+      "description_en": "Maximum lot size limit"
+    },
+    {
+      "name": "Lot",
+      "default_value": "0.1",
+      "description": "初始手数",
+      "description_en": "Initial lot size"
+    },
+    {
+      "name": "LableClr",
+      "default_value": "clrGreen",
+      "description": "标签颜色",
+      "description_en": "Label color"
+    }
+  ],
+  "pros": [
+    "使用布林带和ADX组合过滤信号，在震荡市中寻找回归机会，逻辑清晰",
+    "提供隐身模式保护止损止盈不被经纪商看到，减少被针对的风险",
+    "新K线检查机制避免了同根K线内重复开仓",
+    "MaxLot参数为马丁格尔策略提供了硬性上限保护",
+    "代码结构简洁，逻辑分层清晰，易于理解和修改"
+  ],
+  "pros_en": [
+    "Bollinger Bands + ADX combination provides clear mean-reversion signals filtered for ranging markets",
+    "Stealth mode hides SL/TP from the broker, reducing the risk of stop hunting",
+    "New bar check prevents multiple entries within the same candle",
+    "MaxLot parameter provides a hard cap to limit Martingale exposure",
+    "Clean code structure with well-separated logic, easy to understand and modify"
+  ],
+  "cons": [
+    "马丁格尔仓位管理在连续亏损时会导致手数指数级增长，存在爆仓风险",
+    "IsNewBar函数存在严重Bug——m_TOld为局部变量每次调用都重置为0，导致新K线检测失效",
+    "PutLable函数中ObjectSetInteger代码写在return之后，永远不会被执行",
+    "没有账户净值回撤保护机制，MaxLot回退后马丁格尔循环重新开始",
+    "Volume函数通过HistoryDealGetTicket(orders-1)获取最后一笔交易，可能获取到入场交易而非出场交易导致利润判断错误",
+    "缺少点差过滤，在新闻或高波动时段可能以过大滑点入场"
+  ],
+  "cons_en": [
+    "Martingale position sizing causes exponential lot growth during consecutive losses, risking account blowup",
+    "Critical bug in IsNewBar: m_TOld is a local variable reset to 0 on every call, making new bar detection non-functional",
+    "PutLable function has ObjectSetInteger calls after the return statement — they are unreachable dead code",
+    "No equity drawdown protection; once MaxLot is hit and lot reverts, the Martingale cycle restarts from base",
+    "Volume() function retrieves the last deal by index, which may get an entry deal instead of exit deal, causing incorrect profit/lossjudgment",
+    "No spread filter — entries during news or high-volatility periods may suffer excessive slippage"
+  ],
+  "improvements": [
+    "修复IsNewBar函数，将m_TOld改为静态变量或类成员变量，确保新K线检测正常工作",
+    "修复PutLable函数中return语句位置，使标签属性设置代码能够执行",
+    "增加账户净值回撤保护，当回撤超过设定比例时停止交易或重置手数",
+    "Volume函数应筛选DEAL_ENTRY_OUT类型的出场交易来判断盈亏，而非简单取最后一笔交易",
+    "增加点差过滤，当点差超过阈值时暂停入场"
+  ],
+  "improvements_en": [
+    "Fix IsNewBar by making m_TOld a static or class member variable so new bar detection actually works",
+    "Fix PutLable by moving the return statement after the ObjectSetInteger calls so label properties are actually set",
+    "Add equity drawdown protection that stops trading or resets lot size when drawdown exceeds a threshold",
+    "Volume() should filter for DEAL_ENTRY_OUT deals when determining profit/loss instead of blindly using the last deal",
+    "Add a spread filter to pause entries when the current spread exceeds a configurable threshold"
+  ],
+  "risk_assessment": {
+    "overall": "dangerous",
+    "risk_points": [
+      "马丁格尔策略在连续亏损时手数指数增长，可能导致账户爆仓",
+      "IsNewBar函数Bug导致每tick都可能开仓，远超预期频率",
+      "隐身模式下止损止盈完全依赖EA运行，若EA断线则无保护",
+      "没有净值回撤保护机制",
+      "Volume函数可能错误判断最后一笔交易盈亏，导致马丁格尔逻辑混乱"
+    ],
+    "risk_points_en": [
+      "Martingale lot doubling during consecutive losses can lead to account blowup",
+      "IsNewBar bug means trades can open every tick instead of per new bar, vastly exceeding intended frequency",
+      "Stealth mode relies entirely on EA uptime for SL/TP — if EA disconnects, positions have no protection",
+      "No equity drawdown protection mechanism exists",
+      "Volume() may incorrectly judge the last deal's profit/loss, corrupting the Martingale logic"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 2.0,
+    "risk_management": 1.0,
+    "robustness": 1.0,
+    "innovation": 2.0,
+    "documentation": 1.0,
+    "overall": 1.5
+  },
+  "rating": 1,
+  "timeframes": [
+    "M15",
+    "H1",
+    "H4"
+  ],
+  "indicators_used": [
+    "Bollinger Bands",
+    "ADX"
+  ],
+  "id": "EA-13315",
+  "summary_en": "This EA uses Bollinger Bands and ADX for mean-reversion entry signals, buying when price touches the lower band and selling when it touches the upper band, filtered by low ADX indicating a ranging market. It employs a Martingale position sizing system that multiplies the lot size by a factor (KLot) after each losing trade, capped at MaxLot. A stealth mode option hides actual SL/TP from the broker while managing exits internally via chart labels."
+}

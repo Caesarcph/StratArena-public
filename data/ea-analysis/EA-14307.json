@@ -1,1 +1,150 @@
-{"name": "sentiment_ea", "category": "Session Trading", "category_zh": "时段交易", "is_trading": true, "trading_style": "systematic", "summary": "This EA trades based on market sentiment by comparing the ratio of buy vs sell orders and volumes from the order book. It opens positions when one side significantly dominates the other in both trader count and volume, and closes when the sentiment ratio reverses or weakens. Trading is restricted to a specific weekday and intraday time window.", "summary_zh": "该EA基于市场情绪进行交易，通过比较订单簿中买卖订单数量和成交量的比率来决策。当一方在交易者数量和成交量上均显著占优时开仓，当情绪比率反转或减弱时平仓。交易仅限特定工作日和日内时间窗口。", "strategy_analysis": "策略概念是基于市场深度数据中的买卖订单不平衡来判断市场情绪方向，属于订单流/情绪分析策略。入场条件要求买卖交易者数量比和成交量比同时超过设定阈值，且买方或卖方任一方的交易者数量和成交量需分别达到最低要求（MinTraders和MinVolume），仅在CheckTradingTime()定义的交易时段内开仓（周一至周五10:15:30至23:35:30）。开仓后会将阈值切换到较低的维持阈值（MinDiffVolumesEx和MinDiffTradersEx），这是一种滞回机制，避免频繁开平仓。出场条件为：当持仓方向对应的情绪比率跌破维持阈值，或者不在交易时段内时，平仓并重置阈值为开仓阈值。仓位管理为固定手数（Lots参数），无加仓减仓逻辑。资金管理方面仅依赖固定点数的止损和止盈（SlPips和TpPips），无动态调整或比例风险控制。", "strategy_analysis_en": "The strategy concept is based on detecting buy-sell order imbalance from market depth data to gauge market sentiment direction, classifying it as an order flow/sentiment analysis strategy. Entry conditions require both the trader count ratio and volume ratio between buy and sell sides to exceed configured thresholds simultaneously, with at least one side meeting minimum trader count (MinTraders) and minimum volume (MinVolume) requirements, all within a defined trading session (Mon-Fri 10:15:30 to 23:35:30). After opening a position, the thresholds switch to lower maintenance levels (MinDiffVolumesEx and MinDiffTradersEx), implementing a hysteresis mechanism to avoid frequent open-close cycles. Exit conditions trigger when the sentiment ratio for the held position falls below the maintenance threshold, or when outside the trading session, at which point the position is closed and thresholds reset to entry levels. Position sizing is fixed lot-based (Lots parameter) with no scaling logic. Money management relies solely on fixed-pip stop loss and take profit (SlPips and TpPips) with no dynamic adjustment or proportional risk control.", "parameters": [{"name": "MinVolume", "default_value": "20000", "description": "最低订单量阈值", "description_en": "Minimum order volume threshold"}, {"name": "MinTraders", "default_value": "1000", "description": "最低交易者数量阈值", "description_en": "Minimum trader count threshold"}, {"name": "DiffVolumesEx", "default_value": "2.0", "description": "开仓时买卖成交量比率阈值", "description_en": "Buy/sell volume ratio threshold for entry"}, {"name": "DiffTradersEx", "default_value": "1.5", "description": "开仓时买卖交易者比率阈值", "description_en": "Buy/sell trader ratio threshold for entry"}, {"name": "MinDiffVolumesEx", "default_value": "1.5", "description": "持仓期间成交量比率维持阈值", "description_en": "Volume ratio maintenance threshold while in position"}, {"name": "MinDiffTradersEx", "default_value": "1.3", "description": "持仓期间交易者比率维持阈值", "description_en": "Trader ratio maintenance threshold while in position"}, {"name": "Sleep", "default_value": "5", "description": "每次tick间休眠时间（分钟）", "description_en": "Sleep interval between ticks (minutes)"}, {"name": "Lots", "default_value": "1", "description": "交易手数", "description_en": "Trade lot size"}, {"name": "TpPips", "default_value": "500", "description": "止盈点数", "description_en": "Take profit points"}, {"name": "SlPips", "default_value": "500", "description": "止损点数", "description_en": "Stop loss points"}, {"name": "Filling", "default_value": "ORDER_FILLING_RETURN", "description": "订单填充类型", "description_en": "Order filling type"}], "pros": ["基于订单簿深度的真实市场情绪数据，非技术指标滞后信号", "滞回机制（开仓阈值与维持阈值分离）减少频繁交易，降低交易成本", "交易时段过滤有效避开低流动性时段和周末"], "pros_en": ["Uses real order book depth data for sentiment rather than lagging technical indicators", "Hysteresis mechanism (separate entry vs maintenance thresholds) reduces overtrading and transaction costs", "Trading session filter effectively avoids low-liquidity periods and weekends"], "cons": ["OnTick中使用Sleep()阻塞主线程，严重时会导致终端卡顿或错过行情", "缺乏持仓检查逻辑，pos变量为int但赋值使用true/false，类型不一致易引发逻辑错误", "止损止盈用gTickSize而非point计算，在非标准品种上可能不准确", "没有新bar检查机制，可能在同一bar上反复触发信号", "平仓逻辑使用tradeResult标志而非真实持仓状态，程序重启后状态丢失"], "cons_en": ["Using Sleep() in OnTick blocks the main thread, potentially freezing the terminal or missing market events", "No proper position check logic; pos variable is int but assigned true/false, causing type inconsistency and potential logic errors", "SL/TP calculated with gTickSize instead of point, which may be inaccurate on non-standard instruments", "No new bar check mechanism, potentially triggering signals repeatedly on the same bar", "Position tracking relies on tradeResult flag instead of actual position state; state is lost on EA restart"], "improvements": ["用EventSetTimer/OnTimer替代Sleep()，避免阻塞主线程并保持EA响应性", "添加真实持仓查询（PositionSelect）替代pos标志变量，确保重启后状态正确恢复", "增加新bar检查和点差过滤，避免在不利条件下重复开仓"], "improvements_en": ["Replace Sleep() with EventSetTimer/OnTimer to avoid blocking the main thread and maintain EA responsiveness", "Add real position query (PositionSelect) instead of pos flag variable to ensure correct state recovery after restart", "Add new bar check and spread filter to prevent repeated entries under unfavorable conditions"], "risk_assessment": {"overall": "medium", "risk_points": ["Sleep()阻塞主线程可能导致无法及时止损平仓，存在延迟风险", "EA重启后tradeResult和pos状态丢失，可能导致重复开仓或无法正确平仓", "固定手数无动态风控，极端行情下可能承受过大损失", "买卖量比信号可能在市场深度数据异常时产生虚假信号"], "risk_points_en": ["Sleep() blocking the main thread may prevent timely stop-loss execution, creating delay risk", "EA restart loses tradeResult and pos state, potentially causing duplicate entries or failure to close positions", "Fixed lot sizing with no dynamic risk control may lead to excessive losses during extreme market moves", "Buy-sell ratio signals may produce false signals when market depth data is anomalous"]}, "scores": {"code_quality": 2.0, "strategy_logic": 3.0, "risk_management": 2.0, "robustness": 2.0, "innovation": 3.0, "documentation": 1.0, "overall": 2.17}, "rating": 2, "timeframes": ["M5", "M15", "M30", "H1"], "indicators_used": ["Order Book Depth", "Session Time"], "id": "EA-14307", "summary_en": "This EA trades based on market sentiment by comparing the ratio of buy vs sell orders and volumes from the order book. It opens positions when one side significantly dominates the other in both trader count and volume, and closes when the sentiment ratio reverses or weakens. Trading is restricted to a specific weekday and intraday time window."}
+{
+  "name": "sentiment_ea",
+  "category": "Session Trading",
+  "category_zh": "时段交易",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA trades based on market sentiment by comparing the ratio of buy vs sell orders and volumes from the order book. It opens positions when one side significantly dominates the other in both trader count and volume, and closes when the sentiment ratio reverses or weakens. Trading is restricted to a specific weekday and intraday time window.",
+  "summary_zh": "该EA基于市场情绪进行交易，通过比较订单簿中买卖订单数量和成交量的比率来决策。当一方在交易者数量和成交量上均显著占优时开仓，当情绪比率反转或减弱时平仓。交易仅限特定工作日和日内时间窗口。",
+  "strategy_analysis": "策略概念是基于市场深度数据中的买卖订单不平衡来判断市场情绪方向，属于订单流/情绪分析策略。入场条件要求买卖交易者数量比和成交量比同时超过设定阈值，且买方或卖方任一方的交易者数量和成交量需分别达到最低要求（MinTraders和MinVolume），仅在CheckTradingTime()定义的交易时段内开仓（周一至周五10:15:30至23:35:30）。开仓后会将阈值切换到较低的维持阈值（MinDiffVolumesEx和MinDiffTradersEx），这是一种滞回机制，避免频繁开平仓。出场条件为：当持仓方向对应的情绪比率跌破维持阈值，或者不在交易时段内时，平仓并重置阈值为开仓阈值。仓位管理为固定手数（Lots参数），无加仓减仓逻辑。资金管理方面仅依赖固定点数的止损和止盈（SlPips和TpPips），无动态调整或比例风险控制。",
+  "strategy_analysis_en": "The strategy concept is based on detecting buy-sell order imbalance from market depth data to gauge market sentiment direction, classifying it as an order flow/sentiment analysis strategy. Entry conditions require both the trader count ratio and volume ratio between buy and sell sides to exceed configured thresholds simultaneously, with at least one side meeting minimum trader count (MinTraders) and minimum volume (MinVolume) requirements, all within a defined trading session (Mon-Fri 10:15:30 to 23:35:30). After opening a position, the thresholds switch to lower maintenance levels (MinDiffVolumesEx and MinDiffTradersEx), implementing a hysteresis mechanism to avoid frequent open-close cycles. Exit conditions trigger when the sentiment ratio for the held position falls below the maintenance threshold, or when outside the trading session, at which point the position is closed and thresholds reset to entry levels. Position sizing is fixed lot-based (Lots parameter) with no scaling logic. Money management relies solely on fixed-pip stop loss and take profit (SlPips and TpPips) with no dynamic adjustment or proportional risk control.",
+  "parameters": [
+    {
+      "name": "MinVolume",
+      "default_value": "20000",
+      "description": "最低订单量阈值",
+      "description_en": "Minimum order volume threshold"
+    },
+    {
+      "name": "MinTraders",
+      "default_value": "1000",
+      "description": "最低交易者数量阈值",
+      "description_en": "Minimum trader count threshold"
+    },
+    {
+      "name": "DiffVolumesEx",
+      "default_value": "2.0",
+      "description": "开仓时买卖成交量比率阈值",
+      "description_en": "Buy/sell volume ratio threshold for entry"
+    },
+    {
+      "name": "DiffTradersEx",
+      "default_value": "1.5",
+      "description": "开仓时买卖交易者比率阈值",
+      "description_en": "Buy/sell trader ratio threshold for entry"
+    },
+    {
+      "name": "MinDiffVolumesEx",
+      "default_value": "1.5",
+      "description": "持仓期间成交量比率维持阈值",
+      "description_en": "Volume ratio maintenance threshold while in position"
+    },
+    {
+      "name": "MinDiffTradersEx",
+      "default_value": "1.3",
+      "description": "持仓期间交易者比率维持阈值",
+      "description_en": "Trader ratio maintenance threshold while in position"
+    },
+    {
+      "name": "Sleep",
+      "default_value": "5",
+      "description": "每次tick间休眠时间（分钟）",
+      "description_en": "Sleep interval between ticks (minutes)"
+    },
+    {
+      "name": "Lots",
+      "default_value": "1",
+      "description": "交易手数",
+      "description_en": "Trade lot size"
+    },
+    {
+      "name": "TpPips",
+      "default_value": "500",
+      "description": "止盈点数",
+      "description_en": "Take profit points"
+    },
+    {
+      "name": "SlPips",
+      "default_value": "500",
+      "description": "止损点数",
+      "description_en": "Stop loss points"
+    },
+    {
+      "name": "Filling",
+      "default_value": "ORDER_FILLING_RETURN",
+      "description": "订单填充类型",
+      "description_en": "Order filling type"
+    }
+  ],
+  "pros": [
+    "基于订单簿深度的真实市场情绪数据，非技术指标滞后信号",
+    "滞回机制（开仓阈值与维持阈值分离）减少频繁交易，降低交易成本",
+    "交易时段过滤有效避开低流动性时段和周末"
+  ],
+  "pros_en": [
+    "Uses real order book depth data for sentiment rather than lagging technical indicators",
+    "Hysteresis mechanism (separate entry vs maintenance thresholds) reduces overtrading and transaction costs",
+    "Trading session filter effectively avoids low-liquidity periods and weekends"
+  ],
+  "cons": [
+    "OnTick中使用Sleep()阻塞主线程，严重时会导致终端卡顿或错过行情",
+    "缺乏持仓检查逻辑，pos变量为int但赋值使用true/false，类型不一致易引发逻辑错误",
+    "止损止盈用gTickSize而非point计算，在非标准品种上可能不准确",
+    "没有新bar检查机制，可能在同一bar上反复触发信号",
+    "平仓逻辑使用tradeResult标志而非真实持仓状态，程序重启后状态丢失"
+  ],
+  "cons_en": [
+    "Using Sleep() in OnTick blocks the main thread, potentially freezing the terminal or missing market events",
+    "No proper position check logic; pos variable is int but assigned true/false, causing type inconsistency and potential logic errors",
+    "SL/TP calculated with gTickSize instead of point, which may be inaccurate on non-standard instruments",
+    "No new bar check mechanism, potentially triggering signals repeatedly on the same bar",
+    "Position tracking relies on tradeResult flag instead of actual position state; state is lost on EA restart"
+  ],
+  "improvements": [
+    "用EventSetTimer/OnTimer替代Sleep()，避免阻塞主线程并保持EA响应性",
+    "添加真实持仓查询（PositionSelect）替代pos标志变量，确保重启后状态正确恢复",
+    "增加新bar检查和点差过滤，避免在不利条件下重复开仓"
+  ],
+  "improvements_en": [
+    "Replace Sleep() with EventSetTimer/OnTimer to avoid blocking the main thread and maintain EA responsiveness",
+    "Add real position query (PositionSelect) instead of pos flag variable to ensure correct state recovery after restart",
+    "Add new bar check and spread filter to prevent repeated entries under unfavorable conditions"
+  ],
+  "risk_assessment": {
+    "overall": "medium",
+    "risk_points": [
+      "Sleep()阻塞主线程可能导致无法及时止损平仓，存在延迟风险",
+      "EA重启后tradeResult和pos状态丢失，可能导致重复开仓或无法正确平仓",
+      "固定手数无动态风控，极端行情下可能承受过大损失",
+      "买卖量比信号可能在市场深度数据异常时产生虚假信号"
+    ],
+    "risk_points_en": [
+      "Sleep() blocking the main thread may prevent timely stop-loss execution, creating delay risk",
+      "EA restart loses tradeResult and pos state, potentially causing duplicate entries or failure to close positions",
+      "Fixed lot sizing with no dynamic risk control may lead to excessive losses during extreme market moves",
+      "Buy-sell ratio signals may produce false signals when market depth data is anomalous"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 3.0,
+    "risk_management": 2.0,
+    "robustness": 2.0,
+    "innovation": 3.0,
+    "documentation": 1.0,
+    "overall": 2.17
+  },
+  "rating": 2,
+  "timeframes": [
+    "M5",
+    "M15",
+    "M30",
+    "H1"
+  ],
+  "indicators_used": [
+    "Order Book Depth",
+    "Session Time"
+  ],
+  "id": "EA-14307",
+  "summary_en": "This EA trades based on market sentiment by comparing the ratio of buy vs sell orders and volumes from the order book. It opens positions when one side significantly dominates the other in both trader count and volume, and closes when the sentiment ratio reverses or weakens. Trading is restricted to a specific weekday and intraday time window."
+}

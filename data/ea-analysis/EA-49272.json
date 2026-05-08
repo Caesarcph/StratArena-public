@@ -1,1 +1,139 @@
-{"name": "BreakoutStrategy", "category": "Breakout", "category_zh": "突破", "is_trading": true, "trading_style": "systematic", "summary": "This EA implements a channel breakout strategy that places BuyStop and SellStop pending orders when price breaks above the highest high or below the lowest low of a configurable lookback period. It uses a trailing stop mechanism based on the opposite channel boundary or middle line, and sizes positions based on a fixed risk percentage of equity per trade.", "summary_zh": "该EA实现了通道突破策略，当价格突破可配置回看期内的最高价或最低价时，分别放置BuyStop和SellStop挂单。它基于通道对侧边界或中线进行跟踪止损，并根据每笔交易占权益的固定风险比例计算仓位大小。", "strategy_analysis": "策略概念基于唐奇安通道突破，利用N周期最高价和最低价形成价格通道，突破上轨做多、突破下轨做空。入场条件为：当没有同方向持仓时，在最高价加一个tick上方挂BuyStop单，在最低价减一个tick下方挂SellStop单。出场条件采用跟踪止损机制：若启用中线出场，多头止损跟踪中线和最低价的较大值，空头止损跟踪中线和最高价的较小值；若未启用，则多头跟踪最低价、空头跟踪最高价。当价格反向突破跟踪线时直接平仓，否则将跟踪线作为新止损价修改持仓。仓位管理基于固定风险比例模型，通过OrderCalcProfit计算1手在止损距离下的亏损金额，再根据风险金额反算手数，并向下取整到品种最小手数步长。资金管理还考虑了自由保证金不足时自动缩减手数的机制，以及超过最大手数限制时分批下单的处理。订单管理方面，每个新K线开盘时删除所有未成交挂单并重新挂单，使用ORDER_TIME_DAY类型的挂单避免隔夜残留。", "strategy_analysis_en": "The strategy concept is based on a Donchian-style channel breakout, using the highest high and lowest low over N periods to form a price channel, going long on upside breakouts and short on downside breakouts. Entry conditions: when no position exists in the same direction, a BuyStop order is placed above the highest high plus one tick, and a SellStop order is placed below the lowest low minus one tick. Exit conditions use a trailing stop mechanism: if middle-line exit is enabled, the long trailing stop follows the greater of the middle line and the lowest low, while the short trailing stop follows the lesser of the middle line and the highest high; if disabled, longs trail the lowest low and shorts trail the highest high. When price reverses past the trailing line the position is closed directly, otherwise the trailing line is set as the new stop loss via PositionModify. Position sizing is based on a fixed risk-per-trade model, using OrderCalcProfit to compute the loss for 1 lot at the stop-loss distance, then deriving lot size from the risk amount and rounding down to the symbol's minimum volume step. Money management also includes a mechanism to reduce lot size when free margin is insufficient, and handles cases where lot size exceeds the maximum volume by splitting into multiple orders. On the order management side, all unfilled pending orders are deleted and re-placed at each new bar open, using ORDER_TIME_DAY expiry to avoid stale overnight orders.", "parameters": [{"name": "BOT_NAME", "default_value": "BreakoutStrategy", "description": "EA名称标识", "description_en": "EA name identifier"}, {"name": "EXPERT_MAGIC", "default_value": "1", "description": "EA魔术号码，用于标识本EA的订单", "description_en": "EA magic number for identifying its orders"}, {"name": "ENTRY_PERIOD", "default_value": "20", "description": "入场通道回看周期数", "description_en": "Entry channel lookback period"}, {"name": "ENTRY_SHIFT", "default_value": "1", "description": "入场通道偏移量（1=从上一根K线开始计算）", "description_en": "Entry channel shift (1=from previous bar)"}, {"name": "EXIT_PERIOD", "default_value": "20", "description": "出场通道回看周期数", "description_en": "Exit channel lookback period"}, {"name": "EXIT_SHIFT", "default_value": "1", "description": "出场通道偏移量", "description_en": "Exit channel shift"}, {"name": "EXIT_MIDDLE_LINE", "default_value": "true", "description": "是否使用通道中线作为出场参考", "description_en": "Use channel middle line as exit reference"}, {"name": "TRADING_TIMEFRAME", "default_value": "PERIOD_H1", "description": "交易使用的时间周期", "description_en": "Trading timeframe"}, {"name": "RISK_PER_TRADE", "default_value": "0.01", "description": "每笔交易风险占权益的比例（1%）", "description_en": "Risk per trade as equity percentage (1%)"}], "pros": ["基于固定风险比例的仓位管理，风险可控且与账户规模自适应", "使用挂单入场避免滑点，并设有止损止盈逻辑，风险管理体系较为完整", "通道突破策略逻辑清晰简洁，参数可配置性强，易于理解和回测", "考虑了最大手数限制的分批下单和自由保证金不足时的手数缩减", "每个新K线才执行逻辑，避免高频交易和过度交易"], "pros_en": ["Fixed risk-per-trade position sizing keeps risk controlled and adapts to account size", "Pending order entry avoids slippage, and stop-loss/trailing-stop logic provides a complete risk management framework", "Channel breakout logic is clear and concise with highly configurable parameters, easy to understand and backtest", "Handles max volume limits via order splitting and reduces lot size when free margin is insufficient", "Logic executes only on new bar open, avoiding high-frequency and over-trading"], "cons": ["ATR指标句柄在每次调用ATR()函数时都重新创建但从未释放，会造成严重的资源泄漏", "挂单仅使用ORDER_TIME_DAY过期，在周末或节假日跳过时可能导致意外行为", "缺乏品种过滤器、交易时段过滤和新闻事件过滤，可能在低流动性时段产生不利入场", "PositionManaging中positions--在平仓后递减但循环从高到低遍历，可能导致索引偏移问题", "没有对交易操作（BuyStop、SellStop、PositionModify等）的返回值进行错误检查和处理"], "cons_en": ["ATR indicator handle is created on every call to ATR() but never released, causing a serious resource leak", "Pending orders use only ORDER_TIME_DAY expiry, which may cause unexpected behavior when weekends or holidays are skipped", "No symbol filter, trading session filter, or news event filter, potentially generating unfavorable entries during low-liquidity periods", "positions-- after closing a position in PositionManaging may cause index offset issues since the loop iterates from high to low", "No error checking or handling on return values of trade operations (BuyStop, SellStop, PositionModify, etc.)"], "improvements": ["将ATR指标句柄移到OnInit()中创建并在OnDeinit()中释放，避免每次调用时重复创建导致资源泄漏", "为所有交易操作添加错误检查和重试机制，并在日志中记录失败原因以便调试", "添加交易时段过滤和点差过滤，避免在低流动性或高点差时段入场"], "improvements_en": ["Move ATR indicator handle creation to OnInit() and release in OnDeinit() to avoid resource leak from repeated creation on every call", "Add error checking and retry logic for all trade operations, and log failure reasons for debugging", "Add trading session filter and spread filter to avoid entries during low-liquidity or high-spread periods"], "risk_assessment": {"overall": "medium", "risk_points": ["ATR句柄资源泄漏可能导致长期运行后终端性能下降甚至崩溃", "交易操作无错误检查，失败时无反馈可能导致策略状态与实际持仓不一致", "缺乏交易时段和点差过滤，可能在不利条件下入场导致异常滑点"], "risk_points_en": ["ATR handle resource leak may degrade terminal performance or cause crashes during extended running", "No error checking on trade operations means failures go unnoticed, potentially causing strategy state to diverge from actual positions", "Lack of session and spread filters may lead to entries under adverse conditions with excessive slippage"]}, "scores": {"code_quality": 2.0, "strategy_logic": 3.0, "risk_management": 3.0, "robustness": 2.0, "innovation": 2.0, "documentation": 1.0, "overall": 2.17}, "rating": 2, "timeframes": ["H1", "H4", "D1"], "indicators_used": ["Donchian Channel (Highest High/Lowest Low)", "ATR"], "id": "EA-49272", "summary_en": "This EA implements a channel breakout strategy that places BuyStop and SellStop pending orders when price breaks above the highest high or below the lowest low of a configurable lookback period. It uses a trailing stop mechanism based on the opposite channel boundary or middle line, and sizes positions based on a fixed risk percentage of equity per trade."}
+{
+  "name": "BreakoutStrategy",
+  "category": "Breakout",
+  "category_zh": "突破",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA implements a channel breakout strategy that places BuyStop and SellStop pending orders when price breaks above the highest high or below the lowest low of a configurable lookback period. It uses a trailing stop mechanism based on the opposite channel boundary or middle line, and sizes positions based on a fixed risk percentage of equity per trade.",
+  "summary_zh": "该EA实现了通道突破策略，当价格突破可配置回看期内的最高价或最低价时，分别放置BuyStop和SellStop挂单。它基于通道对侧边界或中线进行跟踪止损，并根据每笔交易占权益的固定风险比例计算仓位大小。",
+  "strategy_analysis": "策略概念基于唐奇安通道突破，利用N周期最高价和最低价形成价格通道，突破上轨做多、突破下轨做空。入场条件为：当没有同方向持仓时，在最高价加一个tick上方挂BuyStop单，在最低价减一个tick下方挂SellStop单。出场条件采用跟踪止损机制：若启用中线出场，多头止损跟踪中线和最低价的较大值，空头止损跟踪中线和最高价的较小值；若未启用，则多头跟踪最低价、空头跟踪最高价。当价格反向突破跟踪线时直接平仓，否则将跟踪线作为新止损价修改持仓。仓位管理基于固定风险比例模型，通过OrderCalcProfit计算1手在止损距离下的亏损金额，再根据风险金额反算手数，并向下取整到品种最小手数步长。资金管理还考虑了自由保证金不足时自动缩减手数的机制，以及超过最大手数限制时分批下单的处理。订单管理方面，每个新K线开盘时删除所有未成交挂单并重新挂单，使用ORDER_TIME_DAY类型的挂单避免隔夜残留。",
+  "strategy_analysis_en": "The strategy concept is based on a Donchian-style channel breakout, using the highest high and lowest low over N periods to form a price channel, going long on upside breakouts and short on downside breakouts. Entry conditions: when no position exists in the same direction, a BuyStop order is placed above the highest high plus one tick, and a SellStop order is placed below the lowest low minus one tick. Exit conditions use a trailing stop mechanism: if middle-line exit is enabled, the long trailing stop follows the greater of the middle line and the lowest low, while the short trailing stop follows the lesser of the middle line and the highest high; if disabled, longs trail the lowest low and shorts trail the highest high. When price reverses past the trailing line the position is closed directly, otherwise the trailing line is set as the new stop loss via PositionModify. Position sizing is based on a fixed risk-per-trade model, using OrderCalcProfit to compute the loss for 1 lot at the stop-loss distance, then deriving lot size from the risk amount and rounding down to the symbol's minimum volume step. Money management also includes a mechanism to reduce lot size when free margin is insufficient, and handles cases where lot size exceeds the maximum volume by splitting into multiple orders. On the order management side, all unfilled pending orders are deleted and re-placed at each new bar open, using ORDER_TIME_DAY expiry to avoid stale overnight orders.",
+  "parameters": [
+    {
+      "name": "BOT_NAME",
+      "default_value": "BreakoutStrategy",
+      "description": "EA名称标识",
+      "description_en": "EA name identifier"
+    },
+    {
+      "name": "EXPERT_MAGIC",
+      "default_value": "1",
+      "description": "EA魔术号码，用于标识本EA的订单",
+      "description_en": "EA magic number for identifying its orders"
+    },
+    {
+      "name": "ENTRY_PERIOD",
+      "default_value": "20",
+      "description": "入场通道回看周期数",
+      "description_en": "Entry channel lookback period"
+    },
+    {
+      "name": "ENTRY_SHIFT",
+      "default_value": "1",
+      "description": "入场通道偏移量（1=从上一根K线开始计算）",
+      "description_en": "Entry channel shift (1=from previous bar)"
+    },
+    {
+      "name": "EXIT_PERIOD",
+      "default_value": "20",
+      "description": "出场通道回看周期数",
+      "description_en": "Exit channel lookback period"
+    },
+    {
+      "name": "EXIT_SHIFT",
+      "default_value": "1",
+      "description": "出场通道偏移量",
+      "description_en": "Exit channel shift"
+    },
+    {
+      "name": "EXIT_MIDDLE_LINE",
+      "default_value": "true",
+      "description": "是否使用通道中线作为出场参考",
+      "description_en": "Use channel middle line as exit reference"
+    },
+    {
+      "name": "TRADING_TIMEFRAME",
+      "default_value": "PERIOD_H1",
+      "description": "交易使用的时间周期",
+      "description_en": "Trading timeframe"
+    },
+    {
+      "name": "RISK_PER_TRADE",
+      "default_value": "0.01",
+      "description": "每笔交易风险占权益的比例（1%）",
+      "description_en": "Risk per trade as equity percentage (1%)"
+    }
+  ],
+  "pros": [
+    "基于固定风险比例的仓位管理，风险可控且与账户规模自适应",
+    "使用挂单入场避免滑点，并设有止损止盈逻辑，风险管理体系较为完整",
+    "通道突破策略逻辑清晰简洁，参数可配置性强，易于理解和回测",
+    "考虑了最大手数限制的分批下单和自由保证金不足时的手数缩减",
+    "每个新K线才执行逻辑，避免高频交易和过度交易"
+  ],
+  "pros_en": [
+    "Fixed risk-per-trade position sizing keeps risk controlled and adapts to account size",
+    "Pending order entry avoids slippage, and stop-loss/trailing-stop logic provides a complete risk management framework",
+    "Channel breakout logic is clear and concise with highly configurable parameters, easy to understand and backtest",
+    "Handles max volume limits via order splitting and reduces lot size when free margin is insufficient",
+    "Logic executes only on new bar open, avoiding high-frequency and over-trading"
+  ],
+  "cons": [
+    "ATR指标句柄在每次调用ATR()函数时都重新创建但从未释放，会造成严重的资源泄漏",
+    "挂单仅使用ORDER_TIME_DAY过期，在周末或节假日跳过时可能导致意外行为",
+    "缺乏品种过滤器、交易时段过滤和新闻事件过滤，可能在低流动性时段产生不利入场",
+    "PositionManaging中positions--在平仓后递减但循环从高到低遍历，可能导致索引偏移问题",
+    "没有对交易操作（BuyStop、SellStop、PositionModify等）的返回值进行错误检查和处理"
+  ],
+  "cons_en": [
+    "ATR indicator handle is created on every call to ATR() but never released, causing a serious resource leak",
+    "Pending orders use only ORDER_TIME_DAY expiry, which may cause unexpected behavior when weekends or holidays are skipped",
+    "No symbol filter, trading session filter, or news event filter, potentially generating unfavorable entries during low-liquidity periods",
+    "positions-- after closing a position in PositionManaging may cause index offset issues since the loop iterates from high to low",
+    "No error checking or handling on return values of trade operations (BuyStop, SellStop, PositionModify, etc.)"
+  ],
+  "improvements": [
+    "将ATR指标句柄移到OnInit()中创建并在OnDeinit()中释放，避免每次调用时重复创建导致资源泄漏",
+    "为所有交易操作添加错误检查和重试机制，并在日志中记录失败原因以便调试",
+    "添加交易时段过滤和点差过滤，避免在低流动性或高点差时段入场"
+  ],
+  "improvements_en": [
+    "Move ATR indicator handle creation to OnInit() and release in OnDeinit() to avoid resource leak from repeated creation on every call",
+    "Add error checking and retry logic for all trade operations, and log failure reasons for debugging",
+    "Add trading session filter and spread filter to avoid entries during low-liquidity or high-spread periods"
+  ],
+  "risk_assessment": {
+    "overall": "medium",
+    "risk_points": [
+      "ATR句柄资源泄漏可能导致长期运行后终端性能下降甚至崩溃",
+      "交易操作无错误检查，失败时无反馈可能导致策略状态与实际持仓不一致",
+      "缺乏交易时段和点差过滤，可能在不利条件下入场导致异常滑点"
+    ],
+    "risk_points_en": [
+      "ATR handle resource leak may degrade terminal performance or cause crashes during extended running",
+      "No error checking on trade operations means failures go unnoticed, potentially causing strategy state to diverge from actual positions",
+      "Lack of session and spread filters may lead to entries under adverse conditions with excessive slippage"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 3.0,
+    "risk_management": 3.0,
+    "robustness": 2.0,
+    "innovation": 2.0,
+    "documentation": 1.0,
+    "overall": 2.17
+  },
+  "rating": 2,
+  "timeframes": [
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "indicators_used": [
+    "Donchian Channel (Highest High/Lowest Low)",
+    "ATR"
+  ],
+  "id": "EA-49272",
+  "summary_en": "This EA implements a channel breakout strategy that places BuyStop and SellStop pending orders when price breaks above the highest high or below the lowest low of a configurable lookback period. It uses a trailing stop mechanism based on the opposite channel boundary or middle line, and sizes positions based on a fixed risk percentage of equity per trade."
+}

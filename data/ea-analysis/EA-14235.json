@@ -1,1 +1,122 @@
-{"name": "LastPrice", "category": "Scalping", "category_zh": "剥头皮", "is_trading": true, "trading_style": "systematic", "summary": "This EA monitors the market depth (order book) and places limit orders based on the last traded price relative to the bid/ask spread. It scalps by entering BUY when the last price is above ask plus an interval threshold, and SELL when below bid minus the interval, then manages existing positions by attempting to close or reverse them when the price returns to favorable levels. Trading is restricted to specific intraday time windows and filtered by volume and spread conditions.", "summary_zh": "该EA通过监控市场深度（订单簿）和最新成交价与买卖价差的关系来放置限价单进行剥头皮交易。当最新价格高于卖价加间隔阈值时买入，低于买价减间隔阈值时卖出，并在持仓时根据价格回归水平尝试平仓或反向操作。交易限制在特定的日内时段窗口，并通过成交量和点差条件进行过滤。", "strategy_analysis": "该策略基于订单簿深度数据和最新成交价的偏移来捕捉短期价格波动。入场条件：无持仓时，若最新价高于卖价加间隔值则买入，若最新价低于买价减间隔值则卖出，同时要求成交量在[minVolume, maxVolume]范围内且点差不超过Spread参数。出场条件：持仓时通过放置反向限价单来平仓，若持买单且最新价回落至买价或卖价以下，则放置卖出限价单；持卖单则相反。仓位管理采用固定手数(Lots参数)，无动态仓位调整。资金管理仅通过固定止损(SlPips)和日单时间限制来控制风险，无追踪止损或动态止盈。策略还包含订单冻结处理逻辑：当市场价格偏离下单价格时，会删除原限价单并重新下单。", "strategy_analysis_en": "The strategy exploits short-term price dislocations by monitoring the order book depth and the deviation of the last traded price from the current bid/ask. Entry conditions: when no position exists, a BUY limit order is placed if the last price exceeds ask plus a configurable interval, and a SELL limit order if last price falls below bid minus the interval, provided volume is within [minVolume, maxVolume] and spread is within the Spread threshold. Exit conditions: when holding a position, a reverse limit order is placed to close it—BUY positions are closed with a SELL limit at bid when the price retreats, and vice versa for SELL positions. Position sizing uses a fixed lot size (Lots parameter) with no dynamic adjustment. Money management relies solely on a fixed stop loss (SlPips converted to price) and restricted trading time windows, with no trailing stop or dynamic take-profit mechanism. The EA also implements a frozen-order handling loop that deletes and potentially replaces limit orders when the market price drifts from the order price.", "parameters": [{"name": "Interval", "default_value": "400", "description": "最新价偏离买卖价的间隔阈值（点数）", "description_en": "Bid/Ask price deviation threshold (points)"}, {"name": "minVolume", "default_value": "1", "description": "最小成交量过滤", "description_en": "Minimum volume filter"}, {"name": "maxVolume", "default_value": "900000", "description": "最大成交量过滤", "description_en": "Maximum volume filter"}, {"name": "Spread", "default_value": "200", "description": "最大允许点差", "description_en": "Maximum allowed spread"}, {"name": "Lots", "default_value": "1", "description": "交易手数", "description_en": "Trade lot size"}, {"name": "SlPips", "default_value": "400", "description": "止损点数", "description_en": "Stop loss in pips"}, {"name": "Filling", "default_value": "ORDER_FILLING_RETURN", "description": "订单成交类型", "description_en": "Order fill type"}], "pros": ["利用订单簿深度数据获取更精确的市场微观结构信息，入场逻辑有实际市场数据支撑", "包含冻结订单处理机制，当市场价格偏离下单价格时自动删除并重新下单，减少滑点损失", "设有交易时段过滤、成交量过滤和点差过滤多重条件，避免在不适宜的市场环境下交易"], "pros_en": ["Leverages order book depth data for more precise market microstructure information, giving entry logic a solid foundation in actual market data", "Includes a frozen-order handling mechanism that automatically deletes and replaces limit orders when market price drifts, reducing slippage losses", "Implements multiple filters including trading session restrictions, volume filters, and spread filters to avoid trading in unsuitable market conditions"], "cons": ["持仓管理中的while循环等待订单成交可能导致EA线程阻塞，影响其他事件处理", "没有独立的止盈逻辑，仅依赖反向限价单平仓，盈利空间不确定", "固定手数且无仓位比例计算，在不同账户规模下风险暴露不均衡", "订单簿数据在某些经纪商平台上可能不可用或延迟，策略适应性受限"], "cons_en": ["The while loop in position management that waits for order execution can block the EA thread, preventing other event handlers from running", "No independent take-profit logic exists; exits rely solely on reverse limit orders, making profit targets uncertain", "Fixed lot sizing without account-equity-proportional calculation leads to unbalanced risk exposure across different account sizes", "Order book data may be unavailable or delayed on some broker platforms, limiting the strategy's applicability"], "improvements": ["将while循环改为事件驱动方式，使用OnTrade或OnTradeTransaction回调来处理订单状态变化，避免EA线程阻塞", "增加独立的止盈逻辑和追踪止损机制，明确每笔交易的风险收益比", "加入账户权益比例的动态仓位计算，使风险管理与账户规模匹配"], "improvements_en": ["Replace the while loop with an event-driven approach using OnTrade or OnTradeTransaction callbacks to handle order state changes, preventing EA thread blocking", "Add independent take-profit logic and a trailing stop mechanism to define a clear risk-reward ratio for each trade", "Implement dynamic position sizing based on account equity percentage to align risk management with account size"], "risk_assessment": {"overall": "caution", "risk_points": ["while循环等待订单成交可能导致EA长时间阻塞，在快速行情中无法及时响应", "持仓时的反向平仓条件较为宽松，可能在不利价位频繁开仓平仓造成反复亏损", "依赖订单簿数据，若数据源中断则策略完全失效"], "risk_points_en": ["The while loop waiting for order fills can block the EA for extended periods, preventing timely response during fast market moves", "The reverse position closing conditions are relatively loose, potentially causing frequent round-trip entries and exits at unfavorable prices leading to repeated losses", "Full dependency on order book data means the strategy completely fails if the data source is interrupted"]}, "scores": {"code_quality": 2.0, "strategy_logic": 3.0, "risk_management": 2.0, "robustness": 2.0, "innovation": 3.0, "documentation": 1.0, "overall": 2.17}, "rating": 2, "timeframes": ["M1", "M5", "M15"], "indicators_used": ["Market Book (Order Book Depth)", "Last Price", "Volume"], "id": "EA-14235", "summary_en": "This EA monitors the market depth (order book) and places limit orders based on the last traded price relative to the bid/ask spread. It scalps by entering BUY when the last price is above ask plus an interval threshold, and SELL when below bid minus the interval, then manages existing positions by attempting to close or reverse them when the price returns to favorable levels. Trading is restricted to specific intraday time windows and filtered by volume and spread conditions."}
+{
+  "name": "LastPrice",
+  "category": "Scalping",
+  "category_zh": "剥头皮",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA monitors the market depth (order book) and places limit orders based on the last traded price relative to the bid/ask spread. It scalps by entering BUY when the last price is above ask plus an interval threshold, and SELL when below bid minus the interval, then manages existing positions by attempting to close or reverse them when the price returns to favorable levels. Trading is restricted to specific intraday time windows and filtered by volume and spread conditions.",
+  "summary_zh": "该EA通过监控市场深度（订单簿）和最新成交价与买卖价差的关系来放置限价单进行剥头皮交易。当最新价格高于卖价加间隔阈值时买入，低于买价减间隔阈值时卖出，并在持仓时根据价格回归水平尝试平仓或反向操作。交易限制在特定的日内时段窗口，并通过成交量和点差条件进行过滤。",
+  "strategy_analysis": "该策略基于订单簿深度数据和最新成交价的偏移来捕捉短期价格波动。入场条件：无持仓时，若最新价高于卖价加间隔值则买入，若最新价低于买价减间隔值则卖出，同时要求成交量在[minVolume, maxVolume]范围内且点差不超过Spread参数。出场条件：持仓时通过放置反向限价单来平仓，若持买单且最新价回落至买价或卖价以下，则放置卖出限价单；持卖单则相反。仓位管理采用固定手数(Lots参数)，无动态仓位调整。资金管理仅通过固定止损(SlPips)和日单时间限制来控制风险，无追踪止损或动态止盈。策略还包含订单冻结处理逻辑：当市场价格偏离下单价格时，会删除原限价单并重新下单。",
+  "strategy_analysis_en": "The strategy exploits short-term price dislocations by monitoring the order book depth and the deviation of the last traded price from the current bid/ask. Entry conditions: when no position exists, a BUY limit order is placed if the last price exceeds ask plus a configurable interval, and a SELL limit order if last price falls below bid minus the interval, provided volume is within [minVolume, maxVolume] and spread is within the Spread threshold. Exit conditions: when holding a position, a reverse limit order is placed to close it—BUY positions are closed with a SELL limit at bid when the price retreats, and vice versa for SELL positions. Position sizing uses a fixed lot size (Lots parameter) with no dynamic adjustment. Money management relies solely on a fixed stop loss (SlPips converted to price) and restricted trading time windows, with no trailing stop or dynamic take-profit mechanism. The EA also implements a frozen-order handling loop that deletes and potentially replaces limit orders when the market price drifts from the order price.",
+  "parameters": [
+    {
+      "name": "Interval",
+      "default_value": "400",
+      "description": "最新价偏离买卖价的间隔阈值（点数）",
+      "description_en": "Bid/Ask price deviation threshold (points)"
+    },
+    {
+      "name": "minVolume",
+      "default_value": "1",
+      "description": "最小成交量过滤",
+      "description_en": "Minimum volume filter"
+    },
+    {
+      "name": "maxVolume",
+      "default_value": "900000",
+      "description": "最大成交量过滤",
+      "description_en": "Maximum volume filter"
+    },
+    {
+      "name": "Spread",
+      "default_value": "200",
+      "description": "最大允许点差",
+      "description_en": "Maximum allowed spread"
+    },
+    {
+      "name": "Lots",
+      "default_value": "1",
+      "description": "交易手数",
+      "description_en": "Trade lot size"
+    },
+    {
+      "name": "SlPips",
+      "default_value": "400",
+      "description": "止损点数",
+      "description_en": "Stop loss in pips"
+    },
+    {
+      "name": "Filling",
+      "default_value": "ORDER_FILLING_RETURN",
+      "description": "订单成交类型",
+      "description_en": "Order fill type"
+    }
+  ],
+  "pros": [
+    "利用订单簿深度数据获取更精确的市场微观结构信息，入场逻辑有实际市场数据支撑",
+    "包含冻结订单处理机制，当市场价格偏离下单价格时自动删除并重新下单，减少滑点损失",
+    "设有交易时段过滤、成交量过滤和点差过滤多重条件，避免在不适宜的市场环境下交易"
+  ],
+  "pros_en": [
+    "Leverages order book depth data for more precise market microstructure information, giving entry logic a solid foundation in actual market data",
+    "Includes a frozen-order handling mechanism that automatically deletes and replaces limit orders when market price drifts, reducing slippage losses",
+    "Implements multiple filters including trading session restrictions, volume filters, and spread filters to avoid trading in unsuitable market conditions"
+  ],
+  "cons": [
+    "持仓管理中的while循环等待订单成交可能导致EA线程阻塞，影响其他事件处理",
+    "没有独立的止盈逻辑，仅依赖反向限价单平仓，盈利空间不确定",
+    "固定手数且无仓位比例计算，在不同账户规模下风险暴露不均衡",
+    "订单簿数据在某些经纪商平台上可能不可用或延迟，策略适应性受限"
+  ],
+  "cons_en": [
+    "The while loop in position management that waits for order execution can block the EA thread, preventing other event handlers from running",
+    "No independent take-profit logic exists; exits rely solely on reverse limit orders, making profit targets uncertain",
+    "Fixed lot sizing without account-equity-proportional calculation leads to unbalanced risk exposure across different account sizes",
+    "Order book data may be unavailable or delayed on some broker platforms, limiting the strategy's applicability"
+  ],
+  "improvements": [
+    "将while循环改为事件驱动方式，使用OnTrade或OnTradeTransaction回调来处理订单状态变化，避免EA线程阻塞",
+    "增加独立的止盈逻辑和追踪止损机制，明确每笔交易的风险收益比",
+    "加入账户权益比例的动态仓位计算，使风险管理与账户规模匹配"
+  ],
+  "improvements_en": [
+    "Replace the while loop with an event-driven approach using OnTrade or OnTradeTransaction callbacks to handle order state changes, preventing EA thread blocking",
+    "Add independent take-profit logic and a trailing stop mechanism to define a clear risk-reward ratio for each trade",
+    "Implement dynamic position sizing based on account equity percentage to align risk management with account size"
+  ],
+  "risk_assessment": {
+    "overall": "caution",
+    "risk_points": [
+      "while循环等待订单成交可能导致EA长时间阻塞，在快速行情中无法及时响应",
+      "持仓时的反向平仓条件较为宽松，可能在不利价位频繁开仓平仓造成反复亏损",
+      "依赖订单簿数据，若数据源中断则策略完全失效"
+    ],
+    "risk_points_en": [
+      "The while loop waiting for order fills can block the EA for extended periods, preventing timely response during fast market moves",
+      "The reverse position closing conditions are relatively loose, potentially causing frequent round-trip entries and exits at unfavorable prices leading to repeated losses",
+      "Full dependency on order book data means the strategy completely fails if the data source is interrupted"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 3.0,
+    "risk_management": 2.0,
+    "robustness": 2.0,
+    "innovation": 3.0,
+    "documentation": 1.0,
+    "overall": 2.17
+  },
+  "rating": 2,
+  "timeframes": [
+    "M1",
+    "M5",
+    "M15"
+  ],
+  "indicators_used": [
+    "Market Book (Order Book Depth)",
+    "Last Price",
+    "Volume"
+  ],
+  "id": "EA-14235",
+  "summary_en": "This EA monitors the market depth (order book) and places limit orders based on the last traded price relative to the bid/ask spread. It scalps by entering BUY when the last price is above ask plus an interval threshold, and SELL when below bid minus the interval, then manages existing positions by attempting to close or reverse them when the price returns to favorable levels. Trading is restricted to specific intraday time windows and filtered by volume and spread conditions."
+}

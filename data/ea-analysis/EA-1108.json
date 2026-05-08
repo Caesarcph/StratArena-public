@@ -1,1 +1,162 @@
-{"name": "SelfLearningExperts", "category": "Machine Learning", "category_zh": "机器学习", "is_trading": true, "trading_style": "systematic", "summary": "This EA uses a self-learning algorithm based on virtual trading to classify binary price patterns and estimate directional probabilities. It tracks price movement patterns across multiple delta parameters, opens virtual positions to learn which patterns predict upward or downward moves, and opens real positions only when the learned probability exceeds a configurable threshold. A forgetting factor ensures the model adapts to changing market conditions over time.", "summary_zh": "该EA使用基于虚拟交易的自学习算法，将价格走势编码为二进制模式并估计方向性概率。它追踪多种delta参数下的价格运动模式，通过虚拟交易学习哪些模式预示上涨或下跌，仅在学到概率超过可配置阈值时才开真实仓位。遗忘因子确保模型能适应不断变化的市场环境。", "strategy_analysis": "策略概念是基于二进制价格模式的在线学习：将最近NN根K线的价格变化方向编码为0/1二进制序列，再通过位运算转化为唯一模式编号。入场条件为：当某一模式在虚拟交易中累计的上涨概率（PowerUp）或下跌概率（PowerDn）超过Probab阈值（默认0.8），且该模式的虚拟交易次数超过10次时，分别开多或开仓。出场条件包括：止损/止盈触发（与虚拟交易的stop参数一致）、概率反转信号（当前概率比上次保存的概率高0.05以上时平仓）、以及盈利超过半个dstop时的部分平仓信号。仓位管理使用固定手数（Lots参数），止损和止盈相等，由dstop和Nstop参数决定具体点数。资金管理方面没有动态仓位调整，不使用马丁格尔或网格策略，仅有可选的移动止损（Trailing）和止损替换功能（ReplaceStops）。", "strategy_analysis_en": "The strategy concept is based on online learning of binary price patterns: the direction of recent NN bar price changes is encoded as a 0/1 binary sequence, then converted to a unique pattern number via bit arithmetic. Entry conditions: when the accumulated up-probability (PowerUp) or down-probability (PowerDn) for a given pattern from virtual trading exceeds the Probab threshold (default 0.8), and the virtual trade count for that pattern exceeds 10, a long or short position is opened respectively. Exit conditions include: stop-loss/take-profit hit (equal to the virtual trade stop parameter), probability reversal signals (close when current probability exceeds previously saved probability by 0.05), and partial close signals when profit exceeds half of dstop. Position sizing uses a fixed lot size (Lots parameter), with equal stop-loss and take-profit determined by dstop and Nstop parameters. Money management lacks dynamic position adjustment — no martingale or grid strategies — with only optional trailing stop (Trailing) and stop replacement (ReplaceStops) features.", "parameters": [{"name": "ReadHistory", "default_value": "false", "description": "是否读取已保存的学习历史文件", "description_en": "Whether to load saved learning history file"}, {"name": "SaveHistory", "default_value": "false", "description": "是否保存学习历史，测试结束时或账户运行时定期保存", "description_en": "Whether to save learning history periodically and at test end"}, {"name": "Lots", "default_value": "0.1", "description": "固定交易手数", "description_en": "Fixed trading lot size"}, {"name": "Nidelt", "default_value": "20", "description": "不同模式参数（delta）的数量", "description_en": "Number of delta parameters for different modes"}, {"name": "Nstop", "default_value": "1", "description": "虚拟仓位的止损/止盈参数组数", "description_en": "Number of SL/TP parameter sets for virtual positions"}, {"name": "dstop", "default_value": "250", "description": "止损/止盈步进变化点数", "description_en": "Stop loss/take profit step change in points"}, {"name": "forg", "default_value": "1.05", "description": "遗忘率，略大于1，控制旧数据衰减速度", "description_en": "Forgetting rate, slightly above 1, controls old data decay speed"}, {"name": "Probab", "default_value": "0.8", "description": "开仓概率阈值，虚拟交易学习到的概率需超过此值", "description_en": "Opening probability threshold; virtual trade probability must exceed this"}, {"name": "NN", "default_value": "10", "description": "模式长度（最近NN根K线），最大12", "description_en": "Pattern length (last NN bars), max 12"}, {"name": "delta", "default_value": "1", "description": "模式参数delta的步进值", "description_en": "Step value for pattern parameter delta"}, {"name": "ReplaceStops", "default_value": "false", "description": "是否用新信号替换止损/止盈，仅沿仓位方向移动", "description_en": "Replace SL/TP with new signals, only move along position direction"}, {"name": "Trailing", "default_value": "0", "description": "移动止损点数，0表示关闭", "description_en": "Trailing stop in points, 0 to disable"}], "pros": ["自学习机制无需预定义指标，通过虚拟交易自动发现有效的价格模式", "遗忘因子（forg）使模型能适应市场状态变化，避免过时模式干扰", "多种delta参数和止损参数组合提供多维度的模式识别和风险管理", "概率阈值和最小交易次数要求过滤了低置信度信号", "支持学习历史的保存与加载，可实现跨会话的持续学习"], "pros_en": ["Self-learning mechanism requires no predefined indicators — automatically discovers effective price patterns through virtual trading", "Forgetting factor (forg) enables adaptation to changing market regimes, preventing stale patterns from interfering", "Multiple delta and stop parameter combinations provide multi-dimensional pattern recognition and risk management", "Probability threshold and minimum trade count requirements filter out low-confidence signals", "Supports saving and loading of learning history for persistent learning across sessions"], "cons": ["固定手数缺乏动态仓位管理，无法根据账户风险或波动率调整仓位大小", "二进制模式编码丢失了价格幅度信息，仅保留方向信息，信息损失较大", "大型三维数组（5000x30x3）消耗大量内存且大部分可能未使用，效率低下", "虚拟交易仅使用Ask价格评估，未考虑点差和滑点对实际交易的影响", "文件读写缺乏错误处理，文件不存在或读取失败时可能导致崩溃", "TimeToUpdate函数使用2倍周期作为冷却时间，在高波动时可能错过交易机会"], "cons_en": ["Fixed lot sizing lacks dynamic position management — cannot adjust based on account risk or volatility", "Binary pattern encoding discards price magnitude information, retaining only direction — significant information loss", "Large 3D arrays (5000x30x3) consume substantial memory and most entries may remain unused, causing inefficiency", "Virtual trading evaluates only using Ask price, ignoring spread and slippage effects on actual trading", "File I/O lacks error handling — missing files or read failures can cause crashes", "TimeToUpdate function uses 2x period as cooldown, potentially missing trading opportunities during high volatility"], "improvements": ["引入动态仓位管理，基于账户权益和ATR波动率计算手数，实现更科学的资金管理", "在二进制模式基础上增加价格幅度特征（如变化百分比），提升模式识别的信息量和准确性", "为所有文件操作添加错误检查和异常处理，并在ReadProbFromFile中处理文件不存在的情况"], "improvements_en": ["Introduce dynamic position sizing based on account equity and ATR volatility for more scientific money management", "Add price magnitude features (e.g., percentage change) on top of binary patterns to improve pattern recognition information content and accuracy", "Add error checking and exception handling for all file operations, and handle missing file scenarios in ReadProbFromFile"], "risk_assessment": {"overall": "medium", "risk_points": ["文件操作无错误处理，文件损坏或缺失可能导致EA异常", "虚拟交易与真实交易存在点差和滑点差异，实盘表现可能与学习结果偏差", "固定手数无风险调整机制，在小账户或高波动时可能过度暴露", "StopInPointsParameter数组大小为3但Nstop可达更大值，存在数组越界风险"], "risk_points_en": ["File operations lack error handling — corrupted or missing files can cause EA malfunction", "Discrepancy between virtual and real trading due to spread and slippage differences may cause live performance to deviate from learned results", "Fixed lot sizing without risk adjustment may lead to excessive exposure on small accounts or during high volatility", "StopInPointsParameter array size is 3 but Nstop can be set larger, creating potential array out-of-bounds risk"]}, "scores": {"code_quality": 2.0, "strategy_logic": 3.0, "risk_management": 2.0, "robustness": 2.0, "innovation": 4.0, "documentation": 2.0, "overall": 2.5}, "rating": 3, "timeframes": ["M15", "H1", "H4"], "indicators_used": ["Price Action Pattern", "Binary Pattern Encoding", "Virtual Trade Probability"], "id": "EA-1108", "summary_en": "This EA uses a self-learning algorithm based on virtual trading to classify binary price patterns and estimate directional probabilities. It tracks price movement patterns across multiple delta parameters, opens virtual positions to learn which patterns predict upward or downward moves, and opens real positions only when the learned probability exceeds a configurable threshold. A forgetting factor ensures the model adapts to changing market conditions over time."}
+{
+  "name": "SelfLearningExperts",
+  "category": "Machine Learning",
+  "category_zh": "机器学习",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA uses a self-learning algorithm based on virtual trading to classify binary price patterns and estimate directional probabilities. It tracks price movement patterns across multiple delta parameters, opens virtual positions to learn which patterns predict upward or downward moves, and opens real positions only when the learned probability exceeds a configurable threshold. A forgetting factor ensures the model adapts to changing market conditions over time.",
+  "summary_zh": "该EA使用基于虚拟交易的自学习算法，将价格走势编码为二进制模式并估计方向性概率。它追踪多种delta参数下的价格运动模式，通过虚拟交易学习哪些模式预示上涨或下跌，仅在学到概率超过可配置阈值时才开真实仓位。遗忘因子确保模型能适应不断变化的市场环境。",
+  "strategy_analysis": "策略概念是基于二进制价格模式的在线学习：将最近NN根K线的价格变化方向编码为0/1二进制序列，再通过位运算转化为唯一模式编号。入场条件为：当某一模式在虚拟交易中累计的上涨概率（PowerUp）或下跌概率（PowerDn）超过Probab阈值（默认0.8），且该模式的虚拟交易次数超过10次时，分别开多或开仓。出场条件包括：止损/止盈触发（与虚拟交易的stop参数一致）、概率反转信号（当前概率比上次保存的概率高0.05以上时平仓）、以及盈利超过半个dstop时的部分平仓信号。仓位管理使用固定手数（Lots参数），止损和止盈相等，由dstop和Nstop参数决定具体点数。资金管理方面没有动态仓位调整，不使用马丁格尔或网格策略，仅有可选的移动止损（Trailing）和止损替换功能（ReplaceStops）。",
+  "strategy_analysis_en": "The strategy concept is based on online learning of binary price patterns: the direction of recent NN bar price changes is encoded as a 0/1 binary sequence, then converted to a unique pattern number via bit arithmetic. Entry conditions: when the accumulated up-probability (PowerUp) or down-probability (PowerDn) for a given pattern from virtual trading exceeds the Probab threshold (default 0.8), and the virtual trade count for that pattern exceeds 10, a long or short position is opened respectively. Exit conditions include: stop-loss/take-profit hit (equal to the virtual trade stop parameter), probability reversal signals (close when current probability exceeds previously saved probability by 0.05), and partial close signals when profit exceeds half of dstop. Position sizing uses a fixed lot size (Lots parameter), with equal stop-loss and take-profit determined by dstop and Nstop parameters. Money management lacks dynamic position adjustment — no martingale or grid strategies — with only optional trailing stop (Trailing) and stop replacement (ReplaceStops) features.",
+  "parameters": [
+    {
+      "name": "ReadHistory",
+      "default_value": "false",
+      "description": "是否读取已保存的学习历史文件",
+      "description_en": "Whether to load saved learning history file"
+    },
+    {
+      "name": "SaveHistory",
+      "default_value": "false",
+      "description": "是否保存学习历史，测试结束时或账户运行时定期保存",
+      "description_en": "Whether to save learning history periodically and at test end"
+    },
+    {
+      "name": "Lots",
+      "default_value": "0.1",
+      "description": "固定交易手数",
+      "description_en": "Fixed trading lot size"
+    },
+    {
+      "name": "Nidelt",
+      "default_value": "20",
+      "description": "不同模式参数（delta）的数量",
+      "description_en": "Number of delta parameters for different modes"
+    },
+    {
+      "name": "Nstop",
+      "default_value": "1",
+      "description": "虚拟仓位的止损/止盈参数组数",
+      "description_en": "Number of SL/TP parameter sets for virtual positions"
+    },
+    {
+      "name": "dstop",
+      "default_value": "250",
+      "description": "止损/止盈步进变化点数",
+      "description_en": "Stop loss/take profit step change in points"
+    },
+    {
+      "name": "forg",
+      "default_value": "1.05",
+      "description": "遗忘率，略大于1，控制旧数据衰减速度",
+      "description_en": "Forgetting rate, slightly above 1, controls old data decay speed"
+    },
+    {
+      "name": "Probab",
+      "default_value": "0.8",
+      "description": "开仓概率阈值，虚拟交易学习到的概率需超过此值",
+      "description_en": "Opening probability threshold; virtual trade probability must exceed this"
+    },
+    {
+      "name": "NN",
+      "default_value": "10",
+      "description": "模式长度（最近NN根K线），最大12",
+      "description_en": "Pattern length (last NN bars), max 12"
+    },
+    {
+      "name": "delta",
+      "default_value": "1",
+      "description": "模式参数delta的步进值",
+      "description_en": "Step value for pattern parameter delta"
+    },
+    {
+      "name": "ReplaceStops",
+      "default_value": "false",
+      "description": "是否用新信号替换止损/止盈，仅沿仓位方向移动",
+      "description_en": "Replace SL/TP with new signals, only move along position direction"
+    },
+    {
+      "name": "Trailing",
+      "default_value": "0",
+      "description": "移动止损点数，0表示关闭",
+      "description_en": "Trailing stop in points, 0 to disable"
+    }
+  ],
+  "pros": [
+    "自学习机制无需预定义指标，通过虚拟交易自动发现有效的价格模式",
+    "遗忘因子（forg）使模型能适应市场状态变化，避免过时模式干扰",
+    "多种delta参数和止损参数组合提供多维度的模式识别和风险管理",
+    "概率阈值和最小交易次数要求过滤了低置信度信号",
+    "支持学习历史的保存与加载，可实现跨会话的持续学习"
+  ],
+  "pros_en": [
+    "Self-learning mechanism requires no predefined indicators — automatically discovers effective price patterns through virtual trading",
+    "Forgetting factor (forg) enables adaptation to changing market regimes, preventing stale patterns from interfering",
+    "Multiple delta and stop parameter combinations provide multi-dimensional pattern recognition and risk management",
+    "Probability threshold and minimum trade count requirements filter out low-confidence signals",
+    "Supports saving and loading of learning history for persistent learning across sessions"
+  ],
+  "cons": [
+    "固定手数缺乏动态仓位管理，无法根据账户风险或波动率调整仓位大小",
+    "二进制模式编码丢失了价格幅度信息，仅保留方向信息，信息损失较大",
+    "大型三维数组（5000x30x3）消耗大量内存且大部分可能未使用，效率低下",
+    "虚拟交易仅使用Ask价格评估，未考虑点差和滑点对实际交易的影响",
+    "文件读写缺乏错误处理，文件不存在或读取失败时可能导致崩溃",
+    "TimeToUpdate函数使用2倍周期作为冷却时间，在高波动时可能错过交易机会"
+  ],
+  "cons_en": [
+    "Fixed lot sizing lacks dynamic position management — cannot adjust based on account risk or volatility",
+    "Binary pattern encoding discards price magnitude information, retaining only direction — significant information loss",
+    "Large 3D arrays (5000x30x3) consume substantial memory and most entries may remain unused, causing inefficiency",
+    "Virtual trading evaluates only using Ask price, ignoring spread and slippage effects on actual trading",
+    "File I/O lacks error handling — missing files or read failures can cause crashes",
+    "TimeToUpdate function uses 2x period as cooldown, potentially missing trading opportunities during high volatility"
+  ],
+  "improvements": [
+    "引入动态仓位管理，基于账户权益和ATR波动率计算手数，实现更科学的资金管理",
+    "在二进制模式基础上增加价格幅度特征（如变化百分比），提升模式识别的信息量和准确性",
+    "为所有文件操作添加错误检查和异常处理，并在ReadProbFromFile中处理文件不存在的情况"
+  ],
+  "improvements_en": [
+    "Introduce dynamic position sizing based on account equity and ATR volatility for more scientific money management",
+    "Add price magnitude features (e.g., percentage change) on top of binary patterns to improve pattern recognition information content and accuracy",
+    "Add error checking and exception handling for all file operations, and handle missing file scenarios in ReadProbFromFile"
+  ],
+  "risk_assessment": {
+    "overall": "medium",
+    "risk_points": [
+      "文件操作无错误处理，文件损坏或缺失可能导致EA异常",
+      "虚拟交易与真实交易存在点差和滑点差异，实盘表现可能与学习结果偏差",
+      "固定手数无风险调整机制，在小账户或高波动时可能过度暴露",
+      "StopInPointsParameter数组大小为3但Nstop可达更大值，存在数组越界风险"
+    ],
+    "risk_points_en": [
+      "File operations lack error handling — corrupted or missing files can cause EA malfunction",
+      "Discrepancy between virtual and real trading due to spread and slippage differences may cause live performance to deviate from learned results",
+      "Fixed lot sizing without risk adjustment may lead to excessive exposure on small accounts or during high volatility",
+      "StopInPointsParameter array size is 3 but Nstop can be set larger, creating potential array out-of-bounds risk"
+    ]
+  },
+  "scores": {
+    "code_quality": 2.0,
+    "strategy_logic": 3.0,
+    "risk_management": 2.0,
+    "robustness": 2.0,
+    "innovation": 4.0,
+    "documentation": 2.0,
+    "overall": 2.5
+  },
+  "rating": 3,
+  "timeframes": [
+    "M15",
+    "H1",
+    "H4"
+  ],
+  "indicators_used": [
+    "Price Action Pattern",
+    "Binary Pattern Encoding",
+    "Virtual Trade Probability"
+  ],
+  "id": "EA-1108",
+  "summary_en": "This EA uses a self-learning algorithm based on virtual trading to classify binary price patterns and estimate directional probabilities. It tracks price movement patterns across multiple delta parameters, opens virtual positions to learn which patterns predict upward or downward moves, and opens real positions only when the learned probability exceeds a configurable threshold. A forgetting factor ensures the model adapts to changing market conditions over time."
+}
