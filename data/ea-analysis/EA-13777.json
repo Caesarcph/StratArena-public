@@ -1,166 +1,197 @@
 {
-  "id": "EA-13777",
-  "name": "",
-  "summary": "",
-  "strategy_analysis": "分析\n\n### 2.1 核心策略概念\n\n这是一个**布林带与移动平均线双重过滤的趋势跟踪策略**。策略使用自定义i_Trend指标作为信号源，该指标通过计算价格相对于布林带的位置与价格相对于MA的偏离度来生成交易信号。\n\n**核心算法逻辑**：\n1. **指标计算**（i_Trend指标）：\n   - Buffer A = 价格 - 布林带值（价格偏离布林带的程度）\n   - Buffer B = -(最高价+最低价-2×MA)（价格相对于MA的波动范围）\n\n2. **信号生成**：\n   - 当Buffer A > Buffer B时，市场处于上升趋势\n   - 当Buffer A从上方穿越Buffer B向下时，产生买入信号（回调入场）\n   - 当Buffer A从下方穿越Buffer B向上时，产生卖出信号（回调入场）\n\n### 2.2 入场条件\n\n**买入条件**：\n1. 前一柱：Ind[1] > Sign[1]（趋势向上）\n2. 当前柱：Ind[0] <= Sign[0]（指标线交叉确认）\n3. BuyPosOpen参数为true\n4. 没有多头持仓\n\n**卖出条件**：\n1. 前一柱：Ind[1] < Sign[1]（趋势向下）\n2. 当前柱：Ind[0] >= Sign[0]（指标线交叉确认）\n3. SellPosOpen参数为true\n4. 没有空头持仓\n\n### 2.3 出场条件\n\n**平多仓**：\n- 当产生卖出信号时（Ind从上方穿越Sign向下）\n- SellPosClose参数为true\n\n**平空仓**：\n- 当产生买入信号时（Ind从下方穿越Sign向上）\n- BuyPosClose参数为true\n\n**止损/止盈**：\n- 固定止损：1000点（默认）\n- 固定止盈：2000点（默认）\n- 风险比：1:2（合理）\n\n### 2.4 风险管理\n\n- **止损/止盈逻辑**：固定点数止损止盈，风险比1:2\n- **手数管理**：支持5种资金管理模式\n  - FREEMARGIN：按可用保证金计算\n  - BALANCE：按账户余额计算\n  - LOSSFREEMARGIN：按可用保证金亏损计算\n  - LOSSBALANCE：按余额亏损计算\n  - LOT：固定手数\n- **其他风控**：\n  - 新柱检测（避免同一柱重复交易）\n  - 交易时间级别检查\n  - 经纪商止损级别验证",
+  "name": "Exp_i_Trend",
+  "category": "Trend Following",
+  "category_zh": "趋势跟踪",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA trades based on the i_Trend custom indicator, which combines Moving Average and Bollinger Band components to determine trend direction. It opens buy positions when the indicator line crosses above the signal line and sell positions on the opposite crossover, with configurable stop loss and take profit levels. Position sizing is handled via a money management module supporting multiple margin modes.",
+  "summary_zh": "该EA基于i_Trend自定义指标进行交易，该指标结合移动平均线和布林带组件来判断趋势方向。当指标线上穿信号线时开多仓，下穿时开空仓，并设有可配置的止损止盈。仓位管理支持多种保证金模式。",
+  "strategy_analysis": "该EA的策略概念基于i_Trend指标的趋势判断，该指标内部融合了移动平均线（MA）和布林带（BB）两个组件来生成两条线——指标线和信号线。入场条件为：当指标线大于信号线时处于上升趋势，若前一根K线的指标线小于等于信号线而当前K线指标线大于信号线，则触发买入开仓信号；下降趋势反之触发卖出开仓信号。出场条件包括：止损和止盈的硬性设置（默认止损1000点、止盈2000点），以及反向信号触发的平仓机制——上升趋势中若开启买仓平仓则会在下降信号出现时平掉多头。仓位管理通过MM参数和MMMode枚举支持五种模式，包括固定手数、按余额百分比、按可用保证金百分比等多种资金管理方式。EA还实现了新K线检测机制，避免在同一根K线内重复交易，并在指标数据不足时自动跳过，具有一定的鲁棒性设计。",
+  "strategy_analysis_en": "The EA's strategy concept is based on the i_Trend indicator, which internally integrates Moving Average (MA) and Bollinger Band (BB) components to generate two lines — the indicator line and the signal line. Entry conditions: when the indicator line is above the signal line, the market is in an uptrend; if the previous bar's indicator line was below or equal to the signal line and the current bar shows indicator above signal, a buy open signal is triggered; the reverse logic triggers sell open signals in a downtrend. Exit conditions include hard stop loss and take profit settings (default SL 1000 points, TP 2000 points), plus a signal-based close mechanism — in an uptrend with buy close enabled, long positions are closed when a down signal appears, and vice versa. Position sizing is managed through the MM parameter and MMMode enumeration supporting five modes: fixed lot, balance-based percentage, free margin percentage, loss-adjusted balance, and loss-adjusted free margin. The EA also implements a new bar detection mechanism to avoid repeated trades within the same bar, and skips processing when indicator data is insufficient, demonstrating reasonable robustness design.",
   "parameters": [
     {
       "name": "MM",
-      "default_value": "double",
-      "description": "资金管理比例（10%）",
-      "description_en": "Money management ratio (10%)"
+      "default_value": "0.1",
+      "description": "资金管理比例参数",
+      "description_en": "资金管理比例参数"
     },
     {
       "name": "MMMode",
-      "default_value": "enum",
-      "description": "资金管理模式",
-      "description_en": "Money management mode"
+      "default_value": "LOT",
+      "description": "仓位管理模式（固定手数/余额比例/可用保证金等）",
+      "description_en": "仓位管理模式（固定手数/余额比例/可用保证金等）"
     },
     {
       "name": "StopLoss_",
-      "default_value": "int",
+      "default_value": "1000",
       "description": "止损点数",
-      "description_en": "Stop loss in points"
+      "description_en": "止损点数"
     },
     {
       "name": "TakeProfit_",
-      "default_value": "int",
+      "default_value": "2000",
       "description": "止盈点数",
-      "description_en": "Take profit in points"
+      "description_en": "止盈点数"
     },
     {
       "name": "Deviation_",
-      "default_value": "int",
-      "description": "滑点容忍度",
-      "description_en": "Slippage tolerance"
+      "default_value": "10",
+      "description": "最大滑点允许值",
+      "description_en": "最大滑点允许值"
     },
     {
       "name": "BuyPosOpen",
-      "default_value": "bool",
-      "description": "允许开多仓",
-      "description_en": "Allow buy position opening"
+      "default_value": "true",
+      "description": "是否允许买入开仓",
+      "description_en": "是否允许买入开仓"
     },
     {
       "name": "SellPosOpen",
-      "default_value": "bool",
-      "description": "允许开空仓",
-      "description_en": "Allow sell position opening"
+      "default_value": "true",
+      "description": "是否允许卖出开仓",
+      "description_en": "是否允许卖出开仓"
     },
     {
       "name": "BuyPosClose",
-      "default_value": "bool",
-      "description": "允许平多仓",
-      "description_en": "Allow buy position closing"
+      "default_value": "true",
+      "description": "是否允许买入平仓",
+      "description_en": "是否允许买入平仓"
     },
     {
       "name": "SellPosClose",
-      "default_value": "bool",
-      "description": "允许平空仓",
-      "description_en": "Allow sell position closing"
+      "default_value": "true",
+      "description": "是否允许卖出平仓",
+      "description_en": "是否允许卖出平仓"
     },
     {
       "name": "InpInd_Timeframe",
-      "default_value": "enum",
-      "description": "指标时间框架",
-      "description_en": "Indicator timeframe"
+      "default_value": "PERIOD_H4",
+      "description": "指标计算的时间周期",
+      "description_en": "指标计算的时间周期"
     },
     {
       "name": "Price_Type",
-      "default_value": "enum",
-      "description": "价格类型（12种可选）",
-      "description_en": "Price type (12 options)"
+      "default_value": "PRICE_CLOSE_",
+      "description": "指标应用的价格类型",
+      "description_en": "指标应用的价格类型"
     },
     {
       "name": "MAPeriod",
-      "default_value": "uint",
-      "description": "MA周期",
-      "description_en": "MA period"
+      "default_value": "13",
+      "description": "移动平均线周期",
+      "description_en": "移动平均线周期"
     },
     {
       "name": "MAType",
-      "default_value": "enum",
-      "description": "MA类型",
-      "description_en": "MA type"
+      "default_value": "MODE_EMA",
+      "description": "移动平均线类型",
+      "description_en": "移动平均线类型"
     },
     {
       "name": "MAPrice",
-      "default_value": "enum",
-      "description": "MA应用价格",
-      "description_en": "MA applied price"
+      "default_value": "PRICE_CLOSE",
+      "description": "移动平均线应用价格",
+      "description_en": "移动平均线应用价格"
     },
     {
       "name": "BBPeriod",
-      "default_value": "uint",
+      "default_value": "20",
       "description": "布林带周期",
-      "description_en": "Bollinger Bands period"
+      "description_en": "布林带周期"
     },
     {
       "name": "Deviation",
-      "default_value": "double",
-      "description": "布林带偏差",
-      "description_en": "Bollinger Bands deviation"
+      "default_value": "2.0",
+      "description": "布林带标准差倍数",
+      "description_en": "布林带标准差倍数"
     },
     {
       "name": "BBPrice",
-      "default_value": "enum",
+      "default_value": "PRICE_CLOSE",
       "description": "布林带应用价格",
-      "description_en": "Bollinger Bands applied price"
+      "description_en": "布林带应用价格"
     },
     {
       "name": "BBMode",
-      "default_value": "enum",
-      "description": "布林带模式（主线/上线/下线）",
-      "description_en": "Bollinger Bands mode (main/upper/lower)"
+      "default_value": "Mode_1",
+      "description": "布林带计算模式",
+      "description_en": "布林带计算模式"
     },
     {
       "name": "SignalBar",
-      "default_value": "uint",
-      "description": "信号K线索引",
-      "description_en": "Signal bar index"
+      "default_value": "1",
+      "description": "用于判断交易信号的K线索引",
+      "description_en": "用于判断交易信号的K线索引"
     }
   ],
   "pros": [
-    "双重过滤机制：布林带+MA双重确认，减少假信号",
-    "灵活的价格类型：12种价格类型适应不同市场环境",
-    "完善的资金管理：5种MM模式满足不同风险偏好",
-    "回调入场策略：不在极端位置入场，相对安全",
-    "合理的风险比：1:2的止盈止损比",
-    "模块化设计：使用tradealgorithms.mqh库，代码复用性好",
-    "专业的交易函数：包含完整的错误处理和验证逻辑"
+    "策略逻辑清晰，基于指标线与信号线的交叉判断趋势方向，简单易懂",
+    "具备完善的新K线检测机制，避免同一根K线内重复开仓",
+    "支持多种资金管理模式，灵活适应不同交易需求",
+    "止损止盈参数可配置，具备基本的风险控制框架",
+    "买卖开仓和平仓均可独立开关控制，策略配置灵活度高"
+  ],
+  "pros_en": [
+    "Clear strategy logic based on indicator/signal line crossover for trend determination, easy to understand",
+    "Proper new bar detection mechanism prevents repeated trade entries within the same bar",
+    "Supports multiple money management modes, flexibly adapting to different trading needs",
+    "Configurable stop loss and take profit parameters provide a basic risk control framework",
+    "Buy/sell open and close can be independently toggled, offering high strategy configuration flexibility"
   ],
   "cons": [
-    "默认止损过大：1000点默认止损极度危险",
-    "无趋势强度确认：缺少ADX等趋势强度指标",
-    "震荡市表现差：横盘市场频繁交叉产生亏损",
-    "指标逻辑复杂：两个Buffer的计算方式不够直观",
-    "时间框架单一：只支持单一时间框架，无多周期确认",
-    "缺少追踪止损：没有移动止损或追踪止损机制",
-    "回撤可能较大：固定止损在趋势反转时可能造成连续亏损"
-  ],
-  "improvements": [],
-  "risk_assessment": {
-    "overall": "dangerous",
-    "risk_points": []
-  },
-  "scores": {},
-  "rating": 0,
-  "strategy_analysis_en": "[Strategy analysis available in Chinese — English translation pending]",
-  "pros_en": [
-    "Dual filter mechanism: Bollinger Bands + MA dual confirmation, reducing false signals",
-    "Flexible price types: 12 price types adapt to different market conditions",
-    "Comprehensive money management: 5 MM modes for different risk preferences",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]"
+    "依赖外部自定义指标i_Trend和TradeAlgorithms.mqh库，可移植性和独立性较差",
+    "缺少点差过滤机制，在高点差环境下可能产生不利成交",
+    "止损1000点和止盈2000点的默认值较大，可能不适合所有品种和波动环境",
+    "没有持仓检查逻辑，可能在已有同向持仓时重复开仓",
+    "i_Trend指标的具体计算逻辑不透明，使用者难以理解信号生成原理"
   ],
   "cons_en": [
-    "Default stop loss too large: 1000-point default stop loss is extremely dangerous",
-    "No trend strength confirmation: lacks ADX or similar trend strength indicators",
-    "Poor ranging-market performance: frequent crossovers cause losses in sideways markets",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]"
-  ]
+    "Depends on external custom indicator i_Trend and TradeAlgorithms.mqh library, poor portability and independence",
+    "Lacks spread filter mechanism, may result in unfavorable fills in high-spread environments",
+    "Default SL 1000 and TP 2000 points are large, may not suit all instruments and volatility conditions",
+    "No existing position check logic, potentially opening duplicate positions in the same direction",
+    "i_Trend indicator's internal calculation logic is opaque, making it hard for users to understand signal generation"
+  ],
+  "improvements": [
+    "增加持仓检查逻辑，避免在已有同向仓位时重复开仓",
+    "添加点差过滤和时间过滤机制，提高入场质量"
+  ],
+  "improvements_en": [
+    "Add existing position check logic to avoid duplicate entries when same-direction positions already exist",
+    "Add spread filter and session time filter mechanisms to improve entry quality"
+  ],
+  "risk_assessment": {
+    "overall": "medium",
+    "risk_points": [
+      "缺少持仓检查，可能在同方向重复开仓导致过度暴露",
+      "大止损值（1000点）可能导致单笔亏损较大",
+      "无点差过滤，高点差时入场成本高"
+    ],
+    "risk_points_en": [
+      "No position check may lead to duplicate entries and overexposure in the same direction",
+      "Large stop loss value (1000 points) may result in significant single-trade losses",
+      "No spread filter means high entry costs during wide spread conditions"
+    ]
+  },
+  "scores": {
+    "code_quality": 3.0,
+    "strategy_logic": 3.0,
+    "risk_management": 2.0,
+    "robustness": 3.0,
+    "innovation": 2.0,
+    "documentation": 1.0,
+    "overall": 2.33
+  },
+  "rating": 2,
+  "timeframes": [
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "indicators_used": [
+    "EMA",
+    "Bollinger Bands",
+    "i_Trend (custom)"
+  ],
+  "id": "EA-13777"
 }

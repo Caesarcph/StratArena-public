@@ -1,129 +1,217 @@
 {
-  "id": "EA-14065",
-  "name": "",
-  "summary": "",
-  "strategy_analysis": "分析\n\n### 2.1 核心策略概念\n\n这是一个**零延迟多周期DeMarker振荡器趋势跟踪策略**，核心思想是：\n\n1. **多周期加权组合**：使用5个斐波那契周期(8/21/34/55/89)的DeMarker指标加权组合\n2. **零延迟设计**：通过权重归一化消除单一周期的滞后\n3. **快慢线穿越**：快线(FastTrend)穿越慢线(SlowTrend)产生交易信号\n4. **新K线触发**：仅在每根新K线时计算信号，避免重复交易\n\n### 2.2 零延迟算法详解\n\n**ColorZerolagDeMarker指标算法** (colorzerolagdemarker.mq5):\n\n**权重系数设计** (归一化总和=1.0):\n- Factor1 = 0.05 (8周期权重)\n- Factor2 = 0.10 (21周期权重)\n- Factor3 = 0.16 (34周期权重)\n- Factor4 = 0.26 (55周期权重)\n- Factor5 = 0.43 (89周期权重)\n\n权重递增设计使长周期贡献更大，有效减少噪音。\n\n### 2.3 入场条件\n\n**做多信号** (129-134行):\n\n⚠️ **注意**：这里的逻辑是\"穿越后确认\"，即快线从上方穿越到下方时做多。这实际上是**动量减弱时入场**的策略。\n\n**做空信号** (137-142行):\n\n### 2.4 出场条件\n\n**平多仓**：快线从下方穿越到上方时\n**平空仓**：快线从上方穿越到下方时\n\n出场逻辑与入场逻辑对称，形成完整的趋势跟踪循环。\n\n### 2.5 风险管理\n\n| 参数 | 默认值 | 说明 |\n\n| StopLoss | 1000点 | 止损距离 (⚠️过大，建议150-300点) |\n| TakeProfit | 2000点 | 止盈距离 |\n| 盈亏比 | 2:1 | 良好 |\n| MM | 0.1 | 手数参数 |\n| MMMode | LOT | 手数计算模式 |",
+  "name": "Exp_ColorZerolagDeMarker",
+  "category": "Momentum",
+  "category_zh": "动量",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA trades based on the crossover signals of the ColorZerolagDeMarker custom indicator, which is a zero-lag composite oscillator built from five weighted DeMarker indicators. It opens buy positions when the oscillator crosses above its signal line and sell positions when it crosses below, with configurable stop-loss and take-profit levels. Position sizing and trade execution are handled through the included TradeAlgorithms library.",
+  "summary_zh": "该EA基于ColorZerolagDeMarker自定义指标的交叉信号进行交易，该指标是一个由五个加权DeMarker指标合成的零滞后振荡器。当振荡器上穿信号线时开多仓，下穿信号线时开空仓，并设有可配置的止损止盈水平。仓位管理和交易执行通过内置的TradeAlgorithms库处理。",
+  "strategy_analysis": "该EA的策略核心是零滞后DeMarker振荡器的交叉信号，通过五个不同周期（8、21、34、55、89）的DeMarker指标按不同权重（0.05、0.10、0.16、0.26、0.43）加权合成，旨在消除传统振荡器的滞后性。入场条件为：当Osc1上穿Osc2时产生买入信号，当Osc1下穿Osc2时产生卖出信号，交叉判断需要前后两根K线确认（Osc1[1]>Osc2[1]且Osc1[0]<Osc2[0]为买入交叉）。出场条件依赖固定点数的止损（1000点）和止盈（2000点），同时支持反向信号平仓。仓位管理通过MM参数控制，支持固定手数和固定保证金两种模式。资金管理方面，止损止盈比例为1:2，但没有根据波动率或账户风险动态调整的机制。策略仅在新K线形成时计算信号，避免了逐tick重复计算的问题。",
+  "strategy_analysis_en": "The core strategy revolves around crossover signals from a zero-lag DeMarker oscillator, which combines five DeMarker indicators with different periods (8, 21, 34, 55, 89) and weights (0.05, 0.10, 0.16, 0.26, 0.43) to eliminate the lag inherent in traditional oscillators. Entry conditions are: a buy signal is generated when Osc1 crosses above Osc2, and a sell signal is generated when Osc1 crosses below Osc2, requiring confirmation from two consecutive bars (e.g., Osc1[1]>Osc2[1] and Osc1[0]<Osc2[0] for a buy crossover). Exit conditions rely on fixed stop-loss (1000 points) and take-profit (2000 points) levels, with optional closing on reverse signals. Position sizing is controlled by the MM parameter, supporting both fixed lot and fixed margin modes via the TradeAlgorithms library. Money management features a 1:2 risk-reward ratio but lacks dynamic adjustment based on volatility or account risk percentage. The strategy only recalculates signals on new bar formation, avoiding redundant per-tick computation.",
   "parameters": [
     {
       "name": "MM",
-      "default_value": "手数或风险百分比",
-      "description": "0.1",
-      "default_value_en": "Lot size or risk percentage"
+      "default_value": "0.1",
+      "description": "资金管理参数，控制下单手数或保证金比例",
+      "description_en": "资金管理参数，控制下单手数或保证金比例"
     },
     {
       "name": "MMMode",
-      "default_value": "LOT/CENTER_MONEY/FREE_MARGIN",
-      "description": "LOT"
+      "default_value": "LOT",
+      "description": "资金管理模式：固定手数或固定保证金",
+      "description_en": "资金管理模式：固定手数或固定保证金"
     },
     {
       "name": "StopLoss_",
-      "default_value": "止损点数",
-      "description": "1000",
-      "default_value_en": "Stop loss points"
+      "default_value": "1000",
+      "description": "止损点数",
+      "description_en": "止损点数"
     },
     {
       "name": "TakeProfit_",
-      "default_value": "止盈点数",
-      "description": "2000",
-      "default_value_en": "Take profit points"
+      "default_value": "2000",
+      "description": "止盈点数",
+      "description_en": "止盈点数"
     },
     {
       "name": "Deviation_",
-      "default_value": "滑点容忍度",
-      "description": "10",
-      "default_value_en": "Slippage tolerance"
+      "default_value": "10",
+      "description": "最大允许滑点",
+      "description_en": "最大允许滑点"
     },
     {
       "name": "BuyPosOpen",
-      "default_value": "允许开多",
-      "description": "true",
-      "default_value_en": "Allow Buy Open"
+      "default_value": "true",
+      "description": "是否允许开多仓",
+      "description_en": "是否允许开多仓"
     },
     {
       "name": "SellPosOpen",
-      "default_value": "允许开空",
-      "description": "true",
-      "default_value_en": "—"
+      "default_value": "true",
+      "description": "是否允许开空仓",
+      "description_en": "是否允许开空仓"
     },
     {
       "name": "BuyPosClose",
-      "default_value": "允许平多",
-      "description": "true",
-      "default_value_en": "—"
+      "default_value": "true",
+      "description": "是否允许反向信号平多仓",
+      "description_en": "是否允许反向信号平多仓"
     },
     {
       "name": "SellPosClose",
-      "default_value": "允许平空",
-      "description": "true",
-      "default_value_en": "—"
+      "default_value": "true",
+      "description": "是否允许反向信号平空仓",
+      "description_en": "是否允许反向信号平空仓"
     },
     {
       "name": "InpInd_Timeframe",
-      "default_value": "时间框架",
-      "description": "PERIOD_H3",
-      "default_value_en": "—"
+      "default_value": "PERIOD_H3",
+      "description": "指标计算的时间周期",
+      "description_en": "指标计算的时间周期"
     },
     {
       "name": "SignalBar",
-      "default_value": "信号K线索引",
-      "description": "1",
-      "default_value_en": "K"
+      "default_value": "1",
+      "description": "用于获取信号的K线索引",
+      "description_en": "用于获取信号的K线索引"
     },
     {
       "name": "smoothing",
-      "default_value": "慢线平滑周期",
-      "description": "15",
-      "default_value_en": "—"
+      "default_value": "15",
+      "description": "振荡器平滑周期",
+      "description_en": "振荡器平滑周期"
     },
     {
-      "name": "Factor1-5",
-      "default_value": "权重系数",
-      "description": "0.05/0.10/0.16/0.26/0.43",
-      "default_value_en": "—"
+      "name": "Factor1",
+      "default_value": "0.05",
+      "description": "第一个DeMarker的加权因子",
+      "description_en": "第一个DeMarker的加权因子"
     },
     {
-      "name": "DeMarker_period1-5",
-      "default_value": "五个DeMarker周期",
-      "description": "8/21/34/55/89",
-      "default_value_en": "DeMarker"
+      "name": "DeMarker_period1",
+      "default_value": "8",
+      "description": "第一个DeMarker的周期",
+      "description_en": "第一个DeMarker的周期"
+    },
+    {
+      "name": "Factor2",
+      "default_value": "0.10",
+      "description": "第二个DeMarker的加权因子",
+      "description_en": "第二个DeMarker的加权因子"
+    },
+    {
+      "name": "DeMarker_period2",
+      "default_value": "21",
+      "description": "第二个DeMarker的周期",
+      "description_en": "第二个DeMarker的周期"
+    },
+    {
+      "name": "Factor3",
+      "default_value": "0.16",
+      "description": "第三个DeMarker的加权因子",
+      "description_en": "第三个DeMarker的加权因子"
+    },
+    {
+      "name": "DeMarker_period3",
+      "default_value": "34",
+      "description": "第三个DeMarker的周期",
+      "description_en": "第三个DeMarker的周期"
+    },
+    {
+      "name": "Factor4",
+      "default_value": "0.26",
+      "description": "第四个DeMarker的加权因子",
+      "description_en": "第四个DeMarker的加权因子"
+    },
+    {
+      "name": "DeMarker_period4",
+      "default_value": "55",
+      "description": "第四个DeMarker的周期",
+      "description_en": "第四个DeMarker的周期"
+    },
+    {
+      "name": "Factor5",
+      "default_value": "0.43",
+      "description": "第五个DeMarker的加权因子",
+      "description_en": "第五个DeMarker的加权因子"
+    },
+    {
+      "name": "DeMarker_period5",
+      "default_value": "89",
+      "description": "第五个DeMarker的周期",
+      "description_en": "第五个DeMarker的周期"
     }
   ],
   "pros": [
-    "零延迟多周期设计：斐波那契周期权重组合有效减少单一周期滞后",
-    "权重归一化：Factor1-5总和=1.0，确保信号稳定性",
-    "新K线检测：CIsNewBar类高效检测，避免重复计算",
-    "四开关交易控制：BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose灵活控制",
-    "TradeAlgorithms库：完整交易函数库，OrderCheck预检查机制",
-    "盈亏比良好：默认2:1盈亏比"
+    "零滞后设计通过多周期加权合成有效减少了传统振荡器的信号滞后问题",
+    "仅在新K线形成时计算信号，减少了计算开销和虚假信号",
+    "提供了独立的买卖开关控制，灵活性高，可以单独启用或禁用开仓和平仓",
+    "1:2的风险回报比设置合理，有利于长期正期望值",
+    "使用前后两根K线确认交叉信号，降低了虚假突破的风险"
+  ],
+  "pros_en": [
+    "Zero-lag design through multi-period weighted composition effectively reduces signal lag inherent in traditional oscillators",
+    "Signals are calculated only on new bar formation, reducing computational overhead and false signals",
+    "Independent buy/sell toggle controls provide high flexibility, allowing separate enabling/disabling of entry and exit",
+    "1:2 risk-reward ratio is reasonable and conducive to long-term positive expectancy",
+    "Two-bar crossover confirmation reduces the risk of false breakouts"
   ],
   "cons": [
-    "止损过大：1000点止损可能导致大额亏损",
-    "无趋势强度过滤：震荡市易产生假信号",
-    "入场时机存疑：动量减弱时入场可能错过强势趋势",
-    "固定手数：无动态资金管理",
-    "依赖自定义指标：需确保ColorZerolagDeMarker指标存在"
-  ],
-  "improvements": [],
-  "risk_assessment": {
-    "overall": "medium",
-    "risk_points": []
-  },
-  "scores": {},
-  "rating": 0,
-  "strategy_analysis_en": "[Strategy analysis available in Chinese — English translation pending]",
-  "pros_en": [
-    "Zero-lag multi-period design: Fibonacci period weight combination effectively reduces single-period lag",
-    "Weight normalization: Factor1-5 sum = 1.0, ensuring signal stability",
-    "New bar detection: Efficient CIsNewBar class, avoiding redundant computation",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]"
+    "止损止盈使用固定点数，不考虑市场波动率变化，在不同品种和行情下可能不适用",
+    "没有持仓检查机制，可能重复开仓或在没有预期的情况下叠加仓位",
+    "依赖外部自定义指标ColorZerolagDeMarker和TradeAlgorithms库，可移植性差",
+    "缺少点差过滤和交易时间限制，在点差过大或非活跃时段可能产生不利成交",
+    "DeMarker_period4为int类型而其他周期为uint类型，存在类型不一致的隐患"
   ],
   "cons_en": [
-    "Stop loss too large: 1000-point SL may cause significant losses",
-    "No trend strength filter: prone to false signals in ranging markets",
-    "Questionable entry timing: entering on weakening momentum may miss strong trends",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]"
-  ]
+    "Fixed point stop-loss and take-profit do not account for market volatility changes, making them unsuitable across different instruments and market conditions",
+    "No position check mechanism exists, potentially leading to duplicate entries or unintended position stacking",
+    "Dependency on external custom indicator ColorZerolagDeMarker and TradeAlgorithms library reduces portability",
+    "Lacks spread filter and trading session restrictions, which may result in unfavorable fills during high-spread or low-liquidity periods",
+    "DeMarker_period4 uses int type while other periods use uint, indicating an inconsistency that could cause issues"
+  ],
+  "improvements": [
+    "将固定点数止损止盈改为基于ATR的动态止损止盈，以适应不同市场波动环境",
+    "增加持仓检查和最大持仓数量限制，防止重复开仓和过度暴露风险",
+    "增加点差过滤和交易时段控制，避免在不利条件下开仓"
+  ],
+  "improvements_en": [
+    "Replace fixed-point stop-loss and take-profit with ATR-based dynamic levels to adapt to varying market volatility",
+    "Add position checking and maximum position limits to prevent duplicate entries and overexposure",
+    "Add spread filtering and trading session controls to avoid opening positions under unfavorable conditions"
+  ],
+  "risk_assessment": {
+    "overall": "medium",
+    "risk_points": [
+      "没有持仓检查机制，可能在已有同向仓位时重复开仓导致风险叠加",
+      "固定止损1000点在极端行情下可能不足以覆盖跳空风险",
+      "缺少点差过滤，高波动时段点差扩大可能导致不利的入场价格"
+    ],
+    "risk_points_en": [
+      "No position check mechanism may lead to duplicate entries in the same direction, increasing risk exposure",
+      "Fixed 1000-point stop-loss may be insufficient to cover gap risk during extreme market conditions",
+      "Lack of spread filter may result in unfavorable entry prices during high-volatility periods when spreads widen"
+    ]
+  },
+  "scores": {
+    "code_quality": 3.0,
+    "strategy_logic": 3.0,
+    "risk_management": 2.0,
+    "robustness": 3.0,
+    "innovation": 4.0,
+    "documentation": 1.0,
+    "overall": 2.67
+  },
+  "rating": 3,
+  "timeframes": [
+    "H1",
+    "H3",
+    "H4",
+    "D1"
+  ],
+  "indicators_used": [
+    "DeMarker",
+    "ColorZerolagDeMarker"
+  ],
+  "id": "EA-14065"
 }

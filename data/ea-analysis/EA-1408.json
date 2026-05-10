@@ -1,82 +1,98 @@
 {
-  "id": "EA-1408",
-  "name": "Exp candlestop trailing",
-  "summary": "",
-  "strategy_analysis": "分析\n\n### 2.1 核心策略概念\n这是一个**纯追踪止损管理EA**，而非完整的交易策略。它不执行任何开仓操作，只对已存在的持仓进行止损追踪管理。\n\n**核心逻辑**：\n- 使用CandleStop指标计算动态止损位\n- CandleStop指标基于最近N根K线的最高价和最低价\n- 对于多头：止损追踪最低价的极值\n- 对于空头：止损追踪最高价的极值\n- 只在价格有利方向移动时移动止损，锁定利润\n\n### 2.2 入场条件\n**⚠️ 此EA不执行入场操作！**\n\nEA仅在检测到已有持仓时运行，无法自动开仓。需要配合其他开仓策略或手动开仓使用。\n\n### 2.3 出场条件\n**止损追踪逻辑**：\n\n#### 多头持仓止损追踪：\n1. 获取DnValue（最近DnTrailPeriods根K线的最低价极值）\n2. 如果持仓没有止损（SL=0）：\n   - 取DnValue[0]和DnValue[1]的最小值作为新止损\n   - 确保止损低于当前Ask价格\n3. 如果已有止损：\n   - 仅当新止损位置 > 旧止损位置时才移动（追踪盈利）\n   - 每根新K线检测一次\n\n#### 空头持仓止损追踪：\n1. 获取UpValue（最近UpTrailPeriods根K线的最高价极值）\n2. 如果持仓没有止损（SL=0）：\n   - 取UpValue[0]和UpValue[1]的最大值作为新止损\n   - 确保止损高于当前Bid价格\n3. 如果已有止损：\n   - 仅当新止损位置 < 旧止损位置时才移动（追踪盈利）\n   - 每根新K线检测一次\n\n### 2.4 风险管理\n- **止损追踪**：基于K线极值的动态追踪\n- **止损距离控制**：通过StopCorrect函数检查SYMBOL_TRADE_STOPS_LEVEL\n- **滑点控制**：Deviation参数（默认10点）\n- **订单预检查**：OrderCheck()确保请求有效",
+  "name": "Exp_CandleStop_Trailing",
+  "category": "Trend Following",
+  "category_zh": "趋势跟踪",
+  "is_trading": false,
+  "trading_style": "semi-automated",
+  "summary": "This EA is a trailing stop utility that modifies the stop-loss of an existing open position based on the CandleStop indicator values. It does not open positions itself; it only trails the stop-loss of manually or externally opened positions using the high/low of recent candles as determined by the CandleStop custom indicator.",
+  "summary_zh": "这是一个追踪止损工具EA，基于CandleStop指标值来修改已有持仓的止损位。它本身不开仓，仅对已存在的仓位根据最近K线的高低点进行止损追踪。",
+  "strategy_analysis": "策略概念：该EA是一个纯止损追踪工具，不负责开仓，仅对已有持仓进行止损管理。入场条件：EA本身不产生入场信号，它依赖于用户或其他EA已经建立的仓位。出场条件：通过CandleStop指标计算的上轨（UpValue）和下轨（DnValue）来动态调整止损位，对于多头仓位使用下轨作为止损参考，对于空头仓位使用上轨作为止损参考。仓位管理：不涉及开仓仓位管理，仅修改已有仓位的止损和止盈。资金管理：无资金管理逻辑，不计算仓位大小。当仓位的当前止损为零时，EA会取最近两根K线的指标值中的极值来设置初始止损；当已有止损时，仅在新K线出现时根据最新指标值更新止损，且只允许止损向有利方向移动（多头止损上移、空头止损下移）。",
+  "strategy_analysis_en": "Strategy concept: This EA is a pure trailing stop utility that does not handle position opening; it only manages stop-loss levels for existing positions. Entry conditions: The EA does not generate entry signals; it relies on positions already opened by the user or another EA. Exit conditions: It dynamically adjusts stop-loss using the CandleStop indicator's upper band (UpValue) for sell positions and lower band (DnValue) for buy positions, which are derived from recent candle highs and lows over configurable lookback periods. Position sizing: Not applicable — the EA does not open positions, only modifies stop-loss and take-profit of existing ones. Money management: No money management logic is present; the EA does not calculate lot sizes. When the position has no stop-loss set, the EA initializes it using the more conservative of the two latest indicator values; when a stop-loss already exists, it only updates on new bars and only allows the stop to move in the favorable direction (up for buys, down for sells).",
   "parameters": [
     {
-      "name": "`UpTrailPeriods`",
+      "name": "UpTrailPeriods",
       "default_value": "5",
-      "description": "多头止损追踪周期（查找最低价的K线数）",
-      "description_en": "Buy trailing stop period (bars to search for lowest price)"
+      "description": "搜索高点的回溯K线周期数",
+      "description_en": "搜索高点的回溯K线周期数"
     },
     {
-      "name": "`DnTrailPeriods`",
+      "name": "DnTrailPeriods",
       "default_value": "5",
-      "description": "空头止损追踪周期（查找最高价的K线数）",
-      "description_en": "Sell trailing stop period (bars to search for highest price)"
+      "description": "搜索低点的回溯K线周期数",
+      "description_en": "搜索低点的回溯K线周期数"
     },
     {
-      "name": "`Deviation`",
+      "name": "Deviation",
       "default_value": "10",
-      "description": "滑点（点数）",
-      "description_en": "Slippage (points)"
-    },
-    {
-      "name": "`UpTrailPeriods`",
-      "default_value": "5",
-      "description": "最高价搜索周期",
-      "description_en": "High price search period"
-    },
-    {
-      "name": "`DnTrailPeriods`",
-      "default_value": "5",
-      "description": "最低价搜索周期",
-      "description_en": "Low price search period"
-    },
-    {
-      "name": "`Shift`",
-      "default_value": "0",
-      "description": "水平位移（K线数）",
-      "description_en": "Horizontal shift (bar count)"
+      "description": "下单滑点（点数）",
+      "description_en": "下单滑点（点数）"
     }
   ],
   "pros": [
-    "代码质量高：Nikolay Kositsin专业级代码，结构清晰",
-    "完善错误处理：完整的OrderCheck预检查+错误码描述",
-    "CIsNewBar类设计优秀：新K线检测类可复用",
-    "止损校正机制：StopCorrect确保止损符合broker要求",
-    "纯追踪止损设计：专注于风控，不干涉开仓逻辑",
-    "音频反馈：成功修改后播放\"ok.wav\""
+    "逻辑简洁清晰，专注于止损追踪，功能单一明确",
+    "止损只允许朝有利方向移动，防止止损回退造成不必要的损失",
+    "使用新K线检测机制避免频繁修改，减少交易请求次数",
+    "内置止损距离合规性检查（StopCorrect），确保止损满足经纪商最小距离要求",
+    "初始止损和追踪止损分开处理，逻辑层次分明"
+  ],
+  "pros_en": [
+    "Clean and focused logic — the EA does one thing well: trailing stop management",
+    "Stop-loss only moves in the favorable direction, preventing adverse rollback",
+    "New bar detection mechanism reduces unnecessary trade requests and server load",
+    "Built-in StopCorrect function ensures stop distance meets broker minimum requirements",
+    "Separate handling of initial stop-loss placement vs. trailing updates provides clear logic layers"
   ],
   "cons": [
-    "功能不完整：仅有止损追踪，无开仓能力",
-    "参数过少：缺少时间过滤、最大止损距离等参数",
-    "无日志记录：只有Print输出，缺少持久化日志",
-    "止损可能过紧：默认5周期在波动市场可能频繁被触发",
-    "无多货币支持：只能处理单一品种"
-  ],
-  "improvements": [],
-  "risk_assessment": {
-    "overall": "low",
-    "risk_points": []
-  },
-  "scores": {},
-  "rating": 0,
-  "strategy_analysis_en": "[Strategy analysis available in Chinese — English translation pending]",
-  "pros_en": [
-    "High code quality: Professional-grade code by Nikolay Kositsin, clean structure",
-    "Comprehensive error handling: Full OrderCheck pre-validation + error code descriptions",
-    "Excellent CIsNewBar class design: Reusable new-bar detection class",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]"
+    "不开仓也不平仓，完全依赖外部仓位，独立性差",
+    "ORDER_FILLING_FOK硬编码，部分经纪商不支持此成交模式，会导致修改失败",
+    "dSellPositionModify中使用Ask而非Bid作为参考价格，与卖单逻辑不完全匹配",
+    "OnDeinit中未释放指标句柄，可能造成资源泄漏",
+    "缺少对多仓位的支持，只能处理当前品种的单个仓位"
   ],
   "cons_en": [
-    "Incomplete functionality: only trailing stop, no position-opening capability",
-    "Too few parameters: lacks time filter, max stop distance, etc.",
-    "No logging: only Print output, lacks persistent logs",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]"
-  ]
+    "No position opening or closing capability — entirely dependent on external positions, limiting standalone usability",
+    "ORDER_FILLING_FOK is hardcoded; some brokers do not support this fill mode, causing modification failures",
+    "dSellPositionModify uses Ask price instead of Bid as reference, which is inconsistent with sell position logic",
+    "OnDeinit does not release the indicator handle, potentially causing resource leaks",
+    "No support for multiple positions — can only handle a single position on the current symbol"
+  ],
+  "improvements": [
+    "在OnDeinit中添加IndicatorRelease()释放指标句柄，避免资源泄漏",
+    "将ORDER_FILLING_FOK改为根据经纪商支持动态选择成交模式，提高兼容性"
+  ],
+  "improvements_en": [
+    "Add IndicatorRelease() in OnDeinit to properly free the indicator handle and prevent resource leaks",
+    "Replace hardcoded ORDER_FILLING_FOK with dynamic fill mode selection based on broker support for better compatibility"
+  ],
+  "risk_assessment": {
+    "overall": "low",
+    "risk_points": [
+      "仅修改止损不开仓，风险暴露由外部仓位决定",
+      "硬编码FOK成交模式在部分经纪商可能导致止损修改失败，使仓位处于无保护状态"
+    ],
+    "risk_points_en": [
+      "Risk exposure is determined by external positions since the EA only modifies stops without opening trades",
+      "Hardcoded FOK fill mode may cause stop modification failures on some brokers, leaving positions unprotected"
+    ]
+  },
+  "scores": {
+    "code_quality": 3.0,
+    "strategy_logic": 3.0,
+    "risk_management": 3.0,
+    "robustness": 2.0,
+    "innovation": 2.0,
+    "documentation": 2.0,
+    "overall": 2.5
+  },
+  "rating": 3,
+  "timeframes": [
+    "M15",
+    "H1",
+    "H4",
+    "D1"
+  ],
+  "indicators_used": [
+    "CandleStop"
+  ],
+  "id": "EA-1408"
 }
