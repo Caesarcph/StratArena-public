@@ -78,6 +78,18 @@ function getEACategoryLabel(value) {
   return item ? t(item.key) : value;
 }
 
+const _zhRe = /[\u4e00-\u9fff]/;
+function _enStr(val, fallback) {
+  if (val && typeof val === "string" && !_zhRe.test(val)) return val;
+  if (fallback && typeof fallback === "string" && !_zhRe.test(fallback)) return fallback;
+  return "N/A";
+}
+function _enList(arr, fallbackArr) {
+  if (Array.isArray(arr) && arr.length && !_zhRe.test(arr.join(""))) return arr;
+  if (Array.isArray(fallbackArr) && fallbackArr.length && !_zhRe.test(fallbackArr.join(""))) return fallbackArr;
+  return ["N/A"];
+}
+
 function getEABacktestStatus(value) {
   if (!value) return getLang() === "zh" ? "待定" : "Pending";
   if (String(value).toLowerCase() === "pending") return getLang() === "zh" ? "待定" : "Pending";
@@ -327,7 +339,7 @@ function renderEADetail(route) {
   if (analysis && analysis.parameters && analysis.parameters.length) {
     const rows = analysis.parameters
       .map(
-        (p) => `<tr><td>${p.name_en || p.name || "—"}</td><td>${p.default_value_en || p.default_value || "—"}</td><td>${p.description_en || p.description || "—"}</td></tr>`
+        (p) => `<tr><td>${p.name_en || p.name || "—"}</td><td>${p.default_value_en || p.default_value || "—"}</td><td>${isEn ? _enStr(p.description_en, p.description) : (p.description || "—")}</td></tr>`
       )
       .join("");
     paramsHtml = `
@@ -343,9 +355,9 @@ function renderEADetail(route) {
   let analysisHtml = "";
   if (analysis) {
     const isEn = getLang() === "en";
-    const prosList = isEn ? (analysis.pros_en || analysis.pros || []) : (analysis.pros || []);
-    const consList = isEn ? (analysis.cons_en || analysis.cons || []) : (analysis.cons || []);
-    const impsList = isEn ? (analysis.improvements_en || analysis.improvements || []) : (analysis.improvements || []);
+const prosList = isEn ? _enList(analysis.pros_en, analysis.pros) : (analysis.pros || ["N/A"]);
+  const consList = isEn ? _enList(analysis.cons_en, analysis.cons) : (analysis.cons || ["N/A"]);
+  const impsList = isEn ? _enList(analysis.improvements_en, analysis.improvements) : (analysis.improvements || ["N/A"]);
     const prosHtml = prosList.map((p) => `<li>${p}</li>`).join("");
     const consHtml = consList.map((c) => `<li>${c}</li>`).join("");
     const impsHtml = impsList.map((i) => `<li>${i}</li>`).join("");
@@ -353,7 +365,7 @@ function renderEADetail(route) {
     let riskHtml = "";
     if (analysis.risk_assessment) {
       const ra = analysis.risk_assessment;
-      const riskPointsList = isEn ? (ra.risk_points_en || ra.risk_points || []) : (ra.risk_points || []);
+      const riskPointsList = isEn ? _enList(ra.risk_points_en, ra.risk_points) : (ra.risk_points || []);
       const riskPoints = riskPointsList.map((rp) => `<li>${rp}</li>`).join("");
       riskHtml = `
       <div class="ea-section">
@@ -383,7 +395,7 @@ function renderEADetail(route) {
       </div>`;
     }
 
-    const strategyText = isEn ? (analysis.strategy_analysis_en || analysis.summary_en || analysis.strategy_analysis || analysis.summary || "") : (analysis.strategy_analysis || analysis.summary || "");
+    const strategyText = isEn ? _enStr(analysis.strategy_analysis_en || analysis.summary_en, analysis.strategy_analysis || analysis.summary) : (analysis.strategy_analysis || analysis.summary || "N/A");
     analysisHtml = `
     <div class="ea-section"><h2>${getLang() === "zh" ? "策略分析" : "Strategy Analysis"}</h2><div class="ea-analysis-text">${strategyText}</div></div>
     ${paramsHtml}
