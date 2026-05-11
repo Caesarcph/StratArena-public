@@ -1,90 +1,153 @@
 {
-  "id": "EA-1203",
-  "name": "Exp mama",
-  "summary": "",
-  "strategy_analysis": "分析\n\n### 2.1 核心策略概念\n**MESA自适应移动平均线交叉策略 (MESA Adaptive Moving Average Crossover)**\n\nMAMA（MESA Adaptive Moving Average）是由John Ehlers开发的自适应移动平均算法。它根据市场周期的变化动态调整平滑系数，在趋势强烈时响应快速，在震荡时保持平滑。\n\n### 2.2 MAMA算法原理\n\n**MAMA核心公式**:\n\n**alpha（平滑系数）计算**:\n\n**关键参数**:\n- **FastLimit**: 0.5（最快响应）\n- **SlowLimit**: 0.05（最慢响应）\n- 周期限制: 6-50个周期\n\n### 2.3 入场逻辑\n\n**买入条件**:\n\n**卖出条件**:\n\n**⚠️ 注意**: 代码逻辑看起来是当MAMA从上方穿越到下方时买入（反向），但通常MAMA策略是MAMA在FAMA之上做多，之下做空。需要确认。\n\n**实际逻辑分析**:\n\n### 2.4 出场逻辑\n- 信号反转时自动平仓\n- 固定止损/止盈\n\n### 2.5 自适应特性\n\n**优点**:\n- 趋势强时：周期短，alpha大，响应快\n- 震荡时：周期长，alpha小，过滤噪音\n- 自动适应市场状态\n\n**计算复杂度**:\n- 使用Hilbert变换\n- 涉及复数运算\n- 计算量较大",
-  "parameters": [],
+  "name": "Exp_MAMA",
+  "category": "Trend Following",
+  "category_zh": "趋势跟踪",
+  "is_trading": true,
+  "trading_style": "systematic",
+  "summary": "This EA trades based on the MAMA (Mesa Adaptive Moving Average) indicator crossover signals. It opens buy positions when the MAMA fast line crosses above the slow line and sell positions on the opposite crossover, with configurable stop loss and take profit levels. Position sizing uses a deposit share or fixed lot mechanism via the TradeAlgorithms library.",
+  "summary_zh": "该EA基于MAMA（Mesa自适应移动平均线）指标的金叉死叉信号进行交易。当MAMA快线上穿慢线时开多仓，反之开空仓，并配置了止损止盈。仓位管理通过TradeAlgorithms库使用存款比例或固定手数机制。",
+  "strategy_analysis": "策略概念基于MESA自适应移动平均线(MAMA)指标的趋势跟踪，通过快线与慢线的交叉来判断趋势方向。入场条件为：当Ma1(快线)从下方穿越Ma2(慢线)时产生买入信号，当Ma1从上方穿越Ma2时产生卖出信号，信号需在指定SignalBar上确认且前一bar方向一致才触发。出场条件包括：固定点数止损(StopLoss_=1000)和止盈(TakeProfit_=2000)，以及反向交叉信号触发的平仓——买入信号时平空头，卖出信号时平多头。仓位管理通过MM参数控制，负值表示固定手数，正值表示存款占比。资金管理依赖外部TradeAlgorithms.mqh库的BuyPositionOpen/SellPositionOpen函数实现，支持比例仓位或固定手数两种模式。该策略在H4周期运行，使用SignalBar=1即前一根K线作为信号源，减少了重绘风险但仍存在滞后。",
+  "strategy_analysis_en": "The strategy concept is trend following based on the MESA Adaptive Moving Average (MAMA) indicator, using crossovers between the fast and slow lines to determine trend direction. Entry conditions: a buy signal is generated when Ma1 (fast line) crosses above Ma2 (slow line), and a sell signal on the opposite crossover, requiring confirmation on the specified SignalBar with the prior bar showing the opposite relationship. Exit conditions include fixed stop loss (1000 points) and take profit (2000 points), plus counter-crossover exits where a buy signal closes shorts and a sell signal closes longs. Position sizing is controlled by the MM parameter where negative values represent fixed lot sizes and positive values represent deposit share percentages. Money management relies on the external TradeAlgorithms.mqh library functions (BuyPositionOpen/SellPositionOpen) supporting both proportional and fixed lot modes. The strategy operates on H4 timeframe using SignalBar=1 (previous bar) as the signal source, which reduces repainting risk but introduces inherent lag typical of moving average crossover systems.",
+  "parameters": [
+    {
+      "name": "MM",
+      "default_value": "-0.1",
+      "description": "交易资金比例，负值为固定手数",
+      "description_en": "交易资金比例，负值为固定手数"
+    },
+    {
+      "name": "StopLoss_",
+      "default_value": "1000",
+      "description": "止损点数",
+      "description_en": "止损点数"
+    },
+    {
+      "name": "TakeProfit_",
+      "default_value": "2000",
+      "description": "止盈点数",
+      "description_en": "止盈点数"
+    },
+    {
+      "name": "Deviation_",
+      "default_value": "10",
+      "description": "最大价格滑点(点)",
+      "description_en": "最大价格滑点(点)"
+    },
+    {
+      "name": "BuyPosOpen",
+      "default_value": "true",
+      "description": "允许开多仓",
+      "description_en": "允许开多仓"
+    },
+    {
+      "name": "SellPosOpen",
+      "default_value": "true",
+      "description": "允许开空仓",
+      "description_en": "允许开空仓"
+    },
+    {
+      "name": "BuyPosClose",
+      "default_value": "true",
+      "description": "允许平多仓",
+      "description_en": "允许平多仓"
+    },
+    {
+      "name": "SellPosClose",
+      "default_value": "true",
+      "description": "允许平空仓",
+      "description_en": "允许平空仓"
+    },
+    {
+      "name": "InpInd_Timeframe",
+      "default_value": "PERIOD_H4",
+      "description": "指标时间周期",
+      "description_en": "指标时间周期"
+    },
+    {
+      "name": "SignalBar",
+      "default_value": "1",
+      "description": "获取入场信号的K线索引",
+      "description_en": "获取入场信号的K线索引"
+    },
+    {
+      "name": "FastLimit",
+      "default_value": "0.5",
+      "description": "MAMA快线极限值",
+      "description_en": "MAMA快线极限值"
+    },
+    {
+      "name": "SlowLimit",
+      "default_value": "0.05",
+      "description": "MAMA慢线极限值",
+      "description_en": "MAMA慢线极限值"
+    }
+  ],
   "pros": [
-    "1. 自适应算法",
-    "自动适应市场周期",
-    "趋势快，震荡慢",
-    "2. John Ehlers技术",
-    "知名算法作者",
-    "科学严谨",
-    "3. 可视化清晰",
-    "MAMA(绿)和FAMA(红)",
-    "交叉信号明确",
-    "4. 平滑效果好",
-    "过滤噪音能力强",
-    "减少假信号",
-    "5. 代码质量高",
-    "作者Nikolay Kositsin",
-    "结构清晰"
+    "MAMA指标具有自适应性，能根据市场波动调整灵敏度，比传统MA更灵活",
+    "双向交易许可控制(BuyPosOpen/SellPosClose等)提供了精细的仓位管理灵活性",
+    "使用SignalBar=1避免了信号重绘问题，保证回测与实盘一致性",
+    "止损止盈参数可配置，提供了基本的风险控制框架"
+  ],
+  "pros_en": [
+    "MAMA indicator is adaptive, adjusting sensitivity to market volatility, more flexible than traditional MAs",
+    "Granular permission controls (BuyPosOpen/SellPosClose etc.) provide flexible position management",
+    "Using SignalBar=1 avoids signal repainting, ensuring backtest-to-live consistency",
+    "Configurable stop loss and take profit parameters provide a basic risk control framework"
   ],
   "cons": [
-    "1. 止损过大",
-    "1000点过大",
-    "2. 算法复杂",
-    "Hilbert变换难以理解",
-    "难以优化参数",
-    "3. 计算量大",
-    "涉及复数运算",
-    "可能影响性能",
-    "4. 震荡市表现一般",
-    "频繁交叉产生假信号",
-    "5. 信号滞后",
-    "自适应有一定延迟"
+    "趋势跟踪型策略在震荡市中容易产生频繁的假信号导致连续亏损",
+    "缺乏震荡/趋势市场状态过滤机制，没有ADX或波动率过滤器",
+    "没有点差过滤，在某些品种上滑点和点差可能侵蚀利润",
+    "依赖外部TradeAlgorithms.mqh库，核心交易逻辑不可见，难以审计风险"
+  ],
+  "cons_en": [
+    "Trend following strategy prone to frequent false signals and consecutive losses in ranging markets",
+    "Lacks market regime filter (no ADX or volatility filter) to distinguish trending from ranging conditions",
+    "No spread filter, slippage and spreads can erode profits on certain instruments",
+    "Relies on external TradeAlgorithms.mqh library, making core trading logic opaque and hard to audit"
   ],
   "improvements": [
-    "减小止损到250点",
-    "调整FastLimit/SlowLimit",
-    "在模拟账户测试3个月",
-    "小额实盘测试"
+    "添加市场状态过滤器(如ADX或ATR)，在震荡行情中抑制交易信号以减少假信号",
+    "增加点差和滑点过滤机制，避免在高点差时段开仓",
+    "实现追踪止损功能以锁定趋势利润，而非仅依赖固定止盈",
+    "将TradeAlgorithms库的关键函数内联或开源，提高代码透明度和可审计性"
+  ],
+  "improvements_en": [
+    "Add a market regime filter (e.g., ADX or ATR) to suppress signals during ranging conditions and reduce false entries",
+    "Implement spread and slippage filters to avoid opening positions during high-spread periods",
+    "Add trailing stop functionality to lock in trend profits rather than relying solely on fixed take profit",
+    "Inline or open-source key TradeAlgorithms library functions to improve code transparency and auditability"
   ],
   "risk_assessment": {
     "overall": "medium",
-    "risk_points": []
+    "risk_points": [
+      "趋势跟踪策略在震荡市中可能连续亏损，缺乏市场状态过滤",
+      "止损1000点相对较大，在小账户或高杠杆下可能造成较大回撤",
+      "外部TradeAlgorithms库的仓位管理逻辑不可见，存在潜在风险"
+    ],
+    "risk_points_en": [
+      "Trend following may incur consecutive losses in ranging markets without regime filtering",
+      "1000-point stop loss is relatively large, potentially causing significant drawdown on small accounts with high leverage",
+      "External TradeAlgorithms library position sizing logic is opaque, introducing potential hidden risk"
+    ]
   },
   "scores": {
-    "overall": 4.0
+    "code_quality": 3.0,
+    "strategy_logic": 3.0,
+    "risk_management": 3.0,
+    "robustness": 3.0,
+    "innovation": 2.0,
+    "documentation": 2.0,
+    "overall": 2.67
   },
-  "rating": 4,
-  "strategy_analysis_en": "[Strategy analysis available in Chinese — English translation pending]",
-  "pros_en": [
-    "1. Adaptive algorithm",
-    "Automatically adapts to market cycles",
-    "Fast in trends, slow in ranges",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]",
-    "[Strength documented in Chinese — translation pending]"
+  "rating": 3,
+  "timeframes": [
+    "H1",
+    "H4",
+    "D1"
   ],
-  "cons_en": [
-    "1. Stop loss too large",
-    "1000 points is excessive",
-    "2. Algorithm complexity",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]",
-    "[Weakness documented in Chinese — translation pending]"
+  "indicators_used": [
+    "MAMA (Mesa Adaptive Moving Average)"
   ],
-  "improvements_en": [
-    "Reduce stop loss to 250 points",
-    "Adjust FastLimit/SlowLimit",
-    "Test on demo account for 3 months",
-    "Small live account testing"
-  ]
+  "id": "EA-1203"
 }
