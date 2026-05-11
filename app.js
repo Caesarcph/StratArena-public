@@ -1,11 +1,11 @@
 const LANG = window.getLang ? getLang() : "en";
 
 const DATA_FILES = {
-  strategies: "data/strategies.json",
-  performance: "data/performance.json",
-  changelog: "data/changelog.json",
-  eaCatalog: "data/ea_catalog.json",
-  eaAnalysis: "data/ea_analysis.json"
+ strategies: "data/strategies.json",
+ perfIndex: "data/performance-index.json",
+ changelog: "data/changelog.json",
+ eaCatalog: "data/ea_catalog.json",
+ eaAnalyzedIndex: "data/ea_analyzed_index.json"
 };
 const FAVORITES_KEY = "favorites";
 const CATEGORY_TOP_COUNT = 5;
@@ -111,13 +111,15 @@ const PAGE_META = {
 
 const charts = [];
 const seriesCache = new Map();
+const perfCache = new Map();
+let perfAllLoaded = false;
 
 const store = {
-  strategies: [],
-  performance: null,
-  changelog: [],
-  eaCatalog: [],
-  eaAnalysis: {}
+ strategies: [],
+ performance: null,
+ changelog: [],
+ eaCatalog: [],
+ eaAnalysis: {}
 };
 let favorites = new Set();
 let portfolioWeights = new Map();
@@ -133,35 +135,55 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function init() {
-  await loadData();
-  initFavorites();
-  bindGlobal();
-  render();
-  window.addEventListener("popstate", render);
+ await loadData();
+ initFavorites();
+ bindGlobal();
+ render();
+ window.addEventListener("popstate", () => render());
 }
 
 async function loadData() {
-  const [strategies, performance, changelog, eaCatalog, eaAnalysis] = await Promise.all([
-    fetchJson(DATA_FILES.strategies),
-    fetchJson(DATA_FILES.performance),
-    fetchJson(DATA_FILES.changelog),
-    fetchJson(DATA_FILES.eaCatalog).catch(() => []),
-    fetchJson(DATA_FILES.eaAnalysis).catch(() => ({}))
-  ]);
-
-  store.strategies = strategies.strategies || [];
-  store.performance = performance || { instruments: [], windows: [] };
-  store.changelog = changelog.entries || [];
-  if (Array.isArray(eaCatalog)) store.eaCatalog = eaCatalog;
-  if (eaAnalysis && typeof eaAnalysis === "object" && !Array.isArray(eaAnalysis)) store.eaAnalysis = eaAnalysis;
+ const [strategies, perfIndex, changelog, eaCatalog, eaAnalyzedIndex] = await Promise.all([
+  fetchJson(DATA_FILES.strategies),
+  fetchJson(DATA_FILES.perfIndex),
+  fetchJson(DATA_FILES.changelog),
+  fetchJson(DATA_FILES.eaCatalog).catch(() => []),
+  fetchJson(DATA_FILES.eaAnalyzedIndex).catch(() => [])
+ ]);
+ store.strategies = strategies.strategies || [];
+ store.performance = perfIndex || { instruments: [], windows: [], strategy_ids: [] };
+ store.performance.strategies = {};
+ store.changelog = changelog.entries || [];
+ if (Array.isArray(eaCatalog)) store.eaCatalog = eaCatalog;
+ if (Array.isArray(eaAnalyzedIndex)) store.eaAnalyzedIndex = new Set(eaAnalyzedIndex);
 }
 
 async function fetchJson(path) {
-  const res = await fetch(path, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`Failed to load ${path}`);
-  }
-  return res.json();
+ const res = await fetch(path, { cache: "no-store" });
+ if (!res.ok) {
+  throw new Error(`Failed to load ${path}`);
+ }
+ return res.json();
+}
+
+async function loadPerfStrategy(id) {
+ if (perfCache.has(id)) return perfCache.get(id);
+ try {
+  const data = await fetchJson(`data/perf-strategies/${id}.json`);
+  perfCache.set(id, data);
+  store.performance.strategies[id] = data;
+  return data;
+ } catch (e) {
+  console.warn(`Failed to load perf for ${id}`, e);
+  return null;
+ }
+}
+
+async function loadAllPerfStrategies() {
+ if (perfAllLoaded) return;
+ const ids = store.performance.strategy_ids || [];
+ await Promise.all(ids.map((id) => loadPerfStrategy(id)));
+ perfAllLoaded = true;
 }
 
 function bindGlobal() {
@@ -428,27 +450,33 @@ function registerChart(chart) {
   charts.push(chart);
 }
 
-function render() {
-  destroyCharts();
-  const route = getRoute();
-  const normalized = normalizeRoute(route);
-  if (normalized.redirected) {
-    return;
-  }
-  if (forceAdFreeReload(route)) {
-    return;
-  }
-  highlightNav(route.page);
-  updatePageMeta(route, normalized.canonicalUrl);
-  ensureAdSense(route);
+async function render() {
+ destroyCharts();
+ const route = getRoute();
+ const normalized = normalizeRoute(route);
+ if (normalized.redirected) {
+  return;
+ }
+ if (forceAdFreeReload(route)) {
+  return;
+ }
+ highlightNav(route.page);
+ updatePageMeta(route, normalized.canonicalUrl);
+ ensureAdSense(route);
 
-  const app = document.getElementById("app");
-  if (!store.strategies.length) {
-    app.innerHTML = `<section class="section"><h2>${t("common.loading")}</h2></section>`;
-    return;
-  }
+ const app = document.getElementById("app");
+ if (!store.strategies.length) {
+  app.innerHTML = `<section class="section"><h2>${t("common.loading")}</h2></section>`;
+  return;
+ }
 
-  switch (route.page) {
+ const perfPages = ["arena", "strategy", "compare"];
+ if (perfPages.includes(route.page) && !perfAllLoaded) {
+  app.innerHTML = `<section class="section"><h2>${t("common.loading")}</h2></section>`;
+  await loadAllPerfStrategies();
+ }
+
+ switch (route.page) {
     case "home":
       app.innerHTML = renderHome();
       bindHome();
@@ -488,10 +516,9 @@ function render() {
       app.innerHTML = renderEAArena(route);
       bindEAArena(route);
       break;
-    case "ea-detail":
-      app.innerHTML = renderEADetail(route);
-      bindEADetail(route);
-      break;
+ case "ea-detail":
+  renderEADetail(route).then((html) => { app.innerHTML = html; bindEADetail(route); });
+  break;
     case "about":
       app.innerHTML = renderAbout();
       break;
@@ -650,7 +677,7 @@ function renderHome() {
         <p>${t("home.ea_promo_desc", { count: store.eaCatalog.length })}</p>
         <div class="ea-promo-stats">
           <span><strong>${store.eaCatalog.length}</strong> ${t("home.ea_count")}</span>
-          <span><strong>${Object.keys(store.eaAnalysis).length}</strong> ${t("common.analyzed")}</span>
+          <span><strong>${store.eaAnalyzedIndex ? store.eaAnalyzedIndex.size : store.eaCatalog.length}</strong> ${t("common.analyzed")}</span>
         </div>
         <a class="button primary small" href="?page=ea-arena" style="margin-top:0.75rem">${t("home.explore_ea_arena")}</a>
       </div>

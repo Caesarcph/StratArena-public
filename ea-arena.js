@@ -78,18 +78,6 @@ function getEACategoryLabel(value) {
   return item ? t(item.key) : value;
 }
 
-const _zhRe = /[\u4e00-\u9fff]/;
-function _enStr(val, fallback) {
-  if (val && typeof val === "string" && !_zhRe.test(val)) return val;
-  if (fallback && typeof fallback === "string" && !_zhRe.test(fallback)) return fallback;
-  return "N/A";
-}
-function _enList(arr, fallbackArr) {
-  if (Array.isArray(arr) && arr.length && !_zhRe.test(arr.join(""))) return arr;
-  if (Array.isArray(fallbackArr) && fallbackArr.length && !_zhRe.test(fallbackArr.join(""))) return fallbackArr;
-  return ["N/A"];
-}
-
 function getEABacktestStatus(value) {
   if (!value) return getLang() === "zh" ? "待定" : "Pending";
   if (String(value).toLowerCase() === "pending") return getLang() === "zh" ? "待定" : "Pending";
@@ -131,7 +119,7 @@ function renderEAArena(route) {
   if (s.category) items = items.filter((ea) => ea.category === s.category);
   if (s.risk) items = items.filter((ea) => ea.overall_risk === s.risk);
   if (s.rating) items = items.filter((ea) => String(ea.rating) === s.rating);
-  if (s.analyzed) items = items.filter((ea) => store.eaAnalysis[ea.id]);
+  if (s.analyzed) items = items.filter((ea) => store.eaAnalyzedIndex && store.eaAnalyzedIndex.has(ea.id));
 
   items.sort((a, b) => {
     switch (s.sort) {
@@ -163,7 +151,7 @@ function renderEAArena(route) {
     const value = ea.rating || 0;
     ratingCounts[value] = (ratingCounts[value] || 0) + 1;
   });
-  const analyzedCount = all.filter((ea) => store.eaAnalysis[ea.id]).length;
+  const analyzedCount = all.filter((ea) => store.eaAnalyzedIndex && store.eaAnalyzedIndex.has(ea.id)).length;
 
   const catChips = EA_CATEGORIES.filter((c) => catCounts[c.value])
     .map(
@@ -183,13 +171,13 @@ function renderEAArena(route) {
     .join("");
 
   const cards = items
-    .map((ea) => {
-      const analysis = store.eaAnalysis[ea.id];
-      return `
+ .map((ea) => {
+ const isAnalyzed = store.eaAnalyzedIndex && store.eaAnalyzedIndex.has(ea.id);
+ return `
       <a class="ea-card" href="?page=ea-detail&id=${ea.id}" data-ea-id="${ea.id}">
         <div class="ea-card-header">
           <span class="ea-card-id">${ea.id}</span>
-          ${analysis ? `<span class="ea-analyzed-badge">${t("common.analyzed")}</span>` : ""}
+          ${isAnalyzed ? `<span class="ea-analyzed-badge">${t("common.analyzed")}</span>` : ""}
           ${ea.absorbed_by ? `<span class="ea-absorbed-badge">${t("common.absorbed")}</span>` : ""}
         </div>
         <h3 class="ea-card-name">${ea.name || t("common.unknown")}</h3>
@@ -306,14 +294,24 @@ function bindEAArena(route) {
   }
 }
 
-function renderEADetail(route) {
-  const id = route.params.get("id");
-  const ea = (store.eaCatalog || []).find((e) => e.id === id);
-  if (!ea) {
-    return `<section class="section"><h2>${getLang() === "zh" ? "未找到 EA" : "EA Not Found"}</h2><p>${getLang() === "zh" ? `不存在 ID 为 \"${id}\" 的智能交易系统。` : `No Expert Advisor with ID "${id}".`}</p><a class="button ghost" href="?page=ea-arena">${getLang() === "zh" ? "返回 EA 竞技场" : "Back to EA Arena"}</a></section>`;
-  }
+async function renderEADetail(route) {
+ const id = route.params.get("id");
+ const ea = (store.eaCatalog || []).find((e) => e.id === id);
+ if (!ea) {
+  return `<section class="section"><h2>${getLang() === "zh" ? "未找到 EA" : "EA Not Found"}</h2><p>${getLang() === "zh" ? `不存在 ID 为 \"${id}\" 的智能交易系统。` : `No Expert Advisor with ID "${id}".`}</p><a class="button ghost" href="?page=ea-arena">${getLang() === "zh" ? "返回 EA 竞技场" : "Back to EA Arena"}</a></section>`;
+ }
 
-  const analysis = store.eaAnalysis[id];
+ let analysis = store.eaAnalysis && store.eaAnalysis[id];
+ if (!analysis && store.eaAnalyzedIndex && store.eaAnalyzedIndex.has(id)) {
+  try {
+   const res = await fetch(`data/ea-analysis/${id}.json`, { cache: "no-store" });
+   if (res.ok) analysis = await res.json();
+   if (analysis) {
+    if (!store.eaAnalysis) store.eaAnalysis = {};
+    store.eaAnalysis[id] = analysis;
+   }
+  } catch (_) { }
+ }
   const mql5Url = `https://www.mql5.com/en/code/${id.replace(/^EA-/, "")}`;
 
   function scoreBar(label, value, max) {
@@ -339,7 +337,7 @@ function renderEADetail(route) {
   if (analysis && analysis.parameters && analysis.parameters.length) {
     const rows = analysis.parameters
       .map(
-        (p) => `<tr><td>${p.name_en || p.name || "—"}</td><td>${p.default_value_en || p.default_value || "—"}</td><td>${isEn ? _enStr(p.description_en, p.description) : (p.description || "—")}</td></tr>`
+        (p) => `<tr><td>${p.name_en || p.name || "—"}</td><td>${p.default_value_en || p.default_value || "—"}</td><td>${p.description_en || p.description || "—"}</td></tr>`
       )
       .join("");
     paramsHtml = `
@@ -355,9 +353,9 @@ function renderEADetail(route) {
   let analysisHtml = "";
   if (analysis) {
     const isEn = getLang() === "en";
-const prosList = isEn ? _enList(analysis.pros_en, analysis.pros) : (analysis.pros || ["N/A"]);
-  const consList = isEn ? _enList(analysis.cons_en, analysis.cons) : (analysis.cons || ["N/A"]);
-  const impsList = isEn ? _enList(analysis.improvements_en, analysis.improvements) : (analysis.improvements || ["N/A"]);
+    const prosList = isEn ? (analysis.pros_en || analysis.pros || []) : (analysis.pros || []);
+    const consList = isEn ? (analysis.cons_en || analysis.cons || []) : (analysis.cons || []);
+    const impsList = isEn ? (analysis.improvements_en || analysis.improvements || []) : (analysis.improvements || []);
     const prosHtml = prosList.map((p) => `<li>${p}</li>`).join("");
     const consHtml = consList.map((c) => `<li>${c}</li>`).join("");
     const impsHtml = impsList.map((i) => `<li>${i}</li>`).join("");
@@ -365,7 +363,7 @@ const prosList = isEn ? _enList(analysis.pros_en, analysis.pros) : (analysis.pro
     let riskHtml = "";
     if (analysis.risk_assessment) {
       const ra = analysis.risk_assessment;
-      const riskPointsList = isEn ? _enList(ra.risk_points_en, ra.risk_points) : (ra.risk_points || []);
+      const riskPointsList = isEn ? (ra.risk_points_en || ra.risk_points || []) : (ra.risk_points || []);
       const riskPoints = riskPointsList.map((rp) => `<li>${rp}</li>`).join("");
       riskHtml = `
       <div class="ea-section">
@@ -395,7 +393,7 @@ const prosList = isEn ? _enList(analysis.pros_en, analysis.pros) : (analysis.pro
       </div>`;
     }
 
-    const strategyText = isEn ? _enStr(analysis.strategy_analysis_en || analysis.summary_en, analysis.strategy_analysis || analysis.summary) : (analysis.strategy_analysis || analysis.summary || "N/A");
+    const strategyText = isEn ? (analysis.strategy_analysis_en || analysis.summary_en || analysis.strategy_analysis || analysis.summary || "") : (analysis.strategy_analysis || analysis.summary || "");
     analysisHtml = `
     <div class="ea-section"><h2>${getLang() === "zh" ? "策略分析" : "Strategy Analysis"}</h2><div class="ea-analysis-text">${strategyText}</div></div>
     ${paramsHtml}
@@ -422,7 +420,7 @@ const prosList = isEn ? _enList(analysis.pros_en, analysis.pros) : (analysis.pro
         ${eaCategoryBadge(ea.category || "Unclassified")}
         ${eaRiskBadge(ea.overall_risk)}
         ${eaStars(ea.rating)}
-        ${store.eaAnalysis[id] ? `<span class="ea-analyzed-badge">${getLang() === "zh" ? "已分析" : "Analyzed"}</span>` : `<span class="ea-pending-badge">${getLang() === "zh" ? "待定" : "Pending"}</span>`}
+        ${(store.eaAnalyzedIndex && store.eaAnalyzedIndex.has(id)) ? `<span class="ea-analyzed-badge">${getLang() === "zh" ? "已分析" : "Analyzed"}</span>` : `<span class="ea-pending-badge">${getLang() === "zh" ? "待定" : "Pending"}</span>`}
         ${ea.absorbed_by ? `<span class="ea-absorbed-badge">${getLang() === "zh" ? "已吸收" : "Absorbed"}</span>` : ""}
       </div>
       <h1>${ea.name || (getLang() === "zh" ? "未知 EA" : "Unknown EA")}</h1>
