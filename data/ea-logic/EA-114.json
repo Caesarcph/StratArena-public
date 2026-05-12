@@ -1,0 +1,144 @@
+{
+  "ea_id": "EA-114",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the Heiken Ashi custom indicator ('Examples\\Heiken_Ashi'), which requires the custom indicator .ex5 file to be available. Signal logic depends on custom indicator buffer values that cannot be replicated with built-in MT5 indicators alone.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Heiken Ashi",
+      "params": {},
+      "source": "custom",
+      "library": "Examples\\Heiken_Ashi",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "HA Open values from bars [3],[2],[1],[0] (buffers 0, shift 1-4)",
+      "formula": "CopyBuffer(h_HA,0,1,4,haopen) => a=haopen[3], b=haopen[2], c=haopen[1], s=haopen[0]",
+      "used_by": "Entry signal directional logic and stop loss"
+    },
+    {
+      "name": "HA Close values from bars [2],[1],[0] (buffer 3, shift 1-3)",
+      "formula": "CopyBuffer(h_HA,3,1,3,haclose) => e=haclose[2], f=haclose[1], g=haclose[0]",
+      "used_by": "Entry signal directional logic"
+    },
+    {
+      "name": "HA Open differences w, x, y representing consecutive bar-to-bar changes",
+      "formula": "w=a-b, x=b-c, y=c-s",
+      "used_by": "Entry signal momentum/acceleration check"
+    },
+    {
+      "name": "Stop loss price (ST)",
+      "formula": "ST=s (HA Open of most recent completed bar)",
+      "used_by": "Stop loss in PositionOpen"
+    },
+    {
+      "name": "Spread threshold (SP)",
+      "formula": "Spp*_Point (Spp=300 => 300 pips in _Point units)",
+      "used_by": "Entry filter: skip if |CP-ST| < SP"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "HA Close > HA Open across 3 consecutive bars AND HA Open differences accelerating upward",
+        "right": "e>a AND f>b AND g>c AND 0<y AND y<x AND x<w",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "HA Close < HA Open across 3 consecutive bars AND HA Open differences accelerating downward",
+        "right": "e<a AND f<b AND g<c AND 0>y AND y>x AND x>w",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": 0,
+      "params": {
+        "description": "SL set to HA Open value of most recent completed bar (variable ST = s = haopen[0] from shift 1)"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal reversal triggers ClzPos() which closes the entire position before potentially opening in the opposite direction, via GetVol()*d<0 check"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 3,
+    "conditional_logic": "Max positions capped by input parameter P (default 3). Cnt tracks current net position count; new entries only when Cnt*d < xP. Multiple same-direction entries allowed up to P limit."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 300
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 50,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal is computed only on the first tick of a new bar (v[0]==1 triggers Chk()). However, the Sb() order placement can fire on ticks where v[0]<=xP (not just v[0]==1), meaning once D is set by Chk(), subsequent ticks within the same bar's first xP ticks can also trigger orders. The stop loss is the Heiken Ashi Open of the last completed bar. Position count Cnt is a signed net count: incremented by +d on open, and reset to 0 on close. Margin level must be >=120% (or 0/unavailable) to allow entry. The spread filter uses |CP-ST|<SP which is actually a minimum-move filter rather than a pure spread filter - it ensures price has moved sufficiently away from the HA Open before entering.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Examples\\Heiken_Ashi (custom indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The Heiken Ashi indicator must be reimplemented in Python (simple formula: HA_Close = (O+H+L+C)/4, HA_Open = previous HA_Open or (O+H+L+C)/4 for first bar). The entry logic depends on 3 consecutive HA bars being bullish/bearish with accelerating momentum (w,x,y differences increasing in magnitude). SL is dynamic based on HA Open. The new-bar detection uses CopyTickVolume==1 which maps to checking if the current bar index has changed. The multi-position stacking (up to P positions) and signed Cnt counter must be carefully replicated. The margin level check (>=120%) and spread/min-move filter need broker-specific data. The deviation parameter of 50 points must be handled or ignored depending on execution model.",
+  "extraction_timestamp": "2026-05-12T15:12:05.399706",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 239.01911091804504,
+    "cost": 0
+  }
+}

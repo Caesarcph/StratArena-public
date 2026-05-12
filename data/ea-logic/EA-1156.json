@@ -1,0 +1,163 @@
+{
+  "ea_id": "EA-1156",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "This is a bidirectional martingale EA that relies on heavy pending order management (BUY_LIMIT/SELL_LIMIT), dynamic order deletion and re-creation based on floating loss, volume-splitting across multiple orders to bypass broker volume limits, and tick-level requote retry loops with Sleep(). The core logic is a grid/martingale recovery system that recalculates volumes and order distances based on real-time floating P&L — this requires MT5's pending order infrastructure and tick-level execution.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "TP (TakeProfit distance from price)",
+      "formula": "MathMax(KTP*ask/100.0, StopLevel+Spread)",
+      "used_by": "BuyLimitOrder, SellLimitOrder, ShrinkRange"
+    },
+    {
+      "name": "WinPerTrade",
+      "formula": "Spread",
+      "used_by": "ShrinkRange (NewTotalVol calculation)"
+    },
+    {
+      "name": "OldLOSS (floating loss across both sides)",
+      "formula": "(OldBuyTP-bid)*OldBuyVol + (ask-OldSellTP)*OldSellVol",
+      "used_by": "ShrinkRange (NewTotalVol calculation)"
+    },
+    {
+      "name": "NewTotalVol (required total volume to recover loss)",
+      "formula": "MathMax(2*VolumeToOrder, MathCeil(((OldLOSS+WinPerTrade)/TP)*100)/100)",
+      "used_by": "NewBuyVol, NewSellVol calculation"
+    },
+    {
+      "name": "NewBuyVol",
+      "formula": "MathMax(VolumeToOrder, MathCeil(NewTotalVol*PercentSame)/100) or MathRound(NewTotalVol-NewSellVol)*100/100",
+      "used_by": "SellLimitOrder, AddVolume calculation"
+    },
+    {
+      "name": "NewSellVol",
+      "formula": "MathMax(VolumeToOrder, MathCeil(NewTotalVol*PercentSame)/100) or MathRound(NewTotalVol-NewBuyVol)*100/100",
+      "used_by": "BuyLimitOrder, AddVolume calculation"
+    },
+    {
+      "name": "AddVolume (net volume adjustment needed)",
+      "formula": "(NewBuyVol-NewSellVol)-(OldBuyVol-OldSellVol)",
+      "used_by": "AddBUY or AddSELL decision"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "no pending BUY_LIMIT exists AND no pending SELL_LIMIT exists (init/restart)",
+        "right": null,
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "ShrinkRange triggered: OldSellTP < bid-2*TP AND OldBuyTP > ask+TP AND OldBuyVol >= OldSellVol",
+        "right": null,
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "no pending BUY_LIMIT exists AND no pending SELL_LIMIT exists (init/restart)",
+        "right": null,
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "ShrinkRange triggered: OldBuyTP > ask+2*TP AND OldSellTP < bid-TP AND OldBuyVol <= OldSellVol",
+        "right": null,
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "percent",
+      "value": 0.35,
+      "params": {
+        "note": "KTP=0.35% of price used as distance for pending limit orders; TP = MathMax(KTP*ask/100, StopLevel+Spread)"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "No explicit SL/TP on individual orders (R.sl=0, R.tp=0 in OnInit). Exits occur when pending limit orders are triggered as price moves toward them. When one side's pending order fills, it closes the cycle at profit if price reaches the TP level. ShrinkRange deletes old pending orders and replaces them closer to current price to recover floating loss."
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "initial_volume": "VolumeToOrder=0.10",
+      "max_single_order_volume": "VolumeLimitOrder=0.75",
+      "martingale_allocation_percent": "PercentSame=75.0%",
+      "volume_splitting": "Orders larger than VolumeLimitOrder are split into multiple orders of VolumeLimitOrder each, with price offset by Spread per split order"
+    },
+    "max_positions": 0,
+    "conditional_logic": "On init: VolumeToOrder per side. On ShrinkRange: NewTotalVol = ceil((OldLOSS+WinPerTrade)/TP) split into NewBuyVol/NewSellVol by PercentSame ratio, favoring the side with larger existing volume. Volume is dynamically scaled to recover accumulated floating loss plus spread cost."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 99,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Bidirectional martingale grid EA. Opens both BUY (market) + BUY_LIMIT and SELL (market) + SELL_LIMIT on init. BUY_LIMIT orders are placed at bid-TP (below price) — they fill when price drops, acting as recovery orders for SELL positions. SELL_LIMIT orders are placed at ask+TP (above price) — they fill when price rises, acting as recovery orders for BUY positions. The EA tracks only the LARGEST volume pending order per side. When one side has no pending order (filled or never placed), ShrinkRange is called to recalculate volumes and re-place orders closer to current price. ShrinkRange logic: calculates floating loss across both sides, computes new total volume needed to recover loss at current TP distance, splits volume by PercentSame (75% to dominant side), deletes all old pending orders, places new BUY_LIMIT at bid-TP and SELL_LIMIT at ask+TP, and sends market orders for net volume difference. Additional ShrinkRange trigger: when one side's pending TP is more than 2*TP away from price and the other side is only 1*TP away, with the volume condition matching. Requote handling: every OrderSend is retried up to 19 times with 12.345s sleep between retries. Volume splitting: orders exceeding VolumeLimitOrder (0.75) are split into multiple orders, each offset by one Spread in price.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "This EA requires tick-level data and pending order simulation. The core challenge is replicating MT5's pending order lifecycle: BUY_LIMIT fills when ask drops to order price, SELL_LIMIT fills when bid rises to order price. The ShrinkRange logic dynamically recalculates recovery volumes based on floating P&L, which creates a feedback loop between order fills and new order placement. Volume splitting with price offsets must be preserved. The 19x requote retry loop with Sleep is broker-specific and should be simplified to single order attempts in backtesting. The PercentSame parameter controls asymmetric martingale allocation — this must be precisely replicated. No indicators are used; all logic is price-distance and volume-based. The bidirectional grid structure means the EA can accumulate large positions on both sides simultaneously, requiring careful position tracking.",
+  "extraction_timestamp": "2026-05-12T15:37:58.690035",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 151.25466966629028,
+    "cost": 0
+  }
+}

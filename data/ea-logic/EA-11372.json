@@ -1,0 +1,130 @@
+{
+  "ea_id": "EA-11372",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'ExchangePrice' which is a non-standard custom indicator, and depends on external .mqh library (TradeAlgorithms.mqh) for position management, money management, and trade execution functions.",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ExchangePrice",
+      "params": {
+        "countBarsS": 96,
+        "countBarsL": 288
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "MathMax(countBarsS,countBarsL)+3+SignalBar",
+      "used_by": "BarsCalculated check before processing"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ExchangePrice buffer 0 (Ind)",
+        "right": "ExchangePrice buffer 1 (Sign)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ExchangePrice buffer 0 (Ind)",
+        "right": "ExchangePrice buffer 1 (Sign)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose triggered when Ind[1]<Sign[1] (bearish signal on previous bar) and BuyPosClose input is true",
+      "SellPosClose triggered when Ind[1]>Sign[1] (bullish signal on previous bar) and SellPosClose input is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lots (MM=0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses. The MM input value is interpreted differently depending on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The entry logic uses a two-bar crossover check: Ind[1]>Sign[1] confirms trend direction on the previous bar, then Ind[0]<=Sign[0] on the current signal bar confirms the crossover just occurred for long entry (and inverse for short). SignalBar input (default=1) controls which bar is used for signal detection. When SignalBar=0, signals are evaluated on every tick instead of only on new bars. The Recount flag forces recalculation on errors. BuyPosOpen/SellPosOpen and BuyPosClose/SellPosClose are boolean input gates that independently enable/disable each trade direction's entry and exit. GlobalVariableDel_ is called on deinit for cleanup. Position open/close functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) come from TradeAlgorithms.mqh and handle actual order placement with SL/TP.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires reverse-engineering the ExchangePrice custom indicator logic (buffers 0 and 1) since iCustom is used with parameters countBarsS=96 and countBarsL=288. The TradeAlgorithms.mqh library must be fully analyzed to replicate BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and CIsNewBar class behavior. The MarginMode enum with 5 modes (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) requires careful Python implementation for position sizing. The crossover detection logic uses [1] vs [0] indexing meaning previous-bar vs current-signal-bar comparison, which maps to checking if the trend was established on bar N+1 and the crossover happened on bar N. SL/TP are in points (not pips) - value of 1000/2000 points needs conversion based on symbol digits. Deviation of 10 points maps to slippage control.",
+  "extraction_timestamp": "2026-05-12T15:08:06.379787",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 140.05714631080627,
+    "cost": 0
+  }
+}

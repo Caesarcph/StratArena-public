@@ -1,0 +1,148 @@
+{
+  "ea_id": "EA-1167",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load external '2pbIdealXOSMA' indicator and includes two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) that contain trading logic and custom smoothing classes not available as built-in MT5 indicators.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "2pbIdealXOSMA",
+      "params": {
+        "Period1": 10,
+        "Period2": 10,
+        "PeriodX1": 10,
+        "PeriodX2": 10,
+        "PeriodY1": 10,
+        "PeriodY2": 10,
+        "PeriodZ1": 10,
+        "PeriodZ2": 10
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "XMA (SmoothAlgorithms CXMA)",
+      "params": {
+        "period": 9,
+        "method": "JJMA",
+        "phase": 100
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for calculation",
+      "formula": "2 + XMA1.GetStartBars(SmoothMethod, Smooth_XMA, Smooth_Phase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check before signal processing"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "2pbIdealXOSMA[0] (current bar buffer 0)",
+        "right": "2pbIdealXOSMA[1] (previous bar buffer 0)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "2pbIdealXOSMA[0] (current bar buffer 0)",
+        "right": "2pbIdealXOSMA[1] (previous bar buffer 0)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: sell signal triggers BuyPosClose, buy signal triggers SellPosClose"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM input: negative values = fixed lot size (absolute value), positive values = share of deposit in a deal"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signal requires histogram slope change: long when macd[1]<macd[2] (declining histogram) AND macd[0]>macd[1] (histogram turning up); short when macd[1]>macd[2] (rising histogram) AND macd[0]<macd[1] (histogram turning down). This is a histogram reversal/divergence pattern. The BuyPosOpen/SellPosOpen and BuyPosClose/SellPosClose functions are from TradeAlgorithms.mqh and handle position management internally. SignalBar=1 means signals are read from bar index 1 (last completed bar), not bar 0. When SignalBar=0, signals are evaluated on every tick without new-bar guard. The Recount flag re-fetches data if CopyBuffer fails.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires reimplementation of: (1) CXMA class from SmoothAlgorithms.mqh with JJMA and 9 other smoothing methods, (2) TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar), (3) the external 2pbIdealXOSMA custom indicator which applies triple 2-pair ideal moving average smoothing then computes an OSMA-style histogram. The histogram is a triple-smoothed difference series, not a standard MACD histogram. Signal logic is histogram slope reversal: enter long when declining histogram turns up, enter short when rising histogram turns down. Position sizing is dual-mode: negative MM = fixed lots (abs value), positive MM = deposit fraction. SL/TP are in points (not pips) - note 1000/2000 point values suggest 5-digit broker compatibility already built in. The new-bar guard is bypassed when SignalBar=0, allowing tick-level evaluation.",
+  "extraction_timestamp": "2026-05-12T16:00:07.946647",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 145.86341333389282,
+    "cost": 0
+  }
+}

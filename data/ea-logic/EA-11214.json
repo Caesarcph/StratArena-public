@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-11214",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for TSI_MACD indicator which is a custom indicator, plus external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms that would need manual reimplementation in Python",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "TSI_MACD",
+      "params": {
+        "method": 1,
+        "fast_period": 8,
+        "slow_period": 21,
+        "momentum_period": 1,
+        "smoothing_length1": 5,
+        "smoothing_length2": 8,
+        "smoothing_length3": 5,
+        "phase": 15,
+        "applied_to": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "max(GetStartBars(XFast),GetStartBars(XSlow))+MomPeriod+GetStartBars(XLength1)+GetStartBars(XLength2)+GetStartBars(XLength3)+3+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for indicator calculation",
+      "formula": "MathMax(GetStartBars(XMA_Method,XFast,XPhase),GetStartBars(XMA_Method,XSlow,XPhase))+MomPeriod+GetStartBars(XMA_Method,XLength1,XPhase)+GetStartBars(XMA_Method,XLength2,XPhase)+GetStartBars(XMA_Method,XLength3,XPhase)+3+SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "TSI_MACD Main Buffer (Ind)",
+        "right": "TSI_MACD Signal Buffer (Sign)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "TSI_MACD Main Buffer (Ind)",
+        "right": "TSI_MACD Signal Buffer (Sign)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal triggers close of existing position via BuyPositionClose/SellPositionClose with BuyPosClose/SellPosClose input gates"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss; MM input (0.1) interpreted as either lot size or percentage fraction depending on MMMode"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry crossover uses bars [1] vs [0] from SignalBar offset: Ind[1]>Sign[1] (previous bar confirming direction) AND Ind[0]<=Sign[0] (current bar showing the cross happened). SignalBar=1 means signals are evaluated on the previous completed bar. The EA uses a Recount flag that forces recalculation if CopyBuffer fails. UpSignalTime/DnSignalTime are passed to BuyPositionOpen/SellPositionOpen functions from TradeAlgorithms.mqh for trade timing. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean inputs that independently gate each trade action.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The TSI_MACD custom indicator must be reimplemented in Python - it combines True Strength Index logic with MACD-style signal line, using configurable smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard EMA/SMA). The SmoothAlgorithms.mqh library provides GetStartBars() and the smoothing implementations. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose with margin mode logic - these must be replaced with direct order placement via broker API. The MarginMode enum controls 5 different position sizing methods that all need implementation. The crossover detection uses buffer[1]>buffer[1] for direction and buffer[0]<=buffer[0] for the actual cross event, evaluated on SignalBar=1 (previous completed bar).",
+  "extraction_timestamp": "2026-05-12T14:40:28.019753",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 227.87727451324463,
+    "cost": 0
+  }
+}

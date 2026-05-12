@@ -1,0 +1,141 @@
+{
+  "ea_id": "EA-1101",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for BrakeParb indicator and depends on external TradeAlgorithms.mqh library for position management and order execution logic",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BrakeParb",
+      "params": {
+        "A": 1.5,
+        "B": 1.0,
+        "biginShift": 10.0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars for calculation",
+      "formula": "3+2+1+2+SignalBar",
+      "used_by": "BarsCalculated check and bar sufficiency check"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal expiration",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal expiration",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "BrakeParb buffer 2 (UpSignal)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "BrakeParb buffer 3 (DnSignal)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Trend-based close: if UpTrend[0] is nonzero (no new UpSignal), close short positions",
+      "Trend-based close: if DnTrend[0] is nonzero (no new DnSignal), close long positions"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "negative MM value = fixed lot size (0.1 lots), positive MM value = deposit share fraction for risk-based sizing, handled by TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "BrakeParb has 4 buffers: buffer 0 = UpTrend, buffer 1 = DnTrend, buffer 2 = UpSignal, buffer 3 = DnSignal. Signal detection only on new bar or when SignalBar=0. On signal, opposite positions are closed first, then new positions opened. Trend buffers (non-signal) also trigger opposite-side closes. The EA uses a Recount flag to retry signal reading on CopyBuffer failure. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans act as permission gates. SignalBar=1 means signals are read from the previous completed bar (index 1), not the current forming bar. Position open functions receive signal timestamp (UpSignalTime/DnSignalTime) likely for signal expiration logic within TradeAlgorithms.mqh.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Requires reimplementation of BrakeParb custom indicator logic (4 buffers: UpTrend, DnTrend, UpSignal, DnSignal). TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, LoadHistory, GlobalVariableDel_, CIsNewBar) must be reverse-engineered or reimplemented. The conditional MM sizing (negative=lot, positive=deposit fraction) needs careful handling. The signal time-based entry logic (UpSignalTime/DnSignalTime passed to open functions) may include signal expiration behavior that needs understanding from TradeAlgorithms.mqh source.",
+  "extraction_timestamp": "2026-05-12T14:05:13.790236",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 67.23745703697205,
+    "cost": 0
+  }
+}

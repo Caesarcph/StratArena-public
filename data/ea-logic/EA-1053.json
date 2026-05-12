@@ -1,0 +1,203 @@
+{
+  "ea_id": "EA-1053",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses external .mqh libraries (Trade/SymbolInfo/DealInfo/PositionInfo) for trade execution and symbol management. Pivot calculation is custom (not a built-in indicator). Lot reduction logic based on deal history is complex. However, no iCustom indicators are used, and the core logic is straightforward enough for conversion with manual handling of the trade library equivalents.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Pivot Point (Classic)",
+      "params": {
+        "period": 1,
+        "method": null,
+        "applied_to": null
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "D1 previous bar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Pivot",
+      "formula": "(PrevD1High + PrevD1Low + PrevD1Close) / 3",
+      "used_by": "Resist1-3, Support1-3 calculations"
+    },
+    {
+      "name": "Resist1",
+      "formula": "2 * Pivot - PrevD1Low",
+      "used_by": "Buy TP (TgtProfit=1), Sell SL (TgtProfit=1)"
+    },
+    {
+      "name": "Support1",
+      "formula": "2 * Pivot - PrevD1High",
+      "used_by": "Buy SL (TgtProfit=1), Sell TP (TgtProfit=1)"
+    },
+    {
+      "name": "Resist2",
+      "formula": "Pivot + (Resist1 - Support1)",
+      "used_by": "Buy TP (TgtProfit=2), Sell SL (TgtProfit=2)"
+    },
+    {
+      "name": "Support2",
+      "formula": "Pivot - (Resist1 - Support1)",
+      "used_by": "Buy SL (TgtProfit=2), Sell TP (TgtProfit=2)"
+    },
+    {
+      "name": "Resist3",
+      "formula": "PrevD1High + 2 * (Pivot - PrevD1Low)",
+      "used_by": "Buy TP (TgtProfit=3), Sell SL (TgtProfit=3), Buy TP2 (second variant)"
+    },
+    {
+      "name": "Support3",
+      "formula": "PrevD1Low - 2 * (PrevD1High - Pivot)",
+      "used_by": "Buy SL (TgtProfit=3), Sell TP (TgtProfit=3), Sell TP2 (second variant)"
+    },
+    {
+      "name": "cl1",
+      "formula": "CopyClose[1] (previous bar close)",
+      "used_by": "isOpenBuy, isOpenSell signal detection"
+    },
+    {
+      "name": "cl2",
+      "formula": "CopyClose[2] (bar before previous close)",
+      "used_by": "isOpenBuy, isOpenSell signal detection"
+    },
+    {
+      "name": "MinSL_Buy",
+      "formula": "Bid - _Point * (StopsLevel + 1)",
+      "used_by": "ChekBuyMSL minimum stop validation"
+    },
+    {
+      "name": "MinTP_Buy",
+      "formula": "Ask + _Point * (StopsLevel + 1)",
+      "used_by": "ChekBuyMTP minimum TP validation"
+    },
+    {
+      "name": "MinSL_Sell",
+      "formula": "Ask + _Point * (StopsLevel + 1)",
+      "used_by": "ChekSellMSL minimum stop validation"
+    },
+    {
+      "name": "MinTP_Sell",
+      "formula": "Bid - _Point * (StopsLevel + 1)",
+      "used_by": "ChekSellMTP minimum TP validation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Close[1]",
+        "right": "Pivot",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Close[1]",
+        "right": "Pivot",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": null,
+      "params": {
+        "TgtProfit_1": "Support1 (long), Resist1+Spread (short)",
+        "TgtProfit_2": "Support2 (long), Resist2+Spread (short)",
+        "TgtProfit_3": "Support3 (long), Resist3+Spread (short)"
+      }
+    },
+    "take_profit": {
+      "type": "indicator_level",
+      "value": null,
+      "params": {
+        "TgtProfit_1": "Resist1 (long), Support1+Spread (short)",
+        "TgtProfit_2": "Resist2 (long), Support2+Spread (short)",
+        "TgtProfit_3": "Resist3 (long), Support3+Spread (short)"
+      }
+    },
+    "trailing_stop": {
+      "type": "indicator_based",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "description": "ModSL moves SL to breakeven (open price +/- spread) when Bid reaches first target level (Resist1 for buy, Support1 for sell)"
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Intraday close at 23:00 when isTradeDay=true",
+      "Second variant SL/TP if first variant fails minimum distance check: Buy uses SL=Support2, TP=Resist3; Sell uses SL=Resist2+Spread, TP=Support3+Spread"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "fixed_lots_input": 0.1,
+      "risk_fraction_when_lots_zero": 0.02,
+      "lot_reduction_factor_DcF": 3,
+      "lot_reduction_logic": "When Lots==0, size = FreeMargin * MaxR / 1000. When DcF>0 and consecutive losses>1, reduced_lot = lot - lot * losses / DcF"
+    },
+    "max_positions": 1,
+    "conditional_logic": "When Lots>0 use fixed Lots; when Lots==0 use risk-based FreeMargin*MaxR/1000; DcF reduces lot after consecutive losses (lot - lot*losses/DcF when losses>1)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Pivot levels recalculated each new bar from previous D1 bar. Entry signals use crossover of previous bar close (cl1=Close[1]) with Pivot, confirmed by prior bar (cl2=Close[2]) being on opposite side. Sell SL/TP include spread adjustment (+_Point*Spread). Minimum SL/TP distance validated against broker StopsLevel before entry. If primary SL/TP fails StopsLevel check, second variant attempted (wider SL, further TP). Breakeven SL modification (ModSL) triggers when price reaches first target level (tg1 stored as global variable). Lot reduction after consecutive losses scans deal history backwards, counting sequential losing closed deals.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Pivot calculation is arithmetic from OHLC of previous daily bar - straightforward. Entry signal is simple Close[1]/Close[2] vs Pivot crossover. Position sizing with DcF lot reduction requires deal history scanning (consecutive losses from last winning deal). Breakeven SL modification needs tick-level monitoring for target level hit. Sell-side SL/TP adds spread offset - must track bid/ask separately. Global variable 'tg1' tracks first target for breakeven logic - replace with instance variable. Spread used in deviation (3x) and sell SL/TP adjustments - need real-time spread data. StopsLevel validation is broker-dependent - implement as minimum distance check.",
+  "extraction_timestamp": "2026-05-12T13:18:40.583184",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 121.54960250854492,
+    "cost": 0
+  }
+}

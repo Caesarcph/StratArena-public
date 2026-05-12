@@ -1,0 +1,188 @@
+{
+  "ea_id": "EA-1198",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load external custom indicator 'MALR' with 5 parameters. Averaging and position overturn logic add complexity. Custom indicator buffers 3 and 4 drive signals, requiring manual recreation of the MALR indicator logic in Python.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "MALR",
+      "params": {
+        "period": 120,
+        "shift": 0,
+        "applied_to": 0,
+        "channel_reversal": 1.1,
+        "channel_breakout": 1.1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "high_extr from MALR buffer 3 (previous 2 bars)",
+      "formula": "CopyBuffer(handle_MALR, 3, 1, 2, high_extr)",
+      "used_by": "Entry signal: high_extr[0]<=close[0] && high_extr[1]>=close[1] for sell"
+    },
+    {
+      "name": "low_extr from MALR buffer 4 (previous 2 bars)",
+      "formula": "CopyBuffer(handle_MALR, 4, 1, 2, low_extr)",
+      "used_by": "Entry signal: low_extr[0]>=close[0] && low_extr[1]<=close[1] for buy"
+    },
+    {
+      "name": "propn - floating loss in points for current position",
+      "formula": "prev_open - ASK (for buy) or BID - prev_open (for sell)",
+      "used_by": "Averaging entry gate: propn >= loss_forAveraging * point"
+    },
+    {
+      "name": "prev_avlot - lot size of last non-overturn deal",
+      "formula": "HistoryDealGetDouble(tick, DEAL_VOLUME) where comment != 'Overturn'",
+      "used_by": "Averaging order volume"
+    },
+    {
+      "name": "_nLt for deposit fraction sizing",
+      "formula": "Lot * ACCOUNT_EQUITY / Max_drawdown",
+      "used_by": "Position sizing when use_increase=true and no position open"
+    },
+    {
+      "name": "_nLt for overturn multiplication",
+      "formula": "vol * koff_multiplication",
+      "used_by": "Position overturn order volume (mode==3)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "low_extr[0]",
+        "right": "close[0]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "low_extr[1]",
+        "right": "close[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "low_extr crossover close on bars [1] and [2]",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "high_extr[0]",
+        "right": "close[0]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "high_extr[1]",
+        "right": "close[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "high_extr crossunder close on bars [1] and [2]",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 2550,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2578,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 200,
+      "params": {
+        "trail_start_pips": 50,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Position overturn: on opposite MALR signal, close existing position and open reverse with multiplied lot (vol * koff_multiplication)",
+      "Averaging: when floating loss >= loss_forAveraging pips, open additional same-direction position with previous non-overturn lot size"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "koff_multiplication": 2.0,
+      "max_drawdown": 5000
+    },
+    "max_positions": 1,
+    "conditional_logic": "Fixed Lot=0.1 by default; if use_increase=true and no position open, lot = Lot * Equity / Max_drawdown; if overturn (mode=3), lot = previous_lot * koff_multiplication; if averaging (mode=2), lot = prev_avlot from deal history; clamped to min_lot/max_lot"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 65,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "MALR custom indicator provides high_extr (buffer 3) and low_extr (buffer 4) channel levels. Entry signal is a crossover of these channel levels with close price on completed bars [1] and [2] (shifted by 1). Averaging logic opens additional same-direction positions when floating loss exceeds loss_forAveraging points. Position overturn closes and reverses with multiplied lot on opposite signal. SL/TP modification retried up to N_modify_sltp times with 1s delay. The SL/TP values (2550/2578) are in points not pips, suggesting 5-digit broker targeting ~255/258 pip equivalents.",
+  "external_dependencies": [
+    "MALR custom indicator (iCustom call with 5 params: MAPeriod, MAShift, AppliedPrice, ChannelReversal, ChannelBreakout)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Must reverse-engineer or obtain the MALR custom indicator source to replicate buffers 3 (high_extr) and 4 (low_extr). Entry logic uses previous 2 completed bars (index 1 and 2), not current bar. Averaging and overturn modes create complex position management that needs careful state tracking of prev_open and prev_avlot. SL/TP are in points (multiply by point_value); for 5-digit brokers, 2550 points = 255 pips. The trailing stop activates only after profit threshold is reached (Activate_by_profit). Deposit-fraction sizing formula: lot = base_lot * equity / max_drawdown.",
+  "extraction_timestamp": "2026-05-12T16:13:37.531422",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 117.577960729599,
+    "cost": 0
+  }
+}

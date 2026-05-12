@@ -1,0 +1,129 @@
+{
+  "ea_id": "EA-11247",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for 'Karpenko' indicator and depends on TradeAlgorithms.mqh external library for all position open/close logic, money management, and new bar detection. Custom indicator cannot be auto-converted without reverse-engineering the Karpenko indicator source.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Karpenko",
+      "params": {
+        "Basic_MA": 144,
+        "History": 500
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "Max(Basic_MA,History) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Karpenko buffer 0 (Ind)",
+        "right": "Karpenko buffer 1 (Sign)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Karpenko buffer 0 (Ind)",
+        "right": "Karpenko buffer 1 (Sign)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal reversal: when Ind crosses below Sign, existing long is closed; when Ind crosses above Sign, existing short is closed. BuyPosClose and SellPosClose input flags control whether opposite-signal closes are enabled."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot size (MM parameter as lot), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM=0.1 acts as either lot size or risk fraction depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses two buffers from the custom Karpenko indicator: buffer 0 (Ind, likely main line) and buffer 1 (Sign, likely signal line). Entry signals use previous completed bar values (index [1]) for trend direction and one bar before that (index [0] relative to SignalBar=1, i.e. 2 bars ago) for crossover detection. When SignalBar=0, the EA evaluates on every tick instead of only on new bars. The LoadHistory call ensures sufficient bar data is loaded. Signal timestamps are constructed from SERIES_LASTBAR_DATE + TimeShiftSec for position tracking. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans independently gate each trade action, allowing partial strategy configuration (e.g., long-only, close-only mode).",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The Karpenko custom indicator must be reverse-engineered or reimplemented in Python before the strategy can be backtested. The two-buffer crossover logic (Ind vs Sign) is straightforward once indicator values are available. The TradeAlgorithms.mqh money management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_) need Python equivalents. Position sizing supports 5 modes via MarginMode enum - implement all or default to fixed lot (LOT mode). The new bar guard and SignalBar logic allow both per-bar and per-tick evaluation modes. SL/TP are in points (not pips) - the values 1000/2000 likely need digit adjustment for 5-digit brokers (effective 100/200 pips on 5-digit, 1000/2000 pips on 4-digit). Verify whether TradeAlgorithms.mqh handles digit adjustment internally.",
+  "extraction_timestamp": "2026-05-12T14:49:56.990153",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 161.0424087047577,
+    "cost": 0
+  }
+}

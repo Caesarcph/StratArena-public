@@ -1,0 +1,162 @@
+{
+  "ea_id": "EA-1159",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for 2MoHLC indicator (custom indicator not available as built-in), and includes external TradeAlgorithms.mqh library for position management and money management logic which cannot be auto-converted",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "2MoHLC",
+      "params": {
+        "period1": 24,
+        "period2": 48,
+        "mode": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for calculation",
+      "formula": "MathMax(Period1,Period2)+3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal time calculation for trade execution"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "CloudColor mode: UpValue[1] (buffer 0, bar+1)",
+        "right": "DnValue[1] (buffer 1, bar+1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "UpValue (buffer 0, upper cloud)",
+        "right": "DnValue (buffer 1, lower cloud)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "Close[1]",
+        "right": "MathMax(UpValue[1],DnValue[1])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "CloudColor mode: UpValue[1] (buffer 0, bar+1)",
+        "right": "DnValue[1] (buffer 1, bar+1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "UpValue (buffer 0, upper cloud)",
+        "right": "DnValue (buffer 1, lower cloud)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "Close[1]",
+        "right": "MathMin(UpValue[1],DnValue[1])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "CloudColor mode: sell signal closes longs and buy signal closes shorts; Breakdown mode: price re-entering cloud triggers opposite close"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "negative MM value = fixed lot size (abs value); positive MM value = deposit fraction for deal sizing, handled by TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Dual-mode strategy: CloudColor mode trades on cloud color change (UpValue vs DnValue crossover), Breakdown mode trades on price breaking out of the cloud (Close above MathMax or below MathMin of both cloud lines). Signal confirmation uses bar[1] vs bar[0] comparison - trade triggers when previous bar confirmed direction but the bar before it did not. Entry permissions controlled by BuyPosOpen/SellPosOpen bools; exit permissions by BuyPosClose/SellPosClose bools. Recount flag ensures data is re-fetched on copy failure. SignalBar=1 means signals are evaluated on the previous completed bar. The signal time is calculated as last bar date + timeframe shift, used by TradeAlgorithms.mqh for trade identification.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Requires reimplementing the 2MoHLC custom indicator logic (2-period smoothed OHLC cloud) since it uses iCustom. TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, LoadHistory) must be reimplemented - these handle position management, new bar detection, and money management. The conditional MM logic (negative=fixed lots, positive=deposit fraction) needs careful porting. No digit adjustment is performed on SL/TP values in the EA code itself, but TradeAlgorithms.mqh may handle this internally. Entry logic has two distinct modes that must be implemented separately. Signal time calculation uses SERIES_LASTBAR_DATE plus timeframe offset for trade uniqueness tracking.",
+  "extraction_timestamp": "2026-05-12T15:41:34.441741",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 115.44627499580383,
+    "cost": 0
+  }
+}

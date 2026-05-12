@@ -1,0 +1,132 @@
+{
+  "ea_id": "EA-11415",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for BvsB indicator and external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and money management. Custom smoothing methods and applied price enums not available in built-in indicators.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BvsB",
+      "params": {
+        "method": "MODE_SMA",
+        "period": 12,
+        "phase": 15,
+        "applied_to": "PRICE_CLOSE"
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe period in seconds for signal timing",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime for position open timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "GetStartBars(BvsB_Method, XLength, XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "BvsB Main Buffer (Ind)",
+        "right": "BvsB Signal Buffer (Sign)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "BvsB Main Buffer (Ind)",
+        "right": "BvsB Signal Buffer (Sign)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal triggers close of existing position via BuyPositionClose/SellPositionClose when BuyPosClose/SellPosClose inputs are true"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode determines sizing: LOT=fixed lot size from MM; FREEMARGIN=fraction of free margin; BALANCE=fraction of balance; LOSSFREEMARGIN=fraction of free margin minus loss; LOSSBALANCE=fraction of balance minus loss. MM=0.1 serves as either lot size or fraction depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses previous bar (SignalBar=1, so Ind[1] vs Sign[1]) for trend direction and current bar (Ind[0] vs Sign[0]) for crossover confirmation. Long entry: Ind[1]>Sign[1] (was above on prev bar) AND Ind[0]<=Sign[0] (crossed below on signal bar). Short entry: Ind[1]<Sign[1] (was below on prev bar) AND Ind[0]>=Sign[0] (crossed above on signal bar). UpSignalTime/DnSignalTime passed to position open functions for trade validation. LoadHistory called each tick for series synchronization. GlobalVariableDel_ cleans up on deinit. Recount flag handles copy buffer failures with retry on next tick.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The BvsB custom indicator logic must be reimplemented in Python using the SmoothAlgorithms.mqh library functions (JJMA, JurX, ParMA, T3, VIDYA, AMA smoothing methods). The Applied_price_ enum extends beyond standard MT5 prices (adds Simpl, Quarter, TrendFollow, Demark prices). TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose which handle order execution with margin calculation, deviation, and signal time validation. The conditional position sizing (MMMode enum) requires implementing 5 different money management modes. Signal logic is bar-based with new-bar guard and SignalBar offset, making it compatible with bar-by-bar backtesting at H4 resolution.",
+  "extraction_timestamp": "2026-05-12T15:21:43.657169",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 142.63275408744812,
+    "cost": 0
+  }
+}

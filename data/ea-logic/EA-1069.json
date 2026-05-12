@@ -1,0 +1,165 @@
+{
+  "ea_id": "EA-1069",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load a proprietary '3rdGenXMA' custom indicator, and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for indicator calculations and trade execution logic. Custom indicator and external libraries must be replicated in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "3rdGenerationXMA (3rdGenXMA)",
+      "params": {
+        "method": 1,
+        "period": 50,
+        "phase": 15,
+        "applied_to": 5,
+        "price_shift": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "2*XLength for first smoothing pass, XLength for second smoothing pass"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_1: start bars for first XMA pass (2*XLength period)",
+      "formula": "XMA.GetStartBars(XMA_Method, 2*XLength, XPhase)",
+      "used_by": "min_rates_total calculation"
+    },
+    {
+      "name": "min_rates_2: start bars for first + second XMA pass",
+      "formula": "min_rates_1 + XMA.GetStartBars(XMA_Method, XLength, XPhase)",
+      "used_by": "min_rates_total calculation"
+    },
+    {
+      "name": "min_rates_total: minimum bars needed before EA trades",
+      "formula": "min_rates_2 + 3 + SignalBar",
+      "used_by": "BarsCalculated sufficiency check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec: chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal timestamp calculation for trade functions"
+    },
+    {
+      "name": "Value[3]: three consecutive indicator buffer values at SignalBar, SignalBar+1, SignalBar+2",
+      "formula": "CopyBuffer(InpInd_Handle, 0, SignalBar, 3, Value)",
+      "used_by": "Entry signal determination"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Value[1] (3rdGenXMA at bar SignalBar+1)",
+        "right": "Value[2] (3rdGenXMA at bar SignalBar+2)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "Value[0] (3rdGenXMA at bar SignalBar)",
+        "right": "Value[1] (3rdGenXMA at bar SignalBar+1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Value[1] (3rdGenXMA at bar SignalBar+1)",
+        "right": "Value[2] (3rdGenXMA at bar SignalBar+2)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "Value[0] (3rdGenXMA at bar SignalBar)",
+        "right": "Value[1] (3rdGenXMA at bar SignalBar+1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: long signal triggers SELL_Close when SellPosClose=true, short signal triggers BUY_Close when BuyPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values treated as fixed lot size (e.g. -0.1 = 0.1 lots), positive values treated as deposit share fraction for risk-based sizing. Logic handled in TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic is a two-bar directional filter: the 3rdGenXMA must be declining (Value[1]<Value[2]) AND turning up (Value[0]>Value[1]) for a long entry, or rising (Value[1]>Value[2]) AND turning down (Value[0]<Value[1]) for a short entry. This is effectively a 'V-shaped' or turning-point detection on the moving average. The BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose booleans gate whether entries and signal-reversal exits are allowed independently. Signal is recalculated only on new bars (unless SignalBar==0, in which case it also processes intrabar). Trade execution functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) are from TradeAlgorithms.mqh and may contain position existence checks internally. The Recount flag ensures signal recalculation on failed CopyBuffer attempts.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The 3rdGenerationXMA custom indicator must be reimplemented in Python. It applies two cascading smoothing passes: first with period 2*XLength using XMA_Method, then with period XLength using XMA_Method. The smoothing methods available (JJMA, JurX, ParMA, T3, VIDYA, AMA) go beyond standard MT5 built-in MAs and each requires a separate algorithm implementation from SmoothAlgorithms.mqh. The TradeAlgorithms.mqh trading functions need to be replaced with a broker API wrapper that handles: position existence checks, lot sizing (conditional on MM sign), SL/TP placement, and deviation/slippage control. The signal logic itself is straightforward (3-bar turning point detection) and ports directly. The LoadHistory call for SeriesInfoInteger compatibility is MT5-specific and not needed in Python.",
+  "extraction_timestamp": "2026-05-12T13:34:41.635524",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 126.10011577606201,
+    "cost": 0
+  }
+}

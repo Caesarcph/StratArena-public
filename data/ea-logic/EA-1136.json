@@ -1,0 +1,239 @@
+{
+  "ea_id": "EA-1136",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses external .mqh libraries (Trade.mqh, SymbolInfo.mqh, DealInfo.mqh, PositionInfo.mqh) for trade execution and position management. Trading logic is entirely based on custom candlestick pattern recognition (Insider bars, White/Black birds, Zig levels) rather than standard built-in indicators. No standard MT5 indicator handles are used.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Inside Bar (Insider)",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": "r[1].high<=r[2].high && r[1].low>=r[2].low"
+    },
+    {
+      "type": "Custom",
+      "name": "Black Insider",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": "Insider && r[1].close<=r[1].open (bearish inside bar)"
+    },
+    {
+      "type": "Custom",
+      "name": "White Insider",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": "Insider && r[1].close>r[1].open (bullish inside bar)"
+    },
+    {
+      "type": "Custom",
+      "name": "White Bird",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": "White_insider && r[2].close>r[2].open (bullish inside bar inside bullish bar)"
+    },
+    {
+      "type": "Custom",
+      "name": "Black Bird",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": "Black_insider && r[2].close<r[2].open (bearish inside bar inside bearish bar)"
+    },
+    {
+      "type": "Custom",
+      "name": "Zig Level Buy",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": "if bullish bar[1]: close-(close-open)/3; else: close-(close-low)/3"
+    },
+    {
+      "type": "Custom",
+      "name": "Zig Level Sell",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": "if bearish bar[1]: close+(open-close)/3; else: close+(high-close)/3"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Insider",
+      "formula": "r[1].high<=r[2].high && r[1].low>=r[2].low",
+      "used_by": "Black_insider, White_insider, Buy/Sell confirmations"
+    },
+    {
+      "name": "Insider2",
+      "formula": "r[2].high<=r[3].high && r[2].low>=r[3].low",
+      "used_by": "Not directly used in signal logic (computed but unused)"
+    },
+    {
+      "name": "Black_insider",
+      "formula": "Insider && r[1].close<=r[1].open",
+      "used_by": "Confirm_sell exclusion, Confirm_buy exclusion, Black_bird"
+    },
+    {
+      "name": "White_insider",
+      "formula": "Insider && r[1].close>r[1].open",
+      "used_by": "Confirm_buy exclusion, White_bird"
+    },
+    {
+      "name": "White_bird",
+      "formula": "White_insider && r[2].close>r[2].open",
+      "used_by": "Confirm_sell exclusion"
+    },
+    {
+      "name": "Black_bird",
+      "formula": "Black_insider && r[2].close<r[2].open",
+      "used_by": "Confirm_buy exclusion"
+    },
+    {
+      "name": "Zig_level_buy",
+      "formula": "r[1].bullish ? r[1].close-(r[1].close-r[1].open)/3 : r[1].close-(r[1].close-r[1].low)/3",
+      "used_by": "Confirm_buy"
+    },
+    {
+      "name": "Zig_level_sell",
+      "formula": "r[1].bearish ? r[1].close+(r[1].open-r[1].close)/3 : r[1].close+(r[1].high-r[1].close)/3",
+      "used_by": "Confirm_sell"
+    },
+    {
+      "name": "Confirm_buy",
+      "formula": "(r[0].low<=Zig_level_buy || dt.hour>=8) && !Black_bird && !White_insider",
+      "used_by": "Buy entry, Close sell"
+    },
+    {
+      "name": "Confirm_sell",
+      "formula": "(r[0].high>=Zig_level_sell || dt.hour>=8) && !White_bird && !Black_insider",
+      "used_by": "Sell entry, Close buy"
+    },
+    {
+      "name": "Buy_signal",
+      "formula": "r[0].high>r[1].high",
+      "used_by": "Buy entry, Close sell"
+    },
+    {
+      "name": "Sell_signal",
+      "formula": "r[0].low<r[1].low",
+      "used_by": "Sell entry, Close buy"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Buy_signal && Confirm_buy && r[0].low>r[1].low && r[1].low<r[2].high",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Sell_signal && Confirm_sell && r[0].high<r[1].high && r[1].high>r[2].low",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "input_param": "StopLoss",
+        "buy_formula": "Ask - Point*StopLoss",
+        "sell_formula": "Bid + Point*StopLoss"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "input_param": "TakeProfit",
+        "buy_formula": "Ask + Point*TakeProfit",
+        "sell_formula": "Bid - Point*TakeProfit"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close buy when Sell_signal && Confirm_sell && r[0].high<r[1].high (opposite signal with confirmation)",
+      "Close sell when Buy_signal && Confirm_buy && r[0].low>r[1].low (opposite signal with confirmation)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {
+      "input_param": "Lots",
+      "comment": "SolveLots simply returns the input Lots value; MaximumRisk parameter mentioned in comment but not implemented"
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 8
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Strategy is based on 'Eugene' inside bar breakout pattern. Uses 3-bar pattern recognition: bar[1] inside bar[2] (Insider), with bullish/bearish classification (White/Black Insider) and 2-bar inside pattern (White/Black Bird). Zig levels act as intrabar thresholds for confirmation. Time-based override: after hour>=8, confirmation is automatically true regardless of Zig level. InvertSignals input swaps all buy/sell signals. GlobalVariable mechanism prevents duplicate entries within the same bar. Close logic uses a weaker condition than entry (no r[1].low<r[2].high check for close-buy, no r[1].high>r[2].low check for close-sell). Insider2 variable is computed but never used in any signal logic.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The core logic uses pure price action (MqlRates: open, high, low, close) with no standard indicator handles, making the signal logic straightforward to port. Key challenges: (1) Must replicate the candlestick pattern recognition (Insider, White/Black Bird, Zig levels) exactly. (2) The time filter uses dt.hour>=8 as an OR condition within Confirm_buy/Confirm_sell — this means after 8:00 server time, the Zig level check is bypassed. (3) GlobalVariable guard for once-per-bar entry must be replaced with a bar-index or timestamp tracking mechanism. (4) The CTrade, CSymbolInfo, CPositionInfo wrappers must be replaced with direct broker API calls. (5) StopsLevel check for SL/TP validity must be replicated. (6) InvertSignals mode simply swaps Buy/Sell and CloseBuy/CloseSell — trivial to implement. (7) Note that deviation is set to Sym.Spread()*3 points — this dynamic deviation must be preserved. (8) The entry Buy/Sell uses price=0 which in MQL5 means current market price.",
+  "extraction_timestamp": "2026-05-12T15:05:46.321391",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 114.38380002975464,
+    "cost": 0
+  }
+}

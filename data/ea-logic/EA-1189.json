@@ -1,0 +1,195 @@
+{
+  "ea_id": "EA-1189",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses two iCustom indicators (JBrainTrend1Sig, UltraRSI) and external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for trading logic and money management. Multi-indicator composition logic with custom smoothing algorithms.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "JBrainTrend1Sig",
+      "params": {
+        "ATR_Period": 7,
+        "STO_Period": 9,
+        "XMA_Method": "SMA",
+        "STO_Price": "LOWHIGH",
+        "XLength": 7,
+        "XPhase": 100
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "UltraRSI",
+      "params": {
+        "RSI_Period": 13,
+        "applied_to": "CLOSE",
+        "W_Method": "JJMA",
+        "StartLength": 3,
+        "WPhase": 100,
+        "nStep": 5,
+        "nStepsTotal": 10,
+        "SmoothMethod": "JJMA",
+        "SmoothLength": 3,
+        "SmoothPhase": 100
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "StartLength+nStep*nStepsTotal"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_1: minimum bars for JBrainTrend1Sig calculation",
+      "formula": "max(max(ATR_Period,STO_Period),30)+2",
+      "used_by": "JBrainTrend1Sig indicator readiness check"
+    },
+    {
+      "name": "min_rates_2: minimum bars for UltraRSI calculation",
+      "formula": "RSI_Period + GetStartBars(W_Method, StartLength+nStep*nStepsTotal, WPhase)+1 + GetStartBars(SmoothMethod, SmoothLength, SmoothPhase)",
+      "used_by": "UltraRSI indicator readiness check"
+    },
+    {
+      "name": "min_rates_total: overall minimum bars before trading",
+      "formula": "max(min_rates_1, min_rates_2)+3+SignalBar",
+      "used_by": "BarsCalculated readiness guard in OnTick"
+    },
+    {
+      "name": "UltraRSI effective smoothing period",
+      "formula": "StartLength+nStep*nStepsTotal",
+      "used_by": "UltraRSI indicator internal smoothing chain"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "JBrainTrend1Sig_UP_signal_on_SignalBar",
+        "right": "UltraRSI_crossover_above",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "UltraRSI_crossover_above",
+        "right": "JBrainTrend1Sig_sell_close_on_SignalBar",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Mode_Composition_long_logic",
+        "right": "BuyPosOpen_permission",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "JBrainTrend1Sig_DN_signal_on_SignalBar",
+        "right": "UltraRSI_crossover_below",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "UltraRSI_crossover_below",
+        "right": "JBrainTrend1Sig_buy_close_on_SignalBar",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Mode_Composition_short_logic",
+        "right": "SellPosOpen_permission",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Both indicators must agree on close: SELL_Close1 && SELL_Close2 for short close, BUY_Close1 && BUY_Close2 for long close"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM input: negative values interpreted as fixed lot size (e.g. -0.1 = 0.1 lots), positive values interpreted as deposit fraction for deal sizing"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three algorithm modes control signal combination: (1) JBrainSig1Filter - JBrainTrend1Sig provides entry signal, UltraRSI acts as filter; (2) UltraRSIFilter - UltraRSI provides entry signal, JBrainTrend1Sig acts as filter; (3) Composition - either indicator can trigger entry if the other confirms. JBrainTrend1Sig searches backward from SignalBar to find the most recent signal direction. UltraRSI uses a crossover of buffer[0] vs buffer[1] across two consecutive bars. Exit requires both indicators to agree simultaneously (SELL_Close1 && SELL_Close2 or BUY_Close1 && BUY_Close2). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans act as permission gates.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires reimplementation of two custom indicators (JBrainTrend1Sig and UltraRSI) which depend on SmoothAlgorithms.mqh containing JJMA, JurX, ParMA, T3, VIDYA, AMA smoothing algorithms. The CXMA class GetStartBars() method is used to compute minimum warmup periods. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with money management logic (negative=lot, positive=deposit fraction). The JBrainTrend1Sig search loop scanning backward from SignalBar must be faithfully replicated. Three-mode signal combination logic (JBrainSig1Filter, UltraRSIFilter, Composition) needs careful implementation. SL/TP are in points not pips - verify broker digit convention. Signal bar index defaults to 1 (previous closed bar).",
+  "extraction_timestamp": "2026-05-12T16:09:02.566214",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 191.56413388252258,
+    "cost": 0
+  }
+}

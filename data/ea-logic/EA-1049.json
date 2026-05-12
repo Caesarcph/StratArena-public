@@ -1,0 +1,184 @@
+{
+  "ea_id": "EA-1049",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iATR indicator and standard price data functions (CopyHigh, CopyLow, CopyClose). Simple channel breakout entry/exit rules. Fixed or risk-based position sizing with straightforward loss-reduction logic. No custom indicators or external trading logic libraries.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "ATR for Stop Loss",
+      "params": {
+        "period": 4,
+        "method": "SMA",
+        "applied_to": "TYPICAL"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Price Channel",
+      "params": {
+        "period": 20
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Resist (Current channel high)",
+      "formula": "Maximum of CopyHigh over rChannel bars starting at bar 1",
+      "used_by": "isOpenBuy, isCloseBuy, isOpenSell (indirectly via Pivot)"
+    },
+    {
+      "name": "ResistPrev (Previous channel high)",
+      "formula": "Maximum of CopyHigh over rChannel bars starting at bar 2",
+      "used_by": "isOpenBuy, isCloseBuy (channel stability check Resist==ResistPrev)"
+    },
+    {
+      "name": "Support (Current channel low)",
+      "formula": "Minimum of CopyLow over rChannel bars starting at bar 1",
+      "used_by": "isOpenSell, isCloseSell, isOpenBuy (indirectly via Pivot)"
+    },
+    {
+      "name": "SupportPrev (Previous channel low)",
+      "formula": "Minimum of CopyLow over rChannel bars starting at bar 2",
+      "used_by": "isOpenSell, isCloseSell (channel stability check Support==SupportPrev)"
+    },
+    {
+      "name": "Pivot",
+      "formula": "(Resist + Support + cl1[0]) / 3",
+      "used_by": "isOpenBuy, isOpenSell (middle-zone filter)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "or_combination",
+        "left": "hp1[0] (previous bar high)",
+        "right": "Resist (channel high)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "cl1[0] (previous bar close)",
+        "right": "Pivot",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "or_combination",
+        "left": "lp1[0] (previous bar low)",
+        "right": "Support (channel low)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "cl1[0] (previous bar close)",
+        "right": "Pivot",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": 1,
+      "params": {
+        "long_formula": "Support - ATR[0]",
+        "short_formula": "Resist + ATR[0] + (Ask - Bid)"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 300,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy position closed when channel high touched (hp1[0] >= Resist && Resist==ResistPrev) - same condition as open buy, acts as breakout exhaustion close",
+      "Sell position closed when channel low touched (lp1[0] <= Support && Support==SupportPrev) - same condition as open sell, acts as breakout exhaustion close"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "fixed_lots_when_nonzero": 0.1,
+      "risk_fraction_when_zero": 0.02,
+      "risk_formula": "AccountFreeMargin * MaxR / 1000.0",
+      "loss_reduction_factor": 3.0,
+      "loss_reduction_formula": "lots - lots * consecutive_losses / DcF"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If Lots != 0, use fixed Lots value. If Lots == 0, calculate from free margin fraction (MaxR). Then if DcF > 0, reduce lot size based on consecutive losing deals in history: aLots = aLots - aLots * losses / DcF"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signals require channel stability (Resist==ResistPrev for buy, Support==SupportPrev for sell) meaning the channel boundary must not have shifted. Buy has two sub-conditions OR'd: (1) bar high touches/penetrates resistance with stable channel, or (2) close is between resistance and pivot with stable channel. Sell mirrors this with support. Close signals use the same channel-touch condition as open (buy closes when price touches resistance again, sell closes when price touches support again). Stop loss for sell adds the spread (Ask-Bid) to the ATR offset. The trailing stop only moves SL in profitable direction (buy: nsl >= open price; sell: nsl <= open price) and respects the broker's StopsLevel.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Price channel logic must be reimplemented manually (rolling max of highs / min of lows over rChannel period). ATR is standard. The channel stability check (Resist==ResistPrev) after NormalizeDouble is essentially checking if the channel upper boundary remained the same when the window shifts by one bar - this is a float equality check on normalized prices that should translate safely. Lot reduction logic iterates deal history backwards counting consecutive losses - must replicate this exactly. The trailing stop implementation is standard but includes StopsLevel respect which requires broker parameter data. Entry uses previous completed bar data (shift 1+), so no lookahead bias. Position gate ensures only one position at a time per symbol.",
+  "extraction_timestamp": "2026-05-12T13:16:39.032668",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 227.65795421600342,
+    "cost": 0
+  }
+}

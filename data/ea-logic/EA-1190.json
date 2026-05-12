@@ -1,0 +1,132 @@
+{
+  "ea_id": "EA-1190",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (Candles_Smoothed) and two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) with custom smoothing methods and trading logic not replicable without the library source",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Candles_Smoothed",
+      "params": {
+        "method": "LWMA",
+        "period": 30,
+        "phase": 100
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "dLevel - breakout level in price units",
+      "formula": "Level * _Point",
+      "used_by": "entry and exit signal comparison against SHigh/SLow buffers"
+    },
+    {
+      "name": "min_rates_total - minimum bars for indicator warmup",
+      "formula": "XMA.GetStartBars(MA_SMethod, MA_Length, MA_Phase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Close[SignalBar]",
+        "right": "Candles_Smoothed_High[SignalBar] + dLevel",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Close[SignalBar]",
+        "right": "Candles_Smoothed_Low[SignalBar] - dLevel",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long closes when Close < Candles_Smoothed_Low - dLevel (SellPosClose=true)",
+      "Short closes when Close > Candles_Smoothed_High + dLevel (BuyPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM input: negative values = fixed lot size (abs value), positive values = deposit fraction/share. Default MM=-0.1 means 0.1 fixed lots"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Scans bars from SignalBar onward to find first breakout condition; entry only triggered when bar==SignalBar matches breakout. Uses CIsNewBar class for new bar detection. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with signal time tracking. Recount flag triggers recalculation if CopyBuffer fails. UpSignalTime/DnSignalTime set from SERIES_LASTBAR_DATE + TimeShiftSec for trade execution timing",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires reimplementing the Candles_Smoothed custom indicator logic from SmoothAlgorithms.mqh (9 smoothing methods: JJMA, JurX, ParMA, T3, VIDYA, AMA plus standard SMA/EMA/SMMA/LWMA). TradeAlgorithms.mqh contains position management functions with lot sizing logic (negative=fixed, positive=deposit fraction), new bar detection, and history loading - all must be ported. The breakout logic is straightforward: close breaks above smoothed high + level or below smoothed low - level. Multi-timeframe indicator access (H4 default) requires careful bar alignment in Python backtesting",
+  "extraction_timestamp": "2026-05-12T16:11:39.952140",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 157.38493394851685,
+    "cost": 0
+  }
+}

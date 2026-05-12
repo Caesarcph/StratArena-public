@@ -1,0 +1,156 @@
+{
+  "ea_id": "EA-1068",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses external TradeAlgorithms.mqh library for all trade execution (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) and utility functions (GlobalVariableDel_, CIsNewBar, LoadHistory). Multi-timeframe logic across 3 timeframes. Trade execution behavior is opaque without the library source.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Parabolic SAR (TimeFrame1 - Trend)",
+      "params": {
+        "step": 0.02,
+        "maximum": 0.2
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Parabolic SAR (TimeFrame2 - Trend)",
+      "params": {
+        "step": 0.02,
+        "maximum": 0.2
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Parabolic SAR (TimeFrame3 - Entry)",
+      "params": {
+        "step": 0.02,
+        "maximum": 0.2
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - chart period of TimeFrame3 in seconds",
+      "formula": "PeriodSeconds(TimeFrame3)",
+      "used_by": "UpSignalTime calculation for trade signal timestamp"
+    },
+    {
+      "name": "min_rates_total - minimum bars for indicator calculation",
+      "formula": "2+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "SAR1 < Close1 AND SAR2 < Close2 AND SAR3[1] > Close3[1] AND SAR3[0] < Close3[0]",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "SAR1 > Close1 AND SAR2 > Close2 AND SAR3[1] < Close3[1] AND SAR3[0] > Close3[0]",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "SAR1 above Close triggers BUY_Close (exit long)",
+      "SAR2 above Close triggers BUY_Close (exit long)",
+      "SAR3[1] above Close3[1] triggers BUY_Close (exit long)",
+      "SAR1 below Close triggers SELL_Close (exit short)",
+      "SAR2 below Close triggers SELL_Close (exit short)",
+      "SAR3[1] below Close3[1] triggers SELL_Close (exit short)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "negative MM value = fixed lot size (abs value), positive MM value = deposit fraction for position sizing"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Multi-timeframe SAR strategy: 3 Parabolic SAR indicators on different timeframes (default H6, H3, H1). Higher timeframe SARs (TF1, TF2) define trend direction; lowest timeframe SAR (TF3) provides entry signal on crossover. Exit signals can come from ANY timeframe SAR flipping against position. SignalBar parameter controls which bar index is used for signal detection (default=1, previous bar). CIsNewBar class from TradeAlgorithms.mqh ensures processing only on new bars per timeframe. Recount mechanism handles data copy failures by re-attempting on next tick. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose boolean inputs act as permission gates for each trade direction and action.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Multi-timeframe alignment is the key challenge - must resample SAR signals from H6 and H3 to align with H1 entry timeframe. The TradeAlgorithms.mqh library handles position open/close, new bar detection, and history loading - all must be reimplemented. SL/TP are in points (not pips), so point-to-price conversion depends on symbol digits. SignalBar=1 means signals come from previous completed bar - critical for avoiding look-ahead bias in backtesting. The conditional MM logic (negative=lot, positive=deposit fraction) needs explicit branching. Exit signals accumulate from all 3 timeframes via boolean OR logic - any timeframe SAR flipping triggers close.",
+  "extraction_timestamp": "2026-05-12T13:32:35.534486",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 82.94637441635132,
+    "cost": 0
+  }
+}

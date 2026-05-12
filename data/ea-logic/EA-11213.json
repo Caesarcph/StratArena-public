@@ -1,0 +1,139 @@
+{
+  "ea_id": "EA-11213",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'HullTrend' which is not a built-in MT5 indicator, and depends on external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "HullTrend",
+      "params": {
+        "period": 20,
+        "method": 3,
+        "applied_to": 1,
+        "phase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "SqrXLength=int(MathFloor(MathSqrt(XLength))) used internally by HullTrend for the second smoothing pass"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "SqrXLength - square root of Hull period for weighted MA pass",
+      "formula": "int(MathFloor(MathSqrt(XLength)))",
+      "used_by": "HullTrend indicator internal calculation (second smoothing stage)"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before indicator is valid",
+      "formula": "GetStartBars(XMA_Method,XLength,XPhase)+GetStartBars(XMA_Method,SqrXLength,XPhase)+3+SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal timestamp calculation for trade functions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "HullTrend buffer 0 (Indicator line)",
+        "right": "HullTrend buffer 1 (Signal line)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "HullTrend buffer 0 (Indicator line)",
+        "right": "HullTrend buffer 1 (Signal line)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose and SellPosClose input toggles allow disabling signal-based reversal closes independently"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects sizing method: LOT=fixed lot (MM value=lot size), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. When MMMode=LOT, MM=0.1 means 0.1 lots fixed"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signal uses previous bar values (SignalBar=1 by default, checking Ind[1] vs Sign[1] for trend direction and Ind[0] vs Sign[0] for crossover confirmation). The HullTrend indicator is a custom indicator loaded via iCustom with 2 buffers: buffer 0 is the main Hull line, buffer 1 is the signal line. Signal logic: when Ind[1]>Sign[1] (trend is up) AND Ind[0]<=Sign[0] (crossover just happened), a BUY signal fires. Conversely for SELL. The Recount flag causes re-evaluation on next tick if CopyBuffer fails. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input toggles independently control whether each signal type is acted upon. Signal timestamp is calculated as SERIES_LASTBAR_DATE + TimeShiftSec for trade function timing.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The HullTrend custom indicator must be reimplemented in Python. It uses the CXMA class from SmoothAlgorithms.mqh which implements 10+ smoothing methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA). The HullTrend calculation is: HMA = LWMA(sqrt(period), LWMA(period, price*2) - LWMA(period, price)). The default method is LWMA but any of the 10 methods can be substituted. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose wrappers which handle position counting, margin calculation, and order placement - these must be reimplemented or replaced with a standard Python broker API. The MMMode enum provides 5 money management modes that must all be supported. Signal bar index is configurable (SignalBar input), default 1 means signals are evaluated on the previous completed bar.",
+  "extraction_timestamp": "2026-05-12T14:36:40.141647",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 210.55819988250732,
+    "cost": 0
+  }
+}

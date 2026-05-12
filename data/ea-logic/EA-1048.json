@@ -1,0 +1,197 @@
+{
+  "ea_id": "EA-1048",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iCCI, iATR). Simple crossover entry/exit rules. Fixed or fractional position sizing. No external .mqh libraries for trading logic - only standard Trade/*.mqh helpers for order execution.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast MA",
+      "params": {
+        "period": 4,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA",
+      "params": {
+        "period": 8,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI",
+      "params": {
+        "period": 4,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 4
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Stop Loss for Buy",
+      "formula": "Bid - ATR[1]",
+      "used_by": "Buy entry order placement"
+    },
+    {
+      "name": "Stop Loss for Sell",
+      "formula": "Ask + ATR[1]",
+      "used_by": "Sell entry order placement"
+    },
+    {
+      "name": "Minimum SL for Buy",
+      "formula": "Bid - _Point * (StopsLevel + 1)",
+      "used_by": "Buy SL validity check"
+    },
+    {
+      "name": "Minimum SL for Sell",
+      "formula": "Ask + _Point * (StopsLevel + 1)",
+      "used_by": "Sell SL validity check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast SMA(4)",
+        "right": "Slow SMA(8)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "CCI(4)",
+        "right": "zero_line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast SMA(4)",
+        "right": "Slow SMA(8)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "CCI(4)",
+        "right": "zero_line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": 1,
+      "params": {
+        "atr_period": 4
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy position closed when Fast SMA crosses below Slow SMA; Sell position closed when Fast SMA crosses above Slow SMA"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "risk_fraction": 0.02,
+      "lot_reduction_factor": 3.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "When Lots>0: use fixed Lots value. When Lots==0: calculate as FreeMargin * MaxR / 1000. If DcF>0 and consecutive losses>1: reduce lot by (lot * losses / DcF). Lot is normalized to SYMBOL_VOLUME_STEP with min/max clamping."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry requires BOTH Fast MA crossover AND CCI zero-line crossover simultaneously (AND combination). SL placement is gated by StopsLevel check: Buy SL must be below min SL level, Sell SL must be above min SL level. Position close uses spread*3 as deviation. CCI crossover filter acts as momentum confirmation - CCI must cross from negative to positive for longs and positive to negative for shorts. The lot reduction system counts consecutive losing deals from most recent history and reduces next lot size proportionally.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "All indicators are standard (SMA, CCI, ATR) - trivially replicable with pandas-ta or ta-lib. Entry is a dual crossover system: Fast SMA crosses Slow SMA AND CCI crosses zero, both confirmed on the same bar using previous-bar values (shift 1 vs shift 2). Exit is pure signal reversal (opposite MA crossover). SL = 1x ATR placed at entry. No TP. Position sizing has conditional logic: fixed lot vs margin-fraction, plus a consecutive-loss lot-reduction scheme. The StopsLevel check for SL validity needs broker-dependent data. New-bar guard ensures one signal evaluation per bar. The deviation parameter (spread*3) is an MT5-specific slippage control; in Python backtesting this maps to assumed fill tolerance.",
+  "extraction_timestamp": "2026-05-12T13:12:51.373857",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 105.15652990341187,
+    "cost": 0
+  }
+}

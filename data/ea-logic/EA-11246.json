@@ -1,0 +1,138 @@
+{
+  "ea_id": "EA-11246",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'TSI_WPR' and two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing algorithms. Custom indicator must be replicated; money management relies on external library functions with multiple margin modes.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "TSI_WPR",
+      "params": {
+        "XMA_Method": "EMA",
+        "WPRPeriod": 25,
+        "MomPeriod": 1,
+        "XLength1": 5,
+        "XLength2": 8,
+        "XLength3": 20,
+        "XPhase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "WPRPeriod + MomPeriod + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "TSI_WPR buffer 0 (main line, bar[1])",
+        "right": "TSI_WPR buffer 1 (signal line, bar[1])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "TSI_WPR buffer 0 (main line, bar[1])",
+        "right": "TSI_WPR buffer 1 (signal line, bar[1])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy closed when main line crosses below signal line (Ind[1]<Sign[1] and BuyPosClose=true)",
+      "Sell closed when main line crosses above signal line (Ind[1]>Sign[1] and SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses, LOT=fixed lot size. When MMMode=LOT, MM value is treated as fixed lots; otherwise MM is a fraction (0.1 = 10%) of the respective margin base."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses previous bar (bar[1]) crossover condition combined with current bar (bar[0]) crossunder/crossover confirmation: BUY_Open requires Ind[1]>Sign[1] (prev bar bullish) AND Ind[0]<=Sign[0] (current bar crossing down from above - actually this triggers on the transition where main was above signal on prev bar and now at or below on current bar, signaling the crossover moment). SignalBar input (default=1) shifts which bar is used as the reference for signal detection. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean toggles allowing independent enable/disable of each trade direction and close action. GlobalVariableDel_ is called on deinit for cleanup. LoadHistory ensures sufficient bar data is loaded before signal check.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1. The TSI_WPR custom indicator must be reimplemented in Python - it computes a True Strength Index applied to Williams' Percent Range, with triple smoothing using configurable methods (JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard SMA/EMA/SMMA/LWMA). 2. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, and GlobalVariableDel_ - these must be reimplemented with proper margin mode handling (5 modes). 3. SmoothAlgorithms.mqh provides GetStartBars() for warmup period calculation and all non-standard smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA) - the default EMA mode simplifies this. 4. CIsNewBar class must be replicated for new-bar detection. 5. SL/TP are in points (not pips) - 1000 points = 100 pips on 5-digit, so verify point-vs-pip semantics in Python. 6. The entry logic uses a two-bar pattern: previous bar direction check (Ind[1] vs Sign[1]) plus current bar crossover confirmation (Ind[0] vs Sign[0]), which is a specific crossover-at-the-edge detection pattern.",
+  "extraction_timestamp": "2026-05-12T14:47:15.946802",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 158.98790383338928,
+    "cost": 0
+  }
+}

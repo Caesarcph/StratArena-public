@@ -1,0 +1,146 @@
+{
+  "ea_id": "EA-1104",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iAC indicator. Simple perceptron-based entry/exit rules. Fixed lot sizing. Trade management via standard Trade.mqh library (not custom logic). No custom indicators, no multi-timeframe, no grid/martingale.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Accelerator Oscillator (AC)",
+      "params": {},
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Perceptron output",
+      "formula": "(x1-100)*AC[Shift] + (x2-100)*AC[Shift+7] + (x3-100)*AC[Shift+14] + (x4-100)*AC[Shift+21]",
+      "used_by": "SignalOpenBuy and SignalOpenSell"
+    },
+    {
+      "name": "Weight w1",
+      "formula": "x1-100",
+      "used_by": "perceptron"
+    },
+    {
+      "name": "Weight w2",
+      "formula": "x2-100",
+      "used_by": "perceptron"
+    },
+    {
+      "name": "Weight w3",
+      "formula": "x3-100",
+      "used_by": "perceptron"
+    },
+    {
+      "name": "Weight w4",
+      "formula": "x4-100",
+      "used_by": "perceptron"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "perceptron output",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "perceptron output",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 850,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Position reversal: when in profit exceeding 2*StopLoss+Spread points, opposite signal triggers a position flip by opening a larger volume (current volume + Lots) in opposite direction",
+      "If flip fails due to stoploss proximity, position is closed and re-entry attempted on next tick",
+      "Trailing stop equivalent: when in profit (> 2*StopLoss+Spread from open SL) and no opposite signal, stoploss is reset to original open level, locking in profit equal to spread"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "On reversal, volume increases to current_position_volume + Lots (additive scale-in on flip)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Linear perceptron with 4 weighted AC indicator values at offsets Shift, Shift+7, Shift+14, Shift+21. Weights are (xN-100) where xN ranges 0-200, giving weight range -100 to +100. Position flip logic: when profit exceeds 2*StopLoss+Spread in points, and opposite signal fires, opens reverse position with volume = current_volume + Lots (net increasing exposure). If flip fails due to stops level, closes position. When profit exceeds threshold but no opposite signal, resets SL to breakeven (original open SL level). The Shift==0 case allows intrabar re-evaluation every tick without new-bar guard.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The perceptron is trivially reproducible in Python. The AC indicator is available in most Python TA libraries (e.g., talib via AC function or manual calculation from AO). Key complexity is the position flip logic with additive sizing and the profit-threshold-based trailing stop reset. The new-bar guard must be implemented (track last bar time). Position existence check is required before entry. The deviation parameter (3*spread) should map to slippage tolerance. No digit adjustment is performed - SL is in points directly. Note: the reversal adds volume rather than net-reversing, which increases exposure - this must be faithfully reproduced.",
+  "extraction_timestamp": "2026-05-12T14:13:34.037255",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 126.35684156417847,
+    "cost": 0
+  }
+}

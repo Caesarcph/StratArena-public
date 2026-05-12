@@ -1,0 +1,167 @@
+{
+  "ea_id": "EA-1031",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the AML (Adaptive Market Level) custom indicator, which requires the AML.mq5 indicator file to be present. The indicator implements fractal dimension-based adaptive smoothing, which must be reimplemented in Python since it's not a built-in MT5 indicator.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AML (Adaptive Market Level)",
+      "params": {
+        "Fractal": 70,
+        "Lag": 18,
+        "Shift": 0
+      },
+      "source": "custom",
+      "library": "AML.mq5",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "R1 - normalized range over Fractal bars starting at bar",
+      "formula": "Range(Fractal, bar, high, low) / Fractal",
+      "used_by": "AML indicator fractal dimension calculation"
+    },
+    {
+      "name": "R2 - normalized range over Fractal bars starting at bar+Fractal",
+      "formula": "Range(Fractal, bar+Fractal, high, low) / Fractal",
+      "used_by": "AML indicator fractal dimension calculation"
+    },
+    {
+      "name": "R3 - normalized range over 2*Fractal bars starting at bar",
+      "formula": "Range(2*Fractal, bar, high, low) / (2*Fractal)",
+      "used_by": "AML indicator fractal dimension calculation"
+    },
+    {
+      "name": "dim - fractal dimension estimate",
+      "formula": "(MathLog(R1+R2) - MathLog(R3)) * 1.44269504088896",
+      "used_by": "AML indicator alpha calculation"
+    },
+    {
+      "name": "alpha - adaptive smoothing factor",
+      "formula": "MathExp(-Lag * (dim - 1.0)), clamped to [0.01, 1.0]",
+      "used_by": "AML indicator smoothed price calculation"
+    },
+    {
+      "name": "price - weighted price",
+      "formula": "(high + low + 2*open + 2*close) / 6",
+      "used_by": "AML indicator smoothed price calculation"
+    },
+    {
+      "name": "Smooth - EMA-smoothed price using adaptive alpha",
+      "formula": "alpha * price + (1 - alpha) * Smooth[previous]",
+      "used_by": "AML indicator AML buffer output"
+    },
+    {
+      "name": "Dynamic lot size when use_Multpl=true",
+      "formula": "NormalizeDouble(Lots * AccountBalance / Max_drawdown, 2)",
+      "used_by": "position_sizing open() function"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "AML[1]",
+        "right": "bar[1] open/close range",
+        "direction": "inside",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "AML[1]",
+        "right": "bar[1] open/close range",
+        "direction": "inside",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "direction_adjustment": "subtract for buy, add for sell, multiplied by Point()"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 3500,
+      "params": {
+        "direction_adjustment": "add for buy, subtract for sell, multiplied by Point()"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "When use_opposite=true and opposite signal occurs, the existing position is closed and a new position in the opposite direction is opened"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "max_volume_enforced": true,
+      "max_volume_fallback": "SYMBOL_VOLUME_MAX"
+    },
+    "max_positions": 1,
+    "conditional_logic": "When use_Multpl=false: fixed lots at Lots value. When use_Multpl=true: dynamic lot = Lots * AccountBalance / Max_drawdown, capped at SYMBOL_VOLUME_MAX"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 45,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic: Long when AML[1] >= open[1] AND AML[1] <= close[1] (AML is inside the bullish bar body). Short when AML[1] <= open[1] AND AML[1] >= close[1] (AML is inside the bearish bar body). All signal values are from the previous completed bar (index 1). SL/TP are set via a separate modify order after the initial market order, retried up to N_modify_sltp times with 1-second sleep between retries. The opposite signal logic: when a position exists and an opposite signal fires (with use_opposite=true), the current position is closed first, then a new position in the opposite direction is opened. The AML indicator uses a ring buffer (Recount_ArrayZeroPos) for its smoothed values and only updates the AML buffer when the change exceeds Lag*Lag*_Point, otherwise carries forward the previous value.",
+  "external_dependencies": [
+    "AML.mq5 (custom indicator required at runtime)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The AML custom indicator must be reimplemented in Python. Key implementation details: (1) The AML indicator uses fractal dimension estimation (log2 ratio of range sums) to compute an adaptive EMA smoothing factor alpha. (2) It uses a ring buffer of size Lag+1 for the Smooth array, with Count[] tracking the circular buffer positions. (3) The AML value only updates when |Smooth[current] - Smooth[Lag_ago]| >= Lag*Lag*_Point, otherwise it holds the previous value. (4) The Range() helper function computes max(high) - min(low) over a count-length window starting at a given bar. (5) Entry signals use bar index 1 (previous completed bar), not bar 0. (6) SL/TP are in points (not pips) — SL=500*Point(), TP=3500*Point() — which for a 5-digit broker means SL=50 pips, TP=350 pips. No digit adjustment is performed; the EA uses Point() directly which auto-adjusts. (7) The SL/TP modification retry loop with Sleep(1000) should be omitted in Python backtesting — SL/TP should be set directly on the order. (8) Position is selected by Symbol() which means only one position per symbol (netting mode).",
+  "extraction_timestamp": "2026-05-12T13:11:06.216544",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 134.82143998146057,
+    "cost": 0
+  }
+}

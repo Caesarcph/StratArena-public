@@ -1,0 +1,132 @@
+{
+  "ea_id": "EA-1223",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the 'TrendValue' custom indicator which is not a built-in MT5 indicator. Also includes TradeAlgorithms.mqh external library for position management (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose). Requires understanding of both the custom indicator buffers and the external trading library to replicate.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "TrendValue",
+      "params": {
+        "MAperiod": 13,
+        "shiftPercent": 0,
+        "ATRPeriod": 15,
+        "ATRSensitivity": 1.5
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before calculation proceeds",
+      "formula": "ATRPeriod + MAperiod + 3 + SignalBar",
+      "used_by": "BarsCalculated check and Bars_ minimum check"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "TrendValue Buffer 2 (UpSignal)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "TrendValue Buffer 3 (DnSignal)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closes when TrendValue Buffer 1 (DnTrend) is non-zero and not EMPTY_VALUE (trend reversal detected by downtrend indicator), or when a sell signal fires and BuyPosClose is true",
+      "Short position closes when TrendValue Buffer 0 (UpTrend) is non-zero and not EMPTY_VALUE (trend reversal detected by uptrend indicator), or when a buy signal fires and SellPosClose is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values represent fixed lot size (absolute value), positive values represent share of deposit in a deal. Default MM=-0.1 means 0.1 fixed lots."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The TrendValue custom indicator has 4 buffers: Buffer 0=UpTrend (uptrend state), Buffer 1=DnTrend (downtrend state), Buffer 2=UpSignal (buy signal dot), Buffer 3=DnSignal (sell signal dot). Signal logic checks if signal buffer is non-zero and not EMPTY_VALUE on the bar specified by SignalBar (default=1, previous closed bar). There is a Recount mechanism: if CopyBuffer fails or insufficient bars, Recount is set to true and the next tick re-evaluates signals. The EA also checks if there is no opposite trend before issuing a close signal - e.g., UpSignal triggers SELL_Close only if UpSignal itself is valid, while UpTrend alone only triggers SELL_Close without SELL_Open. BuyPosOpen/SellPosOpen boolean inputs gate whether new positions can be opened, and BuyPosClose/SellPosClose gate whether positions can be closed on reversal signals. The TradeAlgorithms.mqh library handles actual order execution with its own position existence checks and lot sizing based on the MM parameter interpretation. History loading is performed via LoadHistory() to ensure IsNewBar() and SeriesInfoInteger() work correctly.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "1. The TrendValue custom indicator must be replicated in Python - it uses MA with a configurable period and ATR with sensitivity scaling to generate trend direction and signal dots. Need to either reverse-engineer the TrendValue indicator logic or obtain its source code. 2. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions which handle position checking, lot calculation (deposit fraction vs fixed lots based on MM sign), SL/TP placement, and order execution with deviation. These must be reimplemented. 3. The MM parameter dual-mode logic (negative=fixed lots, positive=deposit fraction) must be preserved. 4. Signal is read from bar index SignalBar=1 (previous bar), not bar 0, so signals are based on confirmed closed bars. 5. The new bar guard (CIsNewBar) prevents multiple entries per bar. 6. SL/TP are specified in points (1000/2000) - must confirm whether these need 5-digit adjustment depending on broker. No explicit digit adjustment code exists in this EA, so the TradeAlgorithms.mqh library may handle it internally. 7. The Recount mechanism provides resilience against data unavailability - should be replicated as a retry mechanism.",
+  "extraction_timestamp": "2026-05-12T16:33:21.247843",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 182.72353839874268,
+    "cost": 0
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "ea_id": "EA-1152",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load 'ColorBBCandles' custom indicator, and includes TradeAlgorithms.mqh external library for trade execution logic (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose). Custom indicator and external .mqh dependency require manual translation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Bollinger",
+      "name": "ColorBBCandles",
+      "params": {
+        "period": 100,
+        "dev": 1.0,
+        "dev2": 1.5,
+        "dev3": 2.0,
+        "dev4": 2.5,
+        "dev5": 3.0,
+        "method": 1,
+        "applied_to": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Second BB deviation level",
+      "formula": "BandsDeviation1+0.5",
+      "used_by": "ColorBBCandles indicator param 2"
+    },
+    {
+      "name": "Third BB deviation level",
+      "formula": "BandsDeviation1+1.0",
+      "used_by": "ColorBBCandles indicator param 3"
+    },
+    {
+      "name": "Fourth BB deviation level",
+      "formula": "BandsDeviation1+1.5",
+      "used_by": "ColorBBCandles indicator param 4"
+    },
+    {
+      "name": "Fifth BB deviation level",
+      "formula": "BandsDeviation1+2.0",
+      "used_by": "ColorBBCandles indicator param 5"
+    },
+    {
+      "name": "Minimum bars for calculation",
+      "formula": "int(BandsPeriod+1+2+SignalBar)",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorBBCandles buffer 4 at bar[1]",
+        "right": "5",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "ColorBBCandles buffer 4 at bar[0]",
+        "right": "6",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorBBCandles buffer 4 at bar[1]",
+        "right": "5",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "ColorBBCandles buffer 4 at bar[0]",
+        "right": "4",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Flat signal exit: when ColorBBCandles buffer4[1] == 5, both long and short positions are closed (if respective close permissions are enabled)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Negative MM value = fixed lot size (abs value), positive MM value = deposit fraction for risk-based sizing. Logic handled inside TradeAlgorithms.mqh."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA reads buffer index 4 from the ColorBBCandles custom indicator. This buffer returns an integer-like color index: values >5 = bullish candle (buy zone), values <5 = bearish candle (sell zone), value ==5 = flat/neutral zone. Buy signal triggers when Value[1]>5 (previous signal bar is bullish) AND Value[0]<6 (current bar is not yet 6+), with BuyPosOpen permission. Sell signal triggers when Value[1]<5 AND Value[0]>4, with SellPosOpen permission. SignalBar input (default 1) determines which bar's data is used for signal detection. When SignalBar==0, the EA recalculates every tick instead of only on new bars. Position close and open permissions are independently configurable (BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose). The UpSignalTime/DnSignalTime is set to the next bar's open time and passed to trade functions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "1. The ColorBBCandles custom indicator must be reverse-engineered or reimplemented in Python. It appears to be a multi-deviation Bollinger Band candle coloring system where buffer 4 returns a color index (1-10 scale, 5=neutral). 2. TradeAlgorithms.mqh contains the actual trade execution logic (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) including position sizing from MM parameter, SL/TP setting, and position existence checks - this must be reimplemented. 3. The conditional MM sizing (negative=lot, positive=deposit fraction) is inside TradeAlgorithms.mqh and needs careful translation. 4. SL/TP are in points (not pips) - may need 5-digit broker adjustment depending on how TradeAlgorithms.mqh handles it. 5. The IsNewBar check and history loading (LoadHistory) are MQL5-specific patterns that need Python equivalents. 6. CIsNewBar class from TradeAlgorithms.mqh manages bar detection.",
+  "extraction_timestamp": "2026-05-12T15:35:27.434264",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 172.4883849620819,
+    "cost": 0
+  }
+}

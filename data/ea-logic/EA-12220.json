@@ -1,0 +1,179 @@
+{
+  "ea_id": "EA-12220",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Grid/martingale strategy with margin-dependent lot scaling (LotExponent), heavy use of custom HedgeTerminal .mqh libraries (Prototypes.mqh, TradeState.mqh, Environment.mqh, Indicators.mqh, DrawHedgePosition.mqh) for hedging position management, dynamic pip-step grid, and proprietary transaction selection API that cannot be trivially replicated in Python.",
+  "symbol": null,
+  "timeframe_hint": "M15",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "method": null,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI",
+      "params": {
+        "period": 55,
+        "method": null,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "DynamicPips (dynamic grid step)",
+      "formula": "MathRound((iHighest(1,Glubina) - iLowest(1,Glubina)) / DEL / _Point), clamped to [DefaultPips/DEL, DefaultPips*DEL]",
+      "used_by": "IsLastPositionLost, OpenAveragingLost comment"
+    },
+    {
+      "name": "AveragePrice (weighted average entry price of all positions)",
+      "formula": "calculated by CEnvironment class",
+      "used_by": "RecalcSLTP, TrailingAlls"
+    },
+    {
+      "name": "Grid lot size",
+      "formula": "NormalizeDouble(Lots * MathPow(LotExponent, GetPositionsTotal()+1), lotdecimal)",
+      "used_by": "OpenAveragingLost via GetLot()"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "RSI[1]",
+        "right": "RsiMinimum",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Close[1]",
+        "right": "Close[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "RSI[1]",
+        "right": "RsiMaximum",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Close[1]",
+        "right": "Close[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "conditional": "only when UseStopLoss=true and UseTrailingStop=false"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "calculated_from": "AveragePrice of all open positions"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "trail_start_pips": 100,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "CCI exit: closes all positions if CCI > CCILevel (500) and direction is SHORT, or CCI < -CCILevel and direction is LONG",
+      "Equity stop: closes all positions if floating profit is negative and exceeds TotalEquityRisk% of high equity, with profit below EquityPercent threshold",
+      "Time stop: closes all positions if hours since first position open >= MaxTradeOpenHours"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "lot_exponent": 1.4,
+      "lot_decimal": 1,
+      "formula": "Lots * LotExponent^(positions_total+1)"
+    },
+    "max_positions": 10,
+    "conditional_logic": "First position uses fixed Lots; subsequent averaging positions use GetLot() which applies LotExponent compounding based on current position count"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "This is a martingale/grid EA (Ilan-type). When the last position is in loss exceeding DynamicPips, it opens an averaging position in the same direction with a multiplied lot size (LotExponent). DynamicPips is calculated from the High-Low range of the last Glubina bars divided by DEL, clamped between DefaultPips/DEL and DefaultPips*DEL. All positions share a common TP calculated from the weighted average entry price. SL/TP are recalculated for all positions whenever a new position is added. The trailing stop only activates when UseTrailingStop=true and UseStopLoss=false. The EA uses the HedgeTerminal virtual position management system (FOREACH_POSITION, TransactionSelect, HedgePositionGetDouble, SendTradeRequest, IF_LONG, IF_SHORT, IF_FROZEN macros) which is an MT5-specific hedging framework with no Python equivalent.",
+  "external_dependencies": [
+    "Prototypes.mqh",
+    "Trade\\Trade.mqh",
+    "TradeState.mqh",
+    "Environment.mqh",
+    "Indicators.mqh",
+    "TesterTable.mqh",
+    "DrawHedgePosition.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Major challenge: the HedgeTerminal API (Prototypes.mqh, Environment.mqh, TradeState.mqh) provides virtual hedging position management with macros like FOREACH_POSITION, IF_LONG, IF_SHORT, IF_FROZEN, TransactionSelect, HedgePositionGetDouble, SendTradeRequest. This entire layer must be reimplemented in Python using a net-position or per-trade tracking system. The martingale lot scaling requires careful margin checking not present in the original code. The CEnvironment class (AveragePrice, GetPositionsTotal, CurrentDirection, FirstPosOpen, GetHighEquity, etc.) must be fully reverse-engineered from the .mqh file. The trailing stop and equity stop logic runs intrabar (every tick), while entry logic is bar-based. RSI and CCI are standard and trivially convertible. The grid step (DynamicPips) calculation using iHighest/iLowest needs replacement with pandas/numpy rolling max/min. CTrade from Trade\\Trade.mqh maps to MetaTrader5 Python API order_send.",
+  "extraction_timestamp": "2026-05-12T16:30:18.523473",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 128.92869544029236,
+    "cost": 0
+  }
+}

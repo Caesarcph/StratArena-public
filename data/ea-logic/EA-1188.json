@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-1188",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for AdaptiveRenko indicator and includes TradeAlgorithms.mqh external library for position management. Custom indicator and external .mqh dependency require manual conversion of both the indicator logic and trading helper functions.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AdaptiveRenko",
+      "params": {
+        "K": 1,
+        "Indicator": "ATR",
+        "VltPeriod": 10,
+        "Price": "Close_",
+        "WideMin": 2
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before calculation starts",
+      "formula": "VltPeriod+3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal timing",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal timing",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "AdaptiveRenko buffer 2 (UpVal[1])",
+        "right": "non-zero",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "AdaptiveRenko buffer 3 (DnVal[1])",
+        "right": "non-zero",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite AdaptiveRenko signal triggers close of existing position (BuyPosClose/SellPosClose based on DnVal/UpVal respectively)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Negative MM value = fixed lot size (absolute value); Positive MM value = deposit share fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "AdaptiveRenko is a custom indicator with 4 buffers. Buffers 2 and 3 provide Up and Down signals. Entry logic: UpVal[1] non-zero on previous bar AND UpVal[0] zero on current bar triggers BUY (brick reversal confirmation). Same logic mirrored for SELL using DnVal buffers. The !UpVal[0] check ensures the signal is a fresh reversal (previous bar signaled, current bar has not yet signaled same direction). BuyPosOpen/SellPosOpen input booleans act as permission gates for each direction. BuyPosClose/SellPosClose control whether opposite signals close existing positions. SignalBar parameter allows shifting which bar is used for signal detection. LoadHistory() call ensures bar data availability for IsNewBar() and SeriesInfoInteger().",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The AdaptiveRenko custom indicator must be reimplemented in Python. It uses either ATR or StDev to calculate adaptive brick sizes, with a minimum brick width (WideMin in points). The Renko chart construction logic (brick drawing based on price movement exceeding brick size) needs full porting. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose - these must be reimplemented with the conditional lot sizing logic (negative=fixed lots, positive=deposit fraction). The SL/TP values (1000/2000 points) likely need digit adjustment for 5-digit brokers (multiply by 10 if _Digits==5). CIsNewBar class for new bar detection needs a Python equivalent. Entry signal uses buffer index [1] (previous completed bar) with confirmation from buffer index [0] (current bar) being zero - this reversal-confirmation pattern must be preserved exactly.",
+  "extraction_timestamp": "2026-05-12T16:05:51.001141",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 159.4528682231903,
+    "cost": 0
+  }
+}

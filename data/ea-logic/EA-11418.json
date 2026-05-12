@@ -1,0 +1,145 @@
+{
+  "ea_id": "EA-11418",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'KaufWMAcross' custom indicator and depends on TradeAlgorithms.mqh external library for all trade execution (open/close/position sizing), making automated conversion impossible without reimplementing the custom indicator and library logic.",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "KaufWMAcross",
+      "params": {
+        "ama_period": 9,
+        "fast_ma_period": 2,
+        "slow_ma_period": 30,
+        "AMAPrice": 1,
+        "MAPeriod": 13,
+        "MAType": 3,
+        "MAPrice": 1
+      },
+      "source": "custom",
+      "library": "KaufWMAcross (iCustom)",
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR (internal reference)",
+      "params": {
+        "period": 15,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - period duration in seconds for signal time calculation",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open time gating"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before EA operates",
+      "formula": "max(max(15, ama_period+1), MAPeriod+1) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "KaufWMAcross Buffer 1 (Up arrow)",
+        "right": "0 (non-zero, non-EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "KaufWMAcross Buffer 0 (Down arrow)",
+        "right": "0 (non-zero, non-EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: Up arrow signal triggers SELL_Close if SellPosClose is true; Down arrow signal triggers BUY_Close if BuyPosClose is true. Additionally, historical bar scan checks for prior opposite signals to set close flags when both open and close are enabled for same side."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing method: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM input (0.1) serves as either lot size or percentage depending on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "The EA uses a two-buffer custom indicator (KaufWMAcross) where Buffer 1 = Up signals (buy arrows) and Buffer 0 = Down signals (sell arrows). Signal is detected when buffer value is non-zero and not EMPTY_VALUE on the SignalBar (default bar 1 = previous completed bar). When both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled, the EA scans historical bars forward from SignalBar+1 to find the most recent opposite signal to determine if a close should occur - this is a lookback confirmation mechanism. The Recount flag forces re-evaluation on next tick if CopyBuffer fails. GlobalVariableDel_ cleans up persistent state on deinit. The TimeShiftSec value is added to SERIES_LASTBAR_DATE to create a signal timestamp used as a trade identifier to prevent duplicate entries.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The KaufWMAcross custom indicator must be reimplemented in Python - it combines Kaufman Adaptive Moving Average (AMA with period 9, fast=2, slow=30) with a weighted MA (LWMA period 13) and generates crossover arrows. The TradeAlgorithms.mqh library must also be reimplemented: it provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions with money management modes (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) and the CIsNewBar class. The historical bar scan for opposite signals (lines 131-157) is critical for exit logic and must be faithfully replicated. SL/TP of 1000/2000 pips are large values likely intended for 5-digit brokers (i.e., 100/200 pips actual); digit adjustment logic may be inside TradeAlgorithms.mqh and needs verification.",
+  "extraction_timestamp": "2026-05-12T15:23:41.085680",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 117.42753767967224,
+    "cost": 0
+  }
+}

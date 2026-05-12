@@ -1,0 +1,138 @@
+{
+  "ea_id": "EA-11216",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'TSI_CCI' custom indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms. Custom indicator parameters and multi-layer smoothing logic require manual recreation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "CCI",
+      "name": "TSI_CCI (Custom)",
+      "params": {
+        "XMA_Method": "EMA",
+        "CCIPeriod": 15,
+        "CCIPrice": "PRICE_CLOSE",
+        "MomPeriod": 1,
+        "XLength1": 5,
+        "XLength2": 8,
+        "XLength3": 10,
+        "XPhase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for indicator warmup",
+      "formula": "CCIPeriod + MomPeriod + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "TSI_CCI Main Line (buffer 0)",
+        "right": "TSI_CCI Signal Line (buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "TSI_CCI Main Line (buffer 0)",
+        "right": "TSI_CCI Signal Line (buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: long signal triggers short close, short signal triggers long close, gated by BuyPosClose/SellPosClose input flags"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM parameter (0.1) is the fraction or lot size depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The crossover logic uses two bars: Ind[1]>Sign[1] on the previous bar (establishing trend direction) combined with Ind[0]<=Sign[0] on the signal bar (detecting the actual crossover). When SignalBar=0, the EA evaluates on every tick without waiting for a new bar. The Recount flag forces recalculation on the first tick or after a CopyBuffer failure. UpSignalTime/DnSignalTime are used as trade timing identifiers passed to BuyPositionOpen/SellPositionOpen from TradeAlgorithms.mqh. LoadHistory() is called each tick to ensure bar data availability. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean input toggles that independently enable/disable each trade direction and close action.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The TSI_CCI custom indicator must be reimplemented in Python. It computes CCI with configurable smoothing (EMA default, but supports JJMA, JurX, ParMA, T3, VIDYA, AMA via SmoothAlgorithms.mqh). The CCI is first computed, then momentum of CCI is taken (MomPeriod=1 means CCI-to-CCI change), then triple-smoothed with lengths 5,8,10 to produce the main line, and further smoothed with length 10 for the signal line. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose which handle margin calculation, order placement, and position management - these must be reimplemented with ccxt or broker API equivalents. The MarginMode enum with 5 modes needs careful translation. SL/TP are in points (not pips) - for 5-digit brokers, 1000 points = 100 pips for SL, 2000 points = 200 pips for TP. No digit adjustment is applied in code so raw point values are used.",
+  "extraction_timestamp": "2026-05-12T14:44:36.958027",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 248.93741369247437,
+    "cost": 0
+  }
+}
