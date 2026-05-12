@@ -820,11 +820,15 @@ function renderHome() {
           <h3>${t("home.priority_upgrades_title")}</h3>
           <p>${t("home.priority_upgrades_desc")}</p>
           <div class="list">
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_heatmaps")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_uploads")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_intraday")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_attribution")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_regime")}</div>
+    <div><span class="badge done">${t("common.analyzed")}</span> ${t("home.roadmap_item_heatmaps")}</div>
+    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_uploads")}</div>
+    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_intraday")}</div>
+    <div><span class="badge done">${t("common.analyzed")}</span> ${t("home.roadmap_item_attribution")}</div>
+    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_regime")}</div>
+    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_ea_backtest")}</div>
+    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_ea_leaderboard")}</div>
+    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_ea_favorites")}</div>
+    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_ea_similarity")}</div>
           </div>
         </div>
       </div>
