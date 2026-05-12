@@ -78,11 +78,18 @@ function getEACategoryLabel(value) {
   return item ? t(item.key) : value;
 }
 
-function getEABacktestStatus(value) {
-  if (!value) return getLang() === "zh" ? "待定" : "Pending";
-  if (String(value).toLowerCase() === "pending") return getLang() === "zh" ? "待定" : "Pending";
-  return value;
-}
+  function getEABacktestStatus(value, eaId) {
+    if (!value) return getLang() === "zh" ? "待定" : "Pending";
+    if (String(value).toLowerCase() === "pending") return getLang() === "zh" ? "待定" : "Pending";
+    if (String(value).toLowerCase() === "completed") {
+      const bt = store.eaBacktestResults[eaId];
+      if (bt && bt.total_trades > 0) {
+        return getLang() === "zh" ? `已完成 (${bt.total_trades}笔交易)` : `Completed (${bt.total_trades} trades)`;
+      }
+      return getLang() === "zh" ? "已完成 (0笔交易)" : "Completed (0 trades)";
+    }
+    return value;
+  }
 
 function eaStars(rating) {
   if (!rating || rating <= 0) return `<span class="ea-rating-na">${t("common.na")}</span>`;
@@ -119,7 +126,7 @@ function renderEAArena(route) {
   if (s.category) items = items.filter((ea) => ea.category === s.category);
   if (s.risk) items = items.filter((ea) => ea.overall_risk === s.risk);
   if (s.rating) items = items.filter((ea) => String(ea.rating) === s.rating);
-  if (s.analyzed) items = items.filter((ea) => store.eaAnalyzedIndex && store.eaAnalyzedIndex.has(ea.id));
+  if (s.analyzed) items = items.filter((ea) => store.eaAnalysis[ea.id]);
 
   items.sort((a, b) => {
     switch (s.sort) {
@@ -151,7 +158,7 @@ function renderEAArena(route) {
     const value = ea.rating || 0;
     ratingCounts[value] = (ratingCounts[value] || 0) + 1;
   });
-  const analyzedCount = all.filter((ea) => store.eaAnalyzedIndex && store.eaAnalyzedIndex.has(ea.id)).length;
+  const analyzedCount = all.filter((ea) => store.eaAnalysis[ea.id]).length;
 
   const catChips = EA_CATEGORIES.filter((c) => catCounts[c.value])
     .map(
@@ -171,13 +178,13 @@ function renderEAArena(route) {
     .join("");
 
   const cards = items
- .map((ea) => {
- const isAnalyzed = store.eaAnalyzedIndex && store.eaAnalyzedIndex.has(ea.id);
- return `
+    .map((ea) => {
+      const analysis = store.eaAnalysis[ea.id];
+      return `
       <a class="ea-card" href="?page=ea-detail&id=${ea.id}" data-ea-id="${ea.id}">
         <div class="ea-card-header">
           <span class="ea-card-id">${ea.id}</span>
-          ${isAnalyzed ? `<span class="ea-analyzed-badge">${t("common.analyzed")}</span>` : ""}
+          ${analysis ? `<span class="ea-analyzed-badge">${t("common.analyzed")}</span>` : ""}
           ${ea.absorbed_by ? `<span class="ea-absorbed-badge">${t("common.absorbed")}</span>` : ""}
         </div>
         <h3 class="ea-card-name">${ea.name || t("common.unknown")}</h3>
@@ -294,24 +301,15 @@ function bindEAArena(route) {
   }
 }
 
-async function renderEADetail(route) {
- const id = route.params.get("id");
- const ea = (store.eaCatalog || []).find((e) => e.id === id);
- if (!ea) {
-  return `<section class="section"><h1>${getLang() === "zh" ? "未找到 EA" : "EA Not Found"}</h1><p>${getLang() === "zh" ? `不存在 ID 为 \"${id}\" 的智能交易系统。` : `No Expert Advisor with ID "${id}".`}</p><a class="button ghost" href="?page=ea-arena">${getLang() === "zh" ? "返回 EA 竞技场" : "Back to EA Arena"}</a></section>`;
- }
+function renderEADetail(route) {
+  const id = route.params.get("id");
+  const ea = (store.eaCatalog || []).find((e) => e.id === id);
+  if (!ea) {
+    return `<section class="section"><h2>${getLang() === "zh" ? "未找到 EA" : "EA Not Found"}</h2><p>${getLang() === "zh" ? `不存在 ID 为 \"${id}\" 的智能交易系统。` : `No Expert Advisor with ID "${id}".`}</p><a class="button ghost" href="?page=ea-arena">${getLang() === "zh" ? "返回 EA 竞技场" : "Back to EA Arena"}</a></section>`;
+  }
 
- let analysis = store.eaAnalysis && store.eaAnalysis[id];
- if (!analysis && store.eaAnalyzedIndex && store.eaAnalyzedIndex.has(id)) {
-  try {
-   const res = await fetch(`data/ea-analysis/${id}.json`, { cache: "no-store" });
-   if (res.ok) analysis = await res.json();
-   if (analysis) {
-    if (!store.eaAnalysis) store.eaAnalysis = {};
-    store.eaAnalysis[id] = analysis;
-   }
-  } catch (_) { }
- }
+  const analysis = store.eaAnalysis[id];
+  const backtest = store.eaBacktestResults[id];
   const mql5Url = `https://www.mql5.com/en/code/${id.replace(/^EA-/, "")}`;
 
   function scoreBar(label, value, max) {
@@ -322,7 +320,7 @@ async function renderEADetail(route) {
   const infoItems = [
     [getLang() === "zh" ? "策略类型" : "Strategy Type", getEACategoryLabel(ea.category || "Unclassified")],
     [getLang() === "zh" ? "子分类" : "Sub-category", ea.sub_category || "—"],
-    [getLang() === "zh" ? "回测状态" : "Backtest Status", getEABacktestStatus(ea.backtest_status)],
+    [getLang() === "zh" ? "回测状态" : "Backtest Status", getEABacktestStatus(ea.backtest_status, id)],
     [getLang() === "zh" ? "时间框架" : "Timeframes", (ea.timeframes || []).join(", ") || "—"],
     [getLang() === "zh" ? "指标" : "Indicators", (ea.indicators || []).join(", ") || "—"],
     [getLang() === "zh" ? "作者" : "Author", ea.author || (getLang() === "zh" ? "未知" : "Unknown")],
@@ -350,10 +348,64 @@ async function renderEADetail(route) {
     </div>`;
   }
 
+  let backtestHtml = "";
+  if (backtest && backtest.total_trades > 0) {
+    const isEn = getLang() === "en";
+    const pnlColor = backtest.pnl_pct >= 0 ? "positive" : "negative";
+    const wrColor = backtest.win_rate >= 50 ? "positive" : "negative";
+    const sharpeColor = backtest.sharpe_ratio > 0 ? "positive" : "negative";
+    backtestHtml = `
+    <div class="ea-section ea-backtest-section">
+      <h2>${isEn ? "Backtest Results" : "回测结果"}</h2>
+      <p class="ea-backtest-note">${isEn ? "Python backtrader simulation on EURUSD H1, 2-year data. Not financial advice." : "基于 EURUSD H1 近两年数据的 Python backtrader 模拟结果，不构成投资建议。"}</p>
+      <div class="ea-backtest-grid">
+        <div class="ea-backtest-card ${pnlColor}">
+          <span class="ea-backtest-label">${isEn ? "PnL" : "盈亏"}</span>
+          <span class="ea-backtest-value">${backtest.pnl_pct >= 0 ? "+" : ""}${backtest.pnl_pct.toFixed(2)}%</span>
+        </div>
+        <div class="ea-backtest-card">
+          <span class="ea-backtest-label">${isEn ? "Total Trades" : "总交易次数"}</span>
+          <span class="ea-backtest-value">${backtest.total_trades}</span>
+        </div>
+        <div class="ea-backtest-card ${wrColor}">
+          <span class="ea-backtest-label">${isEn ? "Win Rate" : "胜率"}</span>
+          <span class="ea-backtest-value">${backtest.win_rate.toFixed(1)}%</span>
+        </div>
+        <div class="ea-backtest-card ${sharpeColor}">
+          <span class="ea-backtest-label">${isEn ? "Sharpe Ratio" : "夏普比率"}</span>
+          <span class="ea-backtest-value">${backtest.sharpe_ratio.toFixed(3)}</span>
+        </div>
+        <div class="ea-backtest-card">
+          <span class="ea-backtest-label">${isEn ? "Won / Lost" : "盈利 / 亏损"}</span>
+          <span class="ea-backtest-value">${backtest.won} / ${backtest.lost}</span>
+        </div>
+        <div class="ea-backtest-card">
+          <span class="ea-backtest-label">${isEn ? "Annual Return" : "年化收益"}</span>
+          <span class="ea-backtest-value">${backtest.annual_return.toFixed(2)}%</span>
+        </div>
+        <div class="ea-backtest-card">
+          <span class="ea-backtest-label">${isEn ? "Max Drawdown" : "最大回撤"}</span>
+          <span class="ea-backtest-value">${backtest.max_drawdown_pct.toFixed(2)}%</span>
+        </div>
+        <div class="ea-backtest-card">
+          <span class="ea-backtest-label">${isEn ? "Data" : "数据"}</span>
+          <span class="ea-backtest-value ea-backtest-small">${backtest.data_file || "EURUSD_H1.csv"}</span>
+        </div>
+      </div>
+    </div>`;
+  } else if (backtest && backtest.total_trades === 0) {
+    const isEn = getLang() === "en";
+    backtestHtml = `
+    <div class="ea-section ea-backtest-section">
+      <h2>${isEn ? "Backtest Results" : "回测结果"}</h2>
+      <p class="ea-backtest-note">${isEn ? "Strategy generated 0 trades on EURUSD H1 test data. Entry conditions may be too strict or require specific market conditions." : "该策略在 EURUSD H1 测试数据上未产生交易。入场条件可能过于严格或需要特定市场环境。"}</p>
+    </div>`;
+  }
+
   let analysisHtml = "";
   if (analysis) {
-    const isEn = getLang() === "en";
-    const prosList = isEn ? (analysis.pros_en || analysis.pros || []) : (analysis.pros || []);
+  const isEn = getLang() === "en";
+  const prosList = isEn ? (analysis.pros_en || analysis.pros || []) : (analysis.pros || []);
     const consList = isEn ? (analysis.cons_en || analysis.cons || []) : (analysis.cons || []);
     const impsList = isEn ? (analysis.improvements_en || analysis.improvements || []) : (analysis.improvements || []);
     const prosHtml = prosList.map((p) => `<li>${p}</li>`).join("");
@@ -420,7 +472,8 @@ async function renderEADetail(route) {
         ${eaCategoryBadge(ea.category || "Unclassified")}
         ${eaRiskBadge(ea.overall_risk)}
         ${eaStars(ea.rating)}
-        ${(store.eaAnalyzedIndex && store.eaAnalyzedIndex.has(id)) ? `<span class="ea-analyzed-badge">${getLang() === "zh" ? "已分析" : "Analyzed"}</span>` : `<span class="ea-pending-badge">${getLang() === "zh" ? "待定" : "Pending"}</span>`}
+        ${store.eaAnalysis[id] ? `<span class="ea-analyzed-badge">${getLang() === "zh" ? "已分析" : "Analyzed"}</span>` : `<span class="ea-pending-badge">${getLang() === "zh" ? "待定" : "Pending"}</span>`}
+  ${backtest && backtest.total_trades > 0 ? `<span class="ea-backtest-badge">${getLang() === "zh" ? "已回测" : "Backtested"}</span>` : ""}
         ${ea.absorbed_by ? `<span class="ea-absorbed-badge">${getLang() === "zh" ? "已吸收" : "Absorbed"}</span>` : ""}
       </div>
       <h1>${ea.name || (getLang() === "zh" ? "未知 EA" : "Unknown EA")}</h1>
@@ -431,7 +484,9 @@ async function renderEADetail(route) {
 
     ${analysis && analysis.summary ? `<div class="ea-section"><h2>${getLang() === "zh" ? "摘要" : "Summary"}</h2><p>${analysis.summary}</p></div>` : ""}
 
-    ${analysisHtml}
+    ${backtestHtml}
+
+  ${analysisHtml}
   </section>`;
 }
 

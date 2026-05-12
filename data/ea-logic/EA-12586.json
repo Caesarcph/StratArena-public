@@ -1,0 +1,165 @@
+{
+  "ea_id": "EA-12586",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for TrendlessAG_Hist indicator and two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) that contain trading logic helpers and custom smoothing algorithms not available as built-in MT5 indicators.",
+  "symbol": null,
+  "timeframe_hint": "H12",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "TrendlessAG_Hist",
+      "params": {
+        "period": null,
+        "method": null,
+        "applied_to": null
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "XMA1 (primary smoothing)",
+      "params": {
+        "period": 7,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "XMA1 (secondary smoothing)",
+      "params": {
+        "period": 5,
+        "method": "JJMA",
+        "applied_to": null
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_1 - start bars for primary XMA",
+      "formula": "XMA1.GetStartBars(XMA_Method1, XLength1, XPhase1)",
+      "used_by": "min_rates_total calculation,BarsCalculated check"
+    },
+    {
+      "name": "min_rates_2 - points count plus primary XMA start bars",
+      "formula": "PointsCount + min_rates_1",
+      "used_by": "min_rates_total calculation"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for EA operation",
+      "formula": "min_rates_2 + XMA1.GetStartBars(XMA_Method2, XLength2, XPhase2) + 2 + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade functions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Value[0] (histogram bar at SignalBar)",
+        "right": "Value[1] (histogram bar at SignalBar+1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Value[0] (histogram bar at SignalBar)",
+        "right": "Value[1] (histogram bar at SignalBar+1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal triggers close: BUY_Close when histogram transitions from falling (Value[1]<Value[2]) to rising, SELL_Close when histogram transitions from rising (Value[1]>Value[2]) to falling"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM=0.1 as deposit fraction when MMMode=LOT; MarginMode enum from TradeAlgorithms.mqh controls interpretation"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic: CopyBuffer reads 3 consecutive histogram values at offsets SignalBar, SignalBar+1, SignalBar+2. Long entry when Value[1]<Value[2] (histogram was falling) AND Value[0]>Value[1] (histogram turned up) - this is a histogram direction reversal pattern. Short entry when Value[1]>Value[2] (histogram was rising) AND Value[0]<Value[1] (histogram turned down). SignalBar=1 means signals are evaluated on the previous completed bar. BuyPosOpen/SellPosOpen/SuyPosClose/SellPosClose input booleans gate each direction independently. The 3-value comparison detects a slope reversal: the histogram must have been declining then rising (or vice versa), not just a single-bar crossover. Also, on SignalBar==0 the new-bar guard is skipped, allowing intrabar recalculation on every tick.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The TrendlessAG_Hist custom indicator must be reverse-engineered or re-implemented in Python. It is loaded via iCustom with no parameters beyond default (0), but the EA's own inputs (XMA_Method1, XLength1, XPhase1, IPC, PointsCount, In100, XMA_Method2, XLength2, XPhase2) are likely passed to the indicator - the iCustom call appears to pass only defaults which may be a bug or the indicator reads global inputs. The CXMA class from SmoothAlgorithms.mqh provides multiple smoothing methods (JJMA, VIDIA, AMA etc.) that need Python equivalents. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, LoadHistory, and GlobalVariableDel_ functions that encapsulate order management and must be reimplemented. Note: OnInit returns INIT_FAILED (line 95) which appears to be a bug - should be INIT_SUCCEEDED. This EA will never initialize in its current form.",
+  "extraction_timestamp": "2026-05-12T17:24:40.860788",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 115.46936297416687,
+    "cost": 0
+  }
+}

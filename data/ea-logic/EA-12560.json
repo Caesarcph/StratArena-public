@@ -1,0 +1,133 @@
+{
+  "ea_id": "EA-12560",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load a custom 'Leading' indicator, and depends on external TradeAlgorithms.mqh library for position sizing and order management logic.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Leading",
+      "params": {
+        "Alpha1": 0.25,
+        "Alpha2": 0.33,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - bar duration in seconds for signal timestamp alignment",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime passed to BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before EA processes signals",
+      "formula": "7+1+1+2+SignalBar",
+      "used_by": "BarsCalculated check before OnTick logic proceeds"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Leading Buffer 0 (Ma1)",
+        "right": "Leading Buffer 1 (Ma2)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Leading Buffer 0 (Ma1)",
+        "right": "Leading Buffer 1 (Ma2)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: short crossover closes long, long crossover closes short"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM input with MarginMode selector (LOT vs risk-based); exact logic in TradeAlgorithms.mqh library"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal is evaluated on bar[SignalBar] (default bar 1 = previous closed bar). Ma1[1]>Ma2[1] with Ma1[0]<Ma2[0] means: on the previous bar Ma1 was above Ma2, and on the signal bar Ma1 is below Ma2 — this is a crossover where Ma1 crosses below Ma2, triggering SELL_Open and BUY_Close. Conversely Ma1[1]<Ma2[1] with Ma1[0]>Ma2[0] triggers BUY_Open and SELL_Close. The crossover detection uses a 2-bar lookback (bar indices SignalBar and SignalBar-1 relative to handle). UpSignalTime/DnSignalTime are passed to open functions likely as expiry or timestamp gating. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose booleans gate whether each direction's open/close is enabled by user input.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "Leading (custom indicator .ex5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The 'Leading' custom indicator must be reimplemented in Python — its buffer logic (two lines driven by Alpha1=0.25 and Alpha2=0.33) is unknown and must be reverse-engineered from the indicator source. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and LoadHistory — all must be reimplemented. The MMMode enum (LOT vs other) controls position sizing mode and must be decoded from the .mqh. CIsNewBar class must be replicated for new-bar detection. Signal timestamp alignment (UpSignalTime/DnSignalTime = lastbar_date + PeriodSeconds) likely serves as order expiry — verify in TradeAlgorithms.mqh. SL/TP of 1000/2000 points are large values suggesting the EA is designed for 5-digit brokers (100.0 pips SL / 200.0 pips TP); verify digit-adjustment logic in the library.",
+  "extraction_timestamp": "2026-05-12T17:14:34.828699",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 66.29709696769714,
+    "cost": 0
+  }
+}

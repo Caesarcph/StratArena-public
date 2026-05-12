@@ -1,0 +1,149 @@
+{
+  "ea_id": "EA-12548",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load a custom indicator 'ElderImpulseSystem' which is not a built-in MT5 indicator. Also depends on external .mqh library (TradeAlgorithms.mqh) for trade execution, position management, and money management functions.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ElderImpulseSystem",
+      "params": {
+        "ma_period": 13,
+        "fast_ema_period": 12,
+        "slow_ema_period": 26,
+        "signal_period": 9
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before EA trades",
+      "formula": "MathMax(ma_period, signal_period+1)+2 + 3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - seconds per bar of the indicator timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ElderImpulseSystem buffer 4 [SignalBar]",
+        "right": "2",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "ElderImpulseSystem buffer 4 [SignalBar+1]",
+        "right": "ElderImpulseSystem buffer 4 [SignalBar]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ElderImpulseSystem buffer 4 [SignalBar]",
+        "right": "1",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "ElderImpulseSystem buffer 4 [SignalBar+1]",
+        "right": "ElderImpulseSystem buffer 4 [SignalBar]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal from ElderImpulseSystem triggers close of existing position - BUY_Close when indicator value is 1 (bearish impulse), SELL_Close when indicator value is 2 (bullish impulse)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode determines interpretation: LOT=fixed lots, FIELDS=risk percentage of margin, PERCENT=deposit fraction. Positive MM value used as fixed lots when MMMode=LOT; as percentage/fraction otherwise. Handled by TradeAlgorithms.mqh library."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The ElderImpulseSystem custom indicator returns color codes in buffer 4: 0=neutral, 1=bearish impulse (red bar - EMA declining AND MACD histogram falling), 2=bullish impulse (green bar - EMA rising AND MACD histogram rising). Long entry requires current signal bar=2 AND previous bar was NOT 2 (Value[0]==1 or Value[0]==0), meaning a fresh bullish impulse transition. Short entry requires current signal bar=1 AND previous bar was NOT 1 (Value[0]==0 or Value[0]==2), meaning a fresh bearish impulse transition. When SignalBar=0, signals are recalculated on every tick. BuyPosClose/SellPosOpen/SellPosClose/BuyPosOpen booleans control which trade actions are enabled. LoadHistory() call ensures bar data availability. Signal timing uses SERIES_LASTBAR_DATE + TimeShiftSec for position open reference time.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The ElderImpulseSystem indicator must be replicated in Python: it combines a 13-period EMA slope direction with MACD histogram direction - bullish when both EMA is rising AND MACD histogram is rising, bearish when both are falling. Buffer 4 color codes: 0=neutral, 1=bearish, 2=bullish. TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_) must be reimplemented. The MMMode enum (LOT/FIELDS/PERCENT) controls position sizing interpretation. SL/TP of 1000/2000 are in points, not pips - may need digit adjustment for 5-digit brokers (divide by 10 for 4-digit equivalents). The new bar guard via CIsNewBar class must be replicated. Signal is evaluated on bar [SignalBar] with confirmation from bar [SignalBar+1].",
+  "extraction_timestamp": "2026-05-12T17:07:27.363321",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 92.42531561851501,
+    "cost": 0
+  }
+}

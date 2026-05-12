@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-1238",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for UltraWPR custom indicator and depends on external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for core smoothing algorithms and trade execution logic",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "UltraWPR",
+      "params": {
+        "WPR_Period": 13,
+        "W_Method": 4,
+        "StartLength": 3,
+        "WPhase": 100,
+        "xStep": 5,
+        "xStepsTotal": 10,
+        "SmoothMethod": 4,
+        "SmoothLength": 3,
+        "SmoothPhase": 100
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for calculation",
+      "formula": "WPR_Period + GetStartBars(W_Method, StartLength+xStep*xStepsTotal, WPhase)+1 + GetStartBars(SmoothMethod, SmoothLength, SmoothPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check before signal detection"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade execution timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "UltraWPR Buffer 0 (UpValue)",
+        "right": "UltraWPR Buffer 1 (DnValue)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "UltraWPR Buffer 1 (DnValue)",
+        "right": "UltraWPR Buffer 0 (UpValue)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: long position closed when DnValue > UpValue (sell signal appears) if BuyPosClose is enabled; short position closed when UpValue > DnValue (buy signal appears) if SellPosClose is enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "negative values = fixed lot size (abs value), positive values = share of deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses crossover on bar [1] vs bar [0] of UltraWPR buffers: long when UpValue[1]>DnValue[1] AND UpValue[0]<=DnValue[0] (crossover just happened on previous bar pair). Signal bar index is configurable (SignalBar param, default=1). TradeAlgorithms.mqh handles position checking, margin verification, and actual order placement - its internal logic is opaque from this source. The UpSignalTime/DnSignalTime is set to last bar date + timeframe seconds, likely used as a trade validity window by TradeAlgorithms.mqh. GlobalVariableDel_ on deinit suggests the trade algorithms use global variables for state tracking.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "Requires reimplementation of UltraWPR custom indicator (WPR with variable-period smoothing using JJMA/JurX/ParMA/T3/VIDYA/AMA methods from SmoothAlgorithms.mqh). TradeAlgorithms.mqh must be reverse-engineered or replaced - it encapsulates position management, money management (negative=fixed lot, positive=deposit fraction), margin checks, and order execution with deviation. The crossover logic itself is straightforward: compare two buffers at SignalBar and SignalBar+1 positions. Position sizing conditional logic (negative=lot, positive=deposit share) must be preserved. SL/TP are in points not pips - need point/pip normalization for Python.",
+  "extraction_timestamp": "2026-05-12T16:48:33.112067",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 226.62267327308655,
+    "cost": 0
+  }
+}

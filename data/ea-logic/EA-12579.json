@@ -1,0 +1,136 @@
+{
+  "ea_id": "EA-12579",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load a proprietary custom indicator 'FatlSatlOsma' and depends on external .mqh library (TradeAlgorithms.mqh) for all trade execution logic (position open/close). Custom indicator internals are not available, making signal replication require manual reconstruction.",
+  "symbol": null,
+  "timeframe_hint": "H12",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "FatlSatlOsma",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "FATL period (internal constant for min_rates_total)",
+      "formula": "39",
+      "used_by": "min_rates_total calculation and BarsCalculated check"
+    },
+    {
+      "name": "SATL period (internal constant for min_rates_total)",
+      "formula": "65",
+      "used_by": "min_rates_total calculation and BarsCalculated check"
+    },
+    {
+      "name": "min_rates_total (minimum bars required)",
+      "formula": "MathMax(39,65) + 3 + SignalBar",
+      "used_by": "BarsCalculated sufficiency check"
+    },
+    {
+      "name": "TimeShiftSec (bar period in seconds)",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position tracking"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "FatlSatlOsma[1] < FatlSatlOsma[2] (OSMA falling on prior bars)",
+        "right": "AND FatlSatlOsma[0] > FatlSatlOsma[1] (OSMA rising on current vs prior)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "FatlSatlOsma[1] > FatlSatlOsma[2] (OSMA rising on prior bars)",
+        "right": "AND FatlSatlOsma[0] < FatlSatlOsma[1] (OSMA falling on current vs prior)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal triggers close of existing position (BUY_Close on sell signal, SELL_Close on buy signal), gated by BuyPosClose/SellPosClose input flags"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT uses fixed lots (negative/fixed interpretation), MMMode=LOT uses margin-based sizing; MM input of 0.1 represents 10% of deposit financial resources in trade"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The FatlSatlOsma custom indicator is an OSMA-style histogram derived from two digital filters (FATL=39-bar, SATL=65-bar). The entry logic detects momentum reversal: long when OSMA was declining (bar[1]<bar[2]) but now rising (bar[0]>bar[1]), short when OSMA was rising (bar[1]>bar[2]) but now declining (bar[0]<bar[1]). SignalBar=1 means the EA reads from bar 1,2,3 by default (completed bars only). The Recount flag allows re-evaluation on the same bar if CopyBuffer fails. Position gate logic is delegated to TradeAlgorithms.mqh library functions which may contain additional checks not visible in the EA source. UpSignalTime/DnSignalTime are used as identifiers for the trade functions, not as pending order prices.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The custom indicator FatlSatlOsma must be reverse-engineered or reimplemented. FATL and SATL are digital filter moving averages (similar to ALMA/Kaufman with specific coefficient sets). The OSMA is their difference histogram. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, and CIsNewBar - all need Python equivalents. The signal logic (Value[1]<Value[2] && Value[0]>Value[1] for long) is straightforward once the indicator is replicated. The MMMode enum (LOT vs other margin modes) controls position sizing calculation and must be preserved. No digit adjustment logic is present in the EA itself - SL/TP of 1000/2000 pips are passed directly to the trade library.",
+  "extraction_timestamp": "2026-05-12T17:19:11.088605",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 130.95133352279663,
+    "cost": 0
+  }
+}

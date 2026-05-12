@@ -1,0 +1,133 @@
+{
+  "ea_id": "EA-1245",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for AnchoredMomentum indicator and depends on TradeAlgorithms.mqh external library for all trade execution (open/close positions), making it require manual implementation of both the custom indicator logic and trading functions in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AnchoredMomentum",
+      "params": {
+        "period": 8,
+        "smooth_period": 6,
+        "applied_to": 0,
+        "upper_level": 0.025,
+        "lower_level": -0.025
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for calculation",
+      "formula": "int(MomPeriod) + int(3 + SignalBar)",
+      "used_by": "BarsCalculated check before signal processing"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade execution timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "AnchoredMomentum[SignalBar]",
+        "right": "UpLevel (+0.025)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "AnchoredMomentum[SignalBar]",
+        "right": "DnLevel (-0.025)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Sell position closed when AnchoredMomentum crosses above UpLevel",
+      "Buy position closed when AnchoredMomentum crosses below DnLevel"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "negative MM value = fixed lot size (e.g. -0.1 means 0.1 lots), positive MM value = deposit fraction for risk-based sizing; logic handled by TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses previous bar (Value[1]) vs earlier bar (Value[0]) comparison: for long, Value[1]>UpLevel AND Value[0]<=UpLevel (momentum crossed above level between bar 0 and bar 1 at SignalBar offset). Same logic inverted for short. SignalBar=1 means signals are read from bar index 1 (previous completed bar). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean gates allow independently enabling/disabling entry and exit directions. Recount flag forces signal recalculation on first tick. GlobalVariableDel_ cleanup on deinit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "Must implement AnchoredMomentum indicator from its .mq5 source (SMA of price minus EMA of price, normalized). Must replace TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) with Python equivalents. The MM parameter dual-mode logic (negative=fixed lots, positive=deposit fraction) must be replicated. SL/TP are in points so need _Point conversion. Signal logic compares two consecutive buffer values at SignalBar offset to detect level crossover.",
+  "extraction_timestamp": "2026-05-12T16:53:31.962007",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 139.99369192123413,
+    "cost": 0
+  }
+}

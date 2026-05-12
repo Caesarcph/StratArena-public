@@ -1,0 +1,132 @@
+{
+  "ea_id": "EA-12573",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the 'HLRSign' custom indicator, and depends on TradeAlgorithms.mqh for position open/close logic, money management, and helper classes (CIsNewBar, GlobalVariableDel_, LoadHistory, BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose). These external dependencies contain critical trading logic not available in the source file.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "HLRSign",
+      "params": {
+        "mode": 1,
+        "hlr_range": 40,
+        "hlr_up_level": 80,
+        "hlr_dn_level": 20,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal time calculation",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for trade execution timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before EA starts processing",
+      "formula": "MathMax(HLR_Range+1, 100) + SignalBar + 3",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "HLRSign buffer 1 (Up signal)",
+        "right": "0 and != EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "HLRSign buffer 0 (Down signal)",
+        "right": "0 and != EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Historical scan for prior opposite signals on bars from SignalBar+1 onward to pre-set close flags even if current bar signal is entry-only. This allows closing positions based on earlier confirmed reversal signals found in historical bars when both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled and no close signal was found on the current SignalBar."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects between: LOT=fixed lot size (MM=0.1 lots), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM input value is interpreted differently depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses Alg_Method (MODE_IN vs MODE_OUT) passed to HLRSign indicator which controls whether signals fire on entry into or exit from overbought/oversold zones. Signal is read from bar index defined by SignalBar input (default=1, previous bar). A historical scan loop from SignalBar+1 to Bars_ searches for earlier opposite signals to set close flags when both open and close booleans are enabled but no close was triggered on the current signal bar. This means close signals can be sourced from older bars, not just the most recent one. The UpSignalTime/DnSignalTime are set to last bar date + TimeShiftSec, used by the TradeAlgorithms position open functions likely for pending order expiry or timing logic. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose input booleans act as master switches to independently enable/disable each direction's entry and exit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The HLRSign custom indicator must be reimplemented or ported - it is the core signal generator. The indicator takes Mode (0=IN, 1=OUT), HLR_Range, HLR_UpLevel, HLR_DnLevel as parameters and outputs two buffers: buffer 0 for down signals, buffer 1 for up signals (non-zero/non-EMPTY_VALUE means signal active). TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, GlobalVariableDel_, LoadHistory - all must be reimplemented. The CIsNewBar class handles new bar detection. Position sizing has 5 modes via MarginMode enum - all must be implemented. The historical bar scan (lines 136-160) for finding earlier close signals is a non-trivial logic detail that must be preserved. SL/TP are in points (not pips), with no digit adjustment - values like 1000/2000 suggest 5-digit broker point values. Deviation_=10 is slippage in points.",
+  "extraction_timestamp": "2026-05-12T17:17:00.136464",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 145.3069293498993,
+    "cost": 0
+  }
+}

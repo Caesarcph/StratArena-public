@@ -1,0 +1,130 @@
+{
+  "ea_id": "EA-12529",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for the RangeExpansionIndex indicator and depends on external TradeAlgorithms.mqh library for all trade execution (open/close position functions, money management, global variable cleanup). The custom indicator is not a built-in MT5 indicator.",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "RangeExpansionIndex",
+      "params": {
+        "period": 8
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "REI_Period+8+3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal time calculation for position open functions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossunder",
+        "left": "REI[0]",
+        "right": "Dn_Indicator_level",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "REI[0]",
+        "right": "Up_Indicator_level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when REI[1] > Dn_Indicator_level (indicator rises above lower threshold, meaning it was below and now is not, triggering else-branch BUY_Close=true)",
+      "Short position closed when REI[1] < Up_Indicator_level (indicator falls below upper threshold, meaning it was above and now is not, triggering else-branch SELL_Close=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing method: LOT=fixed lot size (MM=0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. Positive MM=fraction-based (percent of margin/balance), interpretation depends on MMMode selector."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic uses two-bar comparison: Ind[1] is the older bar (SignalBar+1) and Ind[0] is the signal bar (SignalBar). Long entry: REI[1] > lower level AND REI[0] <= lower level (crossunder into oversold). Short entry: REI[1] < upper level AND REI[0] >= upper level (crossover into overbought). Exit via signal reversal: when REI[1] is already beyond the level but the condition fails (else branches), opposite close flags are set. The SignalBar input (default=1) controls which bar is used for signal detection. When SignalBar=0, the EA evaluates on every tick instead of only on new bars. The UpSignalTime/DnSignalTime are computed as last bar datetime + TimeShiftSec and passed to the open position functions, likely for pending order timing or expiration.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "RangeExpansionIndex custom indicator (iCustom)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The RangeExpansionIndex is a custom indicator with no standard Python equivalent - its formula must be obtained from the indicator source code and reimplemented. The TradeAlgorithms.mqh library handles all order execution, money management, and position management; these functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) must be reimplemented in Python. The MMMode enum provides 5 different position sizing methods that all need implementation. SL/TP are in points (not pips), so ensure proper point-to-pip conversion accounting for broker digit count. The signal bar shift mechanism (SignalBar parameter) means signals are evaluated on a historical bar, not the current forming bar, which is important for backtesting alignment.",
+  "extraction_timestamp": "2026-05-12T16:57:05.254665",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 125.19166851043701,
+    "cost": 0
+  }
+}

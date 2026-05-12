@@ -1,0 +1,141 @@
+{
+  "ea_id": "EA-12594",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for NRatioSign indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading execution and smoothing algorithms. Custom indicator with proprietary smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA) not available as built-in MT5 indicators.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "NRatioSign",
+      "params": {
+        "method": 0,
+        "period": 3,
+        "phase": 15,
+        "applied_to": 1,
+        "kf": 1.0,
+        "fast": 2.0,
+        "sharp": 2.0,
+        "mode": 1,
+        "up_level": 80,
+        "dn_level": 20
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "GetStartBars(XMA_Method,XLength,XPhase)+1"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for indicator warmup",
+      "formula": "max(GetStartBars(XMA_Method,XLength,XPhase)+1, ATR_Period=10) + SignalBar + 3",
+      "used_by": "BarsCalculated check before processing signals"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "NRatioSign buffer 1 (UpValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "NRatioSign buffer 0 (DnValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: UpValue signal triggers SELL_Close, DnValue signal triggers BUY_Close",
+      "Historical bar scan for close signals: when both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled and no immediate close signal, scans backward from SignalBar+1 through all bars for an opposite signal to set close flags"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode_options": "LOT=fixed lots, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of loss+free margin, LOSSBALANCE=fraction of loss+balance"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot size using MM value, BALANCE=MM fraction of balance, FREEMARGIN=MM fraction of free margin, LOSSFREEMARGIN=MM fraction of (loss+free margin), LOSSBALANCE=MM fraction of (loss+balance)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal evaluation uses SignalBar=1 (previous completed bar), not current bar. Historical close-signal scan (lines 181-207) scans bars from SignalBar+1 onward to find if an opposite signal exists for closing, but only when both open and close flags are enabled for the same direction and no immediate close signal was found. NRatioSign is a custom indicator with two buffers: buffer 0 (DnValue) for sell signals, buffer 1 (UpValue) for buy signals. Non-zero non-EMPTY_VALUE values indicate active signals. The UpSignalTime/DnSignalTime is derived from SERIES_LASTBAR_DATE + TimeShiftSec, used as a reference time for the trade open functions. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose are boolean inputs that independently gate each type of trade action.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "Requires reimplementation of the NRatioSign custom indicator which depends on SmoothAlgorithms.mqh (9 smoothing methods including JJMA, JurX, ParMA, T3, VIDYA, AMA). TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GetStartBars, LoadHistory, GlobalVariableDel_, and CIsNewBar - all must be reimplemented. The MM input (0.1) serves dual purpose depending on MMMode: as fixed lot size when MMMode=LOT, or as a fraction when using margin-based modes. The historical bar scan for close signals (lines 181-207) is an unusual pattern that searches forward in history to find pending close triggers - must replicate this exactly. No built-in MT5 indicators are used; everything flows through iCustom('NRatioSign').",
+  "extraction_timestamp": "2026-05-12T17:27:52.633731",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 191.77202773094177,
+    "cost": 0
+  }
+}
