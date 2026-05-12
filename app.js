@@ -1,11 +1,11 @@
 const LANG = window.getLang ? getLang() : "en";
 
 const DATA_FILES = {
- strategies: "data/strategies.json",
- perfIndex: "data/performance-index.json",
- changelog: "data/changelog.json",
- eaCatalog: "data/ea_catalog.json",
- eaAnalyzedIndex: "data/ea_analyzed_index.json"
+  strategies: "data/strategies.json",
+  performance: "data/performance.json",
+  changelog: "data/changelog.json",
+  eaCatalog: "data/ea_catalog.json",
+  eaAnalysis: "data/ea_analysis.json"
 };
 const FAVORITES_KEY = "favorites";
 const CATEGORY_TOP_COUNT = 5;
@@ -111,15 +111,13 @@ const PAGE_META = {
 
 const charts = [];
 const seriesCache = new Map();
-const perfCache = new Map();
-let perfAllLoaded = false;
 
 const store = {
- strategies: [],
- performance: null,
- changelog: [],
- eaCatalog: [],
- eaAnalysis: {}
+  strategies: [],
+  performance: null,
+  changelog: [],
+  eaCatalog: [],
+  eaAnalysis: {}
 };
 let favorites = new Set();
 let portfolioWeights = new Map();
@@ -135,55 +133,35 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function init() {
- await loadData();
- initFavorites();
- bindGlobal();
- render();
- window.addEventListener("popstate", () => render());
+  await loadData();
+  initFavorites();
+  bindGlobal();
+  render();
+  window.addEventListener("popstate", render);
 }
 
 async function loadData() {
- const [strategies, perfIndex, changelog, eaCatalog, eaAnalyzedIndex] = await Promise.all([
-  fetchJson(DATA_FILES.strategies),
-  fetchJson(DATA_FILES.perfIndex),
-  fetchJson(DATA_FILES.changelog),
-  fetchJson(DATA_FILES.eaCatalog).catch(() => []),
-  fetchJson(DATA_FILES.eaAnalyzedIndex).catch(() => [])
- ]);
- store.strategies = strategies.strategies || [];
- store.performance = perfIndex || { instruments: [], windows: [], strategy_ids: [] };
- store.performance.strategies = {};
- store.changelog = changelog.entries || [];
- if (Array.isArray(eaCatalog)) store.eaCatalog = eaCatalog;
- if (Array.isArray(eaAnalyzedIndex)) store.eaAnalyzedIndex = new Set(eaAnalyzedIndex);
+  const [strategies, performance, changelog, eaCatalog, eaAnalysis] = await Promise.all([
+    fetchJson(DATA_FILES.strategies),
+    fetchJson(DATA_FILES.performance),
+    fetchJson(DATA_FILES.changelog),
+    fetchJson(DATA_FILES.eaCatalog).catch(() => []),
+    fetchJson(DATA_FILES.eaAnalysis).catch(() => ({}))
+  ]);
+
+  store.strategies = strategies.strategies || [];
+  store.performance = performance || { instruments: [], windows: [] };
+  store.changelog = changelog.entries || [];
+  if (Array.isArray(eaCatalog)) store.eaCatalog = eaCatalog;
+  if (eaAnalysis && typeof eaAnalysis === "object" && !Array.isArray(eaAnalysis)) store.eaAnalysis = eaAnalysis;
 }
 
 async function fetchJson(path) {
- const res = await fetch(path, { cache: "no-store" });
- if (!res.ok) {
-  throw new Error(`Failed to load ${path}`);
- }
- return res.json();
-}
-
-async function loadPerfStrategy(id) {
- if (perfCache.has(id)) return perfCache.get(id);
- try {
-  const data = await fetchJson(`data/perf-strategies/${id}.json`);
-  perfCache.set(id, data);
-  store.performance.strategies[id] = data;
-  return data;
- } catch (e) {
-  console.warn(`Failed to load perf for ${id}`, e);
-  return null;
- }
-}
-
-async function loadAllPerfStrategies() {
- if (perfAllLoaded) return;
- const ids = store.performance.strategy_ids || [];
- await Promise.all(ids.map((id) => loadPerfStrategy(id)));
- perfAllLoaded = true;
+  const res = await fetch(path, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Failed to load ${path}`);
+  }
+  return res.json();
 }
 
 function bindGlobal() {
@@ -450,33 +428,27 @@ function registerChart(chart) {
   charts.push(chart);
 }
 
-async function render() {
- destroyCharts();
- const route = getRoute();
- const normalized = normalizeRoute(route);
- if (normalized.redirected) {
-  return;
- }
- if (forceAdFreeReload(route)) {
-  return;
- }
- highlightNav(route.page);
- updatePageMeta(route, normalized.canonicalUrl);
- ensureAdSense(route);
+function render() {
+  destroyCharts();
+  const route = getRoute();
+  const normalized = normalizeRoute(route);
+  if (normalized.redirected) {
+    return;
+  }
+  if (forceAdFreeReload(route)) {
+    return;
+  }
+  highlightNav(route.page);
+  updatePageMeta(route, normalized.canonicalUrl);
+  ensureAdSense(route);
 
- const app = document.getElementById("app");
- if (!store.strategies.length) {
-  app.innerHTML = `<section class="section"><h2>${t("common.loading")}</h2></section>`;
-  return;
- }
+  const app = document.getElementById("app");
+  if (!store.strategies.length) {
+    app.innerHTML = `<section class="section"><h2>${t("common.loading")}</h2></section>`;
+    return;
+  }
 
- const perfPages = ["arena", "strategy", "compare"];
- if (perfPages.includes(route.page) && !perfAllLoaded) {
-  app.innerHTML = `<section class="section"><h2>${t("common.loading")}</h2></section>`;
-  await loadAllPerfStrategies();
- }
-
- switch (route.page) {
+  switch (route.page) {
     case "home":
       app.innerHTML = renderHome();
       bindHome();
@@ -516,9 +488,10 @@ async function render() {
       app.innerHTML = renderEAArena(route);
       bindEAArena(route);
       break;
- case "ea-detail":
-  renderEADetail(route).then((html) => { app.innerHTML = html; bindEADetail(route); });
-  break;
+    case "ea-detail":
+      app.innerHTML = renderEADetail(route);
+      bindEADetail(route);
+      break;
     case "about":
       app.innerHTML = renderAbout();
       break;
@@ -677,7 +650,7 @@ function renderHome() {
         <p>${t("home.ea_promo_desc", { count: store.eaCatalog.length })}</p>
         <div class="ea-promo-stats">
           <span><strong>${store.eaCatalog.length}</strong> ${t("home.ea_count")}</span>
-          <span><strong>${store.eaAnalyzedIndex ? store.eaAnalyzedIndex.size : store.eaCatalog.length}</strong> ${t("common.analyzed")}</span>
+          <span><strong>${Object.keys(store.eaAnalysis).length}</strong> ${t("common.analyzed")}</span>
         </div>
         <a class="button primary small" href="?page=ea-arena" style="margin-top:0.75rem">${t("home.explore_ea_arena")}</a>
       </div>
@@ -820,15 +793,11 @@ function renderHome() {
           <h3>${t("home.priority_upgrades_title")}</h3>
           <p>${t("home.priority_upgrades_desc")}</p>
           <div class="list">
-    <div><span class="badge done">${t("common.analyzed")}</span> ${t("home.roadmap_item_heatmaps")}</div>
-    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_uploads")}</div>
-    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_intraday")}</div>
-    <div><span class="badge done">${t("common.analyzed")}</span> ${t("home.roadmap_item_attribution")}</div>
-    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_regime")}</div>
-    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_ea_backtest")}</div>
-    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_ea_leaderboard")}</div>
-    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_ea_favorites")}</div>
-    <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_ea_similarity")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_heatmaps")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_uploads")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_intraday")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_attribution")}</div>
+            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_regime")}</div>
           </div>
         </div>
       </div>
@@ -991,7 +960,7 @@ function renderArena(route) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h1>${t("arena.title")}</h1>
+          <h2>${t("arena.title")}</h2>
           <p>${t("arena.desc")}</p>
         </div>
         <details class="score-note">
@@ -1670,7 +1639,7 @@ function renderStrategies(route) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h1>${t("strategy.library_title")}</h1>
+          <h2>${t("strategy.library_title")}</h2>
           <p>${t("strategy.library_desc")}</p>
         </div>
         <div class="chip-group">
@@ -1744,7 +1713,7 @@ function renderFavorites(route) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h1>${t("nav.favorites")}</h1>
+          <h2>${t("nav.favorites")}</h2>
           <p>${t("strategy.favorites_saved", { count: saved.length })}</p>
         </div>
         <div class="chip-group">
@@ -1797,7 +1766,7 @@ function renderStrategyDetail(route) {
   const strategyId = route.params.get("id") || store.strategies[0].id;
   const strategy = store.strategies.find((item) => item.id === strategyId);     
   if (!strategy) {
-    return `<section class="section"><h1>${t("strategy.not_found")}</h1></section>`;
+    return `<section class="section"><h2>${t("strategy.not_found")}</h2></section>`;
   }
 
   const instrument =
@@ -1818,7 +1787,7 @@ function renderStrategyDetail(route) {
       <div class="strategy-header">
         <div>
           <div class="eyebrow">${strategy.id}</div>
-          <h1>${strategy.name}</h1>
+          <h2>${strategy.name}</h2>
           <p>${strategy.description}</p>
           <div class="tag-row">
             ${strategy.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
@@ -2307,14 +2276,14 @@ function renderContentPage(key) {
   const pages = typeof CONTENT_PAGES === "undefined" ? null : CONTENT_PAGES;
   const page = pages ? pages[key] : null;
   if (!page) {
-    return `<section class="section"><h1>${t("common.not_found")}</h1></section>`;
+    return `<section class="section"><h2>${t("common.not_found")}</h2></section>`;
   }
   const meta = page.updated ? t("common.updated", { date: page.updated }) : "";
   return `
   <section class="section content-page">
     <div class="content-hero">
       <div>
-        <h1>${tc(page.title)}</h1>
+        <h2>${tc(page.title)}</h2>
         <p>${tc(page.subtitle)}</p>
           ${meta ? `<div class="content-meta">${meta}</div>` : ""}
         </div>
@@ -2343,7 +2312,7 @@ function renderResearchIndex() {
   <section class="section content-page">
     <div class="content-hero">
       <div>
-        <h1>${researchMeta ? tc(researchMeta.title) : t("nav.research")}</h1>
+        <h2>${researchMeta ? tc(researchMeta.title) : t("nav.research")}</h2>
         <p>${intro}</p>
         <div class="content-meta">${note}</div>
         </div>
@@ -2379,7 +2348,7 @@ function renderResearchArticle(route) {
   if (!article) {
     return `
       <section class="section">
-        <h1>${t("research.article_not_found")}</h1>
+        <h2>${t("research.article_not_found")}</h2>
         <p>${t("research.return_to_index_prefix")} <a class="link" href="?page=research">${t("research.index_label")}</a>.</p>
       </section>
     `;
@@ -2397,7 +2366,7 @@ function renderResearchArticle(route) {
       <div class="content-hero">
         <div>
       <div class="eyebrow">${article.category}</div>
-      <h1>${tc(article.title)}</h1>
+      <h2>${tc(article.title)}</h2>
       <p>${tc(article.summary)}</p>
           ${renderArticleMeta(article)}
           ${renderTagRow(article.tags)}
@@ -2424,7 +2393,7 @@ function renderFaq() {
     <section class="section content-page">
       <div class="content-hero">
         <div>
-          <h1>${t("faq.title")}</h1>
+          <h2>${t("faq.title")}</h2>
           <p>${t("faq.desc")}</p>
         </div>
       </div>
@@ -2453,7 +2422,7 @@ function renderChangelog() {
     <section class="section">
       <div class="section-header">
         <div>
-          <h1>${t("changelog.title")}</h1>
+          <h2>${t("changelog.title")}</h2>
           <p>${t("changelog.desc")}</p>
         </div>
       </div>

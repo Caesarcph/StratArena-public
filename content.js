@@ -2,10 +2,10 @@ const CONTENT_PAGES = {
   about: {
     title: { en: "About QuantArenas", zh: "关于 QuantArenas" },
     subtitle: {
-      en: "A research platform that compares systematic strategies and MQL5 Expert Advisors under one shared rulebook.",
-      zh: "一个在统一评估框架下比较系统化策略与 MQL5 EA 的研究平台。"
+      en: "A research platform that compares systematic strategies under one shared rulebook.",
+      zh: "一个在统一评估框架下比较系统化策略的研究平台。"
     },
-    updated: "2026-05-11",
+    updated: "2026-01-13",
     sections: [
       {
         heading: { en: "A research arena, not a signal service", zh: "研究竞技场，而非信号服务" },
@@ -76,25 +76,8 @@ const CONTENT_PAGES = {
           }
         ]
       },
-    {
-      heading: { en: "EA Arena: Expert Advisor analysis", zh: "EA 竞技场：EA 分析模块" },
-      paragraphs: [
-        {
-          en: "EA Arena is a dedicated module for analyzing and comparing MQL5 Expert Advisors. It covers 1,515 EAs from the MQL5 Code Base, each classified into one of 16 categories such as Trend Following, Momentum, Scalping, Breakout, and Utility. Every EA receives an automated analysis that covers strategy logic, risk profile, parameter documentation, and a suitability rating. The goal is to give traders a structured way to browse, compare, and evaluate EAs before deploying them on a live account.",
-          zh: "EA 竞技场是用于分析和比较 MQL5 Expert Advisor 的专门模块。它收录了来自 MQL5 Code Base 的 1,515 个 EA，每个 EA 均被归入趋势跟踪、动量、剥头皮、突破、工具等 16 个类别之一。每个 EA 都经过自动化分析，涵盖策略逻辑、风险特征、参数文档与适用性评级。目标是为交易者提供一种结构化的方式，在实际部署前浏览、比较和评估 EA。"
-        },
-        {
-          en: "The analysis pipeline uses NVIDIA GLM-5.1 to read each EA's source code and produce bilingual (Chinese/English) reports. Utility EAs — such as control panels, trade managers, and notification helpers — are separated from trading EAs so that users can filter by purpose. Each EA has a standalone HTML detail page with Open Graph and Twitter Card meta tags for social sharing. EAs can be compared side by side (up to 4 at a time) with a dedicated comparison view.",
-          zh: "分析流水线使用 NVIDIA GLM-5.1 读取每个 EA 的源代码，生成中英双语报告。工具类 EA（如控制面板、交易管理器、通知助手）与交易类 EA 分开归类，方便用户按用途筛选。每个 EA 都拥有独立的 HTML 详情页，并带有 Open Graph 与 Twitter Card 元标签以支持社交分享。EA 支持并排比较（最多 4 个），配有专用比较视图。"
-        },
-        {
-          en: "Data is lazy-loaded for performance: the initial page fetch is under 20KB, with individual EA analysis files loaded on demand. The platform enforces a zero-Chinese policy in English fields — if an English translation is unavailable, the field shows N/A rather than leaking Chinese content. There are no uncategorized EAs; every entry has a specific category assignment.",
-          zh: "数据采用懒加载机制以优化性能：初始页面请求不超过 20KB，单个 EA 的分析文件按需加载。平台在英文字段中执行零中文策略——如果英文翻译不可用，字段显示 N/A，而不会泄露中文内容。平台中不存在未分类 EA；每个条目都有明确的类别归属。"
-        }
-      ]
-    },
-    {
-      heading: { en: "Risk and usage disclaimer", zh: "风险与使用免责声明" },
+      {
+        heading: { en: "Risk and usage disclaimer", zh: "风险与使用免责声明" },
         paragraphs: [
           {
             en: "All information on this site is for educational and research purposes only. It is not financial advice, and it should not be construed as an offer to buy or sell any security, derivative, or cryptocurrency. Past performance does not guarantee future results, and every strategy can experience prolonged losses or underperformance.",
@@ -417,41 +400,6 @@ const FAQ_ITEMS = [
     answer: {
       en: "Email chenpeihao1997@gmail.com with the strategy name, a short description, and any references.",
       zh: "请发送邮件至 chenpeihao1997@gmail.com，并附上策略名称、简要说明以及相关参考资料。"
-    }
-  },
-  {
-    question: { en: "What is EA Arena?", zh: "什么是 EA 竞技场？" },
-    answer: {
-      en: "EA Arena is a dedicated module that analyzes and compares 1,515 MQL5 Expert Advisors from the MQL5 Code Base. Each EA is classified into one of 16 categories and receives an automated analysis covering strategy logic, risk profile, parameters, and suitability. You can browse, filter, and compare up to 4 EAs side by side.",
-      zh: "EA 竞技场是分析和比较来自 MQL5 Code Base 的 1,515 个 MQL5 Expert Advisor 的专门模块。每个 EA 被归入 16 个类别之一，并经过自动化分析，涵盖策略逻辑、风险特征、参数与适用性。你可以浏览、筛选，并最多并排比较 4 个 EA。"
-    }
-  },
-  {
-    question: { en: "How are EAs analyzed?", zh: "EA 是如何被分析的？" },
-    answer: {
-      en: "Each EA's MQ5 source code is read by NVIDIA GLM-5.1, which produces a structured analysis covering strategy description, risk level, parameter documentation, and category classification. The output is bilingual (Chinese/English). A validation layer ensures every EA has a specific category and that English fields never contain Chinese characters.",
-      zh: "每个 EA 的 MQ5 源代码由 NVIDIA GLM-5.1 读取，生成结构化分析，涵盖策略描述、风险等级、参数文档与类别分类。输出为中英双语。验证层确保每个 EA 都有明确类别，且英文字段中不包含中文字符。"
-    }
-  },
-  {
-    question: { en: "Why do some English fields show N/A?", zh: "为什么某些英文字段显示 N/A？" },
-    answer: {
-      en: "The platform enforces a zero-Chinese policy in English views. If an English translation is unavailable or contains Chinese characters, the field is replaced with N/A. This is intentional — N/A is preferable to showing Chinese content to English-speaking users.",
-      zh: "平台在英文视图中执行零中文策略。如果英文翻译不可用或包含中文字符，该字段会被替换为 N/A。这是有意为之——对英文用户而言，N/A 比显示中文内容更可取。"
-    }
-  },
-  {
-    question: { en: "How are Utility EAs different from trading EAs?", zh: "工具类 EA 与交易类 EA 有何区别？" },
-    answer: {
-      en: "Utility EAs are tools that assist with trading operations — control panels, trade managers, notification helpers, and dashboard scripts. They do not open or close trades on their own. Trading EAs (Trend Following, Momentum, Scalping, etc.) generate signals and execute trades. The EA Arena separates these so you can filter by purpose.",
-      zh: "工具类 EA 是辅助交易操作的工具——控制面板、交易管理器、通知助手和仪表板脚本。它们不会自行开仓或平仓。交易类 EA（趋势跟踪、动量、剥头皮等）生成信号并执行交易。EA 竞技场将两者分开，方便你按用途筛选。"
-    }
-  },
-  {
-    question: { en: "Can I compare EAs side by side?", zh: "我可以并排比较 EA 吗？" },
-    answer: {
-      en: "Yes. Select up to 4 EAs using the checkboxes on the EA Arena page, then click Compare. A comparison modal shows strategy logic, risk levels, categories, and parameters side by side. You can also share comparison links via URL parameters (compare=EA-1,EA-2).",
-      zh: "可以。在 EA 竞技场页面使用复选框选择最多 4 个 EA，然后点击比较按钮。比较弹窗会并排展示策略逻辑、风险等级、类别与参数。你也可以通过 URL 参数（compare=EA-1,EA-2）分享比较链接。"
     }
   }
 ];
