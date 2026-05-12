@@ -2,7 +2,7 @@ const TRANSLATIONS = {
   en: {
     "meta.site_name": "Quant Arena",
     "meta.home_title": "Quant Arena",
-    "meta.home_desc": "Quant Arena is a research arena for comparing systematic strategies across assets and time windows.",
+    "meta.home_desc": "Quant Arena is a research arena for comparing systematic strategies and MQL5 Expert Advisors across assets and time windows.",
     "meta.arena_title": "Arena | Quant Arena",
     "meta.arena_desc": "Compare strategy performance by instrument and window with Arena Score rankings.",
     "meta.strategies_title": "Strategies | Quant Arena",
@@ -151,13 +151,13 @@ const TRANSLATIONS = {
     "home.methodology_card_title": "Ranking and scoring rules",
     "home.methodology_card_desc": "Understand the Arena Score and multi-window evaluation.",
     "home.about_card_title": "What Quant Arena is",
-    "home.about_card_desc": "Research goals, data sources, and usage disclaimers.",
+    "home.about_card_desc": "Research goals, EA Arena overview, data sources, and usage disclaimers.",
     "home.faq_card_title": "Common questions",
     "home.faq_card_desc": "Clarify how to read results and avoid misuse.",
     "home.top_strategies_title": "Top Strategies ({window}, {instrument})",
     "home.latest_updates_title": "Latest Updates",
     "home.future_updates_title": "Future Updates",
-    "home.future_updates_desc": "Planned membership rollout and priority roadmap items.",
+    "home.future_updates_desc": "Planned membership rollout, EA backtesting, and priority roadmap items.",
     "home.membership_planned": "Membership (Planned)",
     "home.research_membership_title": "Research Membership",
     "home.research_membership_desc": "Unlock member-only exports and deeper strategy research.",
@@ -173,6 +173,10 @@ const TRANSLATIONS = {
     "home.roadmap_item_intraday": "Intraday pricing API snapshots",
     "home.roadmap_item_attribution": "Attribution drilldown by alpha/beta sources",
     "home.roadmap_item_regime": "Regime testing and stress overlays",
+    "home.roadmap_item_ea_backtest": "EA backtesting with MT5 Strategy Tester",
+    "home.roadmap_item_ea_leaderboard": "EA Arena leaderboard with live ranking",
+    "home.roadmap_item_ea_favorites": "EA favorites and watchlists",
+    "home.roadmap_item_ea_similarity": "Similar EA recommendations on detail pages",
     "home.top_leaderboards_title": "Top Strategy Leaderboards",
     "home.top_leaderboards_desc": "Top 5 strategies by Arena Score across different instruments and time windows.",
     "home.chart_spy_1y_title": "SPY - 1 Year",
@@ -349,7 +353,7 @@ const TRANSLATIONS = {
   zh: {
     "meta.site_name": "Quant Arena",
     "meta.home_title": "Quant Arena",
-    "meta.home_desc": "Quant Arena 是一个用于跨资产与时间窗口比较系统化策略的研究竞技场。",
+    "meta.home_desc": "Quant Arena 是一个用于跨资产与时间窗口比较系统化策略与 MQL5 EA 的研究竞技场。",
     "meta.arena_title": "竞技场 | Quant Arena",
     "meta.arena_desc": "按品种和窗口比较策略表现，并基于竞技场评分进行排序。",
     "meta.strategies_title": "策略库 | Quant Arena",
@@ -498,13 +502,13 @@ const TRANSLATIONS = {
     "home.methodology_card_title": "排名与评分规则",
     "home.methodology_card_desc": "了解 Arena Score 与多窗口评估方式。",
     "home.about_card_title": "什么是 Quant Arena",
-    "home.about_card_desc": "研究目标、数据来源与使用说明。",
+    "home.about_card_desc": "研究目标、EA 竞技场概述、数据来源与使用说明。",
     "home.faq_card_title": "常见问题",
     "home.faq_card_desc": "帮助你正确理解结果并避免误用。",
     "home.top_strategies_title": "顶级策略（{window}，{instrument}）",
     "home.latest_updates_title": "最新更新",
     "home.future_updates_title": "后续更新",
-    "home.future_updates_desc": "计划中的会员功能上线与优先路线图项目。",
+    "home.future_updates_desc": "计划中的会员功能上线、EA 回测与优先路线图项目。",
     "home.membership_planned": "会员功能（规划中）",
     "home.research_membership_title": "研究会员",
     "home.research_membership_desc": "解锁会员专属导出能力与更深入的策略研究内容。",
@@ -520,6 +524,10 @@ const TRANSLATIONS = {
     "home.roadmap_item_intraday": "日内价格 API 快照",
     "home.roadmap_item_attribution": "按 Alpha/Beta 来源下钻归因",
     "home.roadmap_item_regime": "市场状态测试与压力情景叠加",
+    "home.roadmap_item_ea_backtest": "EA 回测（MT5 Strategy Tester）",
+    "home.roadmap_item_ea_leaderboard": "EA 竞技场实时排行榜",
+    "home.roadmap_item_ea_favorites": "EA 收藏与观察清单",
+    "home.roadmap_item_ea_similarity": "EA 详情页相似推荐",
     "home.top_leaderboards_title": "顶级策略排行榜",
     "home.top_leaderboards_desc": "按不同品种与时间窗口展示 Arena Score 前 5 名策略。",
     "home.chart_spy_1y_title": "SPY - 1 年",
@@ -755,7 +763,7 @@ function updateStaticText() {
   const footerBrand = document.querySelector('.footer-brand');
   if (footerBrand) footerBrand.textContent = t('footer.brand') || t('meta.site_name');
   const footerNote = document.querySelector('.footer-note');
-  if (footerNote) footerNote.textContent = getLang() === 'zh' ? '用于每日策略比较的静态研究竞技场。不构成投资建议。' : 'Static research arena for daily strategy comparison. Not financial advice.';
+  if (footerNote) footerNote.textContent = getLang() === 'zh' ? '系统化策略与 MQL5 EA 研究竞技场。不构成投资建议。' : 'Research arena for systematic strategies and MQL5 EAs. Not financial advice.';
   const footerLinks = document.querySelectorAll('.footer-links a');
   const footerKeys = ['nav.research', 'nav.methodology', 'nav.about', 'nav.faq', 'nav.privacy', 'nav.terms'];
   footerLinks.forEach((link, index) => {
