@@ -1,0 +1,121 @@
+{
+  "ea_id": "EA-13233",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "This is an HFT market-making spreader that relies on OnBookEvent (depth of market/order book) for tick-level execution, manages pending orders dynamically based on order book state, and uses FORTS-specific features (ORDER_FILLING_RETURN, ORDER_TIME_DAY). The core logic depends on MarketBookGet for real-time order book scanning, which has no standard Python equivalent and requires tick-level execution with exchange-specific order types.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "minStep - minimum tick size for the symbol",
+      "formula": "SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE)",
+      "used_by": "Spread threshold calculation, pending order price placement, needMove gap check, calcDiff gap check"
+    },
+    {
+      "name": "Spread threshold in price units",
+      "formula": "SpreadToPutOrders * minStep",
+      "used_by": "OnBookEvent entry condition - only place orders when spread exceeds this threshold"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "spread threshold check",
+        "right": "CurrentRates.Spread() >= SpreadToPutOrders * minStep",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "spread threshold check",
+        "right": "CurrentRates.Spread() >= SpreadToPutOrders * minStep",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "OnDeinit closes open position and deletes all pending orders when EA is removed",
+      "Pending orders are deleted and re-placed when order book conditions change (isBestBidOrOfferOnlyMy or needMove)",
+      "If position exists and no pending orders, a closing limit order is placed at best price opposite to position direction with 2x volume"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Closing order placed at 2x position volume when position exists without pending order; new entries use Lots input parameter"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 4
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 10,
+    "filling": "RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "This is a market-making spreader for FORTS (Russian derivatives exchange). Core logic: 1) On each book event, delete pending orders that are no longer at best bid/offer or need to be moved. 2) If holding a position with no pending orders, place a closing limit order (opposite side) at 2x volume (implies flipping from long to short or vice versa with double size). 3) If flat with no pending orders and spread >= SpreadToPutOrders*minStep, place both a Sell Limit at Ask-minStep and a Buy Limit at Bid+minStep to capture the spread. 4) isBestBidOrOfferOnlyMy checks if our pending order is the only order at the best price level AND there is a gap > minStep to the next level - if so, the order is deleted (we are alone at best price, unfavorable). 5) needMove checks if the pending order price has drifted more than minStep from current Bid/Ask - if so, delete and re-place. 6) calcDiff checks for a price gap > minStep between adjacent order book levels at the best price.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/OrderInfo.mqh",
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "This EA is fundamentally incompatible with standard Python backtesting frameworks. Reasons: 1) OnBookEvent requires L2 order book data (MarketBookGet), which most Python backtesting frameworks do not support. 2) The logic dynamically manages pending limit orders based on real-time order book state - scanning for own orders at best bid/offer, checking volume at price levels, detecting gaps between book levels. 3) ORDER_FILLING_RETURN is exchange-specific (FORTS) and allows partial fills with remaining quantity staying as a limit order. 4) The 2x volume closing mechanism implies a position-flipping strategy. 5) To convert, you would need a custom framework supporting L2 data replay, order book state tracking, and pending order management with move/cancel logic. A simplified version could work with just spread monitoring + limit order placement, but the order-book-aware order management (isBestBidOrOfferOnlyMy, needMove, calcDiff) would be lost.",
+  "extraction_timestamp": "2026-05-12T18:24:01.128938",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 169.96295619010925,
+    "cost": 0
+  }
+}

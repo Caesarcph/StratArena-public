@@ -1,0 +1,141 @@
+{
+  "ea_id": "EA-13221",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load a custom indicator 'ColorZerolagTriXOSMA' with 12 parameters, and depends on external .mqh library (TradeAlgorithms.mqh) for all trade execution logic including position open/close, lot sizing, and global variable management.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorZerolagTriXOSMA",
+      "params": {
+        "smoothing1": 15,
+        "smoothing2": 7,
+        "applied_to": 1,
+        "Factor1": 0.05,
+        "TriX_period1": 8,
+        "Factor2": 0.1,
+        "TriX_period2": 21,
+        "Factor3": 0.16,
+        "TriX_period3": 34,
+        "Factor4": 0.26,
+        "TriX_period4": 55,
+        "Factor5": 0.43,
+        "TriX_period5": 89
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for indicator calculation",
+      "formula": "3 * max(TriX_period1..TriX_period5) + 2 + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade signal timestamps"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorZerolagTriXOSMA buffer[0] (bar SignalBar)",
+        "right": "ColorZerolagTriXOSMA buffer[1] (bar SignalBar+1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorZerolagTriXOSMA buffer[0] (bar SignalBar)",
+        "right": "ColorZerolagTriXOSMA buffer[1] (bar SignalBar+1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close long when ColorZerolagTriXOSMA[1] < ColorZerolagTriXOSMA[2] (sell signal triggers BUY_Close if BuyPosClose=true)",
+      "Close short when ColorZerolagTriXOSMA[1] > ColorZerolagTriXOSMA[2] (buy signal triggers SELL_Close if SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT means fixed lot size; MMMode=FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE means MM fraction of respective deposit measure. Input MM=0.1 interpreted differently based on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signal logic: Reads 3 consecutive values from ColorZerolagTriXOSMA buffer starting at SignalBar. If Value[1]<Value[2] (indicator was falling between bars SignalBar+1 and SignalBar+2): buy opens if Value[0]>Value[1] (indicator turned up at bar SignalBar) and BuyPosOpen=true; sell closes if SellPosClose=true. Opposite for sell signal. The BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans gate each direction independently. The trade execution functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) are all from TradeAlgorithms.mqh and handle position existence checks internally. Signal timestamp (UpSignalTime/DnSignalTime) is passed to open functions, likely used for bar-duplicate trade prevention.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The ColorZerolagTriXOSMA custom indicator must be replicated in Python - it is a zero-lag TRIX OSMA oscillator combining 5 weighted TRIX components. The signal logic is a momentum reversal: indicator falling (bar[1]<bar[2]) then turning up (bar[0]>bar[1]) = buy; vice versa for sell. TradeAlgorithms.mqh provides all position management including lot sizing modes (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE), position existence checks, deviation handling, and global variable cleanup - these must all be reimplemented. The SignalBar input (default=1) shifts which bar the signal reads from; when SignalBar=0 the new-bar guard is bypassed allowing tick-level entry. Position gate logic is encapsulated in the external library functions, so the exact duplicate-trade prevention mechanism needs inspection of TradeAlgorithms.mqh.",
+  "extraction_timestamp": "2026-05-12T18:21:11.165199",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 97.74525427818298,
+    "cost": 0
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "ea_id": "EA-1365",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for VininI_Trend indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) containing custom smoothing algorithms and trade execution logic not available as built-in MT5 indicators.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "VininI_Trend",
+      "params": {
+        "MA_Method1": "MODE_SMA",
+        "Length1": 3,
+        "Phase1": 15,
+        "MA_Step": 10,
+        "MA_Count": 10,
+        "MA_Method2": "MODE_JJMA",
+        "Length2": 20,
+        "Phase2": 100,
+        "IPC": "PRICE_CLOSE",
+        "UpLevel": 10,
+        "DnLevel": -10
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "Length1+MA_Step*(MA_Count-1) for first smoothing chain"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for calculation",
+      "formula": "GetStartBars(MA_Method1, Length1+MA_Step*(MA_Count-1), Phase1) + GetStartBars(MA_Method2, Length2, Phase2) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade signal timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "VininI_Trend[1] (previous bar)",
+        "right": "UpLevel",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "VininI_Trend[0] (signal bar)",
+        "right": "UpLevel",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "VininI_Trend[1] (previous bar)",
+        "right": "DnLevel",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "VininI_Trend[0] (signal bar)",
+        "right": "DnLevel",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "In BREAKDOWN mode: long position closes when indicator drops below DnLevel (BUY_Close=true when SellPosClose enabled and Value[1]<DnLevel)",
+      "In TWIST mode: long position closes when indicator direction changes from up to down (Value[1]>Value[2])",
+      "Exit permissions controlled by BuyPosClose and SellPosClose input booleans"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "negative MM values treated as fixed lot size (MM=-0.1 means 0.1 lots), positive MM values treated as deposit fraction/share per deal"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Two distinct entry modes selectable via AlgMode enum: BREAKDOWN mode enters when indicator crosses above UpLevel (buy) or below DnLevel (sell), requiring Value[1] beyond level AND Value[0] on the other side (crossover confirmation). TWIST mode enters on direction change of the indicator itself: buy when Value[0]>Value[1] and Value[1]<Value[2] (indicator turning up), sell when Value[0]<Value[1] and Value[1]>Value[2] (indicator turning down). Signal timing uses SERIES_LASTBAR_DATE + TimeShiftSec. Recount flag triggers re-evaluation if CopyBuffer fails. Entry/exit permissions are independently configurable via BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose booleans.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The VininI_Trend custom indicator must be reimplemented in Python since it uses custom JJMA and other non-standard smoothing algorithms from SmoothAlgorithms.mqh. The indicator applies a two-stage smoothing: first a stepped moving average chain (Length1 incremented by MA_Step for MA_Count steps using MA_Method1), then a final smoothing with MA_Method2. The custom Applied_price_ enum includes non-standard price types (PRICE_SIMPL_, PRICE_QUARTER_, PRICE_TRENDFOLLOW0_, PRICE_TRENDFOLLOW1_) that also need implementation. TradeAlgorithms.mqh contains BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions and GlobalVariableDel_ which handle position management - these need to be reimplemented or replaced with standard Python trading framework equivalents. The MM parameter dual-mode sizing (negative=lot, positive=fraction) must be preserved. The IsNewBar class from TradeAlgorithms.mqh and LoadHistory function need Python equivalents. No digit adjustment logic is present in the EA code itself - SL/TP are used as raw point values.",
+  "extraction_timestamp": "2026-05-12T20:01:18.896034",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 240.67983531951904,
+    "cost": 0
+  }
+}

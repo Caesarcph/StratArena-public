@@ -1,0 +1,130 @@
+{
+  "ea_id": "EA-1297",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for the ColorMETRO custom indicator and includes TradeAlgorithms.mqh external library for trade execution logic, both requiring manual recreation in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorMETRO",
+      "params": {
+        "period": 7,
+        "step_size_fast": 5,
+        "step_size_slow": 15
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "PeriodRSI=7 used as RSI period inside ColorMETRO indicator"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before calculation proceeds",
+      "formula": "PeriodRSI + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade signal timestamp"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorMETRO MPlus buffer",
+        "right": "ColorMETRO MMinus buffer",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ColorMETRO MPlus buffer",
+        "right": "ColorMETRO MMinus buffer",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: buy signal closes short, sell signal closes long, gated by BuyPosClose/SellPosClose permissions"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Negative MM value (-0.1) = fixed lot size of 0.1 lots; positive MM value = deposit fraction for risk-based sizing. Logic handled in TradeAlgorithms.mqh."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signal uses bar index SignalBar=1 (previous completed bar) for the crossover check, comparing buffer values at index [1] vs [0] relative to SignalBar. The crossover logic: BUY_Open triggers when MPlus[1]>MMinus[1] (current state bullish) AND MPlus[0]<=MMinus[0] (prior state was bearish or neutral), confirming a fresh crossover. SELL_Open uses inverse logic. Signal is only evaluated on new bar arrival or on first bar (SignalBar==0). The Recount flag ensures signal recalculation if CopyBuffer fails. Signal time is set to the last bar datetime plus one period for trade expiration context. BuyPosOpen/SellPosOpen and BuyPosClose/SellPosClose are boolean permission gates allowing independent control of entry and exit directions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The ColorMETRO custom indicator must be reimplemented in Python - it appears to be an RSI-based step-filter indicator with fast (5) and slow (15) step sizes. The TradeAlgorithms.mqh library handles position opening/closing with SL/TP assignment and must be replicated. The crossover detection uses a 2-bar lookback relative to SignalBar: index [1] is the signal bar and [0] is the bar before it (since SignalBar=1 by default). Position sizing logic is conditional on the sign of MM input: negative=fixed lots, positive=deposit fraction. No digit adjustment is applied to SL/TP values, but verify whether 1000/2000 pips are truly pips or points (likely points, meaning 10 pips SL / 20 pips TP for 5-digit brokers).",
+  "extraction_timestamp": "2026-05-12T17:58:17.398789",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 118.78043627738953,
+    "cost": 0
+  }
+}

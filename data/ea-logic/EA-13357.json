@@ -1,0 +1,133 @@
+{
+  "ea_id": "EA-13357",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorJMomentum indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic. Custom indicator call cannot be directly mapped to built-in Python TA libraries.",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorJMomentum",
+      "params": {
+        "MLength": 8,
+        "JMLength": 8,
+        "JPhase": 100,
+        "IPC": 1,
+        "0": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "MLength+31+3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime calculation for trade timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorJMomentum[1]",
+        "right": "ColorJMomentum[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ColorJMomentum[1]",
+        "right": "ColorJMomentum[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: buy signal closes sell, sell signal closes buy"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lots (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM input (0.1) is the fraction/lot depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses 3-bar ColorJMomentum buffer: Value[0]=current signal bar, Value[1]=bar before that, Value[2]=bar before Value[1]. Long entry: Value[1]>Value[2] (momentum rising) AND Value[0]>Value[1] (still rising). Short entry: Value[1]<Value[2] (momentum falling) AND Value[0]<Value[1] (still falling). SignalBar input (default=1) shifts which bar is used for current signal. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose boolean inputs act as feature gates to enable/disable each trade direction independently. Signal times are computed from SERIES_LASTBAR_DATE + TimeShiftSec and passed to trade functions. GlobalVariableDel_ is called on deinit. LoadHistory is called each tick to ensure bar data availability.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The ColorJMomentum indicator must be manually reimplemented in Python. It consists of: 1) Momentum calculation with period MLength, 2) JMA (Jurik Moving Average) smoothing with JMLength and JPhase parameters - both from SmoothAlgorithms.mqh. The TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and LoadHistory helper functions that handle order execution, margin-based lot sizing, and position management - these must be reimplemented. The entry logic uses a 3-buffer crossover pattern where momentum must be consecutively rising/falling across 3 bars. SignalBar=1 means the analysis is on the 1-bar-ago completed bar, not the current forming bar. MarginMode LOT mode is straightforward (fixed lots), but FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE modes require account equity/margin queries that need adaptation to the Python backtesting framework.",
+  "extraction_timestamp": "2026-05-12T18:40:30.727696",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 143.35255074501038,
+    "cost": 0
+  }
+}

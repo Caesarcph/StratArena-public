@@ -1,0 +1,179 @@
+{
+  "ea_id": "EA-1296",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorNonLagDotMACD custom indicator and includes TradeAlgorithms.mqh external library for position management. Multi-algorithm entry modes with custom indicator buffers.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorNonLagDotMACD",
+      "params": {
+        "applied_to": "CLOSE",
+        "filter": 0,
+        "deviation": 0,
+        "fast_method": "SMA",
+        "fast_period": 12,
+        "slow_method": "SMA",
+        "slow_period": 26,
+        "signal_period": 9,
+        "signal_method": "EMA"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for indicator calculation",
+      "formula": "6*max(Fast_Length_,Slow_Length_) + Signal_MA + 1 + (6*max(Fast_Length_,Slow_Length_)+Signal_MA+1) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "MACD histogram (buffer 0)",
+        "right": "zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "MACD histogram (buffer 0)",
+        "right": "previous MACD value",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Signal line (buffer 2)",
+        "right": "previous signal line value",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "MACD histogram (buffer 0)",
+        "right": "Signal line (buffer 2)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "MACD histogram (buffer 0)",
+        "right": "zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "MACD histogram (buffer 0)",
+        "right": "previous MACD value",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Signal line (buffer 2)",
+        "right": "previous signal line value",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "MACD histogram (buffer 0)",
+        "right": "Signal line (buffer 2)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal triggers close of existing position via BuyPosClose/SellPosClose permissions"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "negative MM value = fixed lot size (e.g. -0.1 means 0.1 lots); positive MM value = fraction of deposit per deal"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Four selectable entry algorithms via AlgMode enum: 1) breakdown=MACD crosses zero, 2) MACDtwist=MACD direction change (using 3 bars [0]>[1]>[2] pattern), 3) SIGNALtwist=signal line direction change, 4) MACDdisposition=MACD crosses signal line. Entry signals read from SignalBar (default bar 1=previous completed bar). Close signals are generated simultaneously with opposite open signals when respective BuyPosClose/SellPosClose permissions are enabled. The TradeAlgorithms.mqh library handles BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with embedded position management logic not visible in this source.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must replicate ColorNonLagDotMACD custom indicator logic (NonLagDot moving average algorithm) since it is not a standard MACD. The TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) need reimplementation - they likely contain position existence checks, lot calculation from deposit fraction, SL/TP price computation from pip values, and order execution with deviation. The MM parameter dual-mode (negative=lot, positive=deposit fraction) must be handled. SL/TP of 1000/2000 points likely need digit-adjustment for 5-digit brokers (multiply by 10). Signal logic reads from bar index SignalBar=1 by default, meaning it uses the last completed bar for decisions.",
+  "extraction_timestamp": "2026-05-12T17:56:18.617411",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 74.79268145561218,
+    "cost": 0
+  }
+}

@@ -1,0 +1,197 @@
+{
+  "ea_id": "EA-1338",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorStochNR indicator and depends on external TradeAlgorithms.mqh library for position management, requiring manual recreation of custom indicator logic and trading helper functions",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Stochastic",
+      "name": "ColorStochNR",
+      "params": {
+        "k_period": 5,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "SMA",
+        "price_field": "STO_LOWHIGH",
+        "sensitivity": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for calculation",
+      "formula": "Kperiod+Dperiod+Slowing+1+3+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal timestamp calculation for UpSignalTime/DnSignalTime"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Oscillator main line (buffer 0)",
+        "right": "Level 50",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "ColorStochNR oscillator color state (buffer 2)",
+        "right": "previous color state",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Signal line (buffer 3)",
+        "right": "Signal line previous value",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Oscillator vs Signal disposition (buffer 4)",
+        "right": "Signal state value",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "Signal line (buffer 4)",
+        "right": "Level 50",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Oscillator signal line (buffer 1)",
+        "right": "Level 50",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "ColorStochNR oscillator color state (buffer 2)",
+        "right": "previous color state",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Signal line (buffer 3)",
+        "right": "Signal line previous value",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Oscillator vs Signal disposition (buffer 4)",
+        "right": "Signal state value",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "Signal line (buffer 4)",
+        "right": "Level 50",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position when BuyPosClose/SellPosClose are enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values interpreted as fixed lot size (absolute value), positive values interpreted as deposit share fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Five distinct entry algorithms selectable via Mode enum: Breakdown (oscillator crosses level 50), OscTwist (oscillator direction change via color states 1-4), SignalTwist (signal line direction change), OscDisposition (oscillator crosses signal line via disposition states), SignalBreakdown (signal line crosses level 50). The ColorStochNR custom indicator exposes 5 buffers: buffer 0=main line, buffer 1=signal line, buffer 2=oscillator color/trend state (1-4), buffer 3=signal line values, buffer 4=disposition state (1=above signal, 2=below signal). Signal logic uses previous bar [1] vs current bar [0] comparison. Entry permissions are gated by BuyPosOpen/SellPosOpen booleans; exit permissions by BuyPosClose/SellPosClose. Recount mechanism re-evaluates signals on CopyBuffer failure.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "Requires implementation of ColorStochNR stochastic indicator with noise reduction (Sens parameter) and its 5 output buffers. TradeAlgorithms.mqh must be reverse-engineered or reimplemented: BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, LoadHistory. Position sizing logic is dual-mode (negative=lot, positive=deposit fraction). The 5 entry modes are mutually exclusive and must all be ported. Signal timestamps (UpSignalTime/DnSignalTime) are used for trade identification passed to open functions. The EA uses SeriesInfoInteger for last bar date which has no direct Python equivalent — use bar timestamps instead.",
+  "extraction_timestamp": "2026-05-12T18:47:23.534971",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 217.39306569099426,
+    "cost": 0
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "ea_id": "EA-13644",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load 'FractalAMA_MBK' custom indicator and depends on TradeAlgorithms.mqh external library for all trading operations (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose). Custom indicator buffer logic must be manually replicated.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "FractalAMA_MBK",
+      "params": {
+        "RPeriod": 16,
+        "multiplier": 4.6,
+        "signal_multiplier": 2.5,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - bar duration in seconds for signal time tagging",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen and SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before EA processes signals",
+      "formula": "RPeriod + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "FractalAMA_MBK Buffer 0 (Main Line, bar [1])",
+        "right": "FractalAMA_MBK Buffer 1 (Signal Line, bar [1])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "FractalAMA_MBK Buffer 0 (Main Line, bar [1])",
+        "right": "FractalAMA_MBK Buffer 1 (Signal Line, bar [1])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: long crossover triggers SELL_Close, short crossover triggers BUY_Close"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM parameter (0.1) serves as either lot size or fraction depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Crossover detection uses bar[1] vs bar[0] on the indicator buffers: a signal fires when Buffer0[1]>Buffer1[1] (main above signal on previous bar) AND Buffer0[0]<=Buffer1[0] (main was at or below signal on the bar before that). This is a 2-bar crossover confirmation. The SignalBar input (default=1) allows shifting which bar is treated as the current signal bar; when SignalBar==0, the EA evaluates every tick without waiting for a new bar. Signal timestamps are computed as last bar date + TimeShiftSec, passed to the trade functions for possible pending order logic inside TradeAlgorithms.mqh. GlobalVariableDel_ is called on deinit for cleanup. The Recount flag re-triggers signal evaluation on failed CopyBuffer calls.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The FractalAMA_MBK custom indicator must be ported to Python first - its algorithm (Fractal Adaptive Moving Average with signal line based on multiplier and signal_multiplier) is not available in standard libraries. The TradeAlgorithms.mqh library handles all order execution, position sizing across 5 MarginMode variants, and global variable cleanup - this logic must be reimplemented. Entry logic is straightforward: 2-bar crossover of two indicator buffers. SL/TP are in points (1000/2000) which likely need digit-adjustment (divide by 10 for 5-digit brokers). The SignalBar parameter acts as a bar shift for signal detection, and the new-bar guard (CIsNewBar) should be replicated to prevent multiple entries per bar.",
+  "extraction_timestamp": "2026-05-12T19:57:18.215298",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 208.27020478248596,
+    "cost": 0
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "ea_id": "EA-13214",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorZerolagTriX indicator and includes TradeAlgorithms.mqh for trading logic (BuyPositionOpen, SellPositionOpen, etc.). Custom indicator with 5 factor-weighted TriX components requires recreation in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorZerolagTriX",
+      "params": {
+        "smoothing": 15,
+        "applied_to": "close",
+        "Factor1": 0.05,
+        "TriX_period1": 8,
+        "Factor2": 0.1,
+        "TriX_period2": 21,
+        "Factor3": 0.16,
+        "TriX_period3": 34,
+        "Factor4": 0.26,
+        "TriX_period4": 55,
+        "Factor5": 0.43,
+        "TriX_period5": 89
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for indicator warmup",
+      "formula": "3*max(TriX_period1..5)+2+1+2+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - bar duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorZerolagTriX buffer0 (fast line)",
+        "right": "ColorZerolagTriX buffer1 (slow line)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ColorZerolagTriX buffer0 (fast line)",
+        "right": "ColorZerolagTriX buffer1 (slow line)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: buy close triggered when buffer0 crosses below buffer1 (opposite crossover), sell close triggered when buffer0 crosses above buffer1, controlled by BuyPosClose/SellPosClose input flags"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum (LOT vs MARGIN) determines whether MM value is interpreted as fixed lots or as fraction of deposit margin"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The ColorZerolagTriX is a zero-lag weighted composite of 5 TriX indicators with factors (0.05, 0.10, 0.16, 0.26, 0.43) summing to 1.0. Signal detection uses SignalBar=1 (previous bar) for crossover detection comparing bar[1] vs bar[0] of the indicator buffers. Entry signals are gated by BuyPosOpen/SellPosOpen boolean inputs. Exit-on-reverse is gated by BuyPosClose/SellPosClose boolean inputs. The GlobalVariableDel_ and LoadHistory calls from TradeAlgorithms.mqh handle global variable cleanup and history loading. The crossover logic: for long, Osc1[1]>Osc2[1] (established uptrend) AND Osc1[0]<Osc2[0] (current crossover up); for short, Osc1[1]<Osc2[1] (established downtrend) AND Osc1[0]>Osc2[0] (current crossover down).",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must recreate the ColorZerolagTriX custom indicator in Python. It is a weighted sum of 5 TriX indicators: composite = Factor1*TriX1 + Factor2*TriX2 + Factor3*TriX3 + Factor4*TriX4 + Factor5*TriX5. Each TriX is a triple-smoothed EMA rate-of-change. The smoothing parameter (15) is applied to the final composite. Two buffers are produced (fast/slow lines, likely the composite and its signal line). The TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) need Python equivalents. Position sizing supports LOT mode (fixed lots) and MARGIN mode (fraction of free margin). SL/TP are in points (1000 and 2000 respectively) - may need digit-adjustment for 5-digit brokers. Signal logic compares indicator values at bar[SignalBar] and bar[SignalBar+1] to detect crossovers.",
+  "extraction_timestamp": "2026-05-12T18:18:01.884128",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 97.04043769836426,
+    "cost": 0
+  }
+}

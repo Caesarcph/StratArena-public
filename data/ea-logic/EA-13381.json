@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-13381",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for the ColorMaRsi-Trigger indicator and depends on external TradeAlgorithms.mqh library for all position open/close logic, money management, and new bar detection. The core trading operations are encapsulated in the external library, not in standard MT5 API calls.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorMaRsi-Trigger",
+      "params": {
+        "nPeriodRsi": 3,
+        "nRSIPrice": 6,
+        "nPeriodRsiLong": 13,
+        "nRSIPriceLong": 4,
+        "nPeriodMa": 5,
+        "nMAType": 1,
+        "nMAPrice": 0,
+        "nPeriodMaLong": 10,
+        "nMATypeLong": 1,
+        "nMAPriceLong": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime passed to BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before indicator is valid",
+      "formula": "max(max(max(nPeriodRsi,nPeriodRsiLong),nPeriodMa),nPeriodMaLong) + 2 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorMaRsi-Trigger buffer 1",
+        "right": "zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ColorMaRsi-Trigger buffer 1",
+        "right": "zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose and SellPosClose flags controlled by BuyPosClose/SellPosClose input booleans; opposite signal triggers close of existing position when signal_reversal_close inputs are enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum (LOT=fixed lot, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss). MM input value interpretation depends on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses crossover detection on buffer 1 of the custom ColorMaRsi-Trigger indicator: Value[1]>0 (current signal bar positive) AND Value[0]<=0 (previous signal bar non-positive) triggers BUY_Open; Value[1]<0 AND Value[0]>=0 triggers SELL_Open. Separate boolean inputs (BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose) gate each direction's entry and exit independently. Signal time is computed as SERIES_LASTBAR_DATE + TimeShiftSec for position management. The Recount flag ensures signal recalculation on first tick or after CopyBuffer failure. LoadHistory() is called each tick to ensure bar data availability. All actual trade execution (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) is handled by TradeAlgorithms.mqh library functions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The custom ColorMaRsi-Trigger indicator must be reimplemented in Python since it uses iCustom. Its internal logic combines two RSI periods (3 and 13) with two MA periods (5 EMA and 10 EMA) applied to RSI values, producing a histogram-style signal crossing zero. The TradeAlgorithms.mqh library provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions which need reverse-engineering or reimplementation. The MarginMode enum with 5 modes (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) requires careful Python equivalent. SL/TP of 1000/2000 pips are very large values suggesting these may be in points not pips - verify whether digit adjustment is needed at runtime. The CIsNewBar class and LoadHistory function from the library also need Python equivalents for new-bar detection and data loading.",
+  "extraction_timestamp": "2026-05-12T18:49:51.170246",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 147.63426542282104,
+    "cost": 0
+  }
+}

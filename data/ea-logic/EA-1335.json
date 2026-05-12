@@ -1,0 +1,160 @@
+{
+  "ea_id": "EA-1335",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for the OsHMA indicator (custom indicator, not built-in) and relies on TradeAlgorithms.mqh include for all trade execution logic (position open/close functions), making both the signal source and execution logic dependent on external code that must be manually replicated.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "OsHMA (Oscillator of Hull Moving Average)",
+      "params": {
+        "fast_period": 13,
+        "slow_period": 26
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "fHma2_Period: half-period of fast HMA for minimum bars calculation",
+      "formula": "MathFloor(FastHMA/2)",
+      "used_by": "min_rates_total (bars readiness check)"
+    },
+    {
+      "name": "sHma2_Period: half-period of slow HMA for minimum bars calculation",
+      "formula": "MathFloor(SlowHMA/2)",
+      "used_by": "min_rates_total (bars readiness check)"
+    },
+    {
+      "name": "fSqrt_Period: sqrt of fast HMA period for minimum bars calculation",
+      "formula": "MathFloor(MathSqrt(FastHMA))",
+      "used_by": "min_rates_total (bars readiness check)"
+    },
+    {
+      "name": "sSqrt_Period: sqrt of slow HMA period for minimum bars calculation",
+      "formula": "MathFloor(MathSqrt(SlowHMA))",
+      "used_by": "min_rates_total (bars readiness check)"
+    },
+    {
+      "name": "min_rates_total: minimum number of bars required before EA trades",
+      "formula": "MathMax(fHma2_Period+fSqrt_Period, sHma2_Period+sSqrt_Period) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "OsHMA histogram (mode=breakdown): Value[1] > 0 AND Value[0] <= 0",
+        "right": "zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "OsHMA histogram (mode=twist): Value[1] < Value[2] AND Value[0] > Value[1]",
+        "right": "previous histogram direction",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "OsHMA histogram (mode=breakdown): Value[1] < 0 AND Value[0] >= 0",
+        "right": "zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "OsHMA histogram (mode=twist): Value[1] > Value[2] AND Value[0] < Value[1]",
+        "right": "previous histogram direction",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal triggers close of existing position: buy signal closes short (if SellPosClose=true), sell signal closes long (if BuyPosClose=true). Close is executed before new entry on same tick."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values represent fixed lot size (e.g. -0.1 means 0.1 lots), positive values represent share/fraction of deposit. Logic handled internally by TradeAlgorithms.mqh BuyPositionOpen/SellPositionOpen functions."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Two distinct entry modes selected via AlgMode enum: 'breakdown' (zero-line crossover of OsHMA histogram) and 'twist' (direction change / inflection of OsHMA histogram). In breakdown mode, signal fires when histogram crosses zero: Value[0]<=0 to Value[1]>0 for buy, Value[0]>=0 to Value[1]<0 for sell (note: index 0 is older bar, index 1 is newer bar due to CopyBuffer with SignalBar offset). In twist mode, signal fires on histogram inflection: declining histogram (Value[1]<Value[2]) that starts rising (Value[0]>Value[1]) for buy, rising histogram (Value[1]>Value[2]) that starts falling (Value[0]<Value[1]) for sell. SignalBar=1 means signals are read from the previous completed bar, not the current forming bar. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose booleans act as independent permission gates for each action type. UpSignalTime/DnSignalTime are passed to trade functions for potential pending order timing. Recount flag provides a retry mechanism if CopyBuffer fails.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1) The OsHMA custom indicator must be reimplemented in Python - it is a Hull Moving Average oscillator with fast (13) and slow (26) periods. The HMA calculation requires WMA of WMA with sqrt period adjustment, which must be replicated exactly. 2) TradeAlgorithms.mqh contains all position management (open/close with SL/TP, money management logic for the conditional MM parameter, deviation handling) - this logic must be reimplemented. 3) The MM parameter dual-mode (negative=fixed lots, positive=deposit fraction) is handled inside TradeAlgorithms.mqh and must be explicitly coded. 4) SL/TP are in points (not pips) - no 5-digit adjustment is present in the code itself but TradeAlgorithms.mqh may handle this. 5) Signal indexing: CopyBuffer with SignalBar offset means array index 0 is the OLDER bar and index 1/2 are newer bars - this reverse indexing must be carefully handled in Python. 6) CIsNewBar class and LoadHistory function from TradeAlgorithms.mqh must be replicated for proper new-bar detection. 7) GlobalVariableDel_ cleanup on deinit suggests the EA creates global variables for position tracking that must also be managed.",
+  "extraction_timestamp": "2026-05-12T18:35:13.385500",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 254.9208483695984,
+    "cost": 0
+  }
+}

@@ -1,0 +1,140 @@
+{
+  "ea_id": "EA-13610",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (Ergodic_Ticks_Volume_OSMA) which is not a built-in MT5 indicator, plus external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing algorithms",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Ergodic Ticks Volume OSMA",
+      "params": {
+        "VolumeType": "VOLUME_TICK",
+        "XMA_Method": "MODE_EMA",
+        "XLength1": 12,
+        "XLength2": 12,
+        "XLength3": 1,
+        "XLength4": 5,
+        "XLength5": 5,
+        "XLength6": 5,
+        "XLength7": 3,
+        "XPhase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for indicator warmup",
+      "formula": "GetStartBars(XMA_Method,XLength1,XPhase)+GetStartBars(XMA_Method,XLength2,XPhase)+GetStartBars(XMA_Method,XLength3,XPhase)+GetStartBars(XMA_Method,XLength4,XPhase)+GetStartBars(XMA_Method,XLength5,XPhase)+GetStartBars(XMA_Method,XLength6,XPhase)+GetStartBars(XMA_Method,XLength7,XPhase)+3+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime calculation for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Ind[0] (OSMA buffer 0 at SignalBar)",
+        "right": "Ind[1] (OSMA buffer 0 at SignalBar+1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Ind[0] (OSMA buffer 0 at SignalBar)",
+        "right": "Ind[1] (OSMA buffer 0 at SignalBar+1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: short signal closes long (BuyPosClose=true), long signal closes short (SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lots, BALANCE=MM fraction of balance, FREEMARGIN=MM fraction of free margin, LOSSFREEMARGIN=MM fraction of free margin minus loss, LOSSBALANCE=MM fraction of balance minus loss"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The OSMA indicator produces values where Ind[1]<Ind[2] means OSMA is rising (bullish) and Ind[1]>Ind[2] means OSMA is falling (bearish). The actual entry condition is more nuanced: for long entry, Ind[1]<Ind[2] (OSMA rising) AND Ind[0]>=Ind[1] (current bar OSMA >= previous bar OSMA, confirming upward momentum). For short entry, Ind[1]>Ind[2] (OSMA falling) AND Ind[0]<=Ind[1] (confirming downward momentum). SignalBar=1 means signals are read from the previous completed bar (not current forming bar). When SignalBar=0, signals are evaluated on every tick without new-bar guard. The UpSignalTime/DnSignalTime is set to last bar date + timeframe seconds, used by BuyPositionOpen/SellPositionOpen for trade timing. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose are toggle inputs that enable/disable each direction independently.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The custom Ergodic_Ticks_Volume_OSMA indicator must be reimplemented in Python. It uses 7 smoothing passes with configurable methods (SMA/EMA/SMMA/LWMA/JJMA/JurX/ParMA/T3/VIDYA/AMA) from SmoothAlgorithms.mqh - each of these smoothing algorithms (especially JJMA, JurX, ParMA, T3, VIDYA, AMA) needs a Python equivalent. The TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose which handle margin-based position sizing, stop placement, and order execution - these must be reimplemented with full MarginMode logic. SignalBar parameter allows using bar[1] (completed) or bar[0] (forming) for signal evaluation, which changes whether the strategy is on-bar-close or intrabar. The OSMA calculation chain involves multiple cascading smoothings making exact numerical replication critical for backtest fidelity.",
+  "extraction_timestamp": "2026-05-12T19:38:49.170993",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 75.18545842170715,
+    "cost": 0
+  }
+}

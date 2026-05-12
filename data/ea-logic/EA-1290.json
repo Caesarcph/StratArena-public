@@ -1,0 +1,151 @@
+{
+  "ea_id": "EA-1290",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load '3XMA_Ishimoku' custom indicator with 18 parameters, and depends on two external .mqh libraries (SmoothAlgorithms.mqh for averaging classes and TradeAlgorithms.mqh for trading functions). Custom indicator logic cannot be auto-converted without reimplementing the indicator.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "3XMA_Ishimoku",
+      "params": {
+        "up_period1": 3,
+        "dn_period1": 3,
+        "up_period2": 6,
+        "dn_period2": 6,
+        "up_period3": 9,
+        "dn_period3": 9,
+        "up_mode1": "HIGH",
+        "dn_mode1": "LOW",
+        "up_mode2": "HIGH",
+        "dn_mode2": "LOW",
+        "up_mode3": "HIGH",
+        "dn_mode3": "LOW",
+        "xma1_method": "SMA",
+        "xma2_method": "SMA",
+        "xma3_method": "SMA",
+        "xlength1": 8,
+        "xlength2": 25,
+        "xlength3": 80,
+        "xphase": 15,
+        "buffer0_offset": 0,
+        "buffer1_offset": 0,
+        "buffer2_offset": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for indicator calculation",
+      "formula": "max(max(Up_period1,Dn_period1)+GetStartBars(XMA1,XLength1,XPhase), max(Up_period2,Dn_period2)+GetStartBars(XMA2,XLength2,XPhase), max(Up_period3,Dn_period3)+GetStartBars(XMA3,XLength3,XPhase)) + 2 + SignalBar",
+      "used_by": "BarsCalculated check before signal processing"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal time calculation for UpSignalTime and DnSignalTime"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "XmaValue (buffer 0 of 3XMA_Ishimoku)",
+        "right": "max(UpValue, DnValue) (buffers 1 and 2 of 3XMA_Ishimoku)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "XmaValue (buffer 0 of 3XMA_Ishimoku)",
+        "right": "min(UpValue, DnValue) (buffers 1 and 2 of 3XMA_Ishimoku)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when sell signal detected (XmaValue < min(UpValue, DnValue))",
+      "Short position closed when buy signal detected (XmaValue > max(UpValue, DnValue))"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values represent fixed lot size (abs value), positive values represent deposit share fraction. Default -0.1 means 0.1 fixed lots."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic uses previous bar [1] values for condition check and bar [0] for confirmation: Buy signal when XmaValue[1] > max(UpValue[1], DnValue[1]) AND XmaValue[0] <= max(UpValue[0], DnValue[0]). Sell signal when XmaValue[1] < min(UpValue[1], DnValue[1]) AND XmaValue[0] >= min(UpValue[0], DnValue[0]). The SignalBar input (default 1) allows shifting which bar is used for signal generation. When SignalBar=0, signals are evaluated on every tick instead of only on new bars. Separate boolean inputs control buy/sell entry permissions and long/short close permissions independently. The 3XMA_Ishimoku indicator is a triple smoothed moving average system with Ishimoku-style upper/lower channels derived from high/low price extremes across three periods.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires full reimplementation of 3XMA_Ishimoku custom indicator in Python. The indicator uses three XMA (extended moving average) smoothing passes with configurable methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA) from SmoothAlgorithms.mqh - each smoothing method (especially JJMA, JurX, ParMA, T3, VIDYA, AMA) must be reimplemented. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions and CIsNewBar class - these must also be reimplemented. The MM parameter dual-mode sizing (negative=lot, positive=deposit fraction) must be preserved. Signal logic uses cross of XMA line above/below the channel formed by max/min of upper and lower Ishimoku lines.",
+  "extraction_timestamp": "2026-05-12T17:52:02.091199",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 152.94175124168396,
+    "cost": 0
+  }
+}

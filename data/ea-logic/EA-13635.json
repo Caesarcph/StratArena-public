@@ -1,0 +1,133 @@
+{
+  "ea_id": "EA-13635",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the external 'Force_DiverSign' custom indicator and depends on TradeAlgorithms.mqh library for position opening/closing logic, both of which require manual replication in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Force_DiverSign",
+      "params": {
+        "method1": 1,
+        "period1": 3,
+        "method2": 1,
+        "period2": 7,
+        "applied_volume": 0,
+        "ma_shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "max(iPeriod1,iPeriod2) + max(iPeriod1,iPeriod2) + 5 + max(that, ATR_Period=10) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade signal timestamping"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Force_DiverSign buffer 1 (UpValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Force_DiverSign buffer 0 (DnValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposing divergence signal closes existing position: UpValue signal triggers SELL_Close, DnValue signal triggers BUY_Close. Additionally, when both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled and no close signal on current bar, the EA scans historical bars forward from SignalBar+1 to find a prior divergence signal to determine if a close signal exists."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lot size (MM parameter), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. Actual sizing logic is in TradeAlgorithms.mqh library."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses Force_DiverSign custom indicator which detects divergence between price and Force Index (composite of two MAs applied to volume). Signal is read at SignalBar offset (default bar 1 = previous completed bar). When no close signal is detected on the current signal bar but both open and close permissions are enabled for the same direction, the EA scans forward through historical bars to find a prior close signal. This is a divergence-based reversal strategy: bullish divergence triggers buy/close-sell, bearish divergence triggers sell/close-buy. The Recount static flag ensures signals are re-read if CopyBuffer fails. GlobalVariableDel_ cleanup on deinit suggests persistent state management via global variables.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The Force_DiverSign custom indicator must be reverse-engineered or reimplemented in Python. It applies two MAs (default EMA 3 and EMA 7) to volume data and detects divergence patterns. The TradeAlgorithms.mqh library handles position sizing (5 modes) and order execution - this must be fully reimplemented. The signal scanning loop (lines 128-154) that checks historical bars for close signals must be carefully replicated. SL/TP values of 1000/2000 pips are extremely large suggesting these may be points not pips - verify broker digit conventions. The CIsNewBar class and LoadHistory function from TradeAlgorithms.mqh need Python equivalents. Divergence detection logic is the hardest part since it's encapsulated in the custom indicator.",
+  "extraction_timestamp": "2026-05-12T19:51:09.319992",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 176.57280826568604,
+    "cost": 0
+  }
+}

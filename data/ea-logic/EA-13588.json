@@ -1,0 +1,134 @@
+{
+  "ea_id": "EA-13588",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for EMA-Crossover_Signal indicator and depends on TradeAlgorithms.mqh external library for position sizing and trade execution logic (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, LoadHistory).",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "EMA-Crossover_Signal",
+      "params": {
+        "fast_period": 5,
+        "slow_period": 6,
+        "method": 3,
+        "applied_to": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - bar duration in seconds for signal time calculation",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for trade execution timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "MathMax(FasterMA,SlowerMA)+3+3+SignalBar",
+      "used_by": "BarsCalculated check before processing signals"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA (period 5, LWMA, Close)",
+        "right": "Slow MA (period 6, LWMA, Close)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA (period 5, LWMA, Close)",
+        "right": "Slow MA (period 6, LWMA, Close)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Reverse signal closes opposite position: Up-signal closes sell, Dn-signal closes buy (gated by BuyPosClose/SellPosClose inputs)",
+      "Historical bar scan (bars from SignalBar+1 onward) checks for prior opposite signal to set close flags when both open and close on same side are enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "mm_mode_values": "FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3, LOT=4"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lot size (0.1), BALANCE=MM fraction of balance, FREEMARGIN=MM fraction of free margin, LOSSFREEMARGIN=MM fraction of free margin minus loss, LOSSBALANCE=MM fraction of balance minus loss. Implementation in TradeAlgorithms.mqh."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal is read from bar index SignalBar (default=1, previous bar). When both BuyPosOpen and BuyPosClose (or SellPosOpen and SellPosClose) are enabled and no close signal is active on current bar, the EA scans historical bars forward from SignalBar+1 to find the most recent prior opposite signal and sets the close flag accordingly. This allows the EA to close positions based on older crossover signals that occurred before the current bar. The UpSignalTime/DnSignalTime are set to last bar date + TimeShiftSec (i.e., the open time of the next bar), used by TradeAlgorithms.mqh for trade timing. CIsNewBar class from TradeAlgorithms.mqh guards against repeated intrabar signals. LoadHistory ensures sufficient bar data is loaded. GlobalVariableDel_ cleans up global variables on deinit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The iCustom call to EMA-Crossover_Signal must be reimplemented in Python - it uses two MA buffers (buffer 0=down signal, buffer 1=up signal) outputting non-zero/non-EMPTY_VALUE on signal bars. The TradeAlgorithms.mqh library provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose which encapsulate order sending, margin checking, and position management - all must be reimplemented. The MarginMode conditional sizing logic (5 modes) requires careful replication. The historical bar scan for close-signal detection (lines 124-149) is non-trivial and must be preserved exactly. Signal time calculation (SeriesInfoInteger+TimeShiftSec) is used by the trade functions and likely controls trade validity windows - needs investigation of TradeAlgorithms.mqh to understand usage. Deviation_=10 is the slippage tolerance in points.",
+  "extraction_timestamp": "2026-05-12T19:32:10.780823",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 120.28777861595154,
+    "cost": 0
+  }
+}

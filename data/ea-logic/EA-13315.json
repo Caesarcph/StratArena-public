@@ -1,0 +1,182 @@
+{
+  "ea_id": "EA-13315",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Uses martingale position sizing with KLot multiplier on losses, dynamic lot calculation based on deal history, and stealth SL/TP mode that requires tick-level intrabar monitoring to close positions at virtual SL/TP levels — all highly MT5-dependent with margin-dependent sizing",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands",
+      "params": {
+        "period": 84,
+        "shift": 0,
+        "dev": 1.8,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ADX",
+      "params": {
+        "period": 40
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "BB Upper Band buffer",
+      "formula": null,
+      "used_by": "Sell entry condition"
+    },
+    {
+      "name": "BB Lower Band buffer",
+      "formula": null,
+      "used_by": "Buy entry condition"
+    },
+    {
+      "name": "ADX main line buffer",
+      "formula": null,
+      "used_by": "Buy and Sell entry conditions (must be below ADXLevel)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Ask",
+        "right": "BB Lower Band[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "ADX[1]",
+        "right": "ADXLevel(45)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "LastDealType",
+        "right": "0 or 2 (no deal or last was BUY)",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Bid",
+        "right": "BB Upper Band[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "ADX[1]",
+        "right": "ADXLevel(45)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "LastDealType",
+        "right": "0 or 1 (no deal or last was SELL)",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1400,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 1200,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Stealth mode (Stelth=1): SL/TP are not sent to broker; instead positions are closed programmatically on tick when price movement in points reaches TP or -SL from open price. Labels drawn on chart at virtual SL/TP levels."
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "klot_multiplier": 2.0,
+      "max_lot": 5.0,
+      "reset_to_base_on_max": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "If last deal profit < 0, lot = last_deal_lot * KLot (martingale doubling). If lot exceeds MaxLot, reset to base Lot. If last deal profit >= 0, use base Lot."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 50,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Alternating deal type gate: Buy only allowed if last deal was BUY or none; Sell only allowed if last deal was SELL or none. This creates an alternating entry pattern. Stealth SL/TP mode uses intrabar tick monitoring (lines 140-174) — positions are closed manually when unrealized P/L in points hits TP or -SL thresholds. The IsNewBar function has a bug: Print('New Bar!') is after return(true), so it never executes. The PutLable function has a bug: lines 190-194 (setting color, style, width) are after the return statement inside the if-block, so label properties are never set — labels are created but left with default appearance.",
+  "external_dependencies": [
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Martingale lot sizing requires full deal history tracking. Stealth SL/TP mode requires tick-by-tick simulation to close positions at virtual stop levels — M1 or H1 backtesting would miss intrabar SL/TP hits. The LastDealType alternating gate must track the most recent closed deal type from history. The ADX filter uses buffer index 0 (main ADX line), not the +DI/-DI lines. BB entry uses previous bar values ([1] index with series set to true). Deviation (Slip=50) must be mapped to the Python broker's slippage model. CTrade wrapper in Trade.mqh handles order sending — direct Python equivalent needed with proper error handling and retry logic.",
+  "extraction_timestamp": "2026-05-12T18:28:26.077628",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 56.30768656730652,
+    "cost": 0
+  }
+}

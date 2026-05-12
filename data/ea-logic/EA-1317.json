@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-1317",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (MovingAverage_FN) and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for both indicator calculation and trade execution logic. The custom filter enumeration and XMA smoothing methods require manual recreation in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "MovingAverage_FN",
+      "params": {
+        "filter_number": 44,
+        "method": 4,
+        "period": 12,
+        "phase": 15,
+        "applied_to": 1,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before calculation",
+      "formula": "700 + CXMA.GetStartBars(XMA_Method, XLength, XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal time calculation for position open calls"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Value[0] (MA at SignalBar)",
+        "right": "Value[1] (MA at SignalBar+1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Value[0] (MA at SignalBar)",
+        "right": "Value[1] (MA at SignalBar+1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy closed when MA is declining (Value[1]>Value[2]) and BuyPosClose input is true",
+      "Sell closed when MA is rising (Value[1]<Value[2]) and SellPosClose input is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "If MM is negative, abs(MM) is fixed lot size (0.1 lots). If MM is positive, it represents the share of deposit per deal (fractional sizing). Handled by TradeAlgorithms.mqh BuyPositionOpen/SellPositionOpen."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry requires two conditions: (1) MA direction confirmed by Value[1] vs Value[2] comparison (trending up for buy, trending down for sell), AND (2) Value[0] vs Value[1] confirms the move is continuing. SignalBar=1 means using the previous completed bar (not bar 0). The filter_mode enumeration (N4-N60) selects which harmonic filter number to use in the MovingAverage_FN custom indicator. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose are boolean gates that independently control permission for each trade direction and action. The LoadHistory() call ensures sufficient bar data for IsNewBar() and SeriesInfoInteger() functions. GlobalVariableDel_ in OnDeinit cleans up persistent state from TradeAlgorithms.mqh.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Major challenges: (1) SmoothAlgorithms.mqh contains the entire CXMA class with 10+ smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA) that must be reimplemented - the MovingAverage_FN indicator logic depends on these. (2) TradeAlgorithms.mqh contains BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, LoadHistory, and GlobalVariableDel_ - all trade execution and utility functions must be ported. (3) The MovingAverage_FN custom indicator with its filter_mode harmonic filters must be fully ported before the EA logic can work. (4) No digit adjustment is done in this EA itself - SL/TP of 1000/2000 points are passed directly to trade functions, but check whether TradeAlgorithms.mqh internally adjusts for 5-digit brokers. (5) The conditional MM sizing logic (negative=lot, positive=deposit fraction) is inside TradeAlgorithms.mqh and must be replicated. (6) SignalBar=1 means reading indicator buffer from bar index 1 (last completed bar), copying 3 values at positions [1,2,3] mapped to Value[0,1,2].",
+  "extraction_timestamp": "2026-05-12T18:12:53.006619",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 207.0058035850525,
+    "cost": 0
+  }
+}

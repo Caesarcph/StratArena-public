@@ -1,0 +1,141 @@
+{
+  "ea_id": "EA-1295",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorAML indicator and depends on external TradeAlgorithms.mqh library for all trading operations (open/close positions, money management, new bar detection, history loading). The custom indicator and library must be ported or reimplemented.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorAML",
+      "params": {
+        "Fractal": 6,
+        "Lag": 7,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for indicator calculation",
+      "formula": "Fractal+Lag+2+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorAML buffer 1 at bar[SignalBar+1]",
+        "right": "2",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorAML buffer 1 at bar[SignalBar+1]",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Sell position closed when ColorAML buffer value becomes 2 (buy signal)",
+      "Buy position closed when ColorAML buffer value becomes 0 (sell signal)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values treated as fixed lot size (e.g. -0.1 means 0.1 lots), positive values treated as deposit fraction for money management handled by TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic reads ColorAML buffer 1 values at positions SignalBar and SignalBar+1. Value==2 at bar[SignalBar+1] with Value!=2 at bar[SignalBar] confirms a fresh buy signal (color change to uptrend). Value==0 at bar[SignalBar+1] with Value!=0 at bar[SignalBar] confirms a fresh sell signal (color change to downtrend). The intermediate value 1 appears to represent a neutral/no-signal zone. If SignalBar==0, signals are evaluated on every tick without waiting for a new bar. The Recount flag forces recalculation if CopyBuffer fails. Position close logic is permission-gated: BuyPosClose and SellPosClose booleans control whether opposite-side closes occur on reversal signals.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The ColorAML custom indicator must be ported to Python first - its buffer 1 returns discrete values (0=downtrend, 1=neutral, 2=uptrend). The TradeAlgorithms.mqh library handles all trade execution including money management (MM parameter), position opening/closing with deviation control, and new bar detection - these must be reimplemented. SL/TP are in points (not pips), so verify point-to-pip conversion for the target symbol. The conditional MM logic (negative=fixed lots, positive=deposit fraction) must be carefully replicated. Signal bar indexing uses CopyBuffer with offset SignalBar, reading 2 consecutive values to detect color transitions.",
+  "extraction_timestamp": "2026-05-12T17:55:03.823264",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 80.30000925064087,
+    "cost": 0
+  }
+}

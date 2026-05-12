@@ -1,0 +1,144 @@
+{
+  "ea_id": "EA-13589",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (EMA_Prediction) which is a custom indicator, and depends on external TradeAlgorithms.mqh library for position open/close logic and money management.",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "EMA_Prediction",
+      "params": {
+        "fast_period": 1,
+        "fast_method": 1,
+        "fast_applied_to": 0,
+        "slow_period": 2,
+        "slow_method": 1,
+        "slow_applied_to": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR (internal min_rates_total)",
+      "params": {
+        "period": 12
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    },
+    {
+      "name": "min_rates_total",
+      "formula": "max(max(FastMAPeriod,SlowMAPeriod),ATR_Period)+1+3+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "EMA_Prediction buffer 1 (UpValue)",
+        "right": "0 / EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "EMA_Prediction buffer 0 (DnValue)",
+        "right": "0 / EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal close: UpValue signal closes existing short, DnValue signal closes existing long. Additional bar-by-bar scan (from SignalBar+1 onward) checks for opposing signals to set close flags if both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled and no direct close signal was found on the signal bar."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lot size (MM parameter), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM parameter serves dual purpose: negative values=fixed lots, positive values=percentage fraction of margin/balance depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signals are read from EMA_Prediction custom indicator buffers (buffer 1=Up/buy signal, buffer 0=Down/sell signal) at SignalBar offset (default bar 1 = previous completed bar). Signals are non-zero and not EMPTY_VALUE. When both open and close flags for the same side are enabled (BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose), and no close signal was found on the current signal bar, the EA scans forward through historical bars to find the most recent opposing signal to determine if a close should have occurred. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans act as feature toggles to enable/disable each direction. The signal timestamp is set to last bar date + TimeShiftSec, passed to BuyPositionOpen/SellPositionOpen for position management. Recount flag ensures signal recalculation on CopyBuffer failures. GlobalVariableDel_ cleanup on deinit suggests persistent state management via global variables for position tracking.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "EMA_Prediction (custom indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires reimplementation of the EMA_Prediction custom indicator logic (two EMAs with prediction logic - must obtain the .mq5 source). TradeAlgorithms.mqh position open/close functions must be reimplemented: BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose with margin mode logic, lot calculation, and order execution. The CIsNewBar class and LoadHistory function also need Python equivalents. Signal logic reads from indicator buffer indices 0 and 1, so the custom indicator calculation must be faithfully reproduced. The multi-bar scan for close signals (lines 127-153) is important to replicate exactly. No digit adjustment is done on SL/TP values - they are passed directly in points.",
+  "extraction_timestamp": "2026-05-12T19:34:36.584938",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 145.80313515663147,
+    "cost": 0
+  }
+}
