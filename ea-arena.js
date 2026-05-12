@@ -298,7 +298,7 @@ async function renderEADetail(route) {
  const id = route.params.get("id");
  const ea = (store.eaCatalog || []).find((e) => e.id === id);
  if (!ea) {
-  return `<section class="section"><h2>${getLang() === "zh" ? "未找到 EA" : "EA Not Found"}</h2><p>${getLang() === "zh" ? `不存在 ID 为 \"${id}\" 的智能交易系统。` : `No Expert Advisor with ID "${id}".`}</p><a class="button ghost" href="?page=ea-arena">${getLang() === "zh" ? "返回 EA 竞技场" : "Back to EA Arena"}</a></section>`;
+  return `<section class="section"><h1>${getLang() === "zh" ? "未找到 EA" : "EA Not Found"}</h1><p>${getLang() === "zh" ? `不存在 ID 为 \"${id}\" 的智能交易系统。` : `No Expert Advisor with ID "${id}".`}</p><a class="button ghost" href="?page=ea-arena">${getLang() === "zh" ? "返回 EA 竞技场" : "Back to EA Arena"}</a></section>`;
  }
 
  let analysis = store.eaAnalysis && store.eaAnalysis[id];

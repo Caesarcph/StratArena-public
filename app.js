@@ -991,7 +991,7 @@ function renderArena(route) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>${t("arena.title")}</h2>
+          <h1>${t("arena.title")}</h1>
           <p>${t("arena.desc")}</p>
         </div>
         <details class="score-note">
@@ -1670,7 +1670,7 @@ function renderStrategies(route) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>${t("strategy.library_title")}</h2>
+          <h1>${t("strategy.library_title")}</h1>
           <p>${t("strategy.library_desc")}</p>
         </div>
         <div class="chip-group">
@@ -1744,7 +1744,7 @@ function renderFavorites(route) {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>${t("nav.favorites")}</h2>
+          <h1>${t("nav.favorites")}</h1>
           <p>${t("strategy.favorites_saved", { count: saved.length })}</p>
         </div>
         <div class="chip-group">
@@ -1797,7 +1797,7 @@ function renderStrategyDetail(route) {
   const strategyId = route.params.get("id") || store.strategies[0].id;
   const strategy = store.strategies.find((item) => item.id === strategyId);     
   if (!strategy) {
-    return `<section class="section"><h2>${t("strategy.not_found")}</h2></section>`;
+    return `<section class="section"><h1>${t("strategy.not_found")}</h1></section>`;
   }
 
   const instrument =
@@ -1818,7 +1818,7 @@ function renderStrategyDetail(route) {
       <div class="strategy-header">
         <div>
           <div class="eyebrow">${strategy.id}</div>
-          <h2>${strategy.name}</h2>
+          <h1>${strategy.name}</h1>
           <p>${strategy.description}</p>
           <div class="tag-row">
             ${strategy.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
@@ -2307,14 +2307,14 @@ function renderContentPage(key) {
   const pages = typeof CONTENT_PAGES === "undefined" ? null : CONTENT_PAGES;
   const page = pages ? pages[key] : null;
   if (!page) {
-    return `<section class="section"><h2>${t("common.not_found")}</h2></section>`;
+    return `<section class="section"><h1>${t("common.not_found")}</h1></section>`;
   }
   const meta = page.updated ? t("common.updated", { date: page.updated }) : "";
   return `
   <section class="section content-page">
     <div class="content-hero">
       <div>
-        <h2>${tc(page.title)}</h2>
+        <h1>${tc(page.title)}</h1>
         <p>${tc(page.subtitle)}</p>
           ${meta ? `<div class="content-meta">${meta}</div>` : ""}
         </div>
@@ -2343,7 +2343,7 @@ function renderResearchIndex() {
   <section class="section content-page">
     <div class="content-hero">
       <div>
-        <h2>${researchMeta ? tc(researchMeta.title) : t("nav.research")}</h2>
+        <h1>${researchMeta ? tc(researchMeta.title) : t("nav.research")}</h1>
         <p>${intro}</p>
         <div class="content-meta">${note}</div>
         </div>
@@ -2379,7 +2379,7 @@ function renderResearchArticle(route) {
   if (!article) {
     return `
       <section class="section">
-        <h2>${t("research.article_not_found")}</h2>
+        <h1>${t("research.article_not_found")}</h1>
         <p>${t("research.return_to_index_prefix")} <a class="link" href="?page=research">${t("research.index_label")}</a>.</p>
       </section>
     `;
@@ -2397,7 +2397,7 @@ function renderResearchArticle(route) {
       <div class="content-hero">
         <div>
       <div class="eyebrow">${article.category}</div>
-      <h2>${tc(article.title)}</h2>
+      <h1>${tc(article.title)}</h1>
       <p>${tc(article.summary)}</p>
           ${renderArticleMeta(article)}
           ${renderTagRow(article.tags)}
@@ -2424,7 +2424,7 @@ function renderFaq() {
     <section class="section content-page">
       <div class="content-hero">
         <div>
-          <h2>${t("faq.title")}</h2>
+          <h1>${t("faq.title")}</h1>
           <p>${t("faq.desc")}</p>
         </div>
       </div>
@@ -2453,7 +2453,7 @@ function renderChangelog() {
     <section class="section">
       <div class="section-header">
         <div>
-          <h2>${t("changelog.title")}</h2>
+          <h1>${t("changelog.title")}</h1>
           <p>${t("changelog.desc")}</p>
         </div>
       </div>
