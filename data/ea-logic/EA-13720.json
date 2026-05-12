@@ -1,0 +1,141 @@
+{
+  "ea_id": "EA-13720",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load a custom indicator 'DecEMA' and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution. Signal logic requires the custom indicator's buffer values.",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "DecEMA",
+      "params": {
+        "period": 3,
+        "length": 15,
+        "applied_price": 1,
+        "shift1": 0,
+        "shift2": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before processing",
+      "formula": "2+3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade timing"
+    },
+    {
+      "name": "Value[0], Value[1], Value[2] - DecEMA buffer values at SignalBar, SignalBar+1, SignalBar+2",
+      "formula": "CopyBuffer(InpInd_Handle, 0, SignalBar, 3, Value)",
+      "used_by": "Entry and exit signal logic"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "DecEMA[SignalBar] (Value[0])",
+        "right": "DecEMA[SignalBar+1] (Value[1])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "DecEMA[SignalBar] (Value[0])",
+        "right": "DecEMA[SignalBar+1] (Value[1])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy position closes when DecEMA[SignalBar+1] > DecEMA[SignalBar+2] (downtrend detected) and BuyPosClose input is true",
+      "Sell position closes when DecEMA[SignalBar+1] < DecEMA[SignalBar+2] (uptrend detected) and SellPosClose input is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lot size (MM=0.1 lots), FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=fraction of margin/balance (MM as percentage). Default is LOT mode with 0.1 lots."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic uses a two-tier comparison: first checks trend direction by comparing Value[1] vs Value[2] (DecEMA at SignalBar+1 vs SignalBar+2), then checks for crossover by comparing Value[0] vs Value[1] (DecEMA at SignalBar vs SignalBar+1). Long entry requires downtrend (Value[1]<Value[2]) AND crossover up (Value[0]>Value[1]). Short entry requires uptrend (Value[1]>Value[2]) AND crossover down (Value[0]<Value[1]). This is a trend-reversal-with-confirmation pattern. SignalBar=1 means signals are calculated on the previous completed bar, not the current forming bar. Trade functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) are from TradeAlgorithms.mqh and handle position management internally. GlobalVariableDel_ cleanup on deinit suggests the trade library stores global variables for state tracking.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1. DecEMA custom indicator must be reimplemented in Python - it uses a decimated/double EMA from SmoothAlgorithms.mqh. The algorithm likely applies EMA(3) recursively or uses a decimation approach. Need to examine SmoothAlgorithms.mqh to extract the exact algorithm. 2. TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) encapsulate position management with margin calculation modes - must replicate the LOT/FREEMARGIN/BALANCE sizing logic. 3. The IsNewBar class and SeriesInfoInteger checks for new bar detection need to be replicated with proper bar-time tracking. 4. SL/TP are in points (1000/2000) which may need digit-adjustment for 5-digit brokers - verify with platform_context. 5. SignalBar=1 means using completed bar data, so backtesting should use bar-close prices for signal generation.",
+  "extraction_timestamp": "2026-05-12T20:12:41.974688",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 128.50521898269653,
+    "cost": 0
+  }
+}

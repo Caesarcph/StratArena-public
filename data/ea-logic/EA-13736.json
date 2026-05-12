@@ -1,0 +1,145 @@
+{
+  "ea_id": "EA-13736",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'i-KlPrice' which is a custom indicator with non-standard parameters (two smoothing methods, deviation, custom applied price). Also depends on two external .mqh libraries (SmoothAlgorithms.mqh and TradeAlgorithms.mqh) for smoothing algorithms and trade/money management logic.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "i-KlPrice",
+      "params": {
+        "MA_Method1": 0,
+        "Length1": 100,
+        "Phase1": 15,
+        "MA_Method2": 4,
+        "Length2": 20,
+        "Phase2": 100,
+        "Deviation": 2.0,
+        "Smooth": 20,
+        "IPC": 1,
+        "UpLevel": 50,
+        "DnLevel": -50
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "min_rates_total = GetStartBars(MA_Method1,Length1,Phase1) + GetStartBars(MA_Method2,Length2,Phase2) + 30 + 2 + SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for indicator warmup",
+      "formula": "GetStartBars(MA_Method1,Length1,Phase1) + GetStartBars(MA_Method2,Length2,Phase2) + 30 + 2 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - bar duration in seconds for signal timing",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime calculation for BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "Value[0] and Value[1] - indicator buffer 1 values at SignalBar and SignalBar+1",
+      "formula": "CopyBuffer(InpInd_Handle, 1, SignalBar, 2, Value)",
+      "used_by": "Entry and exit signal logic"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "equal_then_below",
+        "left": "i-KlPrice buffer 1 at SignalBar+1",
+        "right": "4",
+        "direction": "value[1]==4 and value[0]<4",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "equal_then_above",
+        "left": "i-KlPrice buffer 1 at SignalBar+1",
+        "right": "0",
+        "direction": "value[1]==0 and value[0]>0",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy close when i-KlPrice buffer 1 value[1] < 2 (discretionary level threshold)",
+      "Sell close when i-KlPrice buffer 1 value[1] > 2 (discretionary level threshold)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM input (0.1) is interpreted differently based on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The i-KlPrice custom indicator outputs discrete integer values (0-4) in buffer 1 representing price levels relative to deviation bands. Entry signals use state transitions: BUY when value drops from 4 to below 4 (exiting overbought), SELL when value rises from 0 to above 0 (exiting oversold). Exit signals use threshold levels: close buy when value < 2, close sell when value > 2. Signal is evaluated on SignalBar (default=1, previous closed bar). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean inputs act as feature toggles to enable/disable each signal type independently. The Recount flag ensures signal recalculation on CopyBuffer failure. GlobalVariableDel_ is called on deinit for cleanup.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Requires reimplementation of the i-KlPrice custom indicator which uses two smoothing passes (configurable via Smooth_Method enum including JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard SMA/EMA/SMMA/LWMA). The indicator applies: (1) first smoothing of price with MA_Method1/Length1/Phase1, (2) deviation bands calculation with Deviation parameter, (3) second smoothing with MA_Method2/Length2/Phase2, (4) quantization into 5 discrete levels (0-4) based on UpLevel/DnLevel thresholds. The TradeAlgorithms.mqh library must also be ported - it handles position open/close operations with money management (5 margin modes), deviation control, and global variable management. The discrete level-based signal system (0-4 states with threshold transitions) is the core logic and must be faithfully reproduced. SL/TP values of 1000/2000 are in points - need to verify whether digit adjustment (x10 for 5-digit) is needed based on the broker's _Digits/_Point.",
+  "extraction_timestamp": "2026-05-12T20:18:28.047677",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 228.56562399864197,
+    "cost": 0
+  }
+}

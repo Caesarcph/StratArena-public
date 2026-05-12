@@ -1,0 +1,134 @@
+{
+  "ea_id": "EA-13787",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load external 'iAnchMom' indicator and depends on TradeAlgorithms.mqh library for position management (open/close), making it require manual mapping of custom indicator logic and library functions to Python equivalents.",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "iAnchMom (Anchored Momentum)",
+      "params": {
+        "period": 34,
+        "method": 0,
+        "applied_to": 1,
+        "ema_period": 20,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "iAnchMom",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per indicator bar for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime passed to BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator readiness",
+      "formula": "SMAPeriod+1+3+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "iAnchMom[0] (current signal bar)",
+        "right": "iAnchMom[1] (previous signal bar)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "iAnchMom[0] (current signal bar)",
+        "right": "iAnchMom[1] (previous signal bar)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: bearish momentum (Value[1]<Value[2]) triggers close of sell positions; bullish momentum (Value[1]>Value[2]) triggers close of buy positions"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT as default, selectable from FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE/LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects sizing method: LOT=fixed lot size with MM as lot count; FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=fraction of respective margin/balance metric using MM as percentage"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic is a two-level check: (1) Direction determined by iAnchMom[1] vs iAnchMom[2] comparison — if Value[1]<Value[2] momentum is bullish, if Value[1]>Value[2] momentum is bearish; (2) Entry trigger requires Value[0] vs Value[1] confirmation — buy only if Value[0]>=Value[1] in bullish context, sell only if Value[0]<=Value[1] in bearish context. Signal bar offset is configurable (default=1, meaning previous completed bar). The close signals are independent of open gate booleans (BuyPosClose/SellPosClose). Recount flag forces re-evaluation if CopyBuffer fails. Signal timestamps are computed from SERIES_LASTBAR_DATE + TimeShiftSec for each direction.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The iAnchMom custom indicator must be replicated in Python — it combines SMA and EMA into an anchored momentum oscillator. The TradeAlgorithms.mqh library handles BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose — these must be reimplemented with mt5 library calls in Python, including margin-based lot sizing logic. The entry logic uses CopyBuffer with offset SignalBar=1, meaning it reads from 1 bar back (confirmed closed bar), and compares 3 consecutive values [0],[1],[2] where [0] is the most recent of those 3. Signal time is derived from bar date plus period seconds — this timestamp is passed to position open functions, likely for pending order placement or timing logic in the library. GlobalVariableDel_ cleanup in OnDeinit suggests the library tracks state via global variables.",
+  "extraction_timestamp": "2026-05-12T20:22:50.685797",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 178.1267921924591,
+    "cost": 0
+  }
+}

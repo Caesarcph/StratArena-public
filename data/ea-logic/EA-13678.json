@@ -1,0 +1,134 @@
+{
+  "ea_id": "EA-13678",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Exploits negative spread (ask<bid) via depth-of-market (DOM) book scanning with MarketBookGet, uses pending limit orders with tight cancellation loops waiting for position fill, requires tick-level execution and real-time order book access not available in typical Python backtesting frameworks",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Negative spread detection (ask - bid < 0)",
+      "formula": "ask - bid < 0",
+      "used_by": "entry_rules short and long conditions"
+    },
+    {
+      "name": "DOM best ask (lowest sell price in order book)",
+      "formula": "min(book_price[i].price where type==BOOK_TYPE_SELL)",
+      "used_by": "entry_rules short and long pricing"
+    },
+    {
+      "name": "DOM best bid (highest buy price in order book)",
+      "formula": "book_price[i].price where type==BOOK_TYPE_BUY (first encountered after sell entries)",
+      "used_by": "entry_rules short pricing and close logic"
+    },
+    {
+      "name": "Tick size for SL/TP normalization (negative_spread.mq5 v1 only)",
+      "formula": "SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE)",
+      "used_by": "SL and TP calculation in v1"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ask (from DOM)",
+        "right": "bid (from DOM)",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "ask (from DOM)",
+        "right": "bid (from DOM)",
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 5000,
+      "params": {
+        "note": "SlPips input, applied as price+/-SlPips in v1 with tick_size normalization, raw price offset in v2"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 5000,
+      "params": {
+        "note": "TpPips input, only applied to SELL_LIMIT in v2; BUY_LIMIT has no TP set; v1 uses tick_size normalization"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "v2: Places BUY_LIMIT at ask to close short position when position exists; v1: Uses CTrade.PositionClose to close all positions immediately after tradeOpened is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 1.0,
+    "params": {
+      "v1_default": 0.01,
+      "v2_default": 1.0
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 0,
+    "filling": "RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Two variants exist: v1 (negative_spread.mq5) uses OnTick with market orders (ORDER_TYPE_SELL) when negative spread detected, then immediately closes position via CTrade.PositionClose. v2 (negative_spread_forts.mq5) uses OnBookEvent with DOM depth data, places SELL_LIMIT at bid when no position and negative spread exists, then enters a busy-wait loop deleting the limit order if bid price changes before position fills. When position exists, places BUY_LIMIT at ask to close, with same busy-wait deletion logic. The FORTS version subscribes to market book (DOM) via MarketBookAdd and uses MarketBookGet for real-time bid/ask from order book rather than SymbolInfoDouble. The core strategy exploits negative spread anomalies (ask < bid) to guarantee risk-free entry. The busy-wait loops (while(i==PositionsTotal())) are problematic design - they block the EA thread waiting for position fill, deleting the pending order if the DOM price moves away from the order price. This is a high-frequency scalping strategy that requires tick-level DOM data and low-latency execution, making it unsuitable for standard bar-based backtesting.",
+  "external_dependencies": [
+    "trade/trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "This EA is fundamentally incompatible with standard Python backtesting frameworks (backtrader, vectorbt, etc.) because: (1) It relies on DOM/Level-2 order book data via MarketBookGet, which is not available in typical OHLCV datasets. (2) The core signal is a negative spread (ask<bid) which is an ultra-transient market microstructure anomaly requiring tick-by-tick bid/ask data with sub-millisecond resolution. (3) The busy-wait loop pattern (while(PositionsTotal()==i)) is an anti-pattern that cannot be replicated in event-driven backtest engines. (4) The FORTS variant specifically targets Russian derivatives exchange with specific order filling rules (ORDER_FILLING_RETURN). A Python conversion would need: custom tick-level data feed with full DOM snapshots, a simulated order matching engine that can produce negative spreads, and an event loop that handles pending order placement/cancellation within the same tick. The v1 variant is simpler (market orders on negative spread, immediate close) and could be approximated with tick data containing bid/ask, but the edge relies on execution speed impossible to simulate accurately.",
+  "extraction_timestamp": "2026-05-12T20:06:10.715106",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 74.3722677230835,
+    "cost": 0
+  }
+}

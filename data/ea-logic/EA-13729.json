@@ -1,0 +1,145 @@
+{
+  "ea_id": "EA-13729",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'i-BandsPrice' with custom smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA) from external SmoothAlgorithms.mqh, plus custom trade management from TradeAlgorithms.mqh. The indicator is not a built-in MT5 indicator and the custom smoothing algorithms have no Python equivalents without manual reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Bollinger",
+      "name": "i-BandsPrice (Custom Bollinger with Price Oscillator)",
+      "params": {
+        "xma_method": "SMA",
+        "xlength": 100,
+        "xphase": 15,
+        "bands_period": 100,
+        "dev": 2.0,
+        "smooth": 5,
+        "applied_price": "CLOSE",
+        "up_level": 25,
+        "dn_level": -25
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "GetStartBars(XMA_Method,XLength,XPhase)+BandsPeriod+30+2+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars before indicator is valid",
+      "formula": "GetStartBars(XMA_Method,XLength,XPhase)+1+BandsPeriod+30+(2+SignalBar)",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - time offset for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime calculation for BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "Value[2] - indicator buffer 1 values at SignalBar and SignalBar+1",
+      "formula": "CopyBuffer(InpInd_Handle,1,SignalBar,2,Value)",
+      "used_by": "Entry and exit signal logic"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "i-BandsPrice buffer 1 at bar[SignalBar+1]",
+        "right": "4",
+        "direction": "equal_then_fall_below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "i-BandsPrice buffer 1 at bar[SignalBar+1]",
+        "right": "0",
+        "direction": "equal_then_rise_above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close buy when indicator buffer value < 2 (crosses below threshold 2)",
+      "Close sell when indicator buffer value > 1 (crosses above threshold 1)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "margin_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects sizing method: LOT=fixed lot, FREEMARGIN=free margin fraction, BALANCE=balance fraction, LOSSFREEMARGIN=loss-free-margin fraction, LOSSBALANCE=loss-balance fraction. MM=0.1 serves as either lot size or fraction depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses discrete state values from i-BandsPrice indicator buffer 1: value==4 then falling below 4 triggers buy; value==0 then rising above 0 triggers sell. Exit uses threshold crossings: buy closes when value<2, sell closes when value>1. The indicator buffer appears to encode a state machine with values 0-4 representing price position relative to Bollinger Bands. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans act as gate toggles for each signal direction. Recount flag triggers recalculation on first tick or after CopyBuffer failure. GlobalVariableDel_ cleanup on deinit suggests persistent state across restarts.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The i-BandsPrice custom indicator must be reimplemented in Python. It combines Bollinger Bands with a custom smoothing algorithm (selected from 10 methods including JJMA, JurX, ParMA, T3, VIDYA, AMA via SmoothAlgorithms.mqh). The indicator outputs discrete state values (0-4) in buffer 1, not continuous values. SmoothAlgorithms.mqh contains non-standard moving average implementations (JJMA, JurX, ParMA, T3, VIDYA, AMA) that have no direct Python library equivalents - each must be ported manually. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with built-in position management, money management (5 MarginMode variants), and deviation handling - these must be reimplemented. GetStartBars() from SmoothAlgorithms.mqh calculates warmup periods per smoothing method. The CIsNewBar class for new bar detection needs a Python equivalent. The signal logic uses integer state comparisons (==4, <4, ==0, >0, >1, <2) from the indicator buffer, which simplifies rule translation once the indicator is ported. SL/TP of 1000/2000 pips are extremely large (likely points not pips on 5-digit), verify against symbol _Point.",
+  "extraction_timestamp": "2026-05-12T20:14:39.481170",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 117.5056049823761,
+    "cost": 0
+  }
+}

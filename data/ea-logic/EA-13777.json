@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-13777",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load the 'i_Trend' custom indicator, and depends on TradeAlgorithms.mqh for BuyPositionOpen/SellPositionOpen/Close functions and money management logic. Custom indicator and external library must be replicated manually.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "i_Trend",
+      "params": {
+        "price_type": 1,
+        "ma_period": 13,
+        "ma_method": 1,
+        "ma_applied_price": 0,
+        "bb_period": 20,
+        "bb_deviation": 2.0,
+        "bb_applied_price": 0,
+        "bb_mode": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of indicator timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime for trade signal timestamping"
+    },
+    {
+      "name": "min_rates_total - minimum bars for indicator warmup",
+      "formula": "MathMax(MAPeriod, BBPeriod) + 3 + SignalBar",
+      "used_by": "BarsCalculated check before processing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "i_Trend buffer 0 (Indicator line)",
+        "right": "i_Trend buffer 1 (Signal line)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "i_Trend buffer 0 (Indicator line)",
+        "right": "i_Trend buffer 1 (Signal line)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: BUY_Close triggered when Ind crosses below Sign; SELL_Close triggered when Ind crosses above Sign"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects sizing method: FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss, LOT=fixed lots. Default mode is LOT with MM=0.1"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic uses two-bar comparison: Ind[1]>Sign[1] (previous bar indicator above signal) AND Ind[0]<=Sign[0] (current bar indicator at or below signal) triggers BUY_Open - this is a crossover from the previous bar where the indicator was above and now crossed to at-or-below. The inverse logic applies for SELL_Open. Signal is evaluated only on new bar (NB.IsNewBar) or when Recount is true. The Recount flag resets on successful copy and sets to true on copy failure, providing a retry mechanism. UpSignalTime/DnSignalTime are set to SERIES_LASTBAR_DATE + TimeShiftSec, used by BuyPositionOpen/SellPositionOpen for trade timing. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose input flags allow independently enabling/disabling each direction and action.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1) The i_Trend custom indicator must be reverse-engineered or reimplemented in Python - it combines MA and Bollinger Bands with a custom price type enum. 2) TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/Close functions with 5 margin modes (MMMode enum) - these must be reimplemented, including the signal-time-based order logic. 3) The crossover detection uses previous bar (index 1) vs current bar (index 0) from CopyBuffer with SignalBar offset - note the inverted logic: BUY opens when Ind was above Sign and crossed DOWN to <=, which suggests the i_Trend indicator has an inverted interpretation (indicator below signal = bullish). 4) SL/TP are in points (1000/2000) - need to verify if these are raw points or already pip-adjusted for 5-digit brokers. 5) CIsNewBar class from TradeAlgorithms.mqh must be replicated for new-bar detection. 6) LoadHistory() and GlobalVariableDel_() are TradeAlgorithms.mqh utilities.",
+  "extraction_timestamp": "2026-05-12T20:19:52.558066",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 84.50957703590393,
+    "cost": 0
+  }
+}
