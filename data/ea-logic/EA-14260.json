@@ -1,0 +1,136 @@
+{
+  "ea_id": "EA-14260",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (ColorXCCXCandle) requiring the custom .ex5 file, plus two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms. Custom indicator buffers must be replicated in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorXCCXCandle",
+      "params": {
+        "DSmoothMethod": "MODE_JJMA",
+        "DPeriod": 15,
+        "DPhase": 15,
+        "MSmoothMethod": "MODE_T3",
+        "MPeriod": 15,
+        "MPhase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars before indicator is valid",
+      "formula": "GetStartBars(DSmoothMethod,DPeriod,DPhase) + GetStartBars(MSmoothMethod,MPeriod,MPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal timestamp calculation for trade functions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorXCCXCandle buffer 4 at SignalBar",
+        "right": "2",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorXCCXCandle buffer 4 at SignalBar",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose triggered when ColorXCCXCandle buffer4[SignalBar]==0 (bearish color), SellPosClose triggered when buffer4[SignalBar]==2 (bullish color)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot from MM param, FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=MM as fraction of respective equity measure"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Entry uses ColorXCCXCandle buffer index 4 (color buffer). Long signal: Clr[1]==2 (current bar bullish) AND Clr[0]<2 (previous bar not bullish) — requires color transition to bullish. Short signal: Clr[1]==0 (current bar bearish) AND Clr[0]>0 (previous bar not bearish) — requires color transition to bearish. BuyPosClose/SellPosClose are separate booleans gated by input params. When SignalBar==0, the EA recalculates every tick (intrabar); otherwise only on new bar. Recount flag triggers recalculation on next tick if CopyBuffer fails. Signal timestamp is set to last bar date + timeframe seconds for trade identification. BuyPosOpen and SellPosOpen are mutually gated: long entry only if Clr[0]<2 (prior bar wasn't already bullish), short entry only if Clr[0]>0 (prior bar wasn't already bearish).",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The ColorXCCXCandle custom indicator must be fully reimplemented in Python. It uses two smoothing passes from SmoothAlgorithms.mqh: a dominant smoothing (default JJMA, period 15, phase 15) and a minor smoothing (default T3, period 15, phase 15). The JJMA (JMA) and T3 algorithms are non-trivial adaptive smoothers that need faithful porting. The color buffer (index 4) outputs 0=bearish, 1=neutral, 2=bullish. Trade execution functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_) come from TradeAlgorithms.mqh and handle margin calculation, order sending, and position management — these must be replaced with Python broker API calls. The position_gate logic is embedded in the trade functions, not explicitly checked before signal generation. SL/TP of 1000/2000 pips are likely intended as points (not pips), so for 5-digit brokers this equals 100/200 pips — verify with original author intent.",
+  "extraction_timestamp": "2026-05-12T22:22:36.724730",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 270.51036643981934,
+    "cost": 0
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "ea_id": "EA-14234",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for XMA_Range_Channel indicator and includes two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing methods. Entry/exit logic depends on custom indicator buffer values that have no built-in MT5 equivalent.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "XMA_Range_Channel",
+      "params": {
+        "method": 0,
+        "period": 7,
+        "phase": 100,
+        "applied_to": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars before indicator is valid",
+      "formula": "GetStartBars(XMA_Method, XLength, XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade position timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Clr[1] (buffer 8, bar SignalBar+1)",
+        "right": "1",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Clr[0] (buffer 8, bar SignalBar)",
+        "right": "2",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Clr[1] (buffer 8, bar SignalBar+1)",
+        "right": "2",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Clr[0] (buffer 8, bar SignalBar)",
+        "right": "1",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: buy close triggered when Clr[1]<2 and not EMPTY_VALUE (down signal appears); sell close triggered when Clr[1]>1 and not EMPTY_VALUE (up signal appears)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lots (MM as lot size); FREEMARGIN/BALANCE=MM as fraction of free margin/balance; LOSSFREEMARGIN/LOSSBALANCE=MM as fraction of margin minus floating loss. MM=0.1 with LOT mode means 0.1 lots fixed."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic reads buffer 8 (color/zone buffer) of XMA_Range_Channel. Clr[1]>1 indicates upper channel breakout (buy zone), Clr[1]<2 indicates lower channel breakout (sell zone). Clr[0] value checks confirm transition: buy opens when previous bar entered zone and current bar was not already in zone (Clr[0]<2 or EMPTY). Signal time is set to last bar date + timeframe shift, used by BuyPositionOpen/SellPositionOpen for pending/market order timing. BuyPosOpen/SellPosClose/SellPosOpen/BuyPosClose are independent boolean toggles allowing partial strategy activation. Recount flag forces re-evaluation when CopyBuffer fails. LoadHistory is called each tick to ensure bar data availability.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Requires reverse-engineering XMA_Range_Channel buffer 8 logic. The indicator uses SmoothAlgorithms.mqh which implements 10 smoothing methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA). Buffer 8 is a color/zone classification buffer, not a standard price series. Must replicate the entire XMA_Range_Channel indicator computation in Python. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, LoadHistory, GetStartBars - all need Python equivalents. The MarginMode enum provides 5 different money management modes that must each be implemented. Signal bar shift (default 1) means signals are read from the previous completed bar, not the current forming bar.",
+  "extraction_timestamp": "2026-05-12T22:10:14.853685",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 176.2436385154724,
+    "cost": 0
+  }
+}

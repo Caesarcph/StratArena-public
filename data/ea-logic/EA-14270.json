@@ -1,0 +1,149 @@
+{
+  "ea_id": "EA-14270",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'Dots' which is a custom indicator requiring separate implementation. Depends on external TradeAlgorithms.mqh library for position open/close logic. Signal logic depends on custom indicator buffer values that have no built-in equivalent.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Dots",
+      "params": {
+        "Length": 10,
+        "Filter": 0,
+        "IPC": 1,
+        "PriceShift": 0,
+        "Shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "Indicator internal period = Length*4+(Length-1)+1 = Length*5, min_rates_total = Length*5+1+2+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Phase = Length-1",
+      "formula": "Length-1",
+      "used_by": "min_rates_total calculation for indicator readiness check"
+    },
+    {
+      "name": "Cycle constant",
+      "formula": "4",
+      "used_by": "min_rates_total calculation"
+    },
+    {
+      "name": "Len = Length*Cycle+Phase",
+      "formula": "Length*4+(Length-1)",
+      "used_by": "min_rates_total calculation"
+    },
+    {
+      "name": "min_rates_total = Len+1+2+SignalBar",
+      "formula": "Length*4+(Length-1)+1+2+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    },
+    {
+      "name": "TimeShiftSec = PeriodSeconds(InpInd_Timeframe)",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Dots indicator buffer 1 value at SignalBar+1 (Clr[1])",
+        "right": "0 (no uptrend previously)",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any",
+        "custom_detail": "Long entry when Clr[1]==0 (was downtrend/bearish) AND Clr[0]==1 (now uptrend/bullish), meaning trend reversal from down to up. BuyPosOpen input must be true. Signal fires on crossover of Dots color buffer from 0 to 1."
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Dots indicator buffer 1 value at SignalBar+1 (Clr[1])",
+        "right": "1 (was uptrend previously)",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any",
+        "custom_detail": "Short entry when Clr[1]==1 (was uptrend/bullish) AND Clr[0]==0 (now downtrend/bearish), meaning trend reversal from up to down. SellPosOpen input must be true. Signal fires on crossover of Dots color buffer from 1 to 0."
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal triggers close: long close on bearish reversal (Clr[1]==1), short close on bullish reversal (Clr[1]==0). Close is gated by BuyPosClose/SellPosClose input booleans."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses. The MM input (0.1) serves as either lot size or percentage depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The Dots custom indicator buffer 1 outputs a color/trend state: 0=bearish, 1=bullish. The EA reads 2 consecutive values starting at SignalBar (default 1, meaning previous completed bar) to detect trend reversals. Signal is only evaluated on new bars (NB.IsNewBar) or on Recount after failed buffer reads. UpSignalTime and DnSignalTime are calculated as last bar datetime + TimeShiftSec, passed to BuyPositionOpen/SellPositionOpen functions for trade timing. The TradeAlgorithms.mqh library handles all actual order placement and position management including the MarginMode-based lot calculation. Close logic executes before open logic on each tick - existing positions are closed before new ones are opened on reversal signals.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "Requires reimplementation of the Dots custom indicator logic (source not available in this file, must be obtained separately). The TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_) must be reimplemented - they handle order execution, margin-based lot calculation, and global variable cleanup. The MarginMode enum with 5 modes (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) requires careful implementation for position sizing. SL/TP are in points (not pips) - 1000/2000 points = 100/200 pips on 5-digit, but no digit adjustment is present in the code so values are used as-is. Signal logic is straightforward: trend state crossover on custom indicator buffer. The CIsNewBar class and LoadHistory function from TradeAlgorithms.mqh also need Python equivalents.",
+  "extraction_timestamp": "2026-05-12T22:29:15.046669",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 181.7214891910553,
+    "cost": 0
+  }
+}
