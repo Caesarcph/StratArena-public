@@ -1,0 +1,134 @@
+{
+  "ea_id": "EA-13928",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'KPrmSt' custom indicator and depends on TradeAlgorithms.mqh external library for position open/close logic, money management, and new bar detection",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "KPrmSt",
+      "params": {
+        "Per1": 14,
+        "Per2": 3,
+        "Per3": 3,
+        "Per4": 5,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "KPrmSt",
+      "derived_period": "min_rates_total = max(Per1,Per4)+2+2+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal time stamping",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime passed to BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before EA processes signals",
+      "formula": "int(MathMax(Per1,Per4))+2+2+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "KPrmSt Buffer 0 (Ma1)",
+        "right": "KPrmSt Buffer 1 (Ma2)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "KPrmSt Buffer 0 (Ma1)",
+        "right": "KPrmSt Buffer 1 (Ma2)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy closed when Ma1[1]<Ma2[1] (opposite signal), Sell closed when Ma1[1]>Ma2[1] (opposite signal)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects between fixed lot (LOT) and deposit fraction modes; MM=0.1 is interpreted as 0.1 lots when LOT, or as percentage/fraction in other MarginMode modes - exact modes defined in TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses SignalBar=1 (previous bar) for crossover detection: Ma1[1]>Ma2[1] AND Ma1[0]<=Ma2[0] for long (buffer 0 crosses above buffer 1 on the signal bar, confirmed by relationship on current bar). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean inputs that can independently disable long entries, short entries, short closes, or long closes. GlobalVariableDel_ on deinit suggests the TradeAlgorithms library tracks a global variable for position state. Recount flag triggers re-evaluation on the same bar if CopyBuffer fails.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "KPrmSt is a custom indicator without available Python equivalent - must reverse-engineer or port the KPrmSt indicator logic separately. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose/GlobalVariableDel_/CIsNewBar - all must be reimplemented. Crossover logic uses CopyBuffer with SignalBar offset: compares buffer values at index [1] vs [0] where [1] is SignalBar bars back and [0] is SignalBar-1. The conditional position sizing (MMMode enum) requires understanding the LOT/percentage/fraction modes from TradeAlgorithms.mqh. SL/TP are in points (integer), need to convert to price subtract/add: SL_price = entry - StopLoss_*_Point, TP_price = entry + TakeProfit_*_Point. Deviation is in points for slippage control.",
+  "extraction_timestamp": "2026-05-12T21:11:56.164766",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 153.24916672706604,
+    "cost": 0
+  }
+}

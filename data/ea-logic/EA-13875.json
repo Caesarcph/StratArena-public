@@ -1,0 +1,164 @@
+{
+  "ea_id": "EA-13875",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the 'ColorZerolagJCCX' custom indicator which is not a built-in MT5 indicator. Also includes TradeAlgorithms.mqh external library for position management (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar). Multi-component custom indicator with 5 weighted factors requires replication in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorZerolagJCCX",
+      "params": {
+        "smoothing": 15,
+        "Smooth": 8,
+        "JPhase": 100,
+        "IPC": 1,
+        "Factor1": 0.05,
+        "JCCX_period1": 8,
+        "Factor2": 0.1,
+        "JCCX_period2": 21,
+        "Factor3": 0.16,
+        "JCCX_period3": 34,
+        "Factor4": 0.26,
+        "JCCX_period4": 55,
+        "Factor5": 0.43,
+        "JCCX_period5": 89
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - bar duration in seconds for signal timing",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for position open calls"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before EA starts trading",
+      "formula": "3*32+2+1+2+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "Osc1 - buffer 0 of ColorZerolagJCCX (main/jaw line)",
+      "formula": "CopyBuffer(handle,0,SignalBar,2)",
+      "used_by": "Entry and exit crossover logic"
+    },
+    {
+      "name": "Osc2 - buffer 1 of ColorZerolagJCCX (signal/teeth line)",
+      "formula": "CopyBuffer(handle,1,SignalBar,2)",
+      "used_by": "Entry and exit crossover logic"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal bar",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal bar",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Osc1 (ColorZerolagJCCX buffer 0)",
+        "right": "Osc2 (ColorZerolagJCCX buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Osc1 (ColorZerolagJCCX buffer 0)",
+        "right": "Osc2 (ColorZerolagJCCX buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose is enabled when Osc1[1]<Osc2[1] (bearish crossover on previous bars) - signal-based close of long positions",
+      "SellPosClose is enabled when Osc1[1]>Osc2[1] (bullish crossover on previous bars) - signal-based close of short positions"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum (LOT vs other margin modes) controls interpretation of MM value. When MMMode=LOT, MM is treated as fixed lot size. When other modes, MM is a fraction of margin/deposit."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The ColorZerolagJCCX indicator is a zero-lag JCCX oscillator composed of 5 weighted JCCX components (factors 0.05, 0.10, 0.16, 0.26, 0.43 with periods 8, 21, 34, 55, 89). Each component uses JJMA smoothing (Smooth=8, JPhase=100). The crossover logic uses SignalBar=1 (previous completed bar) for signal detection: Osc1[1] vs Osc2[1] determines the prevailing direction, and Osc1[0] vs Osc2[0] at the signal bar confirms the crossover event. BuyPosOpen/SellPosOpen input booleans gate whether entries are allowed. BuyPosClose/SellPosClose gate whether signal-reversal closes are allowed. The Recount flag ensures failed CopyBuffer calls trigger recalculation on next tick. The CIsNewBar class from TradeAlgorithms.mqh controls per-bar signal generation. GlobalVariableDel_ is called on deinit for cleanup.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must replicate the ColorZerolagJCCX custom indicator which is a weighted sum of 5 JCCX components each using JJMA (JMA) smoothing. The JJMA/JMA algorithm is proprietary and complex - consider using a JMA Python implementation or approximating with a very smooth EMA. The zero-lag composition formula (weighted sum of 5 CCI-like oscillators) must be faithfully reproduced. Signal logic uses bars [1] and [0] from CopyBuffer with SignalBar offset - in Python this maps to comparing previous-bar and current-bar indicator values. The TradeAlgorithms.mqh library handles position open/close with margin mode logic - this must be reimplemented in Python (LOT mode = fixed lots, other modes = margin-based sizing). SL/TP of 1000/2000 points are large values suggesting this EA is designed for H4 timeframe swing trading. No digit adjustment is performed in the EA code itself - the SL/TP values are passed directly to the trading functions, so pip conversion depends on symbol digits.",
+  "extraction_timestamp": "2026-05-12T20:55:52.353370",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 222.22786855697632,
+    "cost": 0
+  }
+}

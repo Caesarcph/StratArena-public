@@ -1,0 +1,156 @@
+{
+  "ea_id": "EA-1384",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load ColorXADX indicator (custom indicator, not built-in), and depends on external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorXADX",
+      "params": {
+        "method": 8,
+        "period": 14,
+        "phase": 100,
+        "applied_to": 1,
+        "shift": 0,
+        "extra_high_level": 30,
+        "level2": 0,
+        "level3": 0,
+        "style": 5,
+        "color": 16711680,
+        "draw_begin": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "XADX.GetStartBars(XMA_Method,ADX_Period,ADX_Phase)*2+2+3+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "GetStartBars(XMA_Method,ADX_Period,ADX_Phase)*2+2+3+SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade signal timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "MPlus (DI+ buffer 0, bar[1])",
+        "right": "MMinus (DI- buffer 1, bar[1])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "ADX (buffer 2, bar[SignalBar])",
+        "right": "ExtraHighLevel (30)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "MPlus (DI+ buffer 0, bar[1])",
+        "right": "MMinus (DI- buffer 1, bar[1])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "ADX (buffer 2, bar[SignalBar])",
+        "right": "ExtraHighLevel (30)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when MPlus[1]<MMinus[1] (DI+ crosses below DI- on previous bar) if BuyPosClose enabled",
+      "Short position closed when MPlus[1]>MMinus[1] (DI+ crosses above DI- on previous bar) if SellPosClose enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": -0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values represent fixed lot size (absolute value), positive values represent share of deposit in a deal. Default MM=-0.1 means fixed 0.1 lots."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses bar[1] vs bar[0] comparison for DI crossover detection: MPlus[1]>MMinus[1] confirms crossover happened on the completed bar, while MPlus[0]<=MMinus[0] confirms the prior bar had DI+ below DI-. This is a two-bar crossover confirmation pattern. ADX must be above ExtraHighLevel as a trend strength filter. Signal is only evaluated on new bar or when Recount flag is set (retried on data copy failure). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean gates that can disable specific directions. The TradeAlgorithms.mqh library handles actual position opening/closing with embedded position management logic.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1. The ColorXADX custom indicator must be reimplemented in Python - it uses the CXMA class from SmoothAlgorithms.mqh which implements T3/JurX/ParMA/VIDYA/AMA smoothing algorithms. 2. The ADX with custom smoothing (not standard Wilder smoothing) requires porting the CXMA.GetStartBars and CXMA smoothing logic. 3. TradeAlgorithms.mqh must be analyzed to understand BuyPositionOpen/SellPositionOpen/SellPositionClose/BuyPositionClose behavior - these handle the conditional MM logic (negative=lot, positive=deposit fraction) and position existence checks. 4. The two-bar crossover pattern (bar[1] vs bar[0] for directional index comparison) must be preserved exactly. 5. SL/TP values of 1000/2000 points suggest 5-digit broker context - verify if TradeAlgorithms.mqh performs digit adjustment internally. 6. SignalBar parameter allows using non-latest bar for signal generation (default=1, meaning previous completed bar).",
+  "extraction_timestamp": "2026-05-12T20:44:57.809826",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 294.0154891014099,
+    "cost": 0
+  }
+}

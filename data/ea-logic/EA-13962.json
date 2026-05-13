@@ -1,0 +1,146 @@
+{
+  "ea_id": "EA-13962",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'XKRI_Histogram' custom indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms. Multi-timeframe logic with indicator on separate timeframe from chart.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "XKRI_Histogram",
+      "params": {
+        "period": 20,
+        "method": 0,
+        "ratio": 1.0,
+        "applied_to": 1,
+        "xma_method": 4,
+        "xma_length": 7,
+        "xma_phase": 15,
+        "signal_bar": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "min_rates_total = KRIPeriod+1 + GetStartBars(XMA_Method,XLength,XPhase) + 3+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timestamp alignment",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen, SellPositionOpen (UpSignalTime, DnSignalTime)"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before indicator is ready",
+      "formula": "KRIPeriod+1 + GetStartBars(XMA_Method,XLength,XPhase) + 3+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "XKRI_Histogram buffer0[SignalBar]",
+        "right": "XKRI_Histogram buffer0[SignalBar+1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "XKRI_Histogram buffer0[SignalBar]",
+        "right": "XKRI_Histogram buffer0[SignalBar+1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose enabled when histogram Value[1]>Value[2] (declining histogram indicates downtrend); SellPosClose enabled when Value[1]<Value[2] (rising histogram indicates uptrend)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot size, FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=fraction of margin/balance (MM parameter as fraction). MM=0.1 with LOT mode means 0.1 lots fixed; with other modes means 10% of the respective base."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic uses histogram slope (3-bar comparison): Value[1]<Value[2] (histogram declining) + Value[0]>Value[1] (current bar higher than previous = bullish reversal) triggers BUY. Value[1]>Value[2] (histogram rising) + Value[0]<Value[1] (current bar lower than previous = bearish reversal) triggers SELL. This is a momentum-reversal strategy: enter long when declining histogram starts turning up, enter short when rising histogram starts turning down. SignalBar input controls which bar offset to use (default=1, previous completed bar). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean gates that can independently enable/disable each trade direction. The indicator runs on a separate timeframe (default H4) from the chart. GlobalVariableDel_ cleanup on deinit suggests persistent state management via global variables.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Requires reimplementation of XKRI_Histogram custom indicator (needs its .mq5 source to replicate in Python). TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/Close functions which contain money management and order execution logic that must be ported. SmoothAlgorithms.mqh provides JJMA and other smoothing methods (GetStartBars, etc.) that must be replicated. The histogram slope comparison logic (3 values from CopyBuffer at offsets SignalBar, SignalBar+1, SignalBar+2 mapped to Value[0], Value[1], Value[2]) must be carefully preserved. The MarginMode conditional sizing needs careful handling - LOT mode uses MM as fixed lot, other modes use MM as percentage. Signal timestamps (UpSignalTime/DnSignalTime) passed to trade functions likely control trade timing in the TradeAlgorithms library. Deviation=10 points for slippage control must be mapped to Python broker API slippage parameters.",
+  "extraction_timestamp": "2026-05-12T21:21:13.916119",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 182.58506774902344,
+    "cost": 0
+  }
+}

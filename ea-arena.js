@@ -1,3 +1,9 @@
+function md(text) {
+  if (!text) return "";
+  if (typeof marked !== "undefined" && marked.parse) return marked.parse(text);
+  return text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+}
+
 const EA_CATEGORIES = [
   { value: "Trend Following", key: "category.trend_following" },
   { value: "Momentum", key: "category.momentum" },
@@ -408,9 +414,9 @@ function renderEADetail(route) {
   const prosList = isEn ? (analysis.pros_en || analysis.pros || []) : (analysis.pros || []);
     const consList = isEn ? (analysis.cons_en || analysis.cons || []) : (analysis.cons || []);
     const impsList = isEn ? (analysis.improvements_en || analysis.improvements || []) : (analysis.improvements || []);
-    const prosHtml = prosList.map((p) => `<li>${p}</li>`).join("");
-    const consHtml = consList.map((c) => `<li>${c}</li>`).join("");
-    const impsHtml = impsList.map((i) => `<li>${i}</li>`).join("");
+    const prosHtml = prosList.map((p) => `<li>${md(p)}</li>`).join("");
+    const consHtml = consList.map((c) => `<li>${md(c)}</li>`).join("");
+    const impsHtml = impsList.map((i) => `<li>${md(i)}</li>`).join("");
 
     let riskHtml = "";
     if (analysis.risk_assessment) {
@@ -445,9 +451,9 @@ function renderEADetail(route) {
       </div>`;
     }
 
-    const strategyText = isEn ? (analysis.strategy_analysis_en || analysis.summary_en || analysis.strategy_analysis || analysis.summary || "") : (analysis.strategy_analysis || analysis.summary || "");
-    analysisHtml = `
-    <div class="ea-section"><h2>${getLang() === "zh" ? "策略分析" : "Strategy Analysis"}</h2><div class="ea-analysis-text">${strategyText}</div></div>
+const strategyText = isEn ? (analysis.strategy_analysis_en || analysis.summary_en || analysis.strategy_analysis || analysis.summary || "") : (analysis.strategy_analysis || analysis.summary || "");
+analysisHtml = `
+<div class="ea-section"><h2>${getLang() === "zh" ? "策略分析" : "Strategy Analysis"}</h2><div class="ea-analysis-text">${md(strategyText)}</div></div>
     ${paramsHtml}
     <div class="ea-section ea-pros-cons">
       <div class="ea-pros"><h3>${getLang() === "zh" ? "优势" : "Strengths"}</h3><ul>${prosHtml || `<li>${getLang() === "zh" ? "未评估" : "Not evaluated"}</li>`}</ul></div>
@@ -482,7 +488,7 @@ function renderEADetail(route) {
 
     <div class="ea-info-grid">${infoItems}</div>
 
-    ${analysis && analysis.summary ? `<div class="ea-section"><h2>${getLang() === "zh" ? "摘要" : "Summary"}</h2><p>${analysis.summary}</p></div>` : ""}
+    ${analysis && (analysis.summary || analysis.summary_en) ? `<div class="ea-section"><h2>${getLang() === "zh" ? "摘要" : "Summary"}</h2><div>${md(isEn ? (analysis.summary_en || analysis.summary) : analysis.summary)}</div></div>` : ""}
 
     ${backtestHtml}
 

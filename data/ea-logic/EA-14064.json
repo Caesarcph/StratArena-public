@@ -1,0 +1,144 @@
+{
+  "ea_id": "EA-14064",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for a non-standard indicator (ColorSchaffDeMarkerTrendCycle) and depends on external TradeAlgorithms.mqh library for all trade execution and money management logic, which must be manually reimplemented.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorSchaffDeMarkerTrendCycle",
+      "params": {
+        "fast_deMarker": 23,
+        "slow_deMarker": 50,
+        "cycle": 10,
+        "highLevel": 60,
+        "lowLevel": -60,
+        "ma_method": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "3*max(Fast_DeMarker, Slow_DeMarker)+Cycle+1+3+SignalBar+1",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade execution timing"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal bar end",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal bar end",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorSchaffDeMarkerTrendCycle buffer 1 [1]",
+        "right": "5",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorSchaffDeMarkerTrendCycle buffer 1 [1]",
+        "right": "2",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy closed when Color[1]<2 (indicator in sell zone) and BuyPosClose enabled",
+      "Sell closed when Color[1]>5 (indicator in buy zone) and SellPosClose enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing method: LOT=fixed lot size (MM=0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM input (0.1) serves as either lot size or percentage fraction depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The indicator uses buffer index 1 (color/trend buffer) with integer-coded zones: values >5 indicate bullish zone, values <2 indicate bearish zone, values 2-5 are neutral/transition. Entry requires both a prior-bar zone signal (Color[1] in zone) AND a confirmation from the current reference bar (Color[0] crossing the zone threshold). Buy entry: Color[1]>5 AND Color[0]<6 (i.e., still in buy zone). Sell entry: Color[1]<2 AND Color[0]>1 (still in sell zone). SignalBar=1 means signals are read from bar[1] (previous completed bar) by default. When SignalBar=0, the EA processes every tick without waiting for a new bar. The BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose booleans act as master switches to independently enable/disable each trade direction and close-on-reversal logic. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions that encapsulate all order sending, position checking, and lot calculation - these must be fully reimplemented.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The ColorSchaffDeMarkerTrendCycle custom indicator must be fully reimplemented in Python - it is a Schaff Trend Cycle variant applied to DeMarker oscillator. The indicator has two buffers; buffer 1 encodes trend direction as integer color codes (>5=bullish, <2=bearish). TradeAlgorithms.mqh must be reimplemented: it provides 5 key functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_) plus the MarginMode enum and CIsNewBar class. The MarginMode enum supports 5 money management modes. SL/TP are in points (not pips) - verify whether 1000/2000 need digit-adjustment for 5-digit brokers (likely yes, effectively 100/200 pips for 5-digit). The new-bar guard uses CIsNewBar class from TradeAlgorithms.mqh. Signal timing uses UpSignalTime/DnSignalTime derived from bar end time, suggesting trades may be intended for next-bar-open execution.",
+  "extraction_timestamp": "2026-05-12T21:38:10.124797",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 180.356431722641,
+    "cost": 0
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "ea_id": "EA-1389",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for both EF_distance and Flat-Trend indicators (custom indicators not available as built-in MT5 functions). Depends on external SmoothAlgorithms.mqh and TradeAlgorithms.mqh libraries for smoothing algorithms and trade execution logic. Multi-indicator signal confirmation adds complexity.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "EF_distance",
+      "params": {
+        "length": 10,
+        "power": 2.0,
+        "applied_price": 1,
+        "mode": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Flat-Trend",
+      "params": {
+        "stdev_period": 20,
+        "stdev_method": 3,
+        "stdev_length": 5,
+        "stdev_phase": 15,
+        "atr_period": 20,
+        "atr_method": 3,
+        "atr_length": 5,
+        "atr_phase": 15,
+        "mode": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for calculation",
+      "formula": "MathMax(2*XLength+3+SignalBar, MathMax(StDevPeriod+GetStartBars(StDev_Method,StDevLength,StDevPhase), ATRPeriod+GetStartBars(ATR_Method,ATRLength,ATRPhase))+1)",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "Volatility threshold from Flat-Trend buffer",
+      "formula": "Vol[0] compared against Volatil enum (V1=0, V2=1, V3=2)",
+      "used_by": "Entry signal gate - buy/sell only when Vol[0]>=Volatil"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "EF_distance[0] (current bar)",
+        "right": "EF_distance[1] (previous bar)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "EF_distance[1] (bar-1)",
+        "right": "EF_distance[2] (bar-2)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "Flat-Trend volatility buffer[0]",
+        "right": "Volatil threshold (V3=2)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "EF_distance[0] (current bar)",
+        "right": "EF_distance[1] (previous bar)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "EF_distance[1] (bar-1)",
+        "right": "EF_distance[2] (bar-2)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "Flat-Trend volatility buffer[0]",
+        "right": "Volatil threshold (V3=2)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: sell signal triggers BUY_Close, buy signal triggers SELL_Close, gated by BuyPosClose/SellPosClose input flags"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values = fixed lot size (e.g. -0.1 = 0.1 lots), positive values = share of deposit fraction. The TradeAlgorithms.mqh library handles this conditional logic internally."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EF_distance indicator produces a smoothed price line. Entry logic detects a 'turn' in the EF_distance line: Value[1]<Value[2] means the line was declining (bar-1 below bar-2), and Value[0]>Value[1] means it has turned up at current bar - this triggers buy. Conversely, Value[1]>Value[2] with Value[0]<Value[1] triggers sell. The Flat-Trend indicator acts as a volatility filter: trades only execute when its buffer value >= the Volatil enum threshold. SignalBar=1 means signals are read from bar index 1 (last completed bar), not bar 0 (forming bar). The Recount flag ensures data is re-fetched if CopyBuffer fails. The BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose input booleans act as master switches for each trade direction and exit type.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Two custom indicators (EF_distance, Flat-Trend) must be ported or replaced. SmoothAlgorithms.mqh provides XMA class with GetStartBars() and various smoothing methods (LWMA etc) - these map to standard moving average implementations. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose and helper functions (LoadHistory, GlobalVariableDel_, CIsNewBar) - these must be reimplemented in Python. The conditional MM sizing (negative=fixed lots, positive=deposit fraction) needs careful handling. The EF_distance turning-point logic is straightforward to replicate. The Flat-Trend volatility filter requires porting both StDev and ATR smoothed calculations. Entry signals use bars [0],[1],[2] relative to SignalBar, so the logic operates on the 3 most recent completed bars by default.",
+  "extraction_timestamp": "2026-05-12T21:02:20.118231",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 230.69721007347107,
+    "cost": 0
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "ea_id": "EA-13854",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load ColorZerolagJJRSX custom indicator and depends on TradeAlgorithms.mqh external library for position management. Custom indicator logic is opaque without its source, and the .mqh library contains trade execution helpers that must be manually replicated.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorZerolagJJRSX",
+      "params": {
+        "smoothing": 15,
+        "Smooth": 8,
+        "JPhase": 100,
+        "IPC": "PRICE_CLOSE",
+        "Factor1": 0.05,
+        "JJRSX_period1": 8,
+        "Factor2": 0.1,
+        "JJRSX_period2": 21,
+        "Factor3": 0.16,
+        "JJRSX_period3": 34,
+        "Factor4": 0.26,
+        "JJRSX_period4": 55,
+        "Factor5": 0.43,
+        "JJRSX_period5": 89
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - bar duration in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "3*32+2+1+2+SignalBar = 101+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorZerolagJJRSX Buffer0 (Osc1)",
+        "right": "ColorZerolagJJRSX Buffer1 (Osc2)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ColorZerolagJJRSX Buffer0 (Osc1)",
+        "right": "ColorZerolagJJRSX Buffer1 (Osc2)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose and SellPosClose input flags can independently disable signal-based closing on opposite crossover"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum (LOT vs risk_percent) determines whether MM is interpreted as fixed lots or deposit fraction; default LOT mode means MM=0.1 is fixed 0.1 lots"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Entry uses two-bar crossover: Osc1[1]>Osc2[1] on previous bar confirms current state, then Osc1[0]<Osc2[0] on signal bar triggers long entry (and vice versa for short). This is a zero-lag composite JJRSX oscillator with 5 weighted components (Factors 0.05-0.43, periods 8-89). Signal only evaluated on new bar or when SignalBar==0 (intrabar). Recount flag re-evaluates signals if CopyBuffer fails. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans independently gate each trade action. UpSignalTime/DnSignalTime passed to trade functions likely for pending order timing or logging.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "ColorZerolagJJRSX is a custom indicator with 5 weighted JJRSX sub-components; its logic must be ported from the .mq5 source or approximated in Python using JJMA-smoothed RSI equivalents. TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, LoadHistory) must be reimplemented. The MMMode enum offers LOT vs fractional sizing modes. SL/TP of 1000/2000 pips are likely raw points not adjusted for 5-digit brokers - verify whether TradeAlgorithms.mqh internally applies digit adjustment. New-bar guard means only one signal evaluation per completed bar unless SignalBar=0.",
+  "extraction_timestamp": "2026-05-12T20:52:10.124515",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 217.93705534934998,
+    "cost": 0
+  }
+}
