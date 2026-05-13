@@ -1,0 +1,161 @@
+{
+  "ea_id": "EA-16994",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iBands indicator with standard params. Simple Bollinger Band breakout entry/exit logic. Fixed or balance-based lot sizing. Trade library includes (CTrade, CPositionInfo, etc.) are standard MT5 Trade library wrappers, not custom logic. No iCustom, no multi-timeframe, no hedging, no grid, no martingale scaling beyond simple balance-proportional lots.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands",
+      "params": {
+        "period": 4,
+        "shift": 0,
+        "dev": 2,
+        "applied_to": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ExtProfitMade - adjusted profit target in points",
+      "formula": "InpProfitMade * digits_adjust (digits_adjust=10 if 5-digit, else 1)",
+      "used_by": "take_profit exit rule and SL/TP price calculation"
+    },
+    {
+      "name": "ExtLossLimit - adjusted stop loss in points",
+      "formula": "InpLossLimit * digits_adjust (digits_adjust=10 if 5-digit, else 1)",
+      "used_by": "stop_loss exit rule and SL/TP price calculation"
+    },
+    {
+      "name": "ExtBDistance - adjusted breakout distance in points",
+      "formula": "InpBDistance * digits_adjust (digits_adjust=10 if 5-digit, else 1)",
+      "used_by": "entry signal threshold"
+    },
+    {
+      "name": "ExtLots - dynamic lot size when LotIncrease=true",
+      "formula": "NormalizeDouble(m_account.Balance() / StartingBalance, 1), capped at 500.0",
+      "used_by": "position_sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "below",
+        "left": "Close[0]",
+        "right": "Lower_Band - ExtBDistance * Point",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "Close[0]",
+        "right": "Upper_Band + ExtBDistance * Point",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 30,
+      "params": {
+        "input_pips": 20,
+        "additional_pips": 10,
+        "digit_adjusted": true,
+        "note": "SL = Price +/- (ExtLossLimit + 10) * Point; ExtLossLimit = InpLossLimit * digits_adjust"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 13,
+      "params": {
+        "input_pips": 3,
+        "additional_pips": 10,
+        "digit_adjusted": true,
+        "note": "TP = Price +/- (ExtProfitMade + 10) * Point; ExtProfitMade = InpProfitMade * digits_adjust"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Soft profit/loss close: On each tick, if open position profit in points >= ExtProfitMade * Point, close position for profit. If profit <= -ExtLossLimit * Point, close for loss. These are additional soft exits independent of the broker-side SL/TP set at order open."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 1.0,
+    "params": {
+      "fixed_lots_input": 1.0,
+      "lot_increase_enabled": true,
+      "starting_balance_divisor": "m_account.Balance() / ExtLots at init",
+      "max_lots_cap": 500.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "If LotIncrease=true, lots = NormalizeDouble(Balance / StartingBalance, 1), capped at 500.0; if LotIncrease=false, lots = InpLots (fixed). StartingBalance = AccountBalance / ExtLots at initialization."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses a dual exit system: (1) broker-side SL/TP set at order open with +10 extra points beyond the input values, and (2) soft tick-level monitoring that closes positions when unrealized profit >= ExtProfitMade*Point or unrealized loss <= -ExtLossLimit*Point. The OneOrderOnly flag controls whether only one position at a time is allowed (default true). When OneOrderOnly=false, TradeAllowed flag resets on new bar to allow one entry per bar. Entry signals are mean-reversion style: buy when price closes below lower band minus distance, sell when price closes above upper band plus distance.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/OrderInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1. Standard MT5 Trade library includes - all have equivalent Python mt5 library calls. 2. The digit_adjust logic (multiply by 10 for 5-digit brokers) must be replicated: check symbol digits, if 3 or 5 then multiply input pip values by 10. 3. iBands with PRICE_OPEN (applied_to=1) - use mt5.copy_band_from_indicator or compute from open prices. 4. Soft exit monitoring requires checking open position profit on every tick - implement in main loop. 5. The LotIncrease feature needs account balance tracking - straightforward with mt5.account_info(). 6. Entry uses iClose(0) which is the current bar's close (bar index 0) - in Python backtesting this means current candle close. 7. The +10 point offset on SL/TP prices at order open vs the soft exit thresholds (without +10) means broker SL/TP are wider than the soft close targets - the soft close will typically trigger first. 8. New bar detection via iTime comparison - replicate with timestamp tracking.",
+  "extraction_timestamp": "2026-05-13T07:32:19.196753",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 146.63366174697876,
+    "cost": 0
+  }
+}

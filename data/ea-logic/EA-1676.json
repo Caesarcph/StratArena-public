@@ -1,0 +1,133 @@
+{
+  "ea_id": "EA-1676",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for MUV_NorDIFF_Cloud custom indicator and relies on TradeAlgorithms.mqh external library for all trade execution (open/close logic), making both signal generation and order management dependent on external code that must be manually replicated.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "MUV_NorDIFF_Cloud",
+      "params": {
+        "MAPeriod": 14,
+        "Momentum": 1,
+        "KPeriod": 14,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before EA trades",
+      "formula": "MAPeriod+Momentum+KPeriod+3+SignalBar",
+      "used_by": "BarsCalculated sufficiency check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "MUV_NorDIFF_Cloud buffer 4 (UpValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "MUV_NorDIFF_Cloud buffer 5 (DnValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Historical scan for close signals: when both buy and sell open/close are enabled and no direct close signal from current bar, the EA scans backward from SignalBar+1 through all bars to find the most recent opposite signal in indicator buffers 4/5 to trigger close of the opposing position"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode_options": "FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3, LOT=4"
+    },
+    "max_positions": 1,
+    "conditional_logic": "When MMMode=LOT, MM is treated as fixed lot size; otherwise MM represents a share (fraction) of financial resources per MarginMode enum (free margin, balance, loss share of free margin, or loss share of balance)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a two-phase close signal detection: (1) current bar signal from indicator buffers 4 (up) and 5 (down) at SignalBar offset, and (2) when both buy and sell open/close permissions are enabled but no close signal was found on the current bar, it performs a backward scan through historical bars starting from SignalBar+1 to find the last opposite-direction signal for position closing. Signal timestamps are calculated as SERIES_LASTBAR_DATE + TimeShiftSec, used by the trading functions for pending-like timing. The Recount flag ensures re-reading of indicator data if CopyBuffer fails. Input booleans BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose act as directional trade permission gates.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The custom MUV_NorDIFF_Cloud indicator must be fully reimplemented in Python (it uses 6 buffers, EA reads buffers 4 and 5 for up/down signals). TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, LoadHistory, GlobalVariableDel_ and CIsNewBar - all must be reimplemented. The conditional money management (MM + MMMode) with 5 modes needs careful mapping. The backward historical scan for close signals (lines 135-161) is an unusual pattern that must be faithfully reproduced. SL/TP are in raw points (not pips), so no 5-digit adjustment is applied at the EA level - the point values are passed directly to TradeAlgorithms which handles execution. Signal timestamps use SERIES_LASTBAR_DATE + PeriodSeconds for trade timing.",
+  "extraction_timestamp": "2026-05-13T05:52:59.734647",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 171.3823049068451,
+    "cost": 0
+  }
+}

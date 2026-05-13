@@ -1,0 +1,153 @@
+{
+  "ea_id": "EA-17066",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only standard MT5 functions (CopyRates, CopyHigh, CopyLow, no iCustom calls). Entry/exit rules are simple. Fixed lot sizing. Standard library includes (Trade\\*.mqh) have Python equivalents. No custom indicators, no external trading logic libraries, no grid/martingale.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "25-Bar High",
+      "params": {
+        "period": 25,
+        "type": "MODE_HIGH"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "25-Bar Low",
+      "params": {
+        "period": 25,
+        "type": "MODE_LOW"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "OpCl: 24-bar open minus 1-bar close (cumulative rollback up)",
+      "formula": "rates[24].open - rates[1].close",
+      "used_by": "Long entry condition"
+    },
+    {
+      "name": "ClOp: 1-bar close minus 24-bar open (cumulative rollback down)",
+      "formula": "rates[1].close - rates[24].open",
+      "used_by": "Short entry condition"
+    },
+    {
+      "name": "ClLo: 1-bar close minus 25-bar lowest low",
+      "formula": "rates[1].close - iLowest(LOW,25)",
+      "used_by": "Not directly used in entry (computed but unused)"
+    },
+    {
+      "name": "HiCl: 25-bar highest high minus 1-bar close",
+      "formula": "iHighest(HIGH,25) - rates[1].close",
+      "used_by": "Not directly used in entry (computed but unused)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "OpCl (rates[24].open - rates[1].close)",
+        "right": "ExtCorridor",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ClOp (rates[1].close - rates[24].open)",
+        "right": "ExtCorridor",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 5,
+      "params": {
+        "trail_start_pips": 5,
+        "trail_step_pips": 5
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Time-based forced close: all positions closed when hour==22 and min>45"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 0
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry window restricted to day_of_week==InpDayOfWeek (default Friday), hour==0, min<=3. The EA measures price rollback over 24 bars: long if price has rolled down sufficiently (open[24]-close[1] > corridor), short if price has rolled up sufficiently (close[1]-open[24] > corridor). SL/TP are set relative to current bar open price (OpD=rates[0].open). ClLo and HiCl are computed but not used in entry decisions. Forced close at 22:45 each day.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Simple rollback strategy. Key logic: measure cumulative price movement over 24 bars, enter if rollback exceeds corridor threshold. Time filter restricts entry to a specific day at midnight. Trailing stop activates after profit exceeds trailing_stop+trailing_step. Standard Trade library classes map to simple broker API calls in Python. The iHighest/iLowest helper functions need reimplementation as rolling max/min over lookback window. Note: ClLo and HiCl variables are computed but unused - can be omitted in Python.",
+  "extraction_timestamp": "2026-05-13T08:21:09.561246",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 178.54723167419434,
+    "cost": 0
+  }
+}

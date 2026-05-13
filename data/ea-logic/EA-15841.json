@@ -1,0 +1,147 @@
+{
+  "ea_id": "EA-15841",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for Volume_Weighted_MA indicator (not a built-in MT5 indicator) and depends on TradeAlgorithms.mqh for money management and trade execution functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar). These external dependencies must be manually replicated in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Volume_Weighted_MA",
+      "params": {
+        "period": 12,
+        "applied_price": 1,
+        "applied_volume": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - bar duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime for trade timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required",
+      "formula": "Length + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "VWMA[1]",
+        "right": "VWMA[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "VWMA[0]",
+        "right": "VWMA[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "VWMA[1]",
+        "right": "VWMA[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "VWMA[0]",
+        "right": "VWMA[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose/SellPosClose flags are set when opposite VWMA crossover occurs, closing opposite side positions before opening new ones"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lots (0.1), FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=fraction of available margin or balance scaled by MM input (0.1 = 10%). Positive MM with non-LOT modes = deposit fraction; LOT mode = fixed lot size."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Entry requires two conditions simultaneously: (1) VWMA[1] < VWMA[2] for long / VWMA[1] > VWMA[2] for short (MA declining/rising between bars 2 and 1), AND (2) VWMA[0] > VWMA[1] for long / VWMA[0] < VWMA[1] for short (MA turning up/down on most recent bar). This is a VWMA turning-point strategy - enter when the volume-weighted MA reverses direction. SignalBar=1 means signals are read from 1 bar ago (completed bar), not the forming bar, but Value[0] reads from offset SignalBar which is bar 1, and Value[1]=bar2, Value[2]=bar3. When SignalBar=0, the EA processes on every tick without new-bar guard. The Recount flag re-evaluates signals if CopyBuffer fails. BuyPosClose/SellPosClose/SellPosOpen/BuyPosOpen input booleans act as master switches to enable/disable each trade direction and close action independently. UpSignalTime/DnSignalTime are computed as last bar datetime + bar period seconds, used by TradeAlgorithms.mqh for trade timing/expiration logic.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "Volume_Weighted_MA (custom indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1. The Volume_Weighted_MA custom indicator must be reimplemented in Python using numpy/pandas - it is a volume-weighted moving average that can use tick or real volume. 2. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions which encapsulate position checking, lot sizing based on MarginMode, order sending with deviation, and SL/TP setting - all must be reimplemented. 3. CIsNewBar class must be reimplemented for new-bar detection. 4. The GlobalVariableDel_ function cleans up global variables on deinit - can be omitted in Python. 5. LoadHistory ensures history is loaded - not needed in Python with pre-loaded data. 6. SL=1000 and TP=2000 are in POINTS not pips - no digit adjustment is performed in the EA, but the user must be aware these are raw point values (1000 points = 100 pips on 5-digit, 1000 pips on 4-digit). 7. Signal logic uses 3 consecutive VWMA values to detect turning points - ensure array indexing matches MT5's series ordering when converting to pandas.",
+  "extraction_timestamp": "2026-05-13T02:40:49.150510",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 255.38819003105164,
+    "cost": 0
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "ea_id": "EA-1648",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (Color3rdGenXMA) and external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and money management. Multiple margin modes and complex position sizing require manual conversion.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Color3rdGenXMA",
+      "params": {
+        "method": 1,
+        "length": 50,
+        "phase": 15,
+        "applied_price": 5,
+        "double_smooth_length": 100,
+        "shift": 0,
+        "price_shift": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "2*XLength for inner smoothing (2*50=100)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for indicator calculation",
+      "formula": "CXMA.GetStartBars(XMA_Method,2*XLength,XPhase) + CXMA.GetStartBars(XMA_Method,XLength,XPhase) + 2 + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal bar end",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen signal timestamp"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal bar end",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen signal timestamp"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "equal",
+        "left": "Color3rdGenXMA buffer 1 at SignalBar",
+        "right": "2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "equal",
+        "left": "Color3rdGenXMA buffer 1 at SignalBar",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Time-based exit: positions closed after TimeMin (720 minutes) holding period via CloseCheck()",
+      "Signal-based exit: BuyPosClose/SellPosClose flags allow closing on opposite indicator signals (disabled by default)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "mm_share": 0.1,
+      "margin_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum: FREEMARGIN (share of free funds), BALANCE (share of balance), LOSSFREEMARGIN (loss share of free funds), LOSSBALANCE (loss share of balance), LOT (fixed lot). Default LOT mode uses MM=0.1 as fixed lot size; other modes use MM as share/fraction of account."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 8,
+      "end_hour": 8
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal is read from Color3rdGenXMA buffer 1: value 2 = uptrend (buy signal), value 0 = downtrend (sell signal), value 1 presumably = neutral/no signal. Entry is gated by exact hour:minute match (StartHour:StartMinute), so trades only open at one specific minute per day. The signal persists intrabar (BUY_Open1/SELL_Open1 stay true) but only triggers at the configured time. Time-based forced exit after 720 minutes (12 hours). CloseCheck() forces exit of any open position exceeding the hold time. BuyPosClose and SellPosClose default to false, meaning signal-reversal closing is disabled by default.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The Color3rdGenXMA custom indicator must be reimplemented in Python or its buffer values pre-computed and fed as data. The SmoothAlgorithms.mqh library contains 10+ smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard SMA/EMA/SMMA/LWMA) - these are non-trivial to replicate. The TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with 5 margin modes; these must be reimplemented. The time-gated entry (single minute per day) is unusual and must be preserved. The SignalBar=1 default means signals are read from the previous completed bar. For backtesting, the indicator's buffer 1 color values (0/1/2) must be reconstructed from the 3rd-generation XMA calculations.",
+  "extraction_timestamp": "2026-05-13T04:51:48.175958",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 189.7735095024109,
+    "cost": 0
+  }
+}

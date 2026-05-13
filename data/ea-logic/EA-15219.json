@@ -1,0 +1,130 @@
+{
+  "ea_id": "EA-15219",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for LeManSignal indicator and includes TradeAlgorithms.mqh for trade execution logic, both external dependencies that require manual reconstruction",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "LeManSignal",
+      "params": {
+        "period": 12
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal expiry",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "3+LPeriod+SignalBar",
+      "used_by": "BarsCalculated check before processing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "LeManSignal buffer 1 (UpValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "LeManSignal buffer 0 (DnValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Historical signal scan: if BuyPosClose enabled and no direct close signal, scans historical bars from SignalBar+1 onward for a prior DnValue signal (DnValue!=0 && DnValue!=EMPTY_VALUE && UpValue==EMPTY_VALUE) to trigger BUY_Close; same logic mirrored for SELL_Close with UpValue signals",
+      "Conflicting signals cancel all actions: if both BUY_Open and SELL_Open are true simultaneously, all four trade flags (BUY_Open, SELL_Open, BUY_Close, SELL_Close) are reset to false"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM input is negative for fixed lots (absolute value), positive for deposit fraction percentage. MM=-0.1 means 0.1 lots fixed size"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal is read from bar index SignalBar (default 1, previous bar). On new bar or when Recount is true, indicator buffers are read. UpValue on buffer 1 triggers buy open/sell close; DnValue on buffer 0 triggers sell open/buy close. When both buy and sell open signals appear simultaneously, all signals are cancelled. An extended historical scan from SignalBar+1 to end of chart looks for prior opposite close signals when no direct close signal exists and both open+close are enabled for same side. Recount flag is set on CopyBuffer failure to retry next tick. LoadHistory is called to ensure bar data availability. BuyPosOpen/SellPosOpen pass UpSignalTime/DnSignalTime respectively as expiry times for pending-like market order validation. The four boolean toggles (BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose) independently control which trade actions are permitted.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "LeManSignal (custom indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The LeManSignal custom indicator must be reimplemented in Python - check its source for the algorithm (likely a trend-following signal based on period 12). TradeAlgorithms.mqh contains BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose and GlobalVariableDel_ - these must be replaced with direct broker API calls. The MM negative/positive convention for lot sizing must be preserved. The historical bar scan for close signals (lines 116-143) is a unique feature that scans forward from SignalBar+1 looking for the first opposite signal to trigger closes - this must be carefully reimplemented. SignalBar=1 means signals are always read from the previous completed bar, not the forming bar.",
+  "extraction_timestamp": "2026-05-13T00:46:30.127214",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 90.67405462265015,
+    "cost": 0
+  }
+}

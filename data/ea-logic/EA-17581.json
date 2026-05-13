@@ -1,0 +1,154 @@
+{
+  "ea_id": "EA-17581",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses T3 Moving Average which is a custom indicator requiring iCustom calls with multiple smoothing parameters (M_Factor array), not a standard built-in MT5 indicator. The T3MA is a Tilson-derived indicator with proprietary calculation logic that must be replicated in Python.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "T3 Moving Average",
+      "params": {
+        "period": 14,
+        "method": 0,
+        "applied_to": 0,
+        "m_factor_0": 0.618,
+        "m_factor_1": 0.618,
+        "m_factor_2": 0.618,
+        "m_factor_3": 0.618,
+        "m_factor_4": 0.618,
+        "m_factor_5": 0.618,
+        "volume_type": 0
+      },
+      "source": "custom",
+      "library": "T3MA",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "T3MA current bar value",
+      "formula": "iCustom(Symbol(), Period(), \"T3MA\", Periods, 0, 0, M_Factor[0], M_Factor[1], M_Factor[2], M_Factor[3], M_Factor[4], M_Factor[5], 0, 0)",
+      "used_by": "Entry signal generation - current bar"
+    },
+    {
+      "name": "T3MA previous bar value",
+      "formula": "iCustom(Symbol(), Period(), \"T3MA\", Periods, 0, 0, M_Factor[0], ..., 0, 1)",
+      "used_by": "Entry signal generation - previous bar for crossover detection"
+    },
+    {
+      "name": "SL adjusted pips",
+      "formula": "StopLoss * (Digits==5||Digits==3 ? 10 : 1)",
+      "used_by": "Stop loss order placement"
+    },
+    {
+      "name": "TP adjusted pips",
+      "formula": "TakeProfit * (Digits==5||Digits==3 ? 10 : 1)",
+      "used_by": "Take profit order placement"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Close[1]",
+        "right": "T3MA[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Close[1]",
+        "right": "T3MA[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position before opening new one via position_gate check and close logic"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "fixed_lot_when_negative": true,
+      "fraction_when_positive": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "If Lots input is negative, use absolute value as fixed lots. If Lots input is positive, use it as fraction of free margin for volume calculation (normalized to lot step and min/max)."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The T3 Moving Average is a Tilson triple-smoothed EMA variant using 6 sequential EMA stages with configurable M_Factor (volume factor, default 0.618 = golden ratio) for each stage. The EA checks previous completed bar (shift 1) for crossover signals, not the current forming bar. Position gate ensures only one position at a time - opposite signal first closes existing position then opens new one. The conditional lot sizing allows either fixed lots (negative Lots param) or margin-based fractional sizing (positive Lots param). Digit adjustment multiplies SL/TP by 10 for 5-digit/3-digit brokers.",
+  "external_dependencies": [
+    "T3MA.ex5"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must implement T3 Moving Average from scratch in Python since it's a custom indicator. The T3MA uses 6 cascaded EMA stages: EMA1 through EMA6, each with its own volume factor (M_Factor[i]). The GD^n formula is: GD = EMA_n*(v) + (v-1)*(EMA_n - EMA_(n-1)) applied iteratively. For each of the 6 M_Factor values, compute: EMA_i of the previous stage, then apply the Tilson correction. The final T3 value is the 6th stage output. This must be replicated exactly including warmup period handling. Entry logic is straightforward: previous bar close crosses T3MA previous bar value. Position sizing dual-mode must be preserved. Digit adjustment logic for SL/TP is standard and easy to replicate.",
+  "extraction_timestamp": "2026-05-13T11:15:58.442391",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 155.26302409172058,
+    "cost": 0
+  }
+}

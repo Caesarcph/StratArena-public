@@ -1,0 +1,198 @@
+{
+  "ea_id": "EA-17527",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iRSI, iCCI, iMA) with standard parameters. Simple entry/exit rules based on indicator crossovers and levels. Fixed lot position sizing. No external .mqh libraries for trading logic. Straightforward IBS (Internal Bar Strength) + RSI + CCI combination strategy.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "IBS (Internal Bar Strength)",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "MA for trend filter",
+      "params": {
+        "period": 200,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "IBS value",
+      "formula": "(Close - Low) / (High - Low)",
+      "used_by": "Entry rules - long/short conditions"
+    },
+    {
+      "name": "Adjusted SL pips",
+      "formula": "SL_Pips * (10 if _Digits==5 or _Point<0.001 else 1)",
+      "used_by": "Stop loss calculation"
+    },
+    {
+      "name": "Adjusted TP pips",
+      "formula": "TP_Pips * (10 if _Digits==5 or _Point<0.001 else 1)",
+      "used_by": "Take profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "IBS",
+        "right": "RSI",
+        "direction": "below_threshold",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Close",
+        "right": "MA(200)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "CCI",
+        "right": "CCI_threshold",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "IBS",
+        "right": "RSI",
+        "direction": "above_threshold",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Close",
+        "right": "MA(200)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "CCI",
+        "right": "CCI_threshold",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite direction positions on reverse signal"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "IBS (Internal Bar Strength) is calculated inline as (Close-Low)/(High-Low) representing where the close sits within the bar's range. Long entry requires IBS below threshold, RSI below threshold, CCI below threshold, and price above MA200 (trend filter). Short entry is the mirror. The v4 designation suggests iterative refinement with potential parameter optimization. Previous bar values ([1]) used for signal evaluation to avoid repainting.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "IBS is trivially computed as (close-low)/(high-low) per bar - no indicator library needed. RSI and CCI are available in ta-lib or pandas-ta. SMA(200) for trend filter is standard. Digit adjustment logic for SL/TP must be replicated by checking if price has 5 digits (or point < 0.001) and multiplying pip values by 10. New bar detection uses bar timestamp comparison. Entry signals use previous completed bar ([1] in MQL5) to prevent look-ahead bias - must shift signals by 1 bar in Python. All entries are market orders at next bar open after signal confirmation.",
+  "extraction_timestamp": "2026-05-13T10:59:07.923065",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 269.5425658226013,
+    "cost": 0
+  }
+}

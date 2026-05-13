@@ -1,0 +1,147 @@
+{
+  "ea_id": "EA-17021",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iMA indicators. Simple crossover entry/exit with fixed lot sizing. No external .mqh libraries for trading logic (only standard Trade library for order execution). No multi-timeframe, no hedging, no partial close, no custom indicators.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast MA (MA1)",
+      "params": {
+        "period": 3,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA (MA2)",
+      "params": {
+        "period": 13,
+        "shift": 0,
+        "method": "LWMA",
+        "applied_to": "MEDIAN"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Crossover direction for entry (PosOpen)",
+      "formula": "(MA1_1<=MA2_0 && MA1_0>MA2_0)||(MA1_1<MA2_0 && MA1_0>=MA2_0) for long; (MA1_1>=MA2_0 && MA1_0<MA2_0)||(MA1_1>MA2_0 && MA1_0<=MA2_0) for short",
+      "used_by": "entry_rules"
+    },
+    {
+      "name": "Crossover direction for exit (PosClose)",
+      "formula": "(MA1_1>=MA2_0 && MA1_0<MA2_0)||(MA1_1>MA2_0 && MA1_0<=MA2_0) for close-buy; (MA1_1<=MA2_0 && MA1_0>MA2_0)||(MA1_1<MA2_0 && MA1_0>=MA2_0) for close-sell",
+      "used_by": "exit_rules"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA (previous bar)",
+        "right": "Slow MA (current bar)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA (previous bar)",
+        "right": "Slow MA (current bar)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Closes buy position on bearish MA crossover (MA1 crosses below MA2)",
+      "Closes sell position on bullish MA crossover (MA1 crosses above MA2)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 2,
+    "conditional_logic": "Allows 1 buy + 1 sell simultaneously, but blocks duplicate same-side positions when all_positions==1"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Non-standard crossover detection: compares MA1[1] (previous bar of fast MA) against MA2[0] (current bar of slow MA) rather than comparing same-bar indexes. This creates an asymmetric comparison mixing previous-bar fast MA with current-bar slow MA. The position gate logic only checks for same-side duplicates when all_positions==1, meaning if 2 positions exist (1 buy + 1 sell), the same-side check is bypassed and a duplicate could theoretically be opened, though the crossover signal would typically not fire again on the same bar due to the new bar guard.",
+  "external_dependencies": [
+    "<Trade\\PositionInfo.mqh>",
+    "<Trade\\Trade.mqh>",
+    "<Trade\\SymbolInfo.mqh>"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward MA crossover EA. Two iMA handles with configurable period/method/price. Crossover uses non-standard bar alignment (MA1[1] vs MA2[0]) - replicate this exactly. No SL/TP means exits are purely signal-based (reversal close). Position check only prevents duplicate same-side when exactly 1 position exists. Use standard MA libraries (ta-lib or pandas-ta). The new bar guard means signals are evaluated once per bar, so M1 data minimum for backtesting. Market orders use current Ask/Bid at time of signal detection on new bar open.",
+  "extraction_timestamp": "2026-05-13T07:54:33.657126",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 339.90846848487854,
+    "cost": 0
+  }
+}

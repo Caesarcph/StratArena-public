@@ -1,0 +1,238 @@
+{
+  "ea_id": "EA-17348",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses pending order management with expiration, hedging account requirement, multiple time window filters with once-per-window gate logic, and raw candle pattern recognition (no standard indicators). Pending order placement and expiration management adds complexity beyond simple market entry.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Candle Body Size Pattern",
+      "params": {
+        "bar_shift": 1,
+        "min_body_size_pips": 75,
+        "method": null,
+        "applied_to": null
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "IsBull Pattern",
+      "params": {
+        "bar3_close_gt_bar2_open": true,
+        "bar2_body_min_pips": 10,
+        "bar1_body_min_pips": "InpCandleSize"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "IsBadBull Pattern",
+      "params": {
+        "bar3_body_min_pips": 10,
+        "bar2_body_min_pips": 10,
+        "bar1_body_min_pips": "InpCandleSize"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "IsCoolBull Pattern",
+      "params": {
+        "bar2_bear_body_min_pips": 20,
+        "bar2_close_lte_bar1_open": true,
+        "bar1_close_gt_bar2_open": true,
+        "bar1_body_min_pips": "0.4*InpCandleSize"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "IsBear Pattern",
+      "params": {
+        "bar1_bear_body_min_pips": "InpCandleSize"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ExtCandleSize",
+      "formula": "InpCandleSize * m_adjusted_point",
+      "used_by": "IsBull, IsBadBull, IsCoolBull, IsBear patterns"
+    },
+    {
+      "name": "ExtIndentUP",
+      "formula": "InpIndentUP * m_adjusted_point",
+      "used_by": "PlacementBuyLimit price calculation"
+    },
+    {
+      "name": "ExtIndentDOWN",
+      "formula": "InpIndentDOWN * m_adjusted_point",
+      "used_by": "PlacementSellLimit price calculation"
+    },
+    {
+      "name": "ExtStopLoss",
+      "formula": "InpStopLoss * m_adjusted_point",
+      "used_by": "BuyLimit and SellLimit SL placement"
+    },
+    {
+      "name": "ExtTakeProfit",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "BuyLimit and SellLimit TP placement"
+    },
+    {
+      "name": "m_adjusted_point",
+      "formula": "m_symbol.Point() * 10 when Digits==3 or Digits==5, else m_symbol.Point()",
+      "used_by": "All Ext* derived values"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "or_combination",
+        "left": "IsBull AND NOT IsBadBull",
+        "right": "IsCoolBull",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bar[3] close > Bar[2] open",
+        "right": "null",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bar[2] body >= 10 points",
+        "right": "null",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bar[1] body >= ExtCandleSize (bullish)",
+        "right": "null",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bar[2] bearish body >= 20 points AND Bar[2] close <= Bar[1] open AND Bar[1] close > Bar[2] open AND Bar[1] body >= 0.4*ExtCandleSize",
+        "right": "null",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Bar[1] body >= ExtCandleSize (bearish)",
+        "right": "null",
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 60,
+      "params": {
+        "distance_from_entry_pips": 60
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 60,
+      "params": {
+        "distance_from_entry_pips": 60
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Pending orders expire after 4 hours (ORDER_TIME_SPECIFIED with TimeCurrent()+4*60*60)",
+      "Time window gate resets trade flag when outside all 6 time windows, preventing new orders but not closing existing ones"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Free margin must be >= 1000*Lots, otherwise order is not placed"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "pending_order_fill",
+    "intrabar_signal_behavior": "once_per_time_window_then_wait"
+  },
+  "custom_logic_notes": "Time-filter uses 6 specific start times (0:05, 4:05, 8:05, 12:05, 16:05, 20:05) each allowing a 5-minute (300 second) window. The 'trade' boolean flag ensures only ONE order per window across ALL windows. Once trade=true, no more orders until all windows pass and flag resets. BuyLimit placed at Ask - ExtIndentUP (16 pips below Ask). SellLimit placed at Bid + ExtIndentUP (16 pips above Bid) - note code uses ExtIndentUP for SellLimit too despite InpIndentDOWN=20 being defined but ExtIndentDOWN never used in order placement. Hedging account is REQUIRED - EA fails initialization on netting accounts. IsBadBull filter prevents entry when 3 consecutive large bullish bars exist (potential overbought). IsCoolBull detects a bullish reversal pattern: bearish bar[2] followed by bullish bar[1] that engulfs bar[2] open.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh",
+    "Trade\\OrderInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Pending order management with expiration is the primary complexity. Must implement: (1) 6 time-window gate with once-per-window trade flag, (2) BuyLimit/SellLimit placement with SL/TP relative to limit price not market price, (3) 4-hour order expiration, (4) hedging-mode position tracking by magic number. Note: ExtIndentDOWN is calculated but never used - SellLimit uses ExtIndentUP (InpIndentUP=16) not ExtIndentDOWN (InpIndentDOWN=20). Candle pattern functions use iClose/iOpen comparisons with specific bar shifts [1],[2],[3] - these are lookback-relative, not current-bar. The position gate checks pending orders only (not open positions), so it can stack positions if pending orders fill and new window opens.",
+  "extraction_timestamp": "2026-05-13T10:01:33.779028",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 281.82086086273193,
+    "cost": 0
+  }
+}

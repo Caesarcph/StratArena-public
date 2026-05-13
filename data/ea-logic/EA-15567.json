@@ -1,0 +1,130 @@
+{
+  "ea_id": "EA-15567",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for VWAP_Close indicator and depends on external TradeAlgorithms.mqh library for position opening/closing/money management logic, requiring manual recreation of both the custom indicator logic and the trading library functions.",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "VWAP_Close",
+      "params": {
+        "n": 2,
+        "VolumeType": "VOLUME_TICK"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timestamp alignment",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime passed to BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before indicator is valid",
+      "formula": "int(n)+1+3+int(SignalBar)",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "VWAP_Close[1] < VWAP_Close[2] (indicator rising across bars)",
+        "right": "VWAP_Close[0] > VWAP_Close[1] (current value above previous)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "VWAP_Close[1] > VWAP_Close[2] (indicator falling across bars)",
+        "right": "VWAP_Close[0] < VWAP_Close[1] (current value below previous)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close long when VWAP_Close[1]>VWAP_Close[2] (indicator turns down) and BuyPosClose is enabled",
+      "Close short when VWAP_Close[1]<VWAP_Close[2] (indicator turns up) and SellPosClose is enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects sizing method: LOT=fixed lot size (MM=0.1 lots), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM parameter (0.1) serves as either lot size or percentage fraction depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal generation only occurs on new bars (NB.IsNewBar guard) or when Recount is true. When SignalBar=0, signals are evaluated on every tick instead of only on new bars. The SignalBar input (default=1) determines which bar index is used for signal detection - bar 1 means signals are based on the last completed bar. Buy/Sell open and close actions are independently toggleable via input booleans (BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose). GlobalVariableDel_ is called on deinit for cleanup. LoadHistory ensures sufficient bar history is loaded before signal evaluation.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The VWAP_Close custom indicator must be reimplemented in Python - it computes a Volume-Weighted Average Price with a smoothing period of n=2 using tick or real volume. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, and GlobalVariableDel_ functions that must be recreated. The MarginMode enum (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) controls position sizing logic. SL/TP values of 1000/2000 are in points - need digit-adjustment awareness for 5-digit brokers (multiply by 10). The new-bar guard pattern (CIsNewBar class) must be replicated for proper bar-based signal generation. Signal timestamps (UpSignalTime/DnSignalTime) are passed to open functions and may control pending order placement timing.",
+  "extraction_timestamp": "2026-05-13T01:58:31.959788",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 160.95884108543396,
+    "cost": 0
+  }
+}

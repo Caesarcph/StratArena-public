@@ -1,0 +1,134 @@
+{
+  "ea_id": "EA-15887",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for Fisher_org_v1_Sign custom indicator, depends on TradeAlgorithms.mqh external library for position sizing and trade execution logic, requires custom indicator files to replicate in Python",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Fisher_org_v1_Sign",
+      "params": {
+        "atr_period": 14,
+        "length": 7,
+        "ipc": 1,
+        "up_level": 1.5,
+        "dn_level": -1.5
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal time calculation",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime assignment for trade execution timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator to be ready",
+      "formula": "max(Length+1, ATR_Period)+1+1+SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Fisher_org_v1_Sign buffer 1 (Up arrow)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Fisher_org_v1_Sign buffer 0 (Dn arrow)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BUY_Close triggered when Fisher_org_v1_Sign buffer 0 (Dn arrow) is non-zero on SignalBar or on any historical bar scanned forward from SignalBar+1",
+      "SELL_Close triggered when Fisher_org_v1_Sign buffer 1 (Up arrow) is non-zero on SignalBar or on any historical bar scanned forward from SignalBar+1",
+      "Oppposite signal scanning: when both open and close on same side are enabled but no close signal yet, EA scans bars from SignalBar+1 forward looking for a close signal to avoid opening without a known exit"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing method: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM input (0.1) is the multiplier/fraction depending on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses a two-buffer custom indicator (Fisher_org_v1_Sign) where buffer 1 = buy signal arrows and buffer 0 = sell signal arrows. Signal is read from SignalBar (default bar 1 = previous completed bar). When both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled but no close signal is detected on the signal bar, the EA scans forward through historical bars (SignalBar+1 onward) to find the earliest close signal, ensuring it knows the exit before entering. The Recount static flag ensures signal recalculation on copy failures. BuyPosOpen/BuyPosClose/SellPosOpen/SellPosClose input booleans act as feature toggles. SignalTime is computed as SERIES_LASTBAR_DATE + TimeShiftSec for trade execution timing passed to TradeAlgorithms functions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires replicating the Fisher_org_v1_Sign custom indicator logic in Python (Fisher transform with ATR period, length, custom price types including PRICE_SIMPL_, PRICE_QUARTER_, PRICE_TRENDFOLLOW0_, PRICE_TRENDFOLLOW1_, PRICE_DEMARK_). The TradeAlgorithms.mqh library handles position sizing (5 margin modes), order open/close with deviation, and global variable management - all must be reimplemented. The ATR_Period=14 is hardcoded (not an input) which is unusual. The forward-scanning close signal detection (scanning bars after SignalBar to find exit before entry) is non-trivial and must be faithfully reproduced. SL/TP values of 1000/2000 pips suggest this is designed for 5-digit brokers (effectively 100/200 pips), so digit adjustment logic may be needed in Python. The custom enum ENUM_APPLIED_PRICE_ extends beyond standard MT5 price types and will need custom implementation for the non-standard price calculations.",
+  "extraction_timestamp": "2026-05-13T02:48:34.729443",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 96.04290509223938,
+    "cost": 0
+  }
+}

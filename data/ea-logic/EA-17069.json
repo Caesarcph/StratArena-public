@@ -1,0 +1,169 @@
+{
+  "ea_id": "EA-17069",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Classic martingale grid EA that doubles lot size on losing positions and relies on grid averaging with margin-dependent sizing. Uses pending order management and requires tick-level execution for grid recovery logic. The martingale lot scaling and grid position stacking make it inherently platform-dependent and unsuitable for straightforward Python conversion without simulating the entire grid/margin framework.",
+  "symbol": null,
+  "timeframe_hint": "M15",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Trend MA (CCI-based direction)",
+      "params": {
+        "period": 25,
+        "method": "LWMA",
+        "applied_to": "TYPICAL",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI for Trend Direction",
+      "params": {
+        "period": 25,
+        "applied_to": "TYPICAL",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Lot multiplier for martingale grid",
+      "formula": "Multiplier (default 1.5 or 2.0) raised to power of (current position count - 1)",
+      "used_by": "position_sizing grid lot calculation"
+    },
+    {
+      "name": "Grid step distance in points",
+      "formula": "PipStep (default 10-30 pips)",
+      "used_by": "entry_rules for subsequent grid orders"
+    },
+    {
+      "name": "PipStep expansion on loss",
+      "formula": "PipStepExponent * PipStep or DynamicPip on loss count",
+      "used_by": "grid spacing for averaging positions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "CCI(25)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Current Ask",
+        "right": "Last Buy Position Open Price - PipStep*Point",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "CCI(25)",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Current Bid",
+        "right": "Last Sell Position Open Price + PipStep*Point",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 10,
+      "params": {
+        "basis": "average price of all grid positions"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Grid basket closes all positions when combined profit of all open positions in the same direction exceeds TakeProfit target in currency",
+      "No individual stop loss - entire basket is managed as a unit with a breakeven + profit target on the average price"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "initial_lot": 0.01,
+      "multiplier": 1.5,
+      "max_lot": 0.0
+    },
+    "max_positions": 0,
+    "conditional_logic": "First position uses Lots input. Subsequent losing positions multiply previous lot by Multiplier (default 1.5). Lot = Lots * Multiplier^(N-1) where N is the position index in the grid. MaxLots limits maximum lot size if set > 0."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Ilan 1.4 is a classic martingale grid averaging EA. It opens an initial position based on CCI trend direction. If the position goes against it by PipStep pips, it opens another position in the same direction with lot size multiplied by Multiplier. This continues until the average price of all positions recovers enough to hit the TakeProfit target, at which point ALL positions in the grid are closed simultaneously. The TakeProfit is calculated in deposit currency, not pips - it checks if total profit of the basket exceeds the TP threshold. The PipStep may dynamically expand using PipStepExponent to widen grid spacing as more positions are added. There is no stop loss on individual positions - risk is managed only by MaxLots and the assumption that the market will eventually retrace. This is extremely dangerous in trending markets as it can accumulate unlimited drawdown. The EA uses a new bar guard for the initial entry but checks grid additions on every tick.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Grid martingale logic requires simulating a position book with averaging price calculation. Must implement: (1) Position tracking per direction with open price and lot for each grid level, (2) Average price computation across all grid positions, (3) Lot multiplier calculation (Lots * Multiplier^N), (4) Grid step expansion with PipStepExponent, (5) Basket-level profit check in account currency (requires tick-level P&L simulation), (6) No individual SL means risk is unbounded - must add portfolio-level drawdown limit for safe backtesting. Cannot simply convert to a bar-based strategy since grid additions are tick-dependent (price must reach exact grid level). Requires full tick-by-tick simulation with margin checking. Strongly recommend adding a max drawdown or max grid depth safety mechanism that the original EA lacks.",
+  "extraction_timestamp": "2026-05-13T08:24:56.159692",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 226.59764909744263,
+    "cost": 0
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "ea_id": "EA-15304",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (ColorXdinMA_StDev) and external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and money management. Signal modes with multiple switch cases add complexity.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorXdinMA_StDev",
+      "params": {
+        "MA_Method1": "MODE_SMA_",
+        "Length_main": 10,
+        "Length_plus": 20,
+        "PhaseX": 15,
+        "IPC": "PRICE_CLOSE_",
+        "dK1": 1.5,
+        "dK2": 2.5,
+        "std_period": 9,
+        "StDev_color_mode": 0,
+        "StDev_color_alpha": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "min_rates_total = GetStartBars(MA_Method1,Length_main,PhaseX) + GetStartBars(MA_Method1,Length_plus,PhaseX) + 1 + std_period + 3 + SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "LoadHistory call for bar synchronization"
+    },
+    {
+      "name": "min_rates_total - minimum bars needed before trading",
+      "formula": "GetStartBars(MA_Method1,Length_main,PhaseX) + GetStartBars(MA_Method1,Length_plus,PhaseX) + 1 + std_period + 3 + SignalBar",
+      "used_by": "BarsCalculated check before processing signals"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Buffer 3 (buy signal dots) or Buffer 5 (buy signal dots alt)",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any",
+        "notes": "POINT mode: BUY_Open=true when Sign1[0]!=EMPTY_VALUE || Sign2[0]!=EMPTY_VALUE from buffers 3 and 5 at SignalBar"
+      },
+      {
+        "condition": "crossover",
+        "left": "ColorXdinMA_StDev buffer 0 at [SignalBar]",
+        "right": "ColorXdinMA_StDev buffer 0 at [SignalBar+1] and [SignalBar+2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any",
+        "notes": "DIRECT mode: BUY_Open=true when Line[0]>Line[1] && Line[1]<Line[2] (V-bottom reversal)"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Buffer 2 (sell signal dots) or Buffer 4 (sell signal dots alt)",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any",
+        "notes": "POINT mode: SELL_Open=true when Sign1[0]!=EMPTY_VALUE || Sign2[0]!=EMPTY_VALUE from buffers 2 and 4 at SignalBar"
+      },
+      {
+        "condition": "crossover",
+        "left": "ColorXdinMA_StDev buffer 0 at [SignalBar]",
+        "right": "ColorXdinMA_StDev buffer 0 at [SignalBar+1] and [SignalBar+2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any",
+        "notes": "DIRECT mode: SELL_Open=true when Line[0]<Line[1] && Line[1]>Line[2] (V-top reversal)"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose in POINT mode: signals from indicator buffers 2 and 4 (sell signal dots) at SignalBar",
+      "BuyPosClose in DIRECT mode: close long when buffer 0 at [SignalBar] > buffer 0 at [SignalBar+1] (MA declining)",
+      "SellPosClose in POINT mode: signals from indicator buffers 3 and 5 (buy signal dots) at SignalBar",
+      "SellPosClose in DIRECT mode: close short when buffer 0 at [SignalBar] < buffer 0 at [SignalBar+1] (MA rising)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum controls sizing: FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss, LOT=fixed lot size from MM input"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three signal modes (POINT/DIRECT/WITHOUT) independently configurable for buy open, sell open, buy close, sell close. POINT mode uses dot signal buffers (2,3,4,5). DIRECT mode uses MA line direction from buffer 0. WITHOUT disables the signal. SignalBar parameter (default=1) means signals are read from a historical bar, not bar 0, adding a 1-bar delay. Recount flag triggers re-evaluation on data errors. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with position gate logic internally.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires reimplementation of ColorXdinMA_StDev custom indicator (XdinMA with StDev bands). SmoothAlgorithms.mqh contains 10+ smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA) that must be ported. TradeAlgorithms.mqh position management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) must be ported with their internal position gate logic. MMMode conditional sizing requires broker API for margin/balance queries. SignalBar=1 means signals use previous completed bar - critical for backtest alignment. The 6 indicator buffers (0=MA line, 2/3=signal dots, 4/5=alt signal dots) must be correctly mapped from the custom indicator output.",
+  "extraction_timestamp": "2026-05-13T01:26:27.850965",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 186.39613819122314,
+    "cost": 0
+  }
+}

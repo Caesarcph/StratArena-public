@@ -1,0 +1,133 @@
+{
+  "ea_id": "EA-15545",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'trend_arrows' and external library TradeAlgorithms.mqh for position management and money management. Custom indicator buffers require reverse-engineering or porting the indicator source. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/Close functions with complex margin mode logic.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "trend_arrows",
+      "params": {
+        "iPeriod": 15,
+        "iFullPeriods": 1,
+        "unused_param": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for position open timing"
+    },
+    {
+      "name": "min_rates_total",
+      "formula": "iPeriod+iFullPeriods+SignalBar+1",
+      "used_by": "BarsCalculated check to ensure indicator has enough data"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "trend_arrows buffer 2 (Up arrow)",
+        "right": "0 (non-empty value present)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "trend_arrows buffer 3 (Down arrow)",
+        "right": "0 (non-empty value present)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Up arrow signal triggers close of existing sell positions if SellPosClose is enabled",
+      "Down arrow signal triggers close of existing buy positions if BuyPosClose is enabled",
+      "Secondary confirmation: if both BuyPosOpen and BuyPosClose are enabled and trend_arrows buffer 0 (primary up) shows non-empty value on signal bar, additional buy close signal generated from down arrow",
+      "Secondary confirmation: if both SellPosOpen and SellPosClose are enabled and trend_arrows buffer 1 (primary down) shows non-empty value on signal bar, additional sell close signal generated from up arrow"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode selects sizing mode: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus floating loss, LOSSBALANCE=fraction of balance minus floating loss. Positive MM value=fraction, fixed lot when LOT mode selected."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses 4 buffers from trend_arrows custom indicator: buffer 0=primary up arrows, buffer 1=primary down arrows, buffer 2=secondary up arrows (entry signal), buffer 3=secondary down arrows (entry signal). When SignalBar=0, signals are evaluated on every tick instead of only on new bars. The Recount flag causes re-evaluation on next tick if CopyBuffer fails. GlobalVariableDel_ called on deinit for cleanup. BuyPositionOpen/SellPositionOpen receive SignalTime which may be used by TradeAlgorithms.mqh to avoid duplicate entries on same bar. The secondary buffer check (buffers 0 and 1) adds an extra close-confirmation layer when both open and close flags are enabled for same direction.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must port trend_arrows custom indicator logic (source not available here, requires the .mq5 indicator file). TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, GlobalVariableDel_, LoadHistory) must be reimplemented - the margin mode logic (5 modes) and position open/close with signal time deduplication are the most complex parts. SL/TP are passed as integer pips to TradeAlgorithms which likely converts to price internally - verify whether pip-to-price conversion accounts for 5-digit brokers. SignalBar=1 default means signals are read from the previous completed bar (index 1), making this a next-bar-open execution model.",
+  "extraction_timestamp": "2026-05-13T01:55:51.000110",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 112.57513928413391,
+    "cost": 0
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "ea_id": "EA-15228",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load SilverTrend_Signal custom indicator and depends on TradeAlgorithms.mqh external library for position sizing, open/close logic, and margin mode enumeration. Custom indicator is not a built-in MT5 indicator.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "SilverTrend_Signal",
+      "params": {
+        "SSP": 9,
+        "RISK": 3,
+        "SignalBar": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timestamp alignment",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator to be valid",
+      "formula": "SSP+1+SignalBar",
+      "used_by": "BarsCalculated check before processing signals"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "SilverTrend_Signal buffer 1 (UpValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "SilverTrend_Signal buffer 0 (DnValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "When both buy-open and buy-close (or sell-open and sell-close) are enabled and no immediate close signal is found on SignalBar, the EA scans historical bars forward from SignalBar+1 to find the earliest opposing signal to mark close=true, acting as a retroactive close trigger"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM input (0.1) is interpreted as either lot size or percentage fraction depending on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a retroactive close-signal scan: if both BuyPosOpen+BuyPosClose (or SellPosOpen+SellPosClose) are enabled and the current SignalBar does not produce a close signal, it scans forward through historical bars (bar=SignalBar+1 to end) looking for the first opposing signal to set the close flag. This means the close trigger can come from a signal on a bar older than SignalBar. The SignalBar input defaults to 1 (previous completed bar), so entries are based on the last closed bar's signal, not the forming bar. Entry/exit logic is delegated entirely to TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose). A static Recount flag triggers re-evaluation if CopyBuffer fails. GlobalVariableDel_ is called on deinit for cleanup.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "SilverTrend_Signal is a custom indicator not available in standard Python libraries - its algorithm must be reverse-engineered or sourced separately. The SSP (9) and RISK (3) parameters control signal generation. TradeAlgorithms.mqh provides all position open/close and money management logic - this must be reimplemented in Python including the 5 MarginMode variants. SL/TP are in points (1000/2000) which likely need 5-digit adjustment (divide by 10 for pips). The new-bar guard using CIsNewBar class must be replicated. The retroactive close-signal scan is unusual and must be carefully preserved. Signal timestamps (UpSignalTime/DnSignalTime) are passed to open functions suggesting pending or time-gated execution.",
+  "extraction_timestamp": "2026-05-13T00:55:05.367246",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 104.20326018333435,
+    "cost": 0
+  }
+}

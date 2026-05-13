@@ -1,0 +1,246 @@
+{
+  "ea_id": "EA-15327",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (BinaryWave_StDev) with complex composite logic, external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms, and multi-indicator weighted composite signal",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "MA component of BinaryWave",
+      "params": {
+        "period": 13,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD component of BinaryWave",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "OsMA component of BinaryWave",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI component of BinaryWave",
+      "params": {
+        "period": 14,
+        "applied_to": "median"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Momentum component of BinaryWave",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI component of BinaryWave",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ADX component of BinaryWave",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "BinaryWave_StDev (composite)",
+      "params": {
+        "weight_ma": 1.0,
+        "weight_macd": 1.0,
+        "weight_osma": 1.0,
+        "weight_cci": 1.0,
+        "weight_mom": 1.0,
+        "weight_rsi": 1.0,
+        "weight_adx": 1.0,
+        "smoothing_method": "JJMA",
+        "smoothing_length": 5,
+        "smoothing_phase": 100,
+        "dK1": 1.5,
+        "dK2": 2.5,
+        "std_period": 9
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "BinaryWave composite score from 7 weighted indicators",
+      "formula": "WeightMA*MA + WeightMACD*MACD + WeightOsMA*OsMA + WeightCCI*CCI + WeightMOM*MOM + WeightRSI*RSI + WeightADX*ADX, each binarized to +1/-1",
+      "used_by": "BinaryWave_StDev custom indicator buffer 0"
+    },
+    {
+      "name": "Standard deviation channel of BinaryWave",
+      "formula": "BinaryWave smoothed with dK1*StDev and dK2*StDev bands",
+      "used_by": "BinaryWave_StDev signal dot buffers (2,3,4,5)"
+    },
+    {
+      "name": "min_rates_total (minimum bars for indicator warmup)",
+      "formula": "max(MAPeriod,max(SlowPeriod,max(CCIPeriod,max(SlowMACD,MOMPeriod))))+1 + GetStartBars(bMA_Method,bLength,bPhase) + std_period + 3+SignalBar",
+      "used_by": "OnInit validation and BarsCalculated check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "BinaryWave_StDev buy signal dots (buffer 3 or 5)",
+        "right": "not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "BinaryWave_StDev line (buffer 0)",
+        "right": "BinaryWave_StDev line previous value",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "BinaryWave_StDev sell signal dots (buffer 2 or 4)",
+        "right": "not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "BinaryWave_StDev line (buffer 0)",
+        "right": "BinaryWave_StDev line previous value",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy close on sell signal dots (buffer 2 or 4) in POINT mode, or line declining in DIRECT mode",
+      "Sell close on buy signal dots (buffer 3 or 5) in POINT mode, or line rising in DIRECT mode"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum: LOT=fixed lot, FREEMARGIN=MM% of free margin, BALANCE=MM% of balance, LOSSFREEMARGIN=MM% of loss+free margin, LOSSBALANCE=MM% of loss+balance; MM=0.1 is the percentage/fraction depending on MMMode"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three signal modes per direction (POINT/DIRECT/WITHOUT): POINT mode uses signal dot buffers (2=buy close dots, 3=buy open dots, 4=sell close dots, 5=sell open dots) where dot!=EMPTY_VALUE triggers signal. DIRECT mode uses BinaryWave line (buffer 0) with crossover/crossunder of consecutive values. WITHOUT mode disables that signal path. Entry and exit modes are independently configurable per side. SignalBar input (default 1) shifts evaluation to previous bar, making signals more conservative. The custom indicator BinaryWave_StDev combines 7 standard indicators (MA, MACD, OsMA, CCI, Momentum, RSI, ADX) with configurable weights, each binarized to +1/-1, summed into a composite wave, then smoothed (JJMA default), with standard deviation bands (dK1=1.5, dK2=2.5 multipliers) used to generate dot signals. Recount mechanism re-evaluates signals on next tick if CopyBuffer fails.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must reimplement the BinaryWave_StDev composite indicator: binarize 7 sub-indicators (+1 bullish, -1 bearish), apply weights, sum, smooth with JJMA algorithm (from SmoothAlgorithms.mqh), compute rolling standard deviation (std_period=9), generate signal dots when line crosses dK1/dK2 stdev bands. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/Close functions with MMMode-based sizing - must replicate 5 margin modes. Signal generation is bar-based (SignalBar=1 uses previous bar), execution assumed at next bar open. Three independent signal modes (POINT/DIRECT/WITHOUT) per side per action (open/close) must all be supported.",
+  "extraction_timestamp": "2026-05-13T01:31:57.277992",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 226.32524633407593,
+    "cost": 0
+  }
+}

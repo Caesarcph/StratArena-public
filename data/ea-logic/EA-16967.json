@@ -1,0 +1,140 @@
+{
+  "ea_id": "EA-16967",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iMACD indicator. Simple entry/exit rules with MACD line comparisons. Fixed percentage position sizing. Trade library includes (PositionInfo.mqh, Trade.mqh, etc.) are standard MT5 shipping libraries for order execution, not custom trading logic.",
+  "symbol": "EURUSD",
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MACD",
+      "name": "iMACD",
+      "params": {
+        "fast_period": 5,
+        "slow_period": 15,
+        "signal_period": 3,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ExtTrailing - digit-adjusted trailing stop in points",
+      "formula": "InpTrailing * digits_adjust (digits_adjust=10 if Digits==3 or 5, else 1)",
+      "used_by": "CloseOpBuySell trailing stop logic"
+    },
+    {
+      "name": "ExtLot - optimized lot size from free margin",
+      "formula": "NormalizeDouble(FreeMargin*Risk/100, 1) then LotCheck",
+      "used_by": "LotsOptimized for order volume"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "MACD_MAIN[3] > MACD_SIGNAL[3] && MACD_MAIN[2] > MACD_SIGNAL[2] && MACD_MAIN[1] < MACD_SIGNAL[1] && MACD_MAIN[2] > MACD_MAIN[3] && MACD_MAIN[1] < MACD_MAIN[2] && MACD_MAIN[0] > MACD_MAIN[1]",
+        "right": "thresholds: MACD_MAIN[1] < -0.00020 && MACD_MAIN[2] < 0 && MACD_MAIN[0] > 0.00020",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "MACD_MAIN[3] < MACD_SIGNAL[3] && MACD_MAIN[2] < MACD_SIGNAL[2] && MACD_MAIN[1] > MACD_SIGNAL[1] && MACD_MAIN[2] < MACD_MAIN[3] && MACD_MAIN[1] > MACD_MAIN[2] && MACD_MAIN[0] < MACD_MAIN[1]",
+        "right": "thresholds: MACD_MAIN[1] > 0.00020 && MACD_MAIN[2] > 0 && MACD_MAIN[0] < -0.00035",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 25,
+      "params": {
+        "trail_start_pips": 25,
+        "trail_step_pips": 25
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BUY closed when MACD MAIN[0] < MACD MAIN[1] (main line declining)",
+      "SELL closed when MACD MAIN[0] > MACD MAIN[1] (main line rising)",
+      "Trailing stop modification has a minimum pause of 255 seconds between modifications"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.01,
+    "params": {
+      "risk_percent": 1.0,
+      "normalization_digits": 1
+    },
+    "max_positions": 1,
+    "conditional_logic": "ExtLot = NormalizeDouble(FreeMargin * Risk / 100, 1); then adjusted by LotCheck to respect volume step, min, and max"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Entry uses a 3-bar MACD crossover pattern with absolute threshold filters: BUY requires MACD main line to have crossed below signal 1 bar ago (after being above for 2 bars), with MACD_MAIN[1] < -0.00020, MACD_MAIN[2] < 0, and MACD_MAIN[0] > 0.00020. SELL requires the inverse with asymmetric threshold (MACD_MAIN[0] < -0.00035 vs > 0.00020 for buy). The trailing stop only activates after price moves ExtTrailing points beyond entry, and modifications are throttled by a 255-second pause. Position gate is no_position: EA only opens new trades when total_positions==0 for the symbol+magic. BUY entries at Bid price, SELL entries at Ask price (non-standard). No SL/TP set on entry (both passed as 0).",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh",
+    "Trade/DealInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Straightforward conversion. Built-in MACD with params 5/15/3 on close price. Entry logic uses bar indices [0],[1],[2],[3] of MACD main and signal lines - must preserve the 4-bar lookback pattern exactly. Absolute threshold values (-0.00020, 0.00020, -0.00035) are hardcoded for EURUSD 5-digit; these need symbol-aware adjustment or parameterization for other instruments. Trailing stop is point-based with digit adjustment (multiply by 10 for 5-digit). Position sizing uses FreeMargin * Risk / 100 rounded to 1 decimal, then clamped by volume step/min/max - replicate LotCheck logic. The 255-second modification pause is a simple timestamp guard. No new-bar check means signal is evaluated every tick; for H1 backtesting with bar data, evaluate signal on bar close only.",
+  "extraction_timestamp": "2026-05-13T07:21:57.229805",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 71.27233600616455,
+    "cost": 0
+  }
+}

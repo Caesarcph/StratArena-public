@@ -1,0 +1,138 @@
+{
+  "ea_id": "EA-15237",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for StepMA_NRTR indicator and includes TradeAlgorithms.mqh for position management logic (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_). Custom indicator buffers must be replicated in Python.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "StepMA_NRTR",
+      "params": {
+        "Length": 10,
+        "Kv": 1.0,
+        "StepSize": 0,
+        "Percentage": 0,
+        "Switch": "HighLow",
+        "MA_Mode": "SMA"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of the indicator timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    },
+    {
+      "name": "UpSignalTime - expiry/time for buy signal",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen function call"
+    },
+    {
+      "name": "DnSignalTime - expiry/time for sell signal",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen function call"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "StepMA_NRTR Buffer 2 (Up signal)",
+        "right": "0 (non-empty and non-EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "StepMA_NRTR Buffer 3 (Dn signal)",
+        "right": "0 (non-empty and non-EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes position: if both SellPosOpen and SellPosClose are true and StepMA_NRTR buffer 0 (Up line) is non-empty, existing sell is closed. Similarly, if both BuyPosOpen and BuyPosClose are true and buffer 1 (Dn line) is non-empty, existing buy is closed."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM input (0.1) is interpreted as lot size when MMMode=LOT, or as percentage/fraction for other modes."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The StepMA_NRTR custom indicator has 4 buffers: Buffer 0=Up line, Buffer 1=Dn line, Buffer 2=Up signal (buy trigger), Buffer 3=Dn signal (sell trigger). Signal is read from bar index 'SignalBar' (default=1, previous bar). A Recount mechanism retries on CopyBuffer failure. Entry signals have a time window (UpSignalTime/DnSignalTime = last bar time + one period) passed to position open functions, likely controlling order expiry. The closing logic has two layers: (1) primary signal-reversal close from signal buffers 2/3, and (2) additional close from trend buffers 0/1 when both open and close flags are enabled for that side. The BuyPosOpen/SellPosOpen and BuyPosClose/SellPosClose input flags can independently disable entry or exit for each direction. BarsCalculated check ensures indicator is ready before processing. LoadHistory ensures bar data is available.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must replicate StepMA_NRTR indicator logic in Python - it is a step-moving-average NRTR (No Repaint Trailing Range) indicator with volatility-based step calculation. The 4 buffers must be faithfully reproduced. TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) implement order execution with signal time windows - this logic must be reimplemented. The MarginMode conditional sizing logic needs careful mapping. SignalBar=1 means signals are read from the previous completed bar, avoiding repaint. No digit adjustment is performed on SL/TP values (1000 and 2000 are passed directly to trade functions), but the TradeAlgorithms.mqh may internally adjust - verify this during conversion.",
+  "extraction_timestamp": "2026-05-13T01:00:30.666275",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 145.2146279811859,
+    "cost": 0
+  }
+}

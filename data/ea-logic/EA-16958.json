@@ -1,0 +1,176 @@
+{
+  "ea_id": "EA-16958",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for 2pbIdealMA indicator which is a custom indicator, and has complex re-open logic with position management that requires careful handling",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "2pbIdealMA",
+      "params": {
+        "Periods": 30,
+        "JMA_phase": 3,
+        "JMA_power": 2
+      },
+      "source": "custom",
+      "library": "2pbIdealMA",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 9,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 30,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adjusted SL value for 5-digit brokers",
+      "formula": "StopLoss * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "stop_loss calculation"
+    },
+    {
+      "name": "Adjusted TP value for 5-digit brokers",
+      "formula": "TakeProfit * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "take_profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "2pbIdealMA",
+        "right": "Close[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "2pbIdealMA",
+        "right": "Close[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "adjustment": "multiplied by 10 for 5-digit brokers"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "adjustment": "multiplied by 10 for 5-digit brokers"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Re-open logic: closes and re-opens position in same direction when price crosses back to 2pbIdealMA side after moving away, capturing trending moves with fresh SL/TP placement"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Lot input: negative value = fixed lots (absolute value used), positive value = fraction of deposit for margin calculation"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The 'ReOpen' feature is the core differentiator: when price moves against the position and then crosses back across the 2pbIdealMA in the favorable direction, the EA closes the existing position and re-opens a new one in the same direction with fresh SL/TP. This effectively resets the trade at a better price during pullback-and-resume scenarios. The 2pbIdealMA is a custom Jurik-style moving average (JMA) with phase and power parameters, accessed via iCustom(). Position sizing has dual mode: negative Lot = fixed lots, positive Lot = deposit fraction for margin-based sizing via OrderCalcMargin(). Previous bar values ([1]) are used for signal generation, not current bar [0].",
+  "external_dependencies": [
+    "2pbIdealMA (custom indicator .ex5 required)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The 2pbIdealMA custom indicator must be reimplemented in Python - it is a JMA (Jurik Moving Average) variant with phase/power parameters. The JMA algorithm involves multiple smoothing passes with volatility correction. Consider using the 'ta' library or a custom JMA implementation. The re-open logic requires tracking position state across bars. The dual position sizing mode (fixed vs margin-fraction) needs OrderCalcMargin equivalent. The 5-digit broker adjustment pattern (_Digits==5 or _Point<0.001 multiply SL/TP by 10) must be handled. Signal logic uses previous bar [1] values, so the Python version must use iloc[-2] or equivalent shifted values.",
+  "extraction_timestamp": "2026-05-13T07:20:45.956733",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 189.33779215812683,
+    "cost": 0
+  }
+}

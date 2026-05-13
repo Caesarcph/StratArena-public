@@ -1,0 +1,124 @@
+{
+  "ea_id": "EA-16348",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Grid/martingale hybrid strategy with position-stacking, multiplier-based lot scaling, and profit-target basket closes. No SL/TP on individual trades, relies on aggregate P&L close. Tick-level grid step tracking with price memory requires precise intrabar execution.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Grid step distance in points from last entry price",
+      "formula": "(pr - Ask) / _Point >= Step  (for buys) or (Bid - pr) / _Point >= Step  (for sells)",
+      "used_by": "entry_rules for new grid layer"
+    },
+    {
+      "name": "Lot multiplier trigger threshold",
+      "formula": "Lots(symb) >= BigLot",
+      "used_by": "position_sizing conditional lot scaling"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Ask",
+        "right": "pr - Step * _Point",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Bid",
+        "right": "pr + Step * _Point",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Basket close: all positions on symbol closed when aggregate profit > Profit input (60 USD)",
+      "Basket close: all positions on symbol closed when aggregate loss < -Loss input (-5100 USD)"
+    ]
+  },
+  "position_sizing": {
+    "type": "grid",
+    "value": 0.1,
+    "params": {
+      "initial_lot": 0.1,
+      "big_lot_threshold": 0.5,
+      "multiplier": 10,
+      "max_lot": 5
+    },
+    "max_positions": 0,
+    "conditional_logic": "Start with Lot. If cumulative position volume >= BigLot, multiply current lot by Mnogitel. If lot exceeds MaxLots, reset to Lot. On basket close (profit or loss target hit), reset lot to Lot."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "same_bar_close",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Grid EA that opens positions at fixed step intervals (in points) from a reference price. First trade opens when no positions exist (sets pr=Ask/Bid). Subsequent trades open when price moves Step points away from pr. Lot size scales up by Mnogitel once total volume reaches BigLot, caps at MaxLots then resets. All positions close as a basket when total symbol profit exceeds +Profit or falls below -Loss. BuySell input (1=buy only, 2=sell only) determines direction. Bug: Lots() and SymbProfit() iterate positions but pos.Select(Symb) selects by symbol name without using the loop index i, so it always checks the same position repeatedly.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Grid + martingale lot scaling with basket P&L exits. Must track reference price (pr) across bars. No individual SL/TP means risk is unbounded until basket loss limit hits. The lot multiplier logic (lot=lot*Mnogitel when volume>=BigLot) is aggressive (10x by default). Note the bug in SymbProfit/Lots: pos.Select(Symb) ignores loop index, always returning the same position's data - this must be fixed in conversion by using proper position indexing (select by ticket or index). BuySell=1 limits to buy grid only, BuySell=2 to sell grid only. No hedging mode needed since it only trades one direction. Step is in points not pips, so digit-adjustment awareness is critical for Python slippage modeling.",
+  "extraction_timestamp": "2026-05-13T04:18:28.853033",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 176.53263568878174,
+    "cost": 0
+  }
+}

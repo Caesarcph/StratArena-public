@@ -1,0 +1,155 @@
+{
+  "ea_id": "EA-15890",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses external ClassWin.mqh library for GUI panel rendering and event handling; multi-timeframe signal aggregation logic; autopilot toggle requires stateful panel interaction; signal logic is custom multi-TF OHLC comparison not a standard indicator crossover",
+  "symbol": null,
+  "timeframe_hint": "M10",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Fractal",
+      "name": "Fractals",
+      "params": {
+        "period": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Multi-TF OHLC Direction Signal",
+      "params": {
+        "timeframes_count": 20,
+        "timeframes": "M1 through MN1 array"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Per-TF buy signal count (option.buy) from BUYorSELL function comparing Open[0]>Open[1], High[0]>High[1], Low[0]>Low[1], (High+Low)/2, Close[0]>Close[1], (High+Low+Close)/3, (High+Low+Close+Close)/4",
+      "formula": "7 comparisons per TF, each increments buy or sell counter",
+      "used_by": "s_buy and s_sell percentage calculation"
+    },
+    {
+      "name": "Aggregate buy percentage s_buy",
+      "formula": "intBuy/(intBuy+intSell)*100",
+      "used_by": "Entry and exit threshold comparisons against inp_open and inp_close"
+    },
+    {
+      "name": "Aggregate sell percentage s_sell",
+      "formula": "intSell/(intBuy+intSell)*100",
+      "used_by": "Entry and exit threshold comparisons against inp_open and inp_close"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "s_buy (aggregate buy signal %)",
+        "right": "inp_open (default 85)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "s_sell (aggregate sell signal %)",
+        "right": "inp_open (default 85)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": 0,
+      "params": {
+        "indicator": "Fractals",
+        "buffer": "Lower fractal for BUY, Upper fractal for SELL",
+        "lookback": 100,
+        "condition": "fractal must be below current price for BUY SL, above for SELL SL"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close when opposite signal percentage falls below inp_close threshold (e.g. if in SELL and s_sell<inp_close then close; if in BUY and s_buy<inp_close then close)",
+      "Manual CLOSE button on panel closes position immediately"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.01,
+    "params": {
+      "fixed_lot": "inp_lot_fix (0.01)",
+      "percent_lot": "inp_lot_perc (0.01)"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If inp_on_lot=true then use fixed lot inp_lot_fix; if inp_on_lot=false then lot=NormalizeDouble(Equity*inp_lot_perc/1000.0,2), minimum 0.01"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "The BUYorSELL function compares current bar [0] vs previous bar [1] across 7 OHLC-derived price metrics (Open, High, Low, (High+Low)/2, Close, (High+Low+Close)/3, (High+Low+Close+Close)/4) on each of 20 timeframes, producing buy/sell vote counts that are aggregated into percentages. Autopilot mode must be toggled ON via panel button or input parameter. Stop loss via Fractals is only set when on_SL flag is true and position has no existing SL. The SL is set once (only when POSITION_SL==NULL) and not trailed. The EA uses a custom GUI library (ClassWin.mqh / MasterWindows framework) for the trade panel, which is not available in Python and must be stripped for conversion. Position gate uses PositionSelect which only works for netting accounts (single position per symbol).",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "ClassWin.mqh",
+    "Arrays\\ArrayString.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The ClassWin.mqh GUI panel must be completely removed for Python conversion. The core trading logic (BUYorSELL signal aggregation, autopilot entry/exit, Fractals-based SL) is self-contained and convertible. The multi-timeframe OHLC comparison is straightforward to replicate using pandas/numpy with multi-TF resampling. The Fractals SL logic uses iFractals which has a direct equivalent in libraries like ta-lib. Position gate is simple (flat check before entry). The autopilot and SL toggles are boolean flags that can be mapped to config parameters. Main challenge: replicating the 20-timeframe signal aggregation efficiently in Python - will need to fetch OHLC for all 20 TFs and compute the 7-metric vote per TF per tick/bar. Recommend running on bar close rather than tick for Python backtesting.",
+  "extraction_timestamp": "2026-05-13T02:55:29.431503",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 93.37790846824646,
+    "cost": 0
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "ea_id": "EA-15619",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'MaChannel' custom indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing algorithms. Custom indicator buffers must be reverse-engineered or reimplemented.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "MaChannel",
+      "params": {
+        "method": 8,
+        "period": 8,
+        "phase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before EA starts trading",
+      "formula": "GetStartBars(XMA_Method,XLength,XPhase)+2+SignalBar+1",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal bar",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal bar",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "MaChannel buffer 2 (UpValue signal)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "MaChannel buffer 3 (DnValue signal)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal from MaChannel upper channel buffer (buffer 0) closes sell positions when both SellPosOpen and SellPosClose are enabled and UpValue from buffer 0 is non-zero",
+      "Opposite signal from MaChannel lower channel buffer (buffer 1) closes buy positions when both BuyPosOpen and BuyPosClose are enabled and DnValue from buffer 1 is non-zero"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode_options": "FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3, LOT=4"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT means fixed lot size of MM=0.1; MMMode=FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE means MM is a fraction of the respective margin base used for lot calculation via TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a custom MaChannel indicator loaded via iCustom with 4 buffers: buffer 0=upper channel line, buffer 1=lower channel line, buffer 2=upper channel breakout signal (non-zero when price breaks above upper channel), buffer 3=lower channel breakout signal (non-zero when price breaks below lower channel). Entry signals come from buffers 2/3 on the SignalBar (default bar 1 = previous closed bar). A secondary exit check uses buffers 0/1: if price is above the upper channel line AND both SellPosOpen and SellPosClose are true, sell positions are closed; if price is below the lower channel line AND both BuyPosOpen and BuyPosClose are true, buy positions are closed. The Recount flag ensures signals are recalculated on failure of CopyBuffer. The BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans act as feature toggles allowing partial strategy activation. Signal timestamps use SERIES_LASTBAR_DATE + TimeShiftSec passed to the TradeAlgorithms position open functions for trade synchronization.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The MaChannel custom indicator must be reimplemented in Python. It uses the SmoothAlgorithms.mqh library which implements 10 smoothing methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA). The default T3 method with period=8 and phase=15 needs a Python T3 implementation. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, and GlobalVariableDel_ - these need Python equivalents using a broker API. The money management is conditional on MMMode enum: LOT mode is simple fixed lots, but FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE modes require margin calculation logic. The SignalBar=1 parameter means signals are evaluated on the previous closed bar, which is standard for backtesting. The channel breakout logic (buffers 2/3 being non-zero) is the core signal - need to understand how MaChannel generates these signals from the channel bounds.",
+  "extraction_timestamp": "2026-05-13T02:05:12.888551",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 101.3483669757843,
+    "cost": 0
+  }
+}

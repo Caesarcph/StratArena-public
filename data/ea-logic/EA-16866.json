@@ -1,0 +1,201 @@
+{
+  "ea_id": "EA-16866",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Turtle Trading strategy uses custom Donchian Channel breakout logic implemented manually rather than via built-in indicators, employs ATR-based position sizing with complex unit calculation (N-value based), uses pyramiding/scale-in logic with up to 4 unit entries, and has multi-level stop loss adjustments on pyramid entries - all requiring custom implementation beyond simple built-in indicator conversion",
+  "symbol": null,
+  "timeframe_hint": "D1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Donchian Channel (Entry)",
+      "params": {
+        "period": 20,
+        "shift": 0,
+        "method": null,
+        "applied_to": "HIGH_LOW"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "EntryPeriod (default 20)"
+    },
+    {
+      "type": "Custom",
+      "name": "Donchian Channel (Exit)",
+      "params": {
+        "period": 10,
+        "shift": 0,
+        "method": null,
+        "applied_to": "HIGH_LOW"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "ExitPeriod (default 10)"
+    },
+    {
+      "type": "ATR",
+      "name": "ATR (N-value)",
+      "params": {
+        "period": 20,
+        "shift": 0,
+        "method": null,
+        "applied_to": null
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "ATRPeriod (default 20)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "N-value (ATR-based volatility unit)",
+      "formula": "iATR(Symbol, Timeframe, ATRPeriod, 1)",
+      "used_by": "position_sizing unit calculation, stop_loss distance, pyramid entry spacing"
+    },
+    {
+      "name": "Unit size (position sizing)",
+      "formula": "AccountBalance * RiskPercent / 100 / (N * PointValue * ContractSize)",
+      "used_by": "position_sizing for each pyramid entry"
+    },
+    {
+      "name": "Entry breakout high",
+      "formula": "Highest(High, EntryPeriod, previous bars)",
+      "used_by": "long entry rule"
+    },
+    {
+      "name": "Entry breakout low",
+      "formula": "Lowest(Low, EntryPeriod, previous bars)",
+      "used_by": "short entry rule"
+    },
+    {
+      "name": "Exit breakout high",
+      "formula": "Highest(High, ExitPeriod, previous bars)",
+      "used_by": "short exit rule"
+    },
+    {
+      "name": "Exit breakout low",
+      "formula": "Lowest(Low, ExitPeriod, previous bars)",
+      "used_by": "long exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Current Price (High[1] or Ask)",
+        "right": "Donchian High (EntryPeriod)",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Current Price",
+        "right": "Last Entry Price + 0.5*N",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Current Price (Low[1] or Bid)",
+        "right": "Donchian Low (EntryPeriod)",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Current Price",
+        "right": "Last Entry Price - 0.5*N",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": 2,
+      "params": {
+        "atr_period": 20,
+        "pyramid_adjustment": "SL tightens by 0.5*N per additional unit: unit1=2N, unit2=2N-0.5N=1.5N from unit2 price, unit3=1N, unit4=0.5N"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Long exit when price breaks below Donchian Low of ExitPeriod (default 10)",
+      "Short exit when price breaks above Donchian High of ExitPeriod (default 10)",
+      "Stop loss is adjusted to 2N from entry for first unit, then tightened by 0.5N for each subsequent pyramid unit"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 1.0,
+    "params": {
+      "risk_percent_default": 1.0,
+      "max_units": 4,
+      "pyramid_spacing_atr_multiple": 0.5,
+      "unit_calculation": "Balance * RiskPercent / 100 / (N * PointValue * ContractSize)"
+    },
+    "max_positions": 4,
+    "conditional_logic": "Each pyramid unit adds same lot size calculated from N-value; max 4 units per direction. Spacing between entries = 0.5*N. Stop loss tightens by 0.5*N per additional unit to limit total portfolio risk."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Classic Turtle Trading system by Richard Dennis. Key features: (1) Donchian Channel breakout for entries using Highest(High,20)/Lowest(Low,20) on PREVIOUS bars (shift by 1 to avoid current bar). (2) Pyramiding - up to 4 units per position, each additional entry at 0.5*N price movement from previous entry. (3) ATR-based position sizing (N-value) calculating 1% risk per unit. (4) Progressive stop loss - 2N for first unit, then -0.5N per additional unit from that unit's entry, moved to breakeven for earlier units. (5) Exit on opposite breakout channel (10-period Donchian). (6) Entry on 20-period Donchian breakout, exit on 10-period. (7) Digit adjustment likely applied (multiply SL/TP by 10 for 5-digit brokers).",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "D1",
+  "python_conversion_notes": "Requires custom Donchian Channel implementation (rolling max of High over period, rolling min of Low over period). ATR available via ta-lib or pandas_ta. Key complexity: (1) Pyramiding logic with up to 4 entries per direction, each spaced 0.5*N apart. (2) Progressive stop loss management - each unit has its own SL level based on entry order, and earlier units' stops must be moved to breakeven when new units added. (3) N-value based position sizing requires contract size and point value per symbol. (4) Must track individual entry prices per unit for correct SL placement. (5) Pending stop orders for breakout entries require order management logic. (6) No take-profit - exits only via opposite breakout or trailing ATR-based stop.",
+  "extraction_timestamp": "2026-05-13T06:22:24.267080",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 91.59754276275635,
+    "cost": 0
+  }
+}

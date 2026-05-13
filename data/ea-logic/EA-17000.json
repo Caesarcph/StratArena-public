@@ -1,0 +1,140 @@
+{
+  "ea_id": "EA-17000",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "No custom indicators used. No external .mqh libraries for trading logic (only standard MT5 Trade library includes). Simple entry (single Buy on first tick) and exit logic (virtual SL/TP/breakeven). Fixed lot sizing. All logic is position management with price comparisons.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "digits_adjust",
+      "formula": "10 if _Digits==3 or _Digits==5, else 1",
+      "used_by": "ExtTakeProfit, ExtStopLoss, ExtBreakeven, ExtBreakMinDis, ExtSlip"
+    },
+    {
+      "name": "ExtTakeProfit",
+      "formula": "InpTakeProfit * digits_adjust",
+      "used_by": "BUY and SELL take-profit price calculation"
+    },
+    {
+      "name": "ExtStopLoss",
+      "formula": "InpStopLoss * digits_adjust",
+      "used_by": "BUY and SELL stop-loss price calculation"
+    },
+    {
+      "name": "ExtBreakeven",
+      "formula": "InpBreakeven * digits_adjust",
+      "used_by": "Breakeven activation threshold"
+    },
+    {
+      "name": "ExtBreakMinDis",
+      "formula": "InpBreakMinDis * digits_adjust",
+      "used_by": "Breakeven SL offset (minimum profit lock)"
+    },
+    {
+      "name": "ExtSlip",
+      "formula": "InpSlip * digits_adjust",
+      "used_by": "Trade deviation/slippage setting"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "first_tick_flag",
+        "right": "true",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": []
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "input_name": "InpStopLoss",
+        "adjusted_value": "InpStopLoss * digits_adjust"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "input_name": "InpTakeProfit",
+        "adjusted_value": "InpTakeProfit * digits_adjust"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Breakeven: when Ask exceeds open_price + ExtBreakeven*Point for BUY (or Bid below open_price - ExtBreakeven*Point for SELL), SL is moved to open_price + ExtBreakMinDis*Point (BUY) or open_price - ExtBreakMinDis*Point (SELL). Only applied when current SL is 0.",
+      "Virtual SL/TP: positions are closed via PositionClose when price crosses calculated SL or TP levels, not via broker-set SL/TP orders. SL/TP arrows are drawn on chart but not set on the trade server."
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {
+      "lot_size": "hardcoded 0.01 in first Buy call"
+    },
+    "max_positions": 0,
+    "conditional_logic": "Only one initial Buy (0.01 lots) is opened on the very first tick. No subsequent entries. The EA only manages the existing position."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 20,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "This EA opens a single Buy(0.01) on the first tick and then only manages that position. It uses virtual SL/TP/breakeven — price levels are checked in OnTick and positions are closed via PositionClose, not via actual stop-loss or take-profit orders set on the broker. The breakeven is a one-time move of SL to open_price + ExtBreakMinDis*Point (for BUY) when price reaches open_price + ExtBreakeven*Point, and only when the current SL is 0. No SELL entry logic exists — the EA only goes long on first tick. Chart objects (arrows) are drawn to visualize SL/TP/Breakeven levels. Magic number filtering allows managing positions across all EAs (Magic=0) or specific ones.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\DealInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Very simple EA. Opens one Buy on first tick, then monitors price vs virtual SL/TP/breakeven levels each tick. No indicators to convert. Key logic: (1) digit adjustment multiply by 10 for 3/5 digit brokers; (2) virtual SL/TP closes position when price crosses threshold — must check Ask for BUY TP/SL trigger and Bid for SELL TP/SL trigger; (3) breakeven moves SL only once (when current SL==0). Standard MT5 Trade library classes (CPositionInfo, CTrade, CSymbolInfo, CDealInfo) map to simple broker API calls in Python. No new-bar guard, checks every tick. The hardcoded 0.01 lot and Buy-only entry make this a trivial conversion. Note: the EA has no SELL entry — it only manages existing positions including SELL if manually opened.",
+  "extraction_timestamp": "2026-05-13T07:36:24.143458",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 218.41807889938354,
+    "cost": 0
+  }
+}

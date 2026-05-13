@@ -1,0 +1,183 @@
+{
+  "ea_id": "EA-17438",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iRSI) with simple crossover entry logic, fixed lot sizing with optional martingale on loss, and straightforward SL/TP. No external .mqh libraries. The martingale component is simple (multiply by 2 on loss) and does not depend on margin, so it remains auto-convertible.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 10,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 200,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adjusted Stop Loss in points",
+      "formula": "StopLoss * (10 if _Digits==5 or _Point<0.001 else 1)",
+      "used_by": "stop_loss calculation for order placement"
+    },
+    {
+      "name": "Adjusted Take Profit in points",
+      "formula": "TakeProfit * (10 if _Digits==5 or _Point<0.001 else 1)",
+      "used_by": "take_profit calculation for order placement"
+    },
+    {
+      "name": "Martingale lot size on consecutive losses",
+      "formula": "Lots * 2^losses (capped at MaxLots)",
+      "used_by": "position_sizing after losing trade"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "RSI",
+        "right": "50",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "RSI",
+        "right": "50",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "None - EA relies solely on SL/TP for exit; no signal-based early close"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "multiplier": 2,
+      "max_lots": 100,
+      "reset_on_win": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "Base lot size is Lots input (default 0.1). On each consecutive loss, lot size doubles (Lots * 2^consecutive_losses). On a win, lot size resets to base Lots. Capped at MaxLots."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Martingale recovery system: after a losing trade closes (detected via deal history in OnTick), the next trade lot size is doubled. After a winning trade closes, the lot resets to the base Lots value. Consecutive losses compound the multiplier (2x, 4x, 8x...). The EMA crossover uses previous bar values ([1] and [2]) to confirm the crossover has actually occurred on the completed bar, not a transient cross on the current forming bar. RSI filter uses previous bar value ([1]) compared to level 50.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1. Digit adjustment: SL and TP input values are in 'pips' (2/4 digit style). Must multiply by 10 when symbol has 5 or 3 digits (typical _Point<0.001 check). 2. Martingale: Track consecutive losses via trade history. Each loss doubles lots; each win resets to base. Must implement deal scanning equivalent to HistoryDealSelect. 3. New bar detection: Implement IsNewBar() using static datetime comparison of Time[0]. 4. EMA crossover: Use previous completed bar values (shift=1 and shift=2) for crossover confirmation, not current bar (shift=0). 5. RSI filter: Also uses previous bar (shift=1). 6. Position check: Only one position at a time - check total open positions before entry. 7. Market order execution with FOK fill and deviation=1 slippage tolerance.",
+  "extraction_timestamp": "2026-05-13T10:27:05.946206",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 151.83480048179626,
+    "cost": 0
+  }
+}

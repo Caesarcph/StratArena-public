@@ -1,0 +1,151 @@
+{
+  "ea_id": "EA-15852",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (Volume_Weighted_MA_StDev) with 8 buffer parameters, and depends on TradeAlgorithms.mqh external library for position sizing and order management logic.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Volume_Weighted_MA_StDev",
+      "params": {
+        "period": 12,
+        "applied_price": 1,
+        "volume_type": 0,
+        "ma_shift": 0,
+        "price_shift": 0,
+        "dK1": 1.5,
+        "dK2": 2.5,
+        "std_period": 9
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal gating",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime for BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars needed for indicator warmup",
+      "formula": "Length + std_period + 3 + SignalBar",
+      "used_by": "BarsCalculated check before processing signals"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Buffer 3 (buy signal dots) or Buffer 5 (buy signal dots alternate)",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "VWMA Line[0]",
+        "right": "VWMA Line[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Buffer 2 (sell signal dots) or Buffer 4 (sell signal dots alternate)",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "VWMA Line[0]",
+        "right": "VWMA Line[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close via BuyPosClose/SellPosClose modes: DIRECT mode closes long when VWMA rises (Line[0]>Line[1]) and closes short when VWMA falls (Line[0]<Line[1]); POINT mode closes long on sell signal dots and closes short on buy signal dots"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lots (MM=0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. Logic implemented in TradeAlgorithms.mqh."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three signal modes per direction (open/close): POINT uses indicator dot buffers (buffers 2-5, where !=EMPTY_VALUE means signal present); DIRECT uses VWMA line slope comparison across 2-3 consecutive bars; WITHOUT disables that signal. Entry and exit signals are independently configurable. Signal evaluation uses SignalBar=1 (previous completed bar) by default. When SignalBar=0, intrabar evaluation is allowed without new-bar guard. Recount flag triggers re-evaluation on CopyBuffer failure. BuyPositionOpen/SellPositionOpen use UpSignalTime/DnSignalTime as trade time gating. GlobalVariableDel_ cleanup on deinit suggests position tracking via global variables.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "Must reverse-engineer the Volume_Weighted_MA_StDev custom indicator to replicate its 6 buffers in Python: buffer 0=VWMA line, buffer 2=sell signal dots, buffer 3=buy signal dots, buffer 4=alternate sell dots, buffer 5=alternate buy dots, buffer 1 likely=std dev band. The TradeAlgorithms.mqh library handles all 5 MarginMode sizing variants and the BuyPositionOpen/SellPositionOpen/Close functions with signal time gating, global variable tracking, and position existence checks — these must all be reimplemented. The SignalMode enum (POINT/DIRECT/WITHOUT) creates 3x3x3x3=81 possible signal configuration combinations that must be handled. Signal evaluation at bar index SignalBar (default 1) means always using the last completed bar.",
+  "extraction_timestamp": "2026-05-13T02:44:38.654259",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 125.05242562294006,
+    "cost": 0
+  }
+}

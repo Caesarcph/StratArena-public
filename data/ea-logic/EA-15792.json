@@ -1,0 +1,139 @@
+{
+  "ea_id": "EA-15792",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load ColorX2MA_Digit custom indicator, plus two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic. Signal logic depends on custom indicator buffer values (0,1,2) rather than built-in indicators.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorX2MA_Digit",
+      "params": {
+        "MA_Method1": "SMA",
+        "Length1": 12,
+        "Phase1": 15,
+        "MA_Method2": "JJMA",
+        "Length2": 5,
+        "Phase2": 15,
+        "IPC": "PRICE_CLOSE",
+        "Digit": 2,
+        "PriceShift": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total (minimum bars for indicator warmup)",
+      "formula": "GetStartBars(MA_Method1,Length1,Phase1) + GetStartBars(MA_Method2,Length2,Phase2) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec (bar duration in seconds)",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for BuyPositionOpen/SellPositionOpen timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorX2MA_Digit buffer 1 previous bar (Value[1])",
+        "right": "0 (neutral/no signal)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorX2MA_Digit buffer 1 previous bar (Value[1])",
+        "right": "2 (neutral/no signal)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose and SellPosClose input flags control whether opposite-signal closes are enabled; when SellPosClose=true, a buy signal (Value[1]==0, Value[0]<2) closes sell positions; when BuyPosClose=true, a sell signal (Value[1]==2, Value[0]>0) closes buy positions"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot, FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=fraction of respective margin/balance metric. MM parameter interpretation depends on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal logic reads ColorX2MA_Digit buffer 1 (color/trend state buffer) at SignalBar and SignalBar+1 offsets. Buffer values: 0=bullish trend, 1=neutral/transitional, 2=bearish trend. Long entry: Value[1]==0 (was bullish) AND Value[0]>0 (transition from bullish). Short entry: Value[1]==2 (was bearish) AND Value[0]<2 (transition from bearish). The SignalBar input (default=1) means signals are evaluated on the previous closed bar, not the current forming bar. When SignalBar==0, the EA evaluates on every tick instead of only on new bars. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans independently gate each of the four trade actions. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions which handle position checks internally.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires reimplementation of: (1) the entire ColorX2MA_Digit custom indicator which uses 9+ smoothing methods from SmoothAlgorithms.mqh (JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard SMA/EMA/SMMA/LWMA), (2) TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, LoadHistory), (3) custom Applied_price_ enum with 11 price types beyond standard OHLC. The signal logic itself is simple (buffer value transitions) but the indicator computation is complex. Python conversion should: replicate ColorX2MA_Digit indicator logic first as a standalone function, use the buffer[1]==0 && buffer[0]>0 pattern for longs and buffer[1]==2 && buffer[0]<2 for shorts, implement MarginMode-based position sizing with 5 modes, and ensure SignalBar offset is respected (default=1 means use previous closed bar data). SL/TP values (1000/2000) appear to be in points not pips - verify whether 5-digit adjustment is needed at runtime.",
+  "extraction_timestamp": "2026-05-13T02:29:55.590122",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 111.83251070976257,
+    "cost": 0
+  }
+}

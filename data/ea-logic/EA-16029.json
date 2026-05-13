@@ -1,0 +1,151 @@
+{
+  "ea_id": "EA-16029",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (i-CAiChannel_System_Digit) with external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and money management. Custom indicator buffers (8,9) require custom implementation in Python.",
+  "symbol": null,
+  "timeframe_hint": "H12",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "i-CAiChannel_System_Digit",
+      "params": {
+        "method": "MODE_SMA_",
+        "period": 12,
+        "phase": 15,
+        "applied_to": "PRICE_CLOSE_",
+        "dev": 1000,
+        "digit": 2,
+        "shift": 2
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal time calculation",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime passed to BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before indicator is ready",
+      "formula": "GetStartBars(XMA_Method,XLength,XPhase)+Shift",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Buffer8[SignalBar+1]",
+        "right": "2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "Buffer8[SignalBar+1]",
+        "right": "2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Buffer8[SignalBar+1]",
+        "right": "2",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "Buffer8[SignalBar+1]",
+        "right": "2",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose/SellPosClose booleans control signal-based closes on opposite signal; BuyPositionClose/SellPositionClose from TradeAlgorithms.mqh handle actual close logic"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum (LOT=fixed lots, FREEMARGIN=MM% of free margin, BALANCE=MM% of balance, LOSSFREEMARGIN=MM% of free margin minus loss, LOSSBALANCE=MM% of balance minus loss). MM input (0.1) acts as lot size when MMMode=LOT, or as percentage fraction for other modes."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic reads 2 values from custom indicator buffer 8 at offset SignalBar and SignalBar+1. Long entry: Col[1]>2 (digit channel above threshold) AND Col[0]<3. Short entry: Col[1]<2 (digit channel below threshold) AND Col[0]>1. Signal time is computed as SERIES_LASTBAR_DATE + TimeShiftSec. The BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans act as master switches for each direction. Recount flag retriggers signal calculation on failure. SignalBar=0 disables new bar guard allowing intrabar signals.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The custom indicator i-CAiChannel_System_Digit must be reimplemented in Python. It uses SmoothAlgorithms.mqh which provides JJMA, JurX, ParMA, T3, VIDYA, AMA smoothing methods beyond standard SMA/EMA. The indicator has 9+ buffers; the EA reads buffer index 8 for a digit-based channel system. Entry conditions compare buffer values to integer thresholds (1,2,3) suggesting a discrete/channel-based signal system. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose/GlobalVariableDel_ which encapsulate order sending, position checking, and margin calculation - all must be reimplemented. The MarginMode LOT vs percentage-based sizing needs careful handling. Signal time (UpSignalTime/DnSignalTime) is passed to open functions likely for order expiration or trailing logic within TradeAlgorithms.mqh.",
+  "extraction_timestamp": "2026-05-13T03:28:54.031503",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 97.2248682975769,
+    "cost": 0
+  }
+}

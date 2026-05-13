@@ -1,0 +1,218 @@
+{
+  "ea_id": "EA-17002",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses standard MT5 Trade library includes (PositionInfo.mqh, Trade.mqh, SymbolInfo.mqh, AccountInfo.mqh, DealInfo.mqh, OrderInfo.mqh) which have no direct Python equivalents and require custom implementation. Has complex money management with three modes (fractional/single/full lots). Has bar-timing gate logic with AheadTradeSec/AheadExitSec. Signal reversal close logic. BreakEven and trailing stop with step. Multi-retry order submission with logging. Not a simple indicator crossover EA.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "WPR",
+      "name": "WPR(26) - Buy Signal",
+      "params": {
+        "period": 26,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "WPR",
+      "name": "WPR(27) - Sell Signal",
+      "params": {
+        "period": 27,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "WPR",
+      "name": "WPR(29) - High Signal",
+      "params": {
+        "period": 29,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "WPR",
+      "name": "WPR(30) - Low Signal",
+      "params": {
+        "period": 30,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ExtStopLoss adjusted for 3/5 digit brokers",
+      "formula": "InpStopLoss*digits_adjust where digits_adjust=10 if Digits==3 or 5, else 1",
+      "used_by": "StopLoss calculation in order send"
+    },
+    {
+      "name": "ExtTakeProfit adjusted for 3/5 digit brokers",
+      "formula": "InpTakeProfit*digits_adjust where digits_adjust=10 if Digits==3 or 5, else 1",
+      "used_by": "TakeProfit calculation in order send"
+    },
+    {
+      "name": "ExtTrailingStop adjusted for 3/5 digit brokers",
+      "formula": "InpTrailingStop*digits_adjust where digits_adjust=10 if Digits==3 or 5, else 1",
+      "used_by": "TrailingPositions trailing stop logic"
+    },
+    {
+      "name": "ExtTrailingStep adjusted for 3/5 digit brokers",
+      "formula": "InpTrailingStop*digits_adjust (NOTE: uses InpTrailingStop not InpExtTrailingStep - likely a bug)",
+      "used_by": "TrailingPositions trailing step logic"
+    },
+    {
+      "name": "ExtBreakEven adjusted for 3/5 digit brokers",
+      "formula": "InpBreakEven*digits_adjust where digits_adjust=10 if Digits==3 or 5, else 1",
+      "used_by": "TrailingPositions break-even logic"
+    },
+    {
+      "name": "Ilo - lot size (fractional mode mm<0)",
+      "formula": "MathCeil(FreeMargin*Risk/715)/10-0.1, minimum 0.1",
+      "used_by": "OrdSend volume parameter"
+    },
+    {
+      "name": "Ilo - lot size (full lots mode mm>0)",
+      "formula": "MathCeil(Equity*Risk/100)/10-1, floored to integer if >1, minimum 1, capped at 5",
+      "used_by": "OrdSend volume parameter"
+    },
+    {
+      "name": "BuyValue signal",
+      "formula": "1 when sig_buy(WPR26)<-99.99 AND sig_sell(WPR27)<-99.99 AND sig_high(WPR29)<-99.99 AND sig_low(WPR30)<-99.99",
+      "used_by": "Long entry and short close rules"
+    },
+    {
+      "name": "SellValue signal",
+      "formula": "1 when sig_buy(WPR26)>-0.01 AND sig_sell(WPR27)>-0.01 AND sig_high(WPR29)>-0.01 AND sig_low(WPR30)>-0.01",
+      "used_by": "Short entry and long close rules"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "WPR(26)<-99.99 AND WPR(27)<-99.99 AND WPR(29)<-99.99 AND WPR(30)<-99.99",
+        "right": "threshold",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "WPR(26)>-0.01 AND WPR(27)>-0.01 AND WPR(29)>-0.01 AND WPR(30)>-0.01",
+        "right": "threshold",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {
+        "adjusted_for_digits": true,
+        "raw_input": 2000
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "adjusted_for_digits": true,
+        "raw_input": 0,
+        "note": "default is 0 meaning no take profit"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 1,
+        "note": "trail_step is ExtTrailingStep which defaults to 1; trailing activates when price moves ExtTrailingStop beyond open price, then moves SL to price-ExtTrailingStop*Point; BUG: ExtTrailingStep is set from InpTrailingStop not InpExtTrailingStep"
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BreakEven exit: when price moves ExtBreakEven pips beyond open price, SL is moved to open price (break-even level)",
+      "Bar-timing gate: closes only when AllowExit==1 (time within AheadExitSec of bar close, or Always if AheadExitSec==0)",
+      "When TradeAtCloseBar is true, close only on new bar; when false, close on any tick"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "default_lots": 200,
+      "risk_percent": 1,
+      "max_lots": 5,
+      "min_fractional_lots": 0.1,
+      "min_full_lots": 1
+    },
+    "max_positions": 1,
+    "conditional_logic": "mm<0 (default -1): fractional lots = MathCeil(FreeMargin*Risk/715)/10-0.1, min 0.1; mm==0: fixed lots at Lots input (200); mm>0: full lots = MathCeil(Equity*Risk/100)/10-1, capped at 5, min 1. mm is hardcoded to -1 so default mode is fractional. Lots input of 200 serves as fixed fallback when mm==0."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar_when_TradeAtCloseBar_else_repeat_while_true"
+  },
+  "custom_logic_notes": "The EA uses four WPR indicators with periods 26, 27, 29, 30. Buy signal requires ALL four WPR values to be near -100 (oversold extreme). Sell signal requires ALL four WPR values to be near 0 (overbought extreme). This is an extreme-reading strategy - signals are very rare. The position gate is effectively no_position: when OpenPos>=1, both OpenBuy and OpenSell are forced to 0. The code checks CountPositions for both buy and sell to set TradeLast flag, but the actual gate is OpenPos check. There is a bug: ExtTrailingStep is assigned from InpTrailingStop instead of InpExtTrailingStep. The NewBar detection logic has a bug: FirstRun is a local static initialized to 1 but immediately set to 0, and the MaxTradeTime check in NewBar logic may not work as intended. AheadTradeSec and AheadExitSec are hardcoded to 0, meaning AllowTrade and AllowExit are always 1. The CountPositions function ignores the type parameter - it counts all positions with matching symbol and magic regardless of type.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh",
+    "Trade\\DealInfo.mqh",
+    "Trade\\OrderInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Four iWPR handles need to be replicated - WPR is available in most Python TA libraries (ta-lib WILLCR function). The Trade library classes (CTrade, CPositionInfo, CSymbolInfo, CAccountInfo) must be reimplemented as Python broker API wrappers. The conditional lot sizing has three modes that need careful translation. The bar-timing gate logic (NewBar, AllowTrade, AllowExit) needs to be replicated exactly. The trailing stop with step logic needs proper implementation. Note the bug where ExtTrailingStep should use InpExtTrailingStep but uses InpTrailingStop - decide whether to replicate the bug or fix it. The signal logic uses WPR extremes near boundaries (-99.99 and -0.01) which is unusual - most WPR strategies use levels like -20/-80. The CountPositions function ignores the type parameter which means it counts all positions not just the specified type - this affects the position gate logic.",
+  "extraction_timestamp": "2026-05-13T07:41:45.319313",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 321.17430329322815,
+    "cost": 0
+  }
+}

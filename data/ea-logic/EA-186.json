@@ -1,0 +1,154 @@
+{
+  "ea_id": "EA-186",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Uses Martingale position sizing via external .mqh library with global variable persistence, margin-dependent lot doubling on losses, and tick-volume intrabar filter requiring tick-level execution fidelity",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MACD",
+      "name": "MACD 1 (Fast/Slow)",
+      "params": {
+        "fast_period": 5,
+        "slow_period": 20,
+        "signal_period": 3,
+        "applied_to": 4
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD 2 (Fast/Slow)",
+      "params": {
+        "fast_period": 10,
+        "slow_period": 15,
+        "signal_period": 3,
+        "applied_to": 4
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MACD1 histogram direction: t[0]>t[1] (falling), t[0]>t[1]&&t[1]<t[2] (valley crossover)",
+      "formula": null,
+      "used_by": "entry_rules long/short first-trade conditions"
+    },
+    {
+      "name": "MACD2 direction: k[1]>k[0] (rising histogram)",
+      "formula": null,
+      "used_by": "entry_rules long/short confirmation filter"
+    },
+    {
+      "name": "Last closed order profit direction: cl-op for BUY, op-cl for SELL",
+      "formula": null,
+      "used_by": "martingale doubling decision on loss"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "MACD1 main line",
+        "right": "MACD2 main line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "MACD1 main line",
+        "right": "MACD2 main line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 1500,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "SL/TP only - no signal-based close; opposite signal closes current position via PositionSelect check then opens new direction"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0,
+    "params": {
+      "initial_deposit_fraction": 1000,
+      "doubling_count": 1,
+      "global_var_prefix": "PMG_1"
+    },
+    "max_positions": 1,
+    "conditional_logic": "DML=1000 sets the Shape (deposit fraction base lot); Ud=1 sets DoublingCount; on loss the lot is doubled up to DoublingCount times, then reset; state persisted via global variables across restarts"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 50,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_then_wait"
+  },
+  "custom_logic_notes": "Dual-MACD valley/peak crossover system: Long when MACD1 main line makes a valley (t[0]>t[1] && t[1]<t[2]) AND MACD2 is rising (k[1]>k[0]); Short when MACD1 makes a peak (t[0]<t[1] && t[1]>t[2]) AND MACD2 is falling (k[1]<k[0]). Uses bars [1],[2],[3] (CopyBuffer shift=1, count=3 → t[0]=bar1, t[1]=bar2, t[2]=bar3). After a losing trade, the EA forces the opposite direction (poz=-1 after buy loss, poz=1 after sell loss) applying martingale lot doubling. After a win, normal MACD signal logic resumes. tick_volume>1 guard skips non-first ticks of a bar. OnTester custom metric: profit_count/loss_count divided by (max_series_loss+1), rejects if Tp<Stop.",
+  "external_dependencies": [
+    "OnTesterFunctions.mqh",
+    "Martingail.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Martingale class from Martingail.mqh must be reimplemented: it manages lot sizing with Shape (deposit fraction), DoublingCount (max consecutive doublings), and global variable persistence. The EA forces opposite-direction trades after losses (not pure signal-based), which is critical for backtest accuracy. tick_volume>1 filter requires at least M1 data with volume; tick data preferred. SL/TP use Point() directly without 5-digit adjustment - conversion must handle _Point normalization. The OnTester custom metric (profitc_divide_lossc / max_series_loss) from OnTesterFunctions.mqh is backtest-only and can be omitted for live trading conversion.",
+  "extraction_timestamp": "2026-05-13T13:23:01.128325",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 209.95468664169312,
+    "cost": 0
+  }
+}

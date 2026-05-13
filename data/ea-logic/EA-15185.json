@@ -1,0 +1,128 @@
+{
+  "ea_id": "EA-15185",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for 3LineBreak custom indicator and includes TradeAlgorithms.mqh external library for all trading operations (open/close positions with money management). Custom indicator not available as built-in.",
+  "symbol": null,
+  "timeframe_hint": "H12",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "3LineBreak",
+      "params": {
+        "Lines_Break": 3
+      },
+      "source": "custom",
+      "library": "3LineBreak (iCustom)",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe period in seconds for signal time calculation",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime, DnSignalTime for position open timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before EA processes signals",
+      "formula": "Lines_Break+3+SignalBar+1",
+      "used_by": "BarsCalculated check guard"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "3LineBreak Trend Buffer[2] at SignalBar",
+        "right": "0 (zero line / downtrend state)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "3LineBreak Trend Buffer[2] at SignalBar",
+        "right": "1 (one line / uptrend state)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Trend continuation close: if BuyPosOpen&&BuyPosClose&&TrendValue[1]==1 then close buy on same-trend bar; if SellPosOpen&&SellPosClose&&TrendValue[1]==0 then close sell on same-trend bar - this closes positions at end of trend continuation when both open and close flags are enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing: LOT=fixed lots (MM=0.1 lots), FREEMARGIN=MM fraction of free margin, BALANCE=MM fraction of balance, LOSSFREEMARGIN=MM fraction of free margin minus loss, LOSSBALANCE=MM fraction of balance minus loss. Delegated to TradeAlgorithms.mqh library."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal is read from 3LineBreak indicator buffer index 2 (trend state buffer). TrendValue[0] is at SignalBar (default=1, previous bar) and TrendValue[1] is at SignalBar+1. Entry signal: TrendValue shifts from 0 to 1 (buy) or 1 to 0 (sell). When SignalBar=0, signals are checked every tick instead of only on new bars. The close logic has two paths: (1) reverse-signal close when trend flips, and (2) same-trend continuation close when both BuyPosOpen/BuyPosClose or SellPosOpen/SellPosClose are enabled AND TrendValue[1] confirms current trend direction - this latter path appears to close at each new bar within a trend if both open and close flags are true, which is unusual. Position open/close functions and money management are entirely delegated to TradeAlgorithms.mqh library. GlobalVariableDel_ cleanup on deinit also from the library.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The 3LineBreak custom indicator must be reimplemented in Python (three-line break chart logic is well-documented). The indicator outputs a trend state buffer (0 or 1) at buffer index 2. TradeAlgorithms.mqh handles all order execution and money management - the full logic for BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, and the MarginMode-based sizing must be reimplemented or the .mqh source obtained. The CIsNewBar class for new bar detection also comes from the library. SL/TP are in points (not pips) - value of 1000/2000 points = 100/200 pips on 5-digit brokers; no digit adjustment code exists in the EA itself so the library or indicator may handle it. SignalBar=1 means signals are calculated on the last closed bar, making this a low-frequency bar-based strategy suitable for per-bar backtesting on M1 or H1 data resampled to H12.",
+  "extraction_timestamp": "2026-05-13T00:31:29.951410",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 169.2373344898224,
+    "cost": 0
+  }
+}

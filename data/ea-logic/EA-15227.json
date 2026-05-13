@@ -1,0 +1,143 @@
+{
+  "ea_id": "EA-15227",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for Sidus indicator and depends on TradeAlgorithms.mqh for all position open/close logic including money management and execution; custom indicator and external library required",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Sidus",
+      "params": {
+        "fast_ema_period": 18,
+        "slow_ema_period": 28,
+        "fast_lwma_period": 5,
+        "slow_lwma_period": 8,
+        "applied_to": 0,
+        "digit": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of the indicator timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before processing",
+      "formula": "MathMax(FastLWMA,SlowLWMA)+3+SignalBar+3",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen execution timing"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen execution timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Sidus UpValue buffer 0",
+        "right": "zero (non-zero and non-EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "Sidus DnValue buffer 1",
+        "right": "zero (non-zero and non-EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Historical back-scan of indicator buffers to find prior opposite signal when both open and close flags are enabled for same side, confirming close signal existence before bar 0"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects sizing method: LOT=fixed lot size (MM=0.1 lots), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss; actual sizing logic is inside TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a custom Sidus indicator via iCustom with 2 buffers (UpValue=buffer0 for buy signals, DnValue=buffer1 for sell signals). Signal is read from bar index SignalBar (default=1, previous bar). When both BuyPosOpen and BuyPosClose (or SellPosOpen and SellPosClose) are true, and no close signal was found on the signal bar, the EA scans backward through historical bars to find the most recent opposite signal to set the close flag. Position open/close is entirely delegated to TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose). The Recount flag forces re-evaluation on the next tick if CopyBuffer fails. GlobalVariableDel_ is called on deinit for cleanup. The margin check is inferred from the MarginMode enum which includes loss-aware margin modes.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The Sidus custom indicator must be replicated in Python - it uses two EMA lines (18, 28) and two LWMA lines (5, 8) on PRICE_CLOSE. The indicator outputs buy/sell signals as non-EMPTY_VALUE in buffer 0 (up) and buffer 1 (down). The TradeAlgorithms.mqh library handles all trade execution including 5 money management modes - this must be reimplemented. The historical back-scan logic (lines 128-154) that searches prior bars for opposite signals when both open and close flags are enabled needs careful porting. SL/TP of 1000/2000 points assume the indicator timeframe point size; verify whether these need 5-digit adjustment (multiply by 10) depending on broker digits.",
+  "extraction_timestamp": "2026-05-13T00:53:21.163142",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 93.25648021697998,
+    "cost": 0
+  }
+}

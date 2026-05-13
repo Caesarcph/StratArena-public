@@ -1,0 +1,199 @@
+{
+  "ea_id": "EA-1606",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses 3 custom indicators (iCustom) - Asctrend, NRTR_color_line, TrendStrength_v2 - which must be ported or reimplemented in Python. Multi-indicator filter chain with custom buffer reading logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Asctrend",
+      "params": {
+        "risk": 3
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "NRTR_color_line",
+      "params": {
+        "atr_period": 14,
+        "coefficient": 4.0,
+        "signal_mode": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "TrendStrength_v2",
+      "params": {
+        "applied_price": 1,
+        "rsi_length": 14,
+        "smooth": 5,
+        "k": 4.236
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "PIP - pip value adjusted for digit count",
+      "formula": "(_Digits <= 3) ? 0.01 : 0.0001",
+      "used_by": "PipToPoint, trailing stop calculation"
+    },
+    {
+      "name": "PipToPoint - converts pip value to point multiplier",
+      "formula": "MathRound(__val * MathPow(10, _Digits % 2))",
+      "used_by": "Slippage setting, trailing stop calculation"
+    },
+    {
+      "name": "trailingStop - trailing stop in price units",
+      "formula": "PipToPoint(trailValue) * _Point",
+      "used_by": "CheckTrailingStop"
+    },
+    {
+      "name": "stopLevel - broker minimum stop distance in price",
+      "formula": "SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL) * _Point",
+      "used_by": "SendMarketOrder SL adjustment, CheckTrailingStop"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Asctrend buffer 1 (buy signal)",
+        "right": "EMPTY_VALUE / 0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "NRTR buffer 0 (up trend)",
+        "right": "EMPTY_VALUE / 0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "TrendStrength buffer 1 (up trend)",
+        "right": "EMPTY_VALUE / 0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Asctrend buffer 0 (sell signal)",
+        "right": "EMPTY_VALUE / 0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "NRTR buffer 1 (down trend)",
+        "right": "EMPTY_VALUE / 0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "TrendStrength buffer 2 (down trend)",
+        "right": "EMPTY_VALUE / 0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": 0,
+      "params": {
+        "source": "Asctrend signal value when ascUseAsStoploss=true",
+        "buffer_index": "0 for sell, 1 for buy"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 80,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "BreakEven logic moves SL to entry + ProfitLock when position profit >= BreakEven pips (NOT TESTED per code comment, both BreakEven=0 and ProfitLock=0 by default)",
+      "No explicit signal-reversal exit; opposite signal only trades when flat (position_gate=no_position)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "lotsMode input exists (0=Off, 1=By Free Margin, 2=By StopLoss) but is NOT IMPLEMENTED - only fixed lots used"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three-indicator cascade filter: Asctrend primary signal -> NRTR confirmation filter (optional via nrtrEnabled) -> TrendStrength confirmation filter (optional via tsEnabled). Signal checked on bar [1] (last closed bar) only on new bar. SL is clamped to respect broker stopLevel. For MARKET execution mode, SL is set via PositionModify after fill since market orders don't accept SL at submission. BreakEven and ProfitLock trailing modes are declared but default to 0 (disabled/untested). Async order mode enabled (SetAsyncMode=true). OnDeinit has bug: nrtrHandle and tsHandle IndicatorRelease calls are commented out, causing potential resource leaks.",
+  "external_dependencies": [
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Three custom indicators must be reimplemented or sourced: (1) Asctrend - signal-based indicator returning buy/sell levels on buffers 0/1; (2) NRTR_color_line - ATR-based trailing stop with trend direction on buffers 0/1; (3) TrendStrength_v2 - RSI-derived trend filter on buffers 1/2. The PipToPoint digit-adjustment logic (_Digits%2 trick) must be replicated for proper SL/TP pip-to-point conversion. The trailing stop logic has multiple code paths (BreakEven, standard trailing) and enforces broker stopLevel minimums. Position check uses PositionSelect by symbol + magic number, limiting to 1 position at a time. Signal reads from bar index [1] (previous closed bar).",
+  "extraction_timestamp": "2026-05-13T03:38:24.146404",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 264.9352672100067,
+    "cost": 0
+  }
+}

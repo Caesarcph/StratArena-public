@@ -1,0 +1,203 @@
+{
+  "ea_id": "EA-17236",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iRSI, iStochastic). Entry/exit rules are straightforward conditionals. Position sizing uses a simple risk-percent formula with anti-martingale loss counting. Standard CTrade library for execution. No custom indicators or external trading logic libraries.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Stochastic",
+      "name": "Stochastic 15,8,8",
+      "params": {
+        "k_period": 15,
+        "d_period": 8,
+        "slowing": 8,
+        "method": "SMA",
+        "price_field": "STO_LOWHIGH"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Stochastic",
+      "name": "Stochastic 10,3,3",
+      "params": {
+        "k_period": 10,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "SMA",
+        "price_field": "STO_LOWHIGH"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI 3",
+      "params": {
+        "period": 3,
+        "applied_to": "MEDIAN"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Stochastic 15_8_8 Main - Signal gap check",
+      "formula": "MathAbs(Stoch10_3_3_MAIN - Stoch10_3_3_SIGNAL) > 5",
+      "used_by": "Entry rules (both long and short)"
+    },
+    {
+      "name": "Adjusted point value",
+      "formula": "_Point * 10 (when _Digits==3 or _Digits==5)",
+      "used_by": "Digit adjustment in OnInit (not used for SL/TP since SL/TP=0)"
+    },
+    {
+      "name": "Optimized lot size",
+      "formula": "FreeMargin * MaximumRisk / 1000.0, decreased by losses/DecreaseFactor",
+      "used_by": "Position sizing for both Buy and Sell"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Stoch_15_8_8_MAIN",
+        "right": "Stoch_15_8_8_SIGNAL",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Stoch_15_8_8_MAIN",
+        "right": "50",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "MathAbs(Stoch_10_3_3_MAIN - Stoch_10_3_3_SIGNAL)",
+        "right": "5",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Stoch_15_8_8_MAIN",
+        "right": "Stoch_15_8_8_SIGNAL",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Stoch_15_8_8_MAIN",
+        "right": "55",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "MathAbs(Stoch_10_3_3_MAIN - Stoch_10_3_3_SIGNAL)",
+        "right": "5",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Margin-based emergency close: if account profit<0 and abs(profit)>=margin*MaximumRisk, close all positions",
+      "RSI+Stochastic signal close for BUY: RSI>60 AND Stoch_15_8_8_SIGNAL falling (signal[0]<signal[1]) AND Stoch_15_8_8_SIGNAL>70",
+      "RSI+Stochastic signal close for SELL: RSI<40 AND Stoch_15_8_8_SIGNAL rising (signal[0]>signal[1]) AND Stoch_15_8_8_SIGNAL<30"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 0.1,
+    "params": {
+      "DecreaseFactor": 3,
+      "MinimumLot": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "Lot = FreeMargin * MaximumRisk / 1000.0. If DecreaseFactor>0, count consecutive losses in last 24h and reduce: lot = lot - lot*losses/DecreaseFactor. Minimum lot = 0.1. Input Lots=0.1 is used as fallback minimum."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": " unspecified"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Hedging account required (INIT_FAILED if not hedging mode). New bar guard uses iTickVolume(0)>1 check (only trades on first tick of bar). RSI indicator handle created with period=3 and PRICE_MEDIAN, but input parameter PeriodRSI=4 is declared yet never used - likely a bug. Stochastic 10_3_3 used only as a spread/gap filter (main-signal divergence >5 points required for entry). Close logic uses Stoch 15_8_8 signal line comparisons between bar[0] and bar[1] for direction confirmation.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh",
+    "Trade/DealInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Three built-in indicators to replicate: Stochastic(15,8,8,SMA,LowHigh), Stochastic(10,3,3,SMA,LowHigh), RSI(3,Median). New-bar guard via tick volume check translates to bar-boundary detection. Position sizing has anti-martingale lot reduction based on consecutive losses in past 24h - requires trade history lookup. No SL/TP on orders - exits are purely signal-based and margin-based. Close conditions involve comparing indicator values between current and previous bar (signal line momentum). The PeriodRSI input (4) is unused; RSI is hardcoded to period=3 with PRICE_MEDIAN. Digit adjustment code exists in OnInit but has no practical effect since SL/TP are 0.",
+  "extraction_timestamp": "2026-05-13T09:32:02.640141",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 211.5188343524933,
+    "cost": 0
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "ea_id": "EA-1645",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load QQECloud custom indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic. Custom indicator parameters and external library trade functions must be replicated in Python.",
+  "symbol": null,
+  "timeframe_hint": "M30",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "QQECloud",
+      "params": {
+        "RSI_Period": 14,
+        "SF": 5,
+        "DARFACTOR": 4.236,
+        "XMA_Method": 0,
+        "XPhase": 15,
+        "applied_to": "close"
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Wilders Period",
+      "formula": "RSI_Period*2-1",
+      "used_by": "QQECloud indicator internal calculation (smoothing periods)"
+    },
+    {
+      "name": "min_rates_1",
+      "formula": "RSI_Period+1",
+      "used_by": "min_rates_total (sufficient bars check)"
+    },
+    {
+      "name": "min_rates_2",
+      "formula": "min_rates_1 + XMA.GetStartBars(XMA_Method, SF, XPhase)",
+      "used_by": "min_rates_total (sufficient bars check)"
+    },
+    {
+      "name": "min_rates_3",
+      "formula": "min_rates_2 + XMA.GetStartBars(XMA_Method, Wilders_Period, XPhase)",
+      "used_by": "min_rates_total (sufficient bars check)"
+    },
+    {
+      "name": "min_rates_total",
+      "formula": "min_rates_3 + XMA.GetStartBars(XMA_Method, Wilders_Period, XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "QQECloud Buffer 0 (Up indicator)",
+        "right": "QQECloud Buffer 1 (Dn indicator)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "QQECloud Buffer 0 (Up indicator)",
+        "right": "QQECloud Buffer 1 (Dn indicator)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Time-based forced close: closes all long positions when tm.hour==StopHour && tm.min>=StopMinute || tm.hour>StopHour || tm.hour<StartHour",
+      "Close long when QQECloud Up < Dn (signal reversal) if BuyPosClose=true",
+      "Close short when QQECloud Up > Dn (signal reversal) if SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode parameter selects between FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE, and LOT modes. Default is LOT (fixed lot). When MM=0.1 and MMMode=LOT, the 0.1 is treated as fixed lot size. Other modes use 0.1 as fraction of deposit/balance."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 8,
+      "end_hour": 23
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signals are generated only on new bars (or when Recount is triggered). The signal from bar index SignalBar (default=1, previous bar) is evaluated. Even though signal is detected on new bar, actual entry execution is gated by time filter: trades only open when current hour==StartHour AND current minute==StartMinute. This means entries only happen once per day at the specified time if a signal exists. Time-based forced exit closes all positions when outside the StartHour..StopHour window. The QQECloud indicator has two buffers (0=Up, 1=Dn); crossover of these buffers generates buy/sell signals. Recount flag ensures signal recalculation on data issues.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The QQECloud custom indicator must be fully reimplemented in Python. It requires: (1) RSI calculation with given period, (2) smoothing via CXMA class from SmoothAlgorithms.mqh supporting multiple methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA), (3) Wilders smoothing with derived period RSI_Period*2-1, (4) DARFACTOR-based trailing level computation. The TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and LoadHistory functions that must be replicated. Pay attention to the time-gated entry logic: signals are accumulated but only executed at StartHour:StartMinute. The SignalBar=1 parameter means the indicator values from the previous closed bar are used, avoiding repainting. Position sizing logic depends on MMMode enum - LOT mode uses MM value as fixed lot size; other modes compute lot from deposit/balance fractions.",
+  "extraction_timestamp": "2026-05-13T04:45:24.092124",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 189.99011158943176,
+    "cost": 0
+  }
+}

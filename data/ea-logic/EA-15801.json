@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-15801",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the 'iDeMarkerSign' custom indicator and depends on TradeAlgorithms.mqh external library for all position open/close logic. Custom indicator buffers must be replicated in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "iDeMarkerSign",
+      "params": {
+        "atr_period": 14,
+        "period": 14,
+        "upper_level": 0.7,
+        "lower_level": 0.3
+      },
+      "source": "custom",
+      "library": "iDeMarkerSign",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator",
+      "formula": "int(MathMax(iDeMarkerPeriod+1,ATR_Period))+1+int(1+SignalBar)",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "iDeMarkerSign buffer 1 (UpValue)",
+        "right": "zero_and_not_EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "iDeMarkerSign buffer 0 (DnValue)",
+        "right": "zero_and_not_EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: if iDeMarkerSign UpValue appears on a historical bar (scanning forward from SignalBar+1), close SELL position. If DnValue appears, close BUY position. This is a separate lookback scan for reversal signals when both open and close permissions are enabled for same side."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode_LOT": "0.1 is lot size",
+      "MMMode_FREEMARGIN": "0.1 is fraction of free margin",
+      "MMMode_BALANCE": "0.1 is fraction of balance",
+      "MMMode_LOSSFREEMARGIN": "0.1 is fraction of (free margin minus loss)",
+      "MMMode_LOSSBALANCE": "0.1 is fraction of (balance minus loss)"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lots, FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=deposit fraction. MM input value interpretation changes based on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signals read from custom indicator buffers at SignalBar (default=1, previous bar). UpValue (buffer 1) triggers BUY open and SELL close. DnValue (buffer 0) triggers SELL open and BUY close. When both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are true and no close signal yet, EA scans forward through bars to find a prior reversal signal. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean inputs act as gates to enable/disable each direction's entry and exit. SignalBar=0 allows intrabar recalculation on every tick.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The iDeMarkerSign custom indicator must be reimplemented in Python - it wraps the standard DeMarker indicator with ATR-based signal generation and level crossover detection at UpLevel/DnLevel. Buffer 0 = down signals (DnValue), buffer 1 = up signals (UpValue). Non-zero non-EMPTY_VALUE values indicate a signal. TradeAlgorithms.mqh position sizing logic (5 MarginMode variants) must be reimplemented. SL/TP are in points (1000/2000) - may need digit adjustment for 5-digit brokers. The lookback scan for reversal signals (lines 134-160) adds complexity.",
+  "extraction_timestamp": "2026-05-13T02:34:16.283654",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 131.48373889923096,
+    "cost": 0
+  }
+}

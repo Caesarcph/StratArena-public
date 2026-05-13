@@ -1,0 +1,146 @@
+{
+  "ea_id": "EA-15979",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the 'i-CAi' custom indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution. Custom indicator with non-standard smoothing methods requires reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "i-CAi",
+      "params": {
+        "method": "MODE_SMA_",
+        "period": 12,
+        "phase": 15,
+        "applied_to": "PRICE_CLOSE_",
+        "smooth_method": "SMA"
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total: minimum bars before indicator is valid",
+      "formula": "GetStartBars(XMA_Method, XLength, XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec: timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade timing"
+    },
+    {
+      "name": "UpSignalTime: timestamp for buy signal expiration",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime: timestamp for sell signal expiration",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "i-CAi[0] (current signal bar)",
+        "right": "i-CAi[1] (previous bar)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "i-CAi[0] (current signal bar)",
+        "right": "i-CAi[1] (previous bar)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy close triggered when i-CAi[1] < i-CAi[2] (downtrend detected) and SellPosClose is enabled",
+      "Sell close triggered when i-CAi[1] > i-CAi[2] (uptrend detected) and BuyPosClose is enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot size (MM=0.1 lots), FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=deposit fraction based on MM percentage. MM=0.1 interpreted as either 0.1 lots or 0.1% of capital depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signal requires two conditions: (1) trend direction from i-CAi[1] vs i-CAi[2] comparison, (2) current value i-CAi[0] must confirm by being >= i-CAi[1] for longs or <= i-CAi[1] for shorts. Signal is evaluated on bar index defined by SignalBar (default=1, previous closed bar). When SignalBar=0, signals are recalculated every tick. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean gates that independently control each action. Trade timing uses UpSignalTime/DnSignalTime (current bar open time + timeframe duration) passed to TradeAlgorithms functions, likely implementing 'trade until next bar' expiration logic. GlobalVariableDel_ called on deinit suggests persistent state management.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The i-CAi custom indicator must be reimplemented in Python. It uses CXMA class from SmoothAlgorithms.mqh which implements 10+ smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard SMA/EMA/SMMA/LWMA). The Applied_price_ enum extends MT5's 7 standard price types with 3 custom ones (Simpl=OC/2, Quarter=HLOC/4, TrendFollow). TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar - all must be reimplemented. The SignalBar=1 default means signals read from the previous closed bar, making this a bar-close strategy suitable for bar-level backtesting. SL=1000 and TP=2000 are in points (not pips), so for 5-digit brokers these are 100/200 pips respectively - digit adjustment is NOT done in this EA, the values are passed directly to trade functions.",
+  "extraction_timestamp": "2026-05-13T03:16:01.605404",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 99.56425786018372,
+    "cost": 0
+  }
+}

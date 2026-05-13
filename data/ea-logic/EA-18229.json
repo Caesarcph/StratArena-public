@@ -1,0 +1,163 @@
+{
+  "ea_id": "EA-18229",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Multi-symbol hedging strategy with 4 correlated pairs, emergency doubling logic, time-based entry gates, and multi-symbol position tracking. Not a simple indicator-based system.",
+  "symbol": null,
+  "timeframe_hint": "D1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "d_c1 - current day % deviation of Symbol1 vs yesterday close",
+      "formula": "(100 * iClose(0,Symbol1) / iClose(1,Symbol1,D1)) - 100",
+      "used_by": "display/Comment, not directly used for entry"
+    },
+    {
+      "name": "d_c2 - current day % deviation of Symbol2 vs yesterday close",
+      "formula": "(100 * iClose(0,Symbol2) / iClose(1,Symbol2,D1)) - 100",
+      "used_by": "display/Comment"
+    },
+    {
+      "name": "d_c3 - current day % deviation of Symbol3 vs yesterday close",
+      "formula": "(100 * iClose(0,Symbol3) / iClose(1,Symbol3,D1)) - 100",
+      "used_by": "display/Comment"
+    },
+    {
+      "name": "d_c4 - current day % deviation of Symbol4 vs yesterday close",
+      "formula": "(100 * iClose(0,Symbol4) / iClose(1,Symbol4,D1)) - 100",
+      "used_by": "display/Comment"
+    },
+    {
+      "name": "d_c11 - previous day % deviation of Symbol1 vs day-before close",
+      "formula": "(100 * iClose(1,Symbol1,D1) / iClose(2,Symbol1,D1)) - 100",
+      "used_by": "entry_rules: sign determines long vs short basket"
+    },
+    {
+      "name": "d_c22 - previous day % deviation of Symbol2 vs day-before close",
+      "formula": "(100 * iClose(1,Symbol2,D1) / iClose(2,Symbol2,D1)) - 100",
+      "used_by": "display/Comment"
+    },
+    {
+      "name": "d_c33 - previous day % deviation of Symbol3 vs day-before close",
+      "formula": "(100 * iClose(1,Symbol3,D1) / iClose(2,Symbol3,D1)) - 100",
+      "used_by": "display/Comment"
+    },
+    {
+      "name": "d_c44 - previous day % deviation of Symbol4 vs day-before close",
+      "formula": "(100 * iClose(1,Symbol4,D1) / iClose(2,Symbol4,D1)) - 100",
+      "used_by": "display/Comment"
+    },
+    {
+      "name": "profit in pips per symbol (e.g. profit1)",
+      "formula": "((tick.bid - PriceOpen) / point) for BUY, ((PriceOpen - tick.ask) / point) for SELL",
+      "used_by": "risk_controls: profit_target, loss_limit, emergency_double"
+    },
+    {
+      "name": "totalprofit in pips",
+      "formula": "profit1 + profit2 + profit3 + profit4 + e_profit",
+      "used_by": "enable_profit close, enable_loss close, emergency_loss DoublePositions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "d_c11 (previous day deviation of Symbol1)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "d_c11 (previous day deviation of Symbol1)",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 80,
+      "params": {
+        "notes": "InpProfit=80 pips total basket profit; only active when enable_profit=true"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Time-based close: all positions closed when hour >= 23 (end of day)",
+      "Basket loss close: when enable_loss=true and totalprofit <= -InpLoss (40 pips), close all",
+      "Emergency doubling: when totalprofit <= -emergency_loss (60 pips), DoublePositions() doubles winning positions, then disables further emergency trading"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 4,
+    "conditional_logic": "Emergency doubling copies volume from existing winning position (m_position.Volume())"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 1
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Multi-symbol hedge basket EA. Opens 4 positions simultaneously: when d_c11>0 (Symbol1 had positive prior-day deviation), buys EURUSD+USDCHF+AUDUSD and sells GBPUSD. When d_c11<0, sells EURUSD+USDCHF+AUDUSD and buys GBPUSD. Each symbol has a separate magic number. Entry only between hour 0 minute 5 and minute 12. All positions closed at hour>=23. Emergency doubling logic: when basket loss exceeds emergency_loss (60 pips), winning positions are doubled (same direction, same volume) with emergency magic number. The DoublePositions symbol filter has a logical bug: 'symbol!=InpSymbol_1 || symbol!=InpSymbol_2 || ...' is always true (should be &&), so it continues on all symbols. Profit is calculated per-symbol in pips using point values. The iClose() helper uses CopyClose(). IsTradeAllowed() has a duplicate check (TERMINAL_TRADE_ALLOWED checked twice). Time filter allows entry only in a 7-minute window at start of day.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Multi-symbol coordination is the primary challenge. Need to: (1) track 4 positions as a basket with individual magic numbers, (2) implement the D1 deviation calculation using prior-day close ratios, (3) replicate the emergency doubling logic with position-level profit tracking, (4) handle the time-based entry window (0:05-0:12) and exit window (>=23:00), (5) note the logical bug in DoublePositions symbol filter (|| should be &&), (6) the filling type auto-detection (FOK/IOC/RETURN) should map to broker-specific settings, (7) profit calculation is in integer pips (cast to int) which truncates fractional pips, (8) no SL/TP on individual orders - exits are basket-level only",
+  "extraction_timestamp": "2026-05-13T12:31:42.901716",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 153.69437956809998,
+    "cost": 0
+  }
+}

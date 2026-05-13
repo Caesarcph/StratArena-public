@@ -1,0 +1,185 @@
+{
+  "ea_id": "EA-17156",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iAlligator indicator with standard parameters. Simple crossover entry/exit rules. Fixed lot position sizing. No external .mqh libraries. No complex money management or multi-timeframe logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Alligator Jaw (Blue Line)",
+      "params": {
+        "period": 13,
+        "method": "SMMA",
+        "applied_to": "MEDIAN",
+        "shift": 8
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Alligator Teeth (Red Line)",
+      "params": {
+        "period": 8,
+        "method": "SMMA",
+        "applied_to": "MEDIAN",
+        "shift": 5
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Alligator Lips (Green Line)",
+      "params": {
+        "period": 5,
+        "method": "SMMA",
+        "applied_to": "MEDIAN",
+        "shift": 3
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "SL/TP point adjustment for 5-digit brokers",
+      "formula": "StopLoss*10 / TakeProfit*10 when _Digits==5 or _Point<0.001",
+      "used_by": "stop_loss and take_profit calculation"
+    },
+    {
+      "name": "Price level for SL/TP in points",
+      "formula": "SLPoints = StopLoss * Poin (adjusted _Point)",
+      "used_by": "order SL/TP price calculation"
+    },
+    {
+      "name": "Price level for TP in points",
+      "formula": "TPPoints = TakeProfit * Poin (adjusted _Point)",
+      "used_by": "order TP price calculation"
+    },
+    {
+      "name": "Poin - adjusted point value for 5-digit brokers",
+      "formula": "Poin = _Point*10 when _Digits==5 || _Point<0.001, else _Point",
+      "used_by": "all SL/TP price calculations"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Alligator Lips (Green Line)",
+        "right": "Alligator Teeth (Red Line)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Alligator Teeth (Red Line)",
+        "right": "Alligator Jaw (Blue Line)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Alligator Lips (Green Line)",
+        "right": "Alligator Teeth (Red Line)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Alligator Teeth (Red Line)",
+        "right": "Alligator Jaw (Blue Line)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite position when reverse signal detected before opening new position"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "same_bar_close",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA checks for opposite position and closes it before opening a new trade in the reverse direction. The Alligator indicator is used as a trend filter - Lips above Teeth above Jaw for uptrend (long), Lips below Teeth below Jaw for downtrend (short). The comparison uses current bar values (shift 0) of the Alligator lines. Poin variable adjusts _Point for 5-digit brokers to normalize pip calculations.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The iAlligator function in MT5 returns 3 lines via buffer indices: 0=Jaw, 1=Teeth, 2=Lips. In Python, use the ta-library or manual SMMA calculation with periods 13/8/5 and shifts 8/5/3. The digit adjustment logic (Poin) must be replicated - multiply SL/TP by 10 for 5-digit forex pairs. Entry logic is a simple trend alignment check (all 3 lines ordered), not a crossover - verify whether the EA uses Lips[0]>Teeth[0]>Jaw[0] (current bar) or prior bar comparisons. Signal reversal closes opposite before entering new position - implement as close-then-open sequence. The new bar guard means signals are evaluated once per completed bar.",
+  "extraction_timestamp": "2026-05-13T09:05:13.295736",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 204.53733491897583,
+    "cost": 0
+  }
+}

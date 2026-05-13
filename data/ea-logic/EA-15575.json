@@ -1,0 +1,172 @@
+{
+  "ea_id": "EA-15575",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'Directed_Movement' custom indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms. Custom indicator cannot be auto-converted without reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Directed_Movement",
+      "params": {
+        "rsi_period": 14,
+        "rsi_applied_price": 1,
+        "ma_method1": 0,
+        "length1": 12,
+        "phase1": 15,
+        "ma_method2": 4,
+        "length2": 5,
+        "phase2": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI (embedded in Directed_Movement)",
+      "params": {
+        "period": 14,
+        "applied_to": 1
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Smoothed RSI MA1 (embedded in Directed_Movement)",
+      "params": {
+        "period": 12,
+        "method": 0,
+        "phase": 15
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Smoothed RSI MA2 (embedded in Directed_Movement)",
+      "params": {
+        "period": 5,
+        "method": 4,
+        "phase": 15
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "RSIPeriod + GetStartBars(MA_Method1,Length1,Phase1) + GetStartBars(MA_Method2,Length2,Phase2) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal time calculation for BuyPositionOpen/SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "UpIndSeries (Directed_Movement buffer 0)",
+        "right": "DnIndSeries (Directed_Movement buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "UpIndSeries (Directed_Movement buffer 0)",
+        "right": "DnIndSeries (Directed_Movement buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy position closed when UpIndSeries crosses below DnIndSeries (BUY_Close flag set on bearish crossover)",
+      "Sell position closed when UpIndSeries crosses above DnIndSeries (SELL_Close flag set on bullish crossover)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot size (MM=0.1 lots), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM input value (0.1) is interpreted differently depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry crossover logic: Long entry when UpIndSeries[1]>DnIndSeries[1] AND UpIndSeries[0]<=DnIndSeries[0] (up line crosses above down line on the signal bar relative to previous bar). Short entry when UpIndSeries[1]<DnIndSeries[1] AND UpIndSeries[0]>=DnIndSeries[0]. Signal is evaluated on bar specified by SignalBar (default=1, previous completed bar). When SignalBar=0, signal is checked every tick without new bar guard. BuyPosOpen/SellPosOpen booleans gate whether entries are allowed. BuyPosClose/SellPosClose booleans gate whether signal-reversal closes are allowed. Recount flag triggers re-evaluation if CopyBuffer fails. GlobalVariableDel_ called on deinit for cleanup. LoadHistory() is called each tick to ensure bar data availability.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The Directed_Movement custom indicator must be fully reverse-engineered or reimplemented in Python. It loads RSI with double-smoothing (two MA passes with configurable smoothing methods including JJMA, JurX, ParMA, T3, VIDYA, AMA from SmoothAlgorithms.mqh). The SmoothAlgorithms.mqh library provides 10+ non-standard smoothing algorithms that all need Python implementations. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose wrappers with margin-based position sizing - this also needs reimplementation. The crossover detection uses a 2-bar lookback (comparing [0] vs [1] from CopyBuffer starting at SignalBar), which translates to comparing current signal bar vs previous signal bar values. SL/TP are in points (not pips) - 1000 points = 100 pips for 5-digit, 1000 pips for 4-digit; no automatic digit adjustment is done in the EA itself, so the Python version should treat StopLoss_/TakeProfit_ as point values. Signal time is bar open time + timeframe duration seconds, used by trade functions.",
+  "extraction_timestamp": "2026-05-13T02:00:11.907589",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 99.94686555862427,
+    "cost": 0
+  }
+}

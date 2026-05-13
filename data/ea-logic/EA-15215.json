@@ -1,0 +1,129 @@
+{
+  "ea_id": "EA-15215",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'Karacatica' custom indicator and depends on TradeAlgorithms.mqh external library for all trade execution (open/close position logic, money management). Custom indicator buffers require understanding of the indicator's internal logic.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Karacatica",
+      "params": {
+        "period": 70,
+        "applied_to": null
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds for one timeframe bar",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade execution timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before processing",
+      "formula": "iPeriod+1+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Karacatica buffer 1 (UpValue)",
+        "right": "0 (non-zero and not EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "Karacatica buffer 0 (DnValue)",
+        "right": "0 (non-zero and not EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite Karacatica signal closes existing position: UpValue signal closes short, DnValue signal closes long. Additional historical bar scan (bars SignalBar+1 to end) checks for earlier opposite signals when both open and close flags are enabled but no close signal found on current bar."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM input (0.1) serves as either lot size or fraction depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses a two-pass signal detection: first checks SignalBar (default=1, previous bar) for entry signals, then if both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are true but no close signal found on SignalBar, scans remaining history bars for earlier opposite signals to trigger position closes. Signal times are calculated as SERIES_LASTBAR_DATE + TimeShiftSec, used by TradeAlgorithms.mqh for trade timing. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans independently gate each action. Recount flag triggers re-evaluation on CopyBuffer failures.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must reimplement or port the Karacatica custom indicator logic since it is loaded via iCustom. The TradeAlgorithms.mqh library handles all position open/close with money management - this must be fully reimplemented in Python including the 5 MarginMode variants. The historical bar scan for opposite signals (lines 122-148) is an unusual pattern that must be replicated exactly. SL/TP are in points (not pips), so no digit adjustment is needed - they are passed directly to the trade functions. The SignalBar parameter controls which bar is used for signal detection (default bar[1]), critical for avoiding look-ahead bias in backtesting.",
+  "extraction_timestamp": "2026-05-13T00:44:59.452412",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 183.28835487365723,
+    "cost": 0
+  }
+}

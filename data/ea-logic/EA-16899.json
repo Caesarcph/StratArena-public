@@ -1,0 +1,166 @@
+{
+  "ea_id": "EA-16899",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses pending stop orders (BuyStop/SellStop) with continuous order modification on every tick. No indicator-based entry signals - the EA places pending orders at a fixed distance from price and trails them, requiring tick-level order management. Heavy pending order management and trailing of pending order prices make this difficult to auto-convert to a bar-based Python backtester.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "digits_adjust multiplier",
+      "formula": "(Digits()==3 || Digits()==5) ? 10 : 1",
+      "used_by": "ExtStoploss, ExtTakeprofit, ExtTrailingStop, ExtTrailingStart, ExtStepTrall, ExtNoLoss, ExtMinProfitNoLoss, ExtStep, ExtSlippage"
+    },
+    {
+      "name": "ExtStoploss",
+      "formula": "InpStoploss * digits_adjust",
+      "used_by": "Stop loss calculation for pending and open positions"
+    },
+    {
+      "name": "ExtTakeprofit",
+      "formula": "InpTakeprofit * digits_adjust",
+      "used_by": "Take profit calculation for pending orders"
+    },
+    {
+      "name": "ExtTrailingStop",
+      "formula": "InpTrailingStop * digits_adjust",
+      "used_by": "Trailing stop distance in points"
+    },
+    {
+      "name": "ExtTrailingStart",
+      "formula": "InpTrailingStart * digits_adjust",
+      "used_by": "Profit threshold to activate trailing stop"
+    },
+    {
+      "name": "ExtStepTrall",
+      "formula": "InpStepTrall * digits_adjust",
+      "used_by": "Minimum step to move trailing stop and pending order price"
+    },
+    {
+      "name": "ExtNoLoss",
+      "formula": "InpNoLoss * digits_adjust",
+      "used_by": "Break-even activation threshold in points"
+    },
+    {
+      "name": "ExtMinProfitNoLoss",
+      "formula": "InpMinProfitNoLoss * digits_adjust",
+      "used_by": "Minimum profit when moving to break-even"
+    },
+    {
+      "name": "ExtStep",
+      "formula": "InpStep * digits_adjust",
+      "used_by": "Distance from current price for pending stop orders"
+    },
+    {
+      "name": "ExtSlippage",
+      "formula": "InpSlippage * digits_adjust",
+      "used_by": "Maximum slippage for market orders"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "no_buy_position_and_no_buy_stop_order",
+        "right": "null",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "no_sell_position_and_no_sell_stop_order",
+        "right": "null",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 10,
+      "params": {
+        "adjusted_value": "InpStoploss * digits_adjust (100 points for 5-digit)"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "adjusted_value": "InpTakeprofit * digits_adjust (500 points for 5-digit)"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 10,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 2
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Break-even (NoLoss): moves SL to open price + ExtMinProfitNoLoss when position profit reaches InpNoLoss points",
+      "Pending order price trails current price: BuyStop/SellStop order prices are modified to follow Ask+ExtStep / Bid-ExtStep respectively, with TimeModify cooldown and ExtStepTrall minimum distance check"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 30,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "This is a NEWS trading EA that places BuyStop and SellStop pending orders at a fixed distance (InpStep) from the current price on every tick. When no buy-side exposure exists (no buy position + no buy stop order), it places a BuyStop at Ask+ExtStep. Same for sell side. Pending order prices are continuously trailed to follow the current price, with a TimeModify cooldown (default 300 seconds) and a minimum distance change threshold (ExtStepTrall). The EA also implements break-even logic (NoLoss) and a trailing stop for open positions. The comment 'news' is used for all orders. This is a straddle/breakout strategy designed for news events - it places orders on both sides and trails them tighter as the price moves, catching whichever direction the market breaks.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh",
+    "Trade/OrderInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "This EA requires tick-level data for accurate backtesting because: (1) Pending order prices are trailed on every tick, not just on bar close. (2) The TimeModify cooldown and ExtStepTrall distance checks operate on tick timestamps. (3) Entry is via BuyStop/SellStop pending orders, not market orders - the order placement and modification logic must be simulated tick-by-tick. The position_gate logic is 'no same side' - it checks both open positions AND pending orders of the same direction before placing a new pending order. Break-even and trailing stop logic for open positions is standard and can be converted. The pending order trailing logic is the hardest part: order prices are recalculated each tick and only modified if enough time has passed (TimeModify seconds) and the price has moved enough (ExtStepTrall points). A Python conversion should use a tick-by-tick simulator with pending order book support.",
+  "extraction_timestamp": "2026-05-13T06:57:02.131425",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 341.6495702266693,
+    "cost": 0
+  }
+}

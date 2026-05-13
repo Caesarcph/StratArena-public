@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-16044",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for PFE indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms. Custom indicator with non-standard params makes automatic conversion impossible.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "PFE (Polarized Fractal Efficiency)",
+      "params": {
+        "period": 5,
+        "method": 4,
+        "smooth_length": 5,
+        "phase": 100,
+        "applied_price": 1,
+        "buffer_index": 0,
+        "up_level": 0.5,
+        "dn_level": -0.5
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "PfePeriod + GetStartBars(XMA_Method,XLength,XPhase) + 2 + SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars before indicator is valid",
+      "formula": "PfePeriod+1 + GetStartBars(XMA_Method,XLength,XPhase) + 2+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - bar duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "PFE[1]",
+        "right": "UpLevel (+0.5)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "PFE[1]",
+        "right": "DnLevel (-0.5)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy close when PFE[1] drops below DnLevel (-0.5) and BuyPosClose is enabled",
+      "Sell close when PFE[1] rises above UpLevel (+0.5) and SellPosClose is enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM input (0.1) serves as either the lot size or the fraction depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses previous bar (SignalBar=1 by default): PFE[1] must exceed the level AND PFE[0] must be on the opposite side of the level, creating a crossover confirmation. Signal timestamps are set to the last bar date plus one bar period, implying execution at next bar open. The BuyPositionOpen/SellPositionOpen functions from TradeAlgorithms.mqh handle the actual order placement with timing gates. The BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose input booleans act as master switches to independently enable/disable each trade direction and close logic. GlobalVariableDel_ is called on deinit for cleanup.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The PFE indicator must be reimplemented in Python - it uses the CXMA class from SmoothAlgorithms.mqh which implements JJMA, JurX, ParMA, T3, VIDYA, AMA smoothing methods. The entry logic uses Value[1] (previous bar) vs Value[0] (current bar) relative to UpLevel/DnLevel for crossover detection. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose which encapsulate position checking, margin calculation, and order placement. The MarginMode conditional sizing must be reimplemented. Signal timing uses bar open time (SeriesInfoInteger SERIES_LASTBAR_DATE + TimeShiftSec) which is effectively next-bar-open execution.",
+  "extraction_timestamp": "2026-05-13T03:33:59.210302",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 60.39407277107239,
+    "cost": 0
+  }
+}

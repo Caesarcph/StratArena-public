@@ -1,0 +1,131 @@
+{
+  "ea_id": "EA-15248",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load NRTR_extr custom indicator and depends on TradeAlgorithms.mqh external library for all trade execution logic (position open/close, money management). Custom indicator buffers require understanding of NRTR_extr internals.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "NRTR_extr",
+      "params": {
+        "period": 10,
+        "dig": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of the indicator timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "iPeriod+SignalBar+1",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "NRTR_extr buffer 2 (Up signal)",
+        "right": "0 and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "NRTR_extr buffer 3 (Dn signal)",
+        "right": "0 and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "NRTR_extr buffer 0 (Up trend line) non-zero and non-EMPTY_VALUE triggers SELL_Close when SellPosOpen and SellPosClose are both true",
+      "NRTR_extr buffer 1 (Dn trend line) non-zero and non-EMPTY_VALUE triggers BUY_Close when BuyPosOpen and BuyPosClose are both true"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects between: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of loss-free margin, LOSSBALANCE=fraction of loss-balance. When MMMode=LOT, MM value is interpreted as fixed lots; otherwise MM is a fraction (e.g. 0.1 = 10%) of the selected margin base."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal bar index is configurable (SignalBar input, default=1 meaning previous completed bar). The EA reads 4 buffers from NRTR_extr: buffer 0=Up trend line, buffer 1=Dn trend line, buffer 2=Up signal, buffer 3=Dn signal. Close signals have a two-tier system: primary close from signal buffers (2/3) fires unconditionally when the opposite signal appears; secondary close from trend buffers (0/1) only fires when both the open and close flags for that direction are enabled (e.g. BuyPosOpen && BuyPosClose). The Recount static flag ensures signal is re-read if CopyBuffer fails. UpSignalTime/DnSignalTime are passed to BuyPositionOpen/SellPositionOpen and likely used for expiration or bar-identification logic inside TradeAlgorithms.mqh. GlobalVariableDel_ in OnDeinit cleans up global variables used by the trade library.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must replicate NRTR_extr indicator logic in Python (reverse-engineer from NRTR_extr.mq5 source) or pre-compute indicator values and feed them as a data series. The TradeAlgorithms.mqh money management logic (5 modes: LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) must be reimplemented. The position open/close functions likely contain retry logic, global variable management, and position identification by signal time - all need careful translation. Signal time (SERIES_LASTBAR_DATE + TimeShiftSec) is used as a trade identifier, not for pending orders. The configurable SignalBar (default 1) means signals are read from the previous completed bar, avoiding repainting. SL/TP of 1000/2000 pips are likely in points not pips - verify whether 5-digit adjustment is needed based on symbol digits.",
+  "extraction_timestamp": "2026-05-13T01:17:15.015053",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 201.33817267417908,
+    "cost": 0
+  }
+}

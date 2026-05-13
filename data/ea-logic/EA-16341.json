@@ -1,0 +1,166 @@
+{
+  "ea_id": "EA-16341",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'ColorXvaMA_Digit' custom indicator and depends on external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing algorithms. Custom indicator signal interpretation via buffer values requires manual replication.",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorXvaMA_Digit",
+      "params": {
+        "xma_method1": "EMA",
+        "xlength1": 15,
+        "xphase1": 15,
+        "xma_method2": "JJMA",
+        "xlength2": 5,
+        "xphase2": 100,
+        "applied_price": "PRICE_CLOSE_",
+        "digit": 2,
+        "signal_bar": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "XvaMA First Smooth (EMA)",
+      "params": {
+        "period": 15,
+        "method": "EMA",
+        "applied_to": "close",
+        "phase": 15
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "XvaMA Second Smooth (JJMA)",
+      "params": {
+        "period": 5,
+        "method": "JJMA",
+        "applied_to": null,
+        "phase": 100
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe period in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before EA processes signals",
+      "formula": "GetStartBars(EMA,15,15)+GetStartBars(JJMA,5,2)+3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorXvaMA_Digit buffer 1 at bar[1]",
+        "right": "1",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorXvaMA_Digit buffer 1 at bar[1]",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when indicator buffer value at bar[1] equals 0 and BuyPosClose is enabled",
+      "Short position closed when indicator buffer value at bar[1] equals 1 and SellPosClose is enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum controls sizing: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. Default is LOT (fixed 0.1 lots)."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA reads buffer index 1 from the ColorXvaMA_Digit custom indicator which returns a color state: 1=bullish (up signal), 0=bearish (down signal). Entry requires a transition: BUY_Open triggers only when Value[1]==1 AND Value[0]<1 (current bar was not already bullish, i.e. fresh crossover). Similarly SELL_Open triggers when Value[1]==0 AND Value[0]>0. SignalBar=1 means the signal is read from bar[1] (previous completed bar). When SignalBar=0, the EA evaluates on every tick instead of only on new bars. The Digit parameter (2) controls the number of additional decimal places displayed by the indicator but does not affect signal logic. Position opening/closing is handled by TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) which contain the actual order sending and position management logic including the MarginMode-based lot calculation.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Three major obstacles for Python conversion: (1) The ColorXvaMA_Digit custom indicator must be fully replicated - requires implementing the XvaMA double-smoothing algorithm from SmoothAlgorithms.mqh (EMA pass + JJMA pass on applied price with Digit rounding). (2) TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose which encapsulate order execution, margin-based lot calculation, and global variable management - this logic must be reimplemented. (3) The JJMA smoothing method is proprietary/complex and not available in standard Python libraries - would need a pure Python port of the Jurik algorithm. The MarginMode enum (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) requires access to account balance/margin info for proper lot sizing. Signal logic itself is straightforward: buffer[1]==1 with buffer[0]<1 for long entry, buffer[1]==0 with buffer[0]>0 for short entry, evaluated on completed bar. SL/TP are in points (1000/2000) which need proper conversion depending on symbol digit count.",
+  "extraction_timestamp": "2026-05-13T04:15:32.319686",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 125.06719160079956,
+    "cost": 0
+  }
+}

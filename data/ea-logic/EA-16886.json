@@ -1,0 +1,173 @@
+{
+  "ea_id": "EA-16886",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale position sizing (MathPow(2,m_pos)), margin-dependent lot calculation (Balance/50001), tick-level execution with intrabar signal repetition, and counter-based martingale state (m_pos) tied to real-time position profit evaluation. These features are tightly coupled to MT5's position management and would require significant manual adaptation for Python backtesting.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "CCI",
+      "name": "CCI",
+      "params": {
+        "period": 8,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "fast_period": 13,
+        "slow_period": 33,
+        "signal_period": 2,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MACD value scaled by 1000000",
+      "formula": "iMACDGet(MAIN_LINE,0)*1000000",
+      "used_by": "entry_rules long and short threshold comparisons"
+    },
+    {
+      "name": "Dynamic lot size from account balance",
+      "formula": "NormalizeDouble(Balance/50001.0,2), min 0.1",
+      "used_by": "position_sizing for buy/sell order volume"
+    },
+    {
+      "name": "Martingale lot multiplier",
+      "formula": "m_ext_lot*MathPow(2,m_pos)",
+      "used_by": "buy() and sell() order volume"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "CCI",
+        "right": "-m_buy_sell_level",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "and_combination",
+        "left": "MACD",
+        "right": "-m_buy_sell_level",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "CCI",
+        "right": "m_buy_sell_level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "and_combination",
+        "left": "MACD",
+        "right": "m_buy_sell_level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close profitable positions when price distance from open exceeds 120*Point (close() function iterates OrdersTotal)",
+      "Signal reversal closes opposite side positions via closeAll() called from buy()/sell() before opening new position"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "base_lot_formula": "Balance/50001.0 rounded to 2 decimals, minimum 0.1",
+      "martingale_multiplier": "MathPow(2,m_pos) where m_pos increments on losing close and resets on winning close",
+      "m_pos_increment_on_loss": 1,
+      "m_pos_reset_on_win": 0,
+      "m_pos_increment_on_profitable_close_120pt": 2
+    },
+    "max_positions": 1,
+    "conditional_logic": "Lot = max(0.1, round(Balance/50001,2)) * 2^m_pos; m_pos increments by 1 when a position is closed at a loss, increments by 2 when closed profitably with >120 Point distance, resets to 0 when closed profitably with <=120 Point distance"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "The close() function iterates OrdersTotal()-1 but uses m_position.SelectByIndex(cnt) which is designed for PositionsTotal(), not OrdersTotal. This is likely a bug - OrdersTotal() counts pending orders while SelectByIndex works with positions. The m_pos martingale counter has a complex update rule: +1 on closing a losing position (in closeAll), +2 on closing a profitable position with >120 Point move (in close()), and reset to 0 on closing a profitable position with <=120 Point move (in closeAll). The MACD value is multiplied by 1000000 which makes the threshold comparison with 230 meaningful - this scaling factor is symbol-dependent and may not work for all instruments. The buy() and sell() functions check m_buy_total==0 and m_sell_total==0 respectively, meaning only one position per side is allowed, but opposite side is closed first.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The martingale lot sizing with m_pos state tracking across position closes requires careful state management in Python. The MACD*1000000 scaling is non-standard and must be replicated exactly. The close() function appears to have a bug using OrdersTotal() with position selection - in Python backtesting, decide whether to replicate the bug or fix it. No SL/TP means all exits are signal-based or the 120*Point profit-taking rule. The intrabar repeat-while-true behavior means signals are evaluated every tick, not just on new bars. The m_pos counter is the critical state variable - it persists across ticks and is updated only when positions are closed, affecting next trade size exponentially.",
+  "extraction_timestamp": "2026-05-13T06:46:30.300302",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 175.66659808158875,
+    "cost": 0
+  }
+}

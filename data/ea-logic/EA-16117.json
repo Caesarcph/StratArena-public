@@ -1,0 +1,149 @@
+{
+  "ea_id": "EA-16117",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load a non-standard indicator 'i-SpectrAnalysis_WPR' and depends on an external .mqh library (TradeAlgorithms.mqh) for all position open/close logic, money management, and new-bar detection.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "i-SpectrAnalysis_WPR",
+      "params": {
+        "WPRPeriod": 13,
+        "N": 7,
+        "SS": 20,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "2^N+1+WPRPeriod+3+SignalBar for min_rates_total check"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before EA trades",
+      "formula": "2^N + 1 + WPRPeriod + 3 + SignalBar",
+      "used_by": "BarsCalculated check guard in OnTick"
+    },
+    {
+      "name": "tnn1 - FFT size derived from N",
+      "formula": "2^N",
+      "used_by": "min_rates_total calculation"
+    },
+    {
+      "name": "M - FFT array length",
+      "formula": "2^N + 1",
+      "used_by": "min_rates_total calculation"
+    },
+    {
+      "name": "TimeShiftSec - bar duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for trade signal timestamps"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "i-SpectrAnalysis_WPR buffer 0 at bar [0]",
+        "right": "i-SpectrAnalysis_WPR buffer 0 at bar [1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "i-SpectrAnalysis_WPR buffer 0 at bar [0]",
+        "right": "i-SpectrAnalysis_WPR buffer 0 at bar [1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose called when indicator turns down (Value[1]>Value[2]) and BuyPosClose input is true; SellPosClose called when indicator turns up (Value[1]<Value[2]) and SellPosClose input is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode_options": [
+        "FREEMARGIN=0",
+        "BALANCE=1",
+        "LOSSFREEMARGIN=2",
+        "LOSSBALANCE=3",
+        "LOT=4"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT means fixed lot size (MM=0.1 lots); MMMode=FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE means MM is a fraction of equity/balance/free-margin/loss-adjusted-balance used as risk per trade. Actual sizing logic is inside TradeAlgorithms.mqh."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a spectral analysis filter (i-SpectrAnalysis_WPR) which applies FFT-based smoothing to WPR (Williams Percent Range). The signal logic: when Value[1]<Value[2] (indicator was rising on prior completed bar), and Value[0]>=Value[1] (current bar continues rising or equal), a buy signal is generated. Conversely, when Value[1]>Value[2] (indicator was falling) and Value[0]<=Value[1], a sell signal is generated. Signal evaluation only occurs on new bars (NB.IsNewBar) or on SignalBar=0 (every tick). Entry signals are gated by boolean inputs BuyPosOpen/SellPosOpen. Exit signals are gated by BuyPosClose/SellPosClose. The trade execution functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) are all from TradeAlgorithms.mqh and their internal logic (position existence checks, margin validation, order retry) is not visible in this file. GlobalVariableDel_ cleanup is also from the library.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The i-SpectrAnalysis_WPR custom indicator requires reverse-engineering or sourcing its source code to replicate in Python - it is an FFT-smoothed WPR with N controlling the FFT window (2^N) and SS controlling the spectral smoothing. TradeAlgorithms.mqh contains all money management (5 modes), position open/close, new-bar detection, and global variable cleanup logic that must be reimplemented. The position_gate is 'any' from this EA's perspective but the library functions may internally check for existing positions - this must be verified from the .mqh source. The signal logic itself (3-bar comparison of the custom indicator buffer) is straightforward once the indicator is replicated. SL/TP values of 1000/2000 pips are large and likely already point-adjusted (not needing digit multiplication), but this should be confirmed against the library's order-sending code.",
+  "extraction_timestamp": "2026-05-13T03:54:36.157936",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 142.7069754600525,
+    "cost": 0
+  }
+}

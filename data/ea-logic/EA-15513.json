@@ -1,0 +1,159 @@
+{
+  "ea_id": "EA-15513",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (XDPOCandle) with external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing and trade execution. Custom indicator buffer logic cannot be replicated with built-in indicators alone.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "XDPOCandle",
+      "params": {
+        "MA_Method1": "MODE_SMA_",
+        "Length1": 12,
+        "Phase1": 15,
+        "MA_Method2": "MODE_T3",
+        "Length2": 5,
+        "Phase2": 15,
+        "applied_price": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "First Smoothing MA",
+      "params": {
+        "period": 12,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Second Smoothing MA",
+      "params": {
+        "period": 5,
+        "method": "T3",
+        "applied_to": "close"
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal time calculation",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime, DnSignalTime in BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before indicator is ready",
+      "formula": "GetStartBars(MA_Method1,Length1,Phase1) + GetStartBars(MA_Method2,Length2,Phase2) + 1+2+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "XDPOCandle buffer4[SignalBar] (current bar color value)",
+        "right": "2",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "XDPOCandle buffer4[SignalBar] (current bar color value)",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: BUY_Close triggered when XDPOCandle color changes to 0 (bearish), SELL_Close triggered when XDPOCandle color changes to 2 (bullish)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM=0.1 with MMMode=LOT means fraction of deposit; MMMode enum (LOT, RISK) determines interpretation - positive=fraction of deposit when MMMode=LOT"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "The EA reads XDPOCandle indicator buffer 4 which returns color values (0=bearish, 2=bullish, 1=neutral). Entry requires a color change: Col[1]==2 (current bar bullish) AND Col[0]!=2 (previous bar not bullish) triggers BUY_Open. Col[1]==0 (current bar bearish) AND Col[0]!=0 (previous bar not bearish) triggers SELL_Open. This is a color-change/candle-direction reversal system. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean inputs act as feature toggles. SignalBar input (default=1) controls which bar is used for signal evaluation. When SignalBar=0, signals are recalculated every tick (intraday mode); otherwise only on new bar. Recount flag forces recalculation if CopyBuffer fails.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "The XDPOCandle custom indicator must be reverse-engineered or ported first - it implements a double-smoothed detrended price oscillator displayed as candles. The smoothing algorithms (JJMA, JurX, ParMA, T3, VIDYA, AMA) from SmoothAlgorithms.mqh are non-standard and must be ported. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose which handle position management, lot sizing, and order execution - these must be reimplemented. The color-change logic (buffer 4 values 0/2) is the core signal mechanism. SL/TP of 1000/2000 pips suggest these are in points not pips - verify digit adjustment for 5-digit brokers. SignalBar=1 means using previous completed bar for signals (safe for backtesting).",
+  "extraction_timestamp": "2026-05-13T01:50:35.897831",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 167.52668023109436,
+    "cost": 0
+  }
+}

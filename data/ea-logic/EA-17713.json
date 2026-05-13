@@ -1,0 +1,183 @@
+{
+  "ea_id": "EA-17713",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iIchimoku, custom oscillator from Ichimoku components). Simple crossover entry/exit rules. Fixed lot position sizing. No external .mqh libraries for trading logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Ichimoku",
+      "name": "Ichimoku Kinko Hyo",
+      "params": {
+        "tenkan_sen": 9,
+        "kijun_sen": 26,
+        "senkou_span_b": 52,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Ichimoku Oscillator",
+      "params": {
+        "tenkan_sen": 9,
+        "kijun_sen": 26,
+        "senkou_span_b": 52
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "Derived from Ichimoku: Tenkan-Kijun difference as oscillator histogram"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Ichimoku Oscillator value",
+      "formula": "Tenkan_sen - Kijun_sen",
+      "used_by": "Entry and exit signal generation"
+    },
+    {
+      "name": "Adjusted SL points",
+      "formula": "StopLoss * PoinT (where PoinT = _Point adjusted for 5-digit brokers: if _Digits==5 or _Point<0.001 then _Point*10 else _Point)",
+      "used_by": "Stop loss calculation"
+    },
+    {
+      "name": "Adjusted TP points",
+      "formula": "TakeProfit * PoinT",
+      "used_by": "Take profit calculation"
+    },
+    {
+      "name": "PoinT (adjusted point value)",
+      "formula": "if(_Digits==5 || _Point<0.001) _Point*10 else _Point",
+      "used_by": "SL/TP pip-to-price conversion"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Ichimoku Oscillator",
+        "right": "Zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Price",
+        "right": "Senkou_Span_A",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Price",
+        "right": "Senkou_Span_B",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Ichimoku Oscillator",
+        "right": "Zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Price",
+        "right": "Senkou_Span_A",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Price",
+        "right": "Senkou_Span_B",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes current position before opening new one"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA computes a custom Ichimoku Oscillator as the difference between Tenkan-sen and Kijun-sen. This oscillator crossing zero is the primary signal. Price position relative to the Ichimoku cloud (Senkou Span A and B) acts as a trend filter. The digit adjustment logic multiplies SL/TP by 10 for 5-digit brokers. The EA checks IsNewBar to only evaluate signals once per completed bar. Position gate ensures only one position is open at a time - opposite signals close existing position before entering new one.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Key conversion considerations: 1) The Ichimoku oscillator is simply Tenkan minus Kijun from the built-in iIchimoku - straightforward to replicate using any Ichimoku library. 2) Digit adjustment: the PoinT variable adjusts _Point by x10 for 5-digit brokers - in Python this translates to checking if price_decimals >= 5 and multiplying pip values accordingly. 3) New bar detection uses static datetime comparison - implement with bar timestamp tracking. 4) Signal logic uses completed bar values (shift=1 for previous bar, shift=2 for bar before that) for crossover detection. 5) The cloud filter compares current price to Senkou Span A and B. 6) Position check uses PositionSelect by symbol - only one position at a time.",
+  "extraction_timestamp": "2026-05-13T11:39:50.417645",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 94.23215961456299,
+    "cost": 0
+  }
+}

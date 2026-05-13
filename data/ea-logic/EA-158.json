@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-158",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iMA indicator with simple SMA crossover logic. No external .mqh libraries. Fixed fractional position sizing. No grid, martingale, or complex pending order management. Multicurrency but each slot is independent with simple market orders.",
+  "symbol": "EURUSD",
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "SMA",
+      "params": {
+        "period": 50,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "dsma2: SMA difference between bar[2] and bar[3]",
+      "formula": "NormalizeDouble(SMA[2] - SMA[3], _Digits)",
+      "used_by": "entry signal detection"
+    },
+    {
+      "name": "dsma1: SMA difference between bar[1] and bar[2]",
+      "formula": "NormalizeDouble(SMA[1] - SMA[2], _Digits)",
+      "used_by": "entry and exit signal detection"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "SMA[2]-SMA[3]",
+        "right": "SMA[1]-SMA[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "SMA[2]-SMA[3]",
+        "right": "SMA[1]-SMA[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy position closed when SMA slope turns negative (dsma1 < 0, meaning SMA[1] < SMA[2], MA declining on last two bars)",
+      "Sell position closed when SMA slope turns positive (dsma1 > 0, meaning SMA[1] > SMA[2], MA rising on last two bars)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "free_margin_divisor": 100000,
+      "lot_multiplier": 10,
+      "min_lots": 0.1,
+      "max_lots": 5.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "Lots = FreeMargin / 100000 * 10, clamped to [0.1, 5.0]. Rounding: <0.1 → 2 decimals, <1 → 1 decimal, >=1 → 0 decimals. Input Lots parameter is ignored in favor of Money_M() calculation."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Multicurrency EA supporting up to 12 independent symbol slots (0-11), each with its own SMA parameters and trade enable flag. Signal logic has inverted naming: DnSignal triggers BUY (when SMA slope is persistently positive = uptrend), UpSignal triggers SELL (when SMA slope is persistently negative = downtrend). Exit signals: UpStop closes buy positions when slope goes negative, DnStop closes sell positions when slope goes positive. Entry requires two consecutive positive-slope periods (dsma2>0 AND dsma1>0) for buy, two consecutive negative-slope periods for sell. The Money_M() function overrides the input Lots parameter entirely - position volume is always calculated from free margin. SL and TP input parameters (StLoss, TkProfit) are passed to TradePerformer but never applied to the trade request (request.sl=0, request.tp=0 hardcoded). The deviation field has a redundant ternary: (deviation==ULONG_MAX) ? deviation : deviation always evaluates to deviation.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1) The inverted naming convention (DnSignal=buy, UpSignal=sell) must be carefully mapped to avoid logic errors. 2) Money_M() is the actual sizing function - ignore the Lots input. 3) SL/TP inputs are dead code (never used in OrderSend). 4) Each of the 12 symbol slots is independent - can be parallelized or converted to a parameterized loop. 5) The IsNewBar() guard means signals are evaluated once per bar close using [1],[2],[3] bar indices (previous completed bars), which aligns with next-bar-open backtesting. 6) PositionSelect by symbol means only one position per symbol allowed. 7) ORDER_FILLING_FOK may need adjustment for brokers supporting only IOC or RETURN fill modes. 8) The _Digits reference in NormalizeDouble is chart-specific but applied to multi-symbol signals - may produce incorrect normalization for symbols with different digit counts.",
+  "extraction_timestamp": "2026-05-13T02:32:04.799064",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 129.20813393592834,
+    "cost": 0
+  }
+}

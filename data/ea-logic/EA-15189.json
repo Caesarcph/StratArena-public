@@ -1,0 +1,132 @@
+{
+  "ea_id": "EA-15189",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the external 'FiboCandles' custom indicator and depends on TradeAlgorithms.mqh library for all position open/close logic and money management. Custom indicator signal logic is opaque without its source.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "FiboCandles",
+      "params": {
+        "period": 10,
+        "fiboLevel": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "period_ (input, default 10)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal time calculation",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime passed to BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before indicator is ready",
+      "formula": "period_+SignalBar+1",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "FiboCandles buffer 4",
+        "right": "1 (trend state)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "FiboCandles buffer 4",
+        "right": "0 (trend state)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: when same-direction open and close are both enabled and the previous bar trend state matches, close is triggered (lines 155-156), which acts as a flat-close on trend continuation when reversal was expected"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT (default)"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lots, FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=fraction of available margin/balance. MM input (0.1) is the fraction or lot size depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA reads FiboCandles indicator buffer 4 (trend state: 0 or 1). Long entry triggers on transition 0->1 (TrendValue[0]==1 && TrendValue[1]==0). Short entry triggers on transition 1->0 (TrendValue[0]==0 && TrendValue[1]==0). SignalBar input (default 1) means signals are read from bar index 1 (previous completed bar). When SignalBar=0, the EA processes on every tick instead of only on new bars. There is an additional close logic (lines 155-156): if both open and close are enabled for the same side and the previous bar's trend matches that side, a close signal is generated - this closes existing positions when the trend has NOT reversed (opposite of the reversal close), possibly for re-entry logic. The fibonacci levels (0.236, 0.382, 0.5, 0.618, 0.762) are used inside the FiboCandles indicator to determine trend strength thresholds but their exact role is opaque without the indicator source. GlobalVariableDel_ is called on deinit for cleanup. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose are boolean gates that can independently disable long/short entry and exit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "FiboCandles.ex5 (custom indicator binary)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1. FiboCandles is a custom indicator without visible source - must reverse-engineer or reimplement its logic from available FiboCandles.mq5 source before conversion. 2. TradeAlgorithms.mqh handles all order execution, money management, position checking, and global variable cleanup - must fully reimplement BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, and CIsNewBar. 3. The MarginMode enum (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) requires equivalent Python margin calculation logic. 4. SL/TP are in points (1000/2000) not pips - check if digit adjustment is needed for 5-digit brokers. 5. Signal time is calculated as last bar date + timeframe seconds, used by the trade functions possibly for pending order logic or expiration. 6. The additional close logic on lines 155-156 is subtle and must be preserved - it closes positions when the trend on the prior bar matches the position side, which may be a 'close if no reversal detected' filter.",
+  "extraction_timestamp": "2026-05-13T00:38:37.952079",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 120.73477125167847,
+    "cost": 0
+  }
+}

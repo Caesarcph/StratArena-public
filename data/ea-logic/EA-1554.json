@@ -1,0 +1,170 @@
+{
+  "ea_id": "EA-1554",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for 'madelta_inc' indicator and has a non-standard cubic amplifier signal transformation that isn't a simple crossover pattern. Signal logic relies on a custom threshold discriminator with dynamic hi/lo channels.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast MA",
+      "params": {
+        "period": 26,
+        "shift": 0,
+        "method": 0,
+        "applied_to": 6
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA",
+      "params": {
+        "period": 51,
+        "shift": 0,
+        "method": 1,
+        "applied_to": 4
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "madelta_inc",
+      "params": {
+        "delta": 0.00195,
+        "multiplier": 39.2,
+        "fast_period": 26,
+        "fast_method": 0,
+        "fast_applied": 6,
+        "slow_period": 51,
+        "slow_method": 1,
+        "slow_applied": 4
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Delta scaled to point value",
+      "formula": "Delta*0.00001",
+      "used_by": "threshold discriminator (hi/lo channel width)"
+    },
+    {
+      "name": "Multiplier scaled",
+      "formula": "M*0.1",
+      "used_by": "cubic amplifier transfer"
+    },
+    {
+      "name": "Cubic amplifier transfer px",
+      "formula": "pow(m*(mf[0]-ms[0]),3)",
+      "used_by": "signal for threshold discriminator and trade direction"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "px (cubic amplified MA diff)",
+        "right": "hi threshold",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "px (cubic amplified MA diff)",
+        "right": "lo threshold",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Reverse signal closes opposite position then opens new position in signal direction"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "margin_divisor": 2000,
+      "max_lots": 15.0,
+      "rounding": 1
+    },
+    "max_positions": 1,
+    "conditional_logic": "lots = min(15.0, round(AccountFreeMargin/2000, 1 decimal)); on reversal, uses existing position volume"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "The EA uses a cubic amplifier transfer function: px = pow(m*(mf-ms),3) which heavily exaggerates the MA difference. A dynamic threshold discriminator tracks hi/lo with a channel width of Delta*Point. When px exceeds hi, a long signal fires and the lo threshold resets to hi-d. When px falls below lo, a short signal fires and the hi threshold resets to lo+d. This creates a hysteresis band preventing whipsaws. The flg variable ensures hi/lo are initialized to 0 on the first tick only. The iCustom call to 'madelta_inc' is made but its buffer is never read in OnTick - it appears to be for visual/chart display only.",
+  "external_dependencies": [
+    "madelta_inc (custom indicator, used in iCustom but buffer not consumed by EA logic)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The cubic amplifier and dynamic hi/lo threshold discriminator must be implemented as a stateful signal generator. The hi/lo state persists across ticks and must be maintained in the strategy object. The Delta parameter (195) is multiplied by 0.00001 which assumes 5-digit pricing; this must be adapted to use _Point equivalent in Python for digit-portability. Position sizing uses AccountFreeMargin/2000 which maps to free_margin/2000 in backtesting frameworks. Note the iCustom indicator is only for display and can be omitted from Python conversion. Signal reversal logic: when already in a SELL and trade==1, close sell and buy same volume; when already in a BUY and trade==-1, close buy and sell same volume. When flat, open with calculated lot size.",
+  "extraction_timestamp": "2026-05-13T01:53:58.424074",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 202.52539563179016,
+    "cost": 0
+  }
+}

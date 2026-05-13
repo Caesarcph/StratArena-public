@@ -1,0 +1,133 @@
+{
+  "ea_id": "EA-15222",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for PriceChannel_Stop indicator and depends on TradeAlgorithms.mqh external library for all trade execution (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, LoadHistory). Custom indicator buffers must be understood to replicate signals.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "PriceChannel_Stop",
+      "params": {
+        "period": 5,
+        "risk": 0.1,
+        "draw_up": true,
+        "draw_dn": true
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of the indicator timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before indicator is ready",
+      "formula": "ChannelPeriod+1+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "PriceChannel_Stop buffer 3 (Up signal)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "PriceChannel_Stop buffer 0 (Down signal)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposing signal from PriceChannel_Stop buffer 4 (Up opposite) triggers SELL_Close when both SellPosOpen and SellPosClose are true",
+      "Opposing signal from PriceChannel_Stop buffer 1 (Down opposite) triggers BUY_Close when both BuyPosOpen and BuyPosClose are true",
+      "Primary signal reversal: Up signal (buffer 3) closes sell positions if SellPosClose enabled; Down signal (buffer 0) closes buy positions if BuyPosClose enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects sizing method: LOT=fixed lots via MM parameter, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM=0.1 interpreted as 0.1 lots when LOT mode, or 10% of deposit in other modes."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "PriceChannel_Stop is a 5-buffer custom indicator. Buffers: 0=Down signal line, 1=Down opposite signal, 3=Up signal line, 4=Up opposite signal. Signal detected when buffer value is non-zero and not EMPTY_VALUE on bar index SignalBar (default=1, previous bar). Entry signal time is computed as SERIES_LASTBAR_DATE + TimeShiftSec. The EA has a Recount mechanism: if CopyBuffer fails, Recount=true forces recalculation on next tick. When SignalBar=0, signals are evaluated on every tick instead of only on new bars. Opposite-signal close logic (buffers 1 and 4) only triggers close when both the open and close flags for that direction are enabled (e.g., SellPosOpen && SellPosClose for SELL_Close from Up opposite).",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The PriceChannel_Stop custom indicator must be replicated in Python - it is a Price Channel with stop levels based on Risk factor. The indicator computes upper/lower channel bounds from highest high/lowest low over ChannelPeriod bars, then offsets by Risk*ATR to generate stop levels. Buffers 0/3 are the signal lines (appear when price crosses the stop level), buffers 1/4 are opposite-direction signals. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose which handle order placement with deviation, SL/TP in points, and margin-based lot sizing. The MMMode enum logic for lot calculation must be reimplemented. The CIsNewBar class must be replicated for new-bar detection. SL/TP are in points (not pips) - 1000 points = 100 pips for 5-digit, 1000 points = 1000 pips for 4-digit; no explicit digit adjustment is present in the EA itself.",
+  "extraction_timestamp": "2026-05-13T00:51:47.905791",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 157.5903217792511,
+    "cost": 0
+  }
+}

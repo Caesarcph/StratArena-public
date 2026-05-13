@@ -1,0 +1,143 @@
+{
+  "ea_id": "EA-15996",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for SMI_Correct indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing algorithms. Custom indicator with non-standard parameters cannot be auto-converted.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "SMI_Correct",
+      "params": {
+        "extrperiod": 13,
+        "ma_method1": "EMA",
+        "length1": 25,
+        "phase1": 15,
+        "ma_method2": "JJMA",
+        "length2": 3,
+        "phase2": 15,
+        "ma_method3": "JJMA",
+        "length3": 5,
+        "phase3": 15,
+        "applied_price": "CLOSE",
+        "shift": 0,
+        "highlevel": 50,
+        "middlelevel": 0,
+        "lowlevel": -50
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for indicator warmup",
+      "formula": "ExtrPeriod + GetStartBars(MA_Method1,Length1,Phase1) + GetStartBars(MA_Method2,Length2,Phase2) + GetStartBars(MA_Method3,Length3,Phase3) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "SMI_Correct Buffer 0 (Main)",
+        "right": "SMI_Correct Buffer 1 (Signal)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "SMI_Correct Buffer 0 (Main)",
+        "right": "SMI_Correct Buffer 1 (Signal)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal crossover triggers close of opposite side: when main crosses below signal, long positions are closed; when main crosses above signal, short positions are closed"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lots (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM parameter (0.1) serves as the lot size when LOT mode, or as the fraction in other modes."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a 2-bar crossover detection: it compares Ind[1] vs Sign[1] (previous bar relationship) and Ind[0] vs Sign[0] (current/recent bar) to detect crossover events. When SignalBar=0, signals are evaluated on every tick without new-bar guard. The UpSignalTime/DnSignalTime is set to the last bar date plus one timeframe period, which is used as the signal timestamp for trade execution. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean inputs allow independently enabling/disabling each trade direction and close action. The Recount flag forces re-evaluation on the next tick if CopyBuffer fails.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The SMI_Correct custom indicator must be reimplemented in Python. It is based on the Stochastic Momentum Index with three smoothing stages (MA_Method1 for first smoothing, MA_Method2 for second smoothing of numerator, MA_Method3 for smoothing of denominator). The SmoothAlgorithms.mqh library provides JJMA, JurX, ParMA, T3, VIDYA, and AMA smoothing methods beyond standard SMA/EMA/SMMA/LWMA - these non-standard smoothers must be ported. The TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and LoadHistory which handle money management and order execution - these must be reimplemented. Position sizing uses a MarginMode enum with 5 modes. Signal detection uses a 2-bar lookback with CopyBuffer at SignalBar offset (default bar 1). No digit adjustment is performed on SL/TP values.",
+  "extraction_timestamp": "2026-05-13T03:21:11.830555",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 186.2604033946991,
+    "cost": 0
+  }
+}

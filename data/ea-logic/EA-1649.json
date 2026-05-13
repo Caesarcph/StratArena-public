@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-1649",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iBands indicator with simple single-neuron perceptron logic. Fixed lot sizing, straightforward market orders, no external libraries, no custom indicators, no complex money management.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands",
+      "params": {
+        "period": 20,
+        "shift": 0,
+        "dev": 2.0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Normalized Bollinger Band ratio (upper-lower)/base per bar",
+      "formula": "((iBands_Upperbuf[i]-iBands_Lowerbuf[i])/iBands_Basebuf[i] - (x_min+x_minn)*(d2-d1)) / ((x_maxx+x_max)-(x_min+x_minn)) + d1",
+      "used_by": "Neural network input array (even indices)"
+    },
+    {
+      "name": "Neuron output (single perceptron with tanh activation)",
+      "formula": "tanh(2 * sum(inputs[i]*weight[i]))",
+      "used_by": "Entry signal condition (out<0 for buy, out>0 for sell)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Neuron output (out)",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Neuron output (out)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 30,
+      "params": {
+        "adjusted_for_5digit": true,
+        "adjusted_value": 300
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "adjusted_for_5digit": true,
+        "adjusted_value": 1000
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "SL and TP only - no signal-based close logic; opposite signal does not close existing position"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 1.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 100,
+    "filling": "RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Single-layer perceptron (14 inputs, 14 weights) with tanh activation. Even-indexed inputs are normalized (Upper-Lower)/Base band ratios from 7 Bollinger Band bars. Odd-indexed inputs remain at default 0.0 (never assigned), effectively making them zero inputs. Weights are hardcoded via EA input parameters (w0-w13). NET is multiplied by 2 before tanh activation. Buy when out<0, Sell when out>0. No position closing on opposite signal - only SL/TP close positions.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Neural network logic is straightforward to replicate: compute normalized BB ratios for 7 bars, dot-product with 14 weights (odd weights multiply zero inputs), multiply by 2, apply tanh. Key caveat: odd-indexed inputs[] are never populated, so only weights at even indices (w0,w2,w4,w6,w8,w10,w12) affect the output. Normalization uses min/max across all 7 bars of all three BB buffers. Digit adjustment logic (multiply SL/TP by 10 for 5/3-digit brokers) must be preserved. Position gate checks PositionSelect for same-side only (does not close opposite - only blocks new same-direction entry).",
+  "extraction_timestamp": "2026-05-13T04:54:23.897277",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 72.95386672019958,
+    "cost": 0
+  }
+}

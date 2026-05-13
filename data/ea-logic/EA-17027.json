@@ -1,0 +1,175 @@
+{
+  "ea_id": "EA-17027",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iFractals, iADX, iMA). Simple entry/exit rules with fixed SL/TP. No external .mqh libraries for trading logic. Standard position sizing with digit adjustment.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Fractal",
+      "name": "Fractals",
+      "params": {
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ADX Cloud",
+      "params": {
+        "adx_period": 14,
+        "di_period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Signal MA",
+      "params": {
+        "period": 14,
+        "method": "SMA",
+        "applied_to": "CLOSE",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Digit-adjusted StopLoss",
+      "formula": "StopLoss * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "exit_rules.stop_loss"
+    },
+    {
+      "name": "Digit-adjusted TakeProfit",
+      "formula": "TakeProfit * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "exit_rules.take_profit"
+    },
+    {
+      "name": "Bullish Fractal Level",
+      "formula": "iFractals upper at bar[2]",
+      "used_by": "entry_rules.long"
+    },
+    {
+      "name": "Bearish Fractal Level",
+      "formula": "iFractals lower at bar[2]",
+      "used_by": "entry_rules.short"
+    },
+    {
+      "name": "ADX Cloud Bullish",
+      "formula": "+DI > -DI",
+      "used_by": "entry_rules.long"
+    },
+    {
+      "name": "ADX Cloud Bearish",
+      "formula": "-DI > +DI",
+      "used_by": "entry_rules.short"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Fractal Breakout (price above upper fractal)",
+        "right": "ADX Cloud Bullish (+DI > -DI)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Fractal Breakout (price below lower fractal)",
+        "right": "ADX Cloud Bearish (-DI > +DI)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close long on bearish fractal breakout with ADX cloud bearish confirmation",
+      "Close short on bullish fractal breakout with ADX cloud bullish confirmation"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Fractal breakout system: enters long when price breaks above the most recent upper fractal AND +DI is above -DI (ADX cloud bullish). Enters short when price breaks below the most recent lower fractal AND -DI is above +DI (ADX cloud bearish). Fractals are checked at bar[2] as the fractal indicator requires 2 bars on each side to confirm. Opposite signal closes existing position before opening new one. SL/TP values are multiplied by 10 for 5-digit brokers (digit adjustment).",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Fractal detection requires looking back 5 bars (2 left + center + 2 right) to confirm fractal high/low. ADX cloud is simply +DI vs -DI comparison from standard ADX indicator. Both are straightforward to replicate in Python using ta-lib or manual calculation. Digit adjustment logic must be preserved: if symbol has 5 digits (or _Point < 0.001), multiply SL and TP input values by 10 before converting to price offset. New bar detection is essential to avoid repeated signals within the same bar. Use bar close prices for signal confirmation in backtesting since fractals lag by 2 bars.",
+  "extraction_timestamp": "2026-05-13T07:57:26.562481",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 126.388427734375,
+    "cost": 0
+  }
+}

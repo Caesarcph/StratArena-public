@@ -1,0 +1,155 @@
+{
+  "ea_id": "EA-16100",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator RAVI_Histogram and depends on external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms. Money management uses custom MarginMode enum with multiple modes. Multi-timeframe logic via InpInd_Timeframe.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "RAVI_Histogram",
+      "params": {
+        "fast_method": 1,
+        "fast_length": 7,
+        "fast_phase": 15,
+        "slow_method": 1,
+        "slow_length": 65,
+        "slow_phase": 15,
+        "applied_price": 1,
+        "shift": 0,
+        "up_level": 0.1,
+        "dn_level": -0.1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen and SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars needed for indicator warm-up",
+      "formula": "Max(GetStartBars(FastMethod,FastLength,FastPhase), GetStartBars(SlowMethod,SlowLength,SlowPhase)) + 2 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "RAVI_Histogram[1]",
+        "right": "UpLevel (+0.1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "RAVI_Histogram[0]",
+        "right": "UpLevel (+0.1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "RAVI_Histogram[1]",
+        "right": "DnLevel (-0.1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "RAVI_Histogram[0]",
+        "right": "DnLevel (-0.1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when RAVI_Histogram[1] < DnLevel (-0.1) and BuyPosClose enabled",
+      "Short position closed when RAVI_Histogram[1] > UpLevel (+0.1) and SellPosClose enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum: LOT=fixed lot size; FREEMARGIN=fraction of free margin; BALANCE=fraction of balance; LOSSFREEMARGIN=fraction of free margin minus loss; LOSSBALANCE=fraction of balance minus loss. MM parameter (0.1) interpreted based on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic: BUY_Open triggers when RAVI_Histogram[1] > UpLevel AND RAVI_Histogram[0] <= UpLevel (value was above level on previous bar and crossed down to or below level on signal bar). SELL_Open triggers when RAVI_Histogram[1] < DnLevel AND RAVI_Histogram[0] >= DnLevel (value was below level on previous bar and crossed up to or above level on signal bar). SignalBar=1 means indicator values are read from bar index 1 (previous completed bar) as [1] and bar 2 as [0] in the CopyBuffer array. The actual entry signal is a crossover of the RAVI histogram value across the UpLevel/DnLevel threshold, with the previous bar already beyond the level. Trade functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) are from TradeAlgorithms.mqh and handle position existence checks internally. GlobalVariableDel_ is called on deinit for cleanup. Recount flag ensures indicator values are re-read if CopyBuffer fails.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Custom RAVI_Histogram indicator must be reimplemented in Python - it uses dual smoothing (fast EMA 7 and slow EMA 65 by default) from SmoothAlgorithms.mqh which supports JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard MA types. The TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) handle money management with 5 different margin modes and must be reimplemented. SL/TP values (1000/2000) are in points and may need 5-digit adjustment depending on broker. The entry logic uses a crossover of RAVI_Histogram value across fixed threshold levels (+0.1/-0.1) rather than a typical MA crossover - the signal fires when the histogram was beyond the level on the previous bar and crosses back to or past the level on the signal bar.",
+  "extraction_timestamp": "2026-05-13T03:49:30.501954",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 218.2966227531433,
+    "cost": 0
+  }
+}

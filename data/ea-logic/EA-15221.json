@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-15221",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for NonLagDot indicator and includes external TradeAlgorithms.mqh library for position management and money management, requiring manual recreation of both custom indicator logic and trade execution helpers.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "NonLagDot",
+      "params": {
+        "applied_to": 1,
+        "method": 0,
+        "period": 10,
+        "filter": 0,
+        "swing": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timing",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "6*Length+3+1",
+      "used_by": "BarsCalculated readiness check"
+    },
+    {
+      "name": "Fi - filter value converted to price units",
+      "formula": "Filter*_Point",
+      "used_by": "declared but unused in EA logic (possibly used internally by NonLagDot)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "NonLagDot buffer1[0]",
+        "right": "NonLagDot buffer1[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "NonLagDot buffer1[0]",
+        "right": "NonLagDot buffer1[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "When both SellPosOpen and SellPosClose are enabled and previous bar trend was 2 (sell), close sell on buy signal; same symmetric logic for buy close on sell signal when BuyPosOpen and BuyPosClose enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM input (0.1) serves as either lot size or fraction depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic: NonLagDot buffer 1 returns trend state values (1=up, 2=down). Buy signal when trend changes from 2 to 1 (TrendValue[0]==1 && TrendValue[1]==2). Sell signal when trend changes from 1 to 2 (TrendValue[0]==2 && TrendValue[1]==1). SignalBar input controls which bar is read (default=1, previous completed bar). When SignalBar=0, signals are evaluated on every tick instead of only on new bars. Additional close logic: if both open and close flags are enabled for a direction and the prior bar was already in that trend, a close signal is generated alongside the reversal open signal. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean gates that can independently disable long entries, short entries, short closes, and long closes respectively.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The NonLagDot custom indicator must be reimplemented in Python - it is not a built-in MT5 indicator. The TrendValue buffer returns discrete states (1=uptrend, 2=downtrend), so the crossover logic is actually a state transition detector. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and CIsNewBar - all must be reimplemented. The CIsNewBar class handles new bar detection. The MarginMode enum and its five sizing modes (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) need full implementation. SL/TP are in points (not pips), passed directly to the trade functions. Signal timing uses UpSignalTime/DnSignalTime calculated from SERIES_LASTBAR_DATE + TimeShiftSec, which likely controls order expiration or slippage windows in the TradeAlgorithms library.",
+  "extraction_timestamp": "2026-05-13T00:49:10.314664",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 160.1866157054901,
+    "cost": 0
+  }
+}

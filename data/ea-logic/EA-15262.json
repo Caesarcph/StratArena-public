@@ -1,0 +1,154 @@
+{
+  "ea_id": "EA-15262",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'Elliott_Wave_Oscillator' custom indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic. Custom indicator and non-standard smoothing methods (JJMA, JurX, ParMA, etc.) have no Python equivalents without manual reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Elliott Wave Oscillator",
+      "params": {
+        "ma_method1": "SMA",
+        "length1": 5,
+        "phase1": 15,
+        "applied_price1": "MEDIAN",
+        "ma_method2": "JJMA",
+        "length2": 35,
+        "phase2": 15,
+        "applied_price2": "MEDIAN"
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before EA starts trading",
+      "formula": "max(GetStartBars(MA_Method1,Length1,Phase1), GetStartBars(MA_Method2,Length2,Phase2)) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "EWO[1]",
+        "right": "EWO[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "EWO[0]",
+        "right": "EWO[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "EWO[1]",
+        "right": "EWO[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "EWO[0]",
+        "right": "EWO[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: when short entry signal fires, long positions are closed (if BuyPosClose=true); when long entry signal fires, short positions are closed (if SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum controls sizing: LOT=fixed lot size (MM interpreted as lot), FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=MM as fraction of margin/balance for position sizing"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic: When EWO[1]<EWO[2] (oscillator declining on previous bar) AND EWO[0]>EWO[1] (oscillator turning up on current bar) → long signal (momentum reversal from down to up). When EWO[1]>EWO[2] (oscillator rising on previous bar) AND EWO[0]<EWO[1] (oscillator turning down on current bar) → short signal. Signal bar parameter (default=1) controls which bar is used for signal detection; when SignalBar=0, signals are evaluated on every tick instead of only on new bars. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean gates that independently enable/disable each trade action. UpSignalTime/DnSignalTime are passed to trade functions for execution timing. GlobalVariableDel_ is called on deinit for cleanup.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The Elliott Wave Oscillator custom indicator must be reimplemented in Python. It computes the difference between two smoothed price series (fast MA minus slow MA). The smoothing methods include non-standard algorithms (JJMA, JurX, ParMA, T3, VIDYA, AMA) from SmoothAlgorithms.mqh which have no pandas/numpy equivalents - these require manual algorithm porting. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions with margin-based lot calculation which must also be reimplemented. The EWO itself is conceptually simple (difference of two MAs), so if converted to use standard SMA/EMA instead of JJMA/custom methods, difficulty drops to medium. Signal logic is straightforward: detect oscillator direction change (peak/trough reversal) on completed bars.",
+  "extraction_timestamp": "2026-05-13T01:20:14.682100",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 179.66613483428955,
+    "cost": 0
+  }
+}

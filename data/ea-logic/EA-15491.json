@@ -1,0 +1,134 @@
+{
+  "ea_id": "EA-15491",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorXTRIX_Histogram indicator and external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for trading logic and money management. Custom smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA) are not built-in MT5 indicators.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorXTRIX_Histogram",
+      "params": {
+        "method": 4,
+        "period": 5,
+        "phase": 100,
+        "smooth_period": 5,
+        "momentum_period": 1,
+        "applied_to": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for indicator warmup",
+      "formula": "2*GetStartBars(XMA_Method,XLength,XPhase) + Mom_Period + 1 + GetStartBars(XMA_Method,Smooth,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade execution timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorXTRIX_Histogram buffer0[SignalBar]",
+        "right": "ColorXTRIX_Histogram buffer0[SignalBar+1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorXTRIX_Histogram buffer0[SignalBar]",
+        "right": "ColorXTRIX_Histogram buffer0[SignalBar+1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes position: BUY_Close triggered when histogram Value[1]>Value[2] (downtrend detected), SELL_Close triggered when Value[1]<Value[2] (uptrend detected)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing method: LOT=fixed lot at 0.1, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA reads 3 values from ColorXTRIX_Histogram buffer 0 at offsets SignalBar, SignalBar+1, SignalBar+2 (stored as Value[0], Value[1], Value[2]). Entry logic: When Value[1]<Value[2] (histogram declining/rising from negative zone), if Value[0]>Value[1] (momentum turning up) then BUY_Open. When Value[1]>Value[2] (histogram rising/falling from positive zone), if Value[0]<Value[1] (momentum turning down) then SELL_Open. If SignalBar==0, signals are evaluated on every tick without new-bar guard. BuyPosOpen/SellPosOpen and BuyPosClose/SellPosClose are input booleans that gate whether each side can open or close. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions which handle position management internally. GlobalVariableDel_ cleanup on deinit suggests persistent state across restarts.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must reimplement the ColorXTRIX_Histogram custom indicator logic from SmoothAlgorithms.mqh (JJMA, JurX, ParMA, T3, VIDYA, AMA smoothing algorithms). The TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) must also be reimplemented - they encapsulate position checking, lot sizing via MarginMode, and order execution with deviation. The histogram crossover logic uses 3-bar comparison: current bar vs previous bar vs bar-before-previous for trend direction and momentum reversal detection. SignalBar input (default=1) means signals are evaluated on the last completed bar, making backtesting reliable with bar data. SL/TP values of 1000/2000 are in points and may need digit-adjustment (multiply by 10 for 5-digit brokers) depending on how TradeAlgorithms.mqh handles _Point conversion.",
+  "extraction_timestamp": "2026-05-13T01:45:41.768197",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 209.8556125164032,
+    "cost": 0
+  }
+}

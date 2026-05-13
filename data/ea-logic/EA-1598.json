@@ -1,0 +1,147 @@
+{
+  "ea_id": "EA-1598",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'NarrowestRangeSignal' custom indicator which is not a built-in MT5 indicator. Pending stop-order management with dual-sided bracket orders. Custom signal logic depends on external indicator buffer values.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "NarrowestRangeSignal",
+      "params": {
+        "bars_in_range": 3,
+        "check_period": 10
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "take_profit price offset",
+      "formula": "InpTakeProfit * _Point",
+      "used_by": "exit_rules.take_profit and OpenPendingOrder TP calculation"
+    },
+    {
+      "name": "order indent price offset",
+      "formula": "InpIndent * _Point",
+      "used_by": "entry_rules stop order price placement"
+    },
+    {
+      "name": "range high price",
+      "formula": "ArrayMaximum(high) over bars_in_range+1 bars from bar 0",
+      "used_by": "Buy Stop price and Sell Stop SL"
+    },
+    {
+      "name": "range low price",
+      "formula": "ArrayMinimum(low) over bars_in_range+1 bars from bar 0",
+      "used_by": "Sell Stop price and Buy Stop SL"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "NarrowestRangeSignal buffer 2 at bar [1]",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "NarrowestRangeSignal buffer 2 at bar [1]",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "note": "SL is opposite side of range: Buy SL = min_low-indent, Sell SL = max_high+indent; pips = InpIndent(50) + range_width + InpIndent(50), variable per signal"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "input_param": "InpTakeProfit"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "When a position exists, all pending orders are deleted (opposite stop order removed on fill)",
+      "No explicit position close logic - positions held until TP or SL hit"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 1.0,
+    "params": {
+      "fixed_lot_mode": "FIXED_LOT uses InpVolume directly",
+      "percent_mode": "FIXED_PERCENT calculates (free_margin/1000/leverage)*InpVolume"
+    },
+    "max_positions": 1,
+    "conditional_logic": "FIXED_LOT=use InpVolume as lot size; FIXED_PERCENT=calculate lot from (free_margin/1000/leverage)*InpVolume then normalize and validate"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Dual bracket stop orders placed on both sides of narrowest range. Buy Stop at max_high+indent with SL at min_low-indent; Sell Stop at min_low-indent with SL at max_high+indent. When either order fills (position exists), the opposite pending order is deleted. Range must not have its high or low at the most recent bar (ArrayMaximum/ArrayMinimum index != bars_in_range). Signal checked on bar [1] (CopyBuffer start=1). Buy Stop price is adjusted by adding (ask-bid) spread to account for stop order placement relative to bid. New bar guard uses static datetime comparison in both CheckOrders and DeletePendingOrders.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Requires reimplementation of NarrowestRangeSignal custom indicator logic (buffer 2 = signal flag, buffer 0/1 likely = range high/low). The iCustom call passes bars_in_range and check_period as parameters. The EA reads buffer index 2 to detect signal bars. Range detection uses ArrayMaximum/ArrayMinimum over high/low arrays of size bars_in_range+1. Must replicate the indicator's narrowest range detection algorithm or obtain its source. Pending order management (place/cancel bracket orders) must be replicated. Spread adjustment on Buy Stop price (price += ask-bid) is broker-specific behavior to note.",
+  "extraction_timestamp": "2026-05-13T03:18:05.569237",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 123.96309781074524,
+    "cost": 0
+  }
+}

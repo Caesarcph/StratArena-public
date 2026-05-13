@@ -1,0 +1,169 @@
+{
+  "ea_id": "EA-16726",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses martingale position sizing with configurable multiplier and multi-indicator confluence logic; martingale with margin-dependent sizing pushes toward mt5_only but the core logic is convertible with manual handling of the martingale sizing and position management",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast MA",
+      "params": {
+        "period": 8,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA",
+      "params": {
+        "period": 21,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MACD histogram direction",
+      "formula": "MACD_main - MACD_signal",
+      "used_by": "entry_rules long and short conditions"
+    },
+    {
+      "name": "Martingale lot size",
+      "formula": "LastLot * Multiplier",
+      "used_by": "position_sizing after losing trade"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Multi-indicator confluence",
+        "right": "Fast MA > Slow MA AND MACD histogram > 0 AND RSI < 70",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Multi-indicator confluence",
+        "right": "Fast MA < Slow MA AND MACD histogram < 0 AND RSI > 30",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 300,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Martingale recovery: closes all positions when total profit target reached across all open orders of the group"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "multiplier": 2.0,
+      "max_lot": 10.0
+    },
+    "max_positions": 10,
+    "conditional_logic": "Base lot used on first trade, multiplied by Multiplier after each loss; lot resets to base after profitable close"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Martingale recovery system: after a losing trade, the EA increases lot size by a configurable multiplier. It tracks a group of positions and closes all when the cumulative profit of the group exceeds a target. The EA uses multi-indicator confluence (MA crossover confirmed by MACD direction and RSI level) for entry signals. SL/TP values are adjusted for 5-digit brokers by multiplying by 10 when _Digits==5 or _Point<0.001.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The martingale position management is the hardest part to replicate — must track position groups and cumulative P&L across the group. Multi-indicator confluence is straightforward with TA-Lib/pandas_ta. SL/TP digit adjustment logic must be replicated. The group close logic (close all when total profit > target) requires tracking open positions by symbol/direction group. Margin check before martingale scaling is critical to avoid account blow-up.",
+  "extraction_timestamp": "2026-05-13T05:37:55.822216",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 165.15622520446777,
+    "cost": 0
+  }
+}

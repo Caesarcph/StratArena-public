@@ -1,0 +1,173 @@
+{
+  "ea_id": "EA-1862",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Multi-currency architecture with per-symbol Bollinger Bands on different applied prices (HIGH and LOW), scaling lot increase scheme, no SL/TP, timer-driven execution. The dual-BB-per-symbol setup (one on PRICE_HIGH, one on PRICE_LOW) and multi-symbol loop require careful Python translation. Standard library includes are used but only for convenience wrappers, not essential custom logic.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands on High Prices",
+      "params": {
+        "period": 20,
+        "shift": 0,
+        "dev": 2.0,
+        "applied_to": 2
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands on Low Prices",
+      "params": {
+        "period": 20,
+        "shift": 0,
+        "dev": 2.0,
+        "applied_to": 3
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "BB_upper_band_high - upper band of BB applied to PRICE_HIGH",
+      "formula": null,
+      "used_by": "SELL entry condition and closing area check"
+    },
+    {
+      "name": "BB_lower_band_high - lower band of BB applied to PRICE_HIGH",
+      "formula": null,
+      "used_by": "BUY exit condition and closing area check"
+    },
+    {
+      "name": "BB_upper_band_low - upper band of BB applied to PRICE_LOW",
+      "formula": null,
+      "used_by": "SELL exit condition and closing area check"
+    },
+    {
+      "name": "BB_lower_band_low - lower band of BB applied to PRICE_LOW",
+      "formula": null,
+      "used_by": "BUY entry condition"
+    },
+    {
+      "name": "DealNumber - sequential deal counter per symbol",
+      "formula": "DealNumber++ on each entry, DealNumber-- on failed entry, reset to 0 on close",
+      "used_by": "Lot scaling and forced close condition"
+    },
+    {
+      "name": "OrderLot - calculated lot size",
+      "formula": "FreeMargin * DealOfFreeMargin / 100 * Leverage / ContractSize; if DealNumber>1: OrderLot * LotIncrease * (DealNumber-1)",
+      "used_by": "Position sizing for each trade"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "below",
+        "left": "Ask",
+        "right": "BB_lower_band_low (lower band of BB on PRICE_LOW)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "Bid",
+        "right": "BB_upper_band_high (upper band of BB on PRICE_HIGH)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BUY position closed when Bid >= BB_lower_band_high (lower band of BB on PRICE_HIGH)",
+      "SELL position closed when Ask <= BB_upper_band_low (upper band of BB on PRICE_LOW)",
+      "Position forcibly closed when DealNumber==0 (deal counter reset)",
+      "No entry and DealNumber reset when price is in closing area: Bid >= BB_lower_band_high AND Ask <= BB_upper_band_low"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 1.0,
+    "params": {
+      "leverage": null,
+      "lot_increase_ratio": 0.9
+    },
+    "max_positions": 3,
+    "conditional_logic": "Base lot = FreeMargin * DealOfFreeMargin% * Leverage / ContractSize. Starting from deal #2, lot is multiplied by LotIncrease * (DealNumber-1), creating a scaling-in pattern where each successive deal uses a larger lot."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "timer",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Multi-currency EA trading up to 3 symbols simultaneously in a single timer loop (1s interval). Each symbol has its own Bollinger Bands configuration (period, deviation) and independent deal counter. Two separate BB indicators per symbol: one applied to PRICE_HIGH (used for SELL signals and BUY exits), one applied to PRICE_LOW (used for BUY signals and SELL exits). The 'closing area' logic prevents new entries when price is between the lower band of BB(High) and upper band of BB(Low). The DealNumber counter increments on each new entry and resets to 0 on position close; it drives both the lot scaling formula and a forced-close condition. Lot scaling: base lot from free margin, then multiplied by LotIncrease*(DealNumber-1) for deal #2+. Digits enum (4/5) is declared but not used in the trading logic - no digit adjustment is performed on any values.",
+  "external_dependencies": [
+    "Trade/AccountInfo.mqh",
+    "Trade/PositionInfo.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Key challenges: (1) Multi-symbol loop must be replicated - each symbol needs its own BB indicator instances and state tracking. (2) Timer-based execution at 1s intervals requires tick-level data for accurate backtest. (3) Two BB indicators per symbol with different applied prices (HIGH vs LOW) - must ensure correct price series mapping. (4) The DealNumber scaling lot logic creates a martingale-like progression that must be tracked per symbol. (5) No SL/TP means positions are held until BB-based exit signal - need proper position management across multiple symbols. (6) The closing area logic (Bid >= BB_lower_band_high AND Ask <= BB_upper_band_low) acts as a no-trade zone that resets the deal counter. (7) Position existence check per symbol (PositionSelect) means max 1 position per symbol at a time. (8) The Digs input enum exists but is unused in actual trading logic - safe to ignore for conversion.",
+  "extraction_timestamp": "2026-05-13T13:27:22.315987",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 261.18606400489807,
+    "cost": 0
+  }
+}

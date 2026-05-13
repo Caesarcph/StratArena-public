@@ -1,0 +1,131 @@
+{
+  "ea_id": "EA-15771",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for the iWPRSign indicator and depends on external TradeAlgorithms.mqh library for position opening/closing/money management, which contains non-trivial trading logic that must be manually replicated.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "iWPRSign",
+      "params": {
+        "atr_period": 14,
+        "wpr_period": 14,
+        "up_level": -30,
+        "dn_level": -70
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timestamp calculation",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "int(MathMax(WPRPeriod+1,ATR_Period))+1+int(1+SignalBar)",
+      "used_by": "BarsCalculated check before processing signals"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "iWPRSign buffer 1 (UpValue)",
+        "right": "0 (non-zero and not EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "iWPRSign buffer 0 (DnValue)",
+        "right": "0 (non-zero and not EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Historical close signal search: when both buy-open and buy-close (or sell-open and sell-close) are enabled but no close signal on the current signal bar, the EA scans historical bars from SignalBar+1 forward looking for an opposite iWPRSign signal to generate a close signal. This prevents being stuck in a position without a close trigger on the current bar."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing method: LOT=fixed lot size (MM=0.1), BALANCE=fraction of balance, FREEMARGIN=fraction of free margin, LOSSFREEMARGIN=fraction of free margin minus floating loss, LOSSBALANCE=fraction of balance minus floating loss. The MM input value is interpreted differently depending on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The iWPRSign custom indicator is a Williams Percent Range signal generator that produces non-zero/non-EMPTY_VALUE outputs on buffer 1 (UpSignal) when WPR crosses above the UpLevel (-30), and on buffer 0 (DnSignal) when WPR crosses below the DnLevel (-70). The EA uses SignalBar=1 (previous completed bar) for signal detection. An ATR period is passed to the custom indicator, likely for adaptive level calculation. The historical bar scan for close signals (lines 133-160) is a unique feature: when both open and close flags are enabled for a direction but no close signal appears on the current signal bar, it searches forward through historical bars to find the earliest opposite signal to trigger a close. This ensures positions can be closed even if the signal bar itself doesn't show a reversal. The BuyPosClose/SellPosClose input booleans act as gates to enable/disable exit signals independently from entry signals. GlobalVariableDel_ from TradeAlgorithms.mqh cleans up global variables on deinit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1. The iWPRSign custom indicator must be replicated in Python - it wraps WPR with ATR-based adaptive signal generation using up/dn levels at -30/-70. 2. TradeAlgorithms.mqh contains BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions and the MarginMode enum with 5 money management modes - all must be reimplemented. 3. The CIsNewBar class must be replicated for new bar detection. 4. SignalBar=1 means signals are read from the previous completed bar (not the forming bar), critical for avoiding look-ahead bias in backtesting. 5. The historical close signal scan (lines 133-160) is important: when both open+close are enabled for a direction but no close signal found on current bar, it scans subsequent bars for an opposite signal - this must be preserved exactly. 6. SL/TP values of 1000/2000 are in points (not pips), so for 5-digit brokers these are 100/200 pips respectively - no additional digit adjustment is performed by the EA itself. 7. Deviation=10 is max slippage in points. 8. The LoadHistory() call ensures bar data is available before signal processing.",
+  "extraction_timestamp": "2026-05-13T02:21:13.895681",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 81.06517577171326,
+    "cost": 0
+  }
+}

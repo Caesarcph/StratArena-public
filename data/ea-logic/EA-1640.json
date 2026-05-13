@@ -1,0 +1,124 @@
+{
+  "ea_id": "EA-1640",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "EA depends on external TradeAlgorithms.mqh library for all trading operations (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, GlobalVariableDel_, LoadHistory). These functions encapsulate position management, money management, and order execution logic that must be manually reimplemented.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "count - net directional candle count over CandleTrendTotal bars",
+      "formula": "sum(iif(iClose>iOpen, +1, iif(iClose<iOpen, -1, 0))) for CandleTrendTotal bars",
+      "used_by": "entry_rules long and short conditions"
+    },
+    {
+      "name": "min_rates_total - minimum bars needed before signaling",
+      "formula": "SignalBar+CandleTrendTotal",
+      "used_by": "initialization validation"
+    },
+    {
+      "name": "TimeShiftSec - timeframe period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "count",
+        "right": "CandleTrendTotal",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "count",
+        "right": "-CandleTrendTotal",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Oppposite signal closes existing position: sell signal closes long (BUY_Close), buy signal closes short (SELL_Close), gated by BuyPosClose/SellPosClose input flags"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "margin_mode_options": "FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3, LOT=4"
+    },
+    "max_positions": 1,
+    "conditional_logic": "When MMMode=LOT, uses fixed lot sizing; when MMMode=FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE, uses deposit fraction of MM=0.1. Implementation is inside TradeAlgorithms.mqh."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Core signal logic: counts consecutive bullish/bearish candles over CandleTrendTotal bars starting at SignalBar offset. If all CandleTrendTotal candles are bullish (iOpen<iClose for each), count equals CandleTrendTotal -> buy signal. If all are bearish (iOpen>iClose for each), count equals -CandleTrendTotal -> sell signal. Signal bar index (SignalBar=1) means it reads the previous completed bars, not the current forming bar. When SignalBar=0, signals are recalculated on every tick. UpSignalTime/DnSignalTime are set to last bar date + one timeframe period, used by BuyPositionOpen/SellPositionOpen for trade timing. Recount flag triggers recalculation if CopyOpen/CopyClose fails. All position opening/closing logic is encapsulated in TradeAlgorithms.mqh library functions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The candle trend logic is trivial to implement in Python (count consecutive directional candles). The main conversion effort is reimplementing the TradeAlgorithms.mqh functions: BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose (with 4 margin modes), CIsNewBar, GlobalVariableDel_, and LoadHistory. The MarginMode enum (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) determines position sizing and must be faithfully ported. SL/TP values of 1000/2000 points likely need digit adjustment for 5-digit brokers (multiply by 10 for forex pairs) - verify in TradeAlgorithms.mqh. The Deviation_=10 is slippage tolerance in points.",
+  "extraction_timestamp": "2026-05-13T04:25:39.412269",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 126.40940022468567,
+    "cost": 0
+  }
+}

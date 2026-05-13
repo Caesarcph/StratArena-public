@@ -1,0 +1,155 @@
+{
+  "ea_id": "EA-16359",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load AFL_WinnerV2 custom indicator with complex parameters including custom smooth methods and applied price enums. Depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms. Custom indicator buffer interpretation required.",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AFL_WinnerV2",
+      "params": {
+        "iAverage": 5,
+        "iPeriod": 10,
+        "iMA_Method": "MODE_SMA_",
+        "iLength": 5,
+        "iPhase": 15,
+        "IPC": "PRICE_WEIGHTED_",
+        "VolumeType": "VOLUME_TICK",
+        "shift": 0,
+        "HighLevel": 40,
+        "LowLevel": -40
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "max(iAverage + iPeriod + 2*GetStartBars(iMA_Method,iLength,iPhase) + 1, ATR_Period=10) + 3 + SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total",
+      "formula": "MathMax(iAverage + iPeriod + GetStartBars(iMA_Method,iLength,iPhase)*2 + 1, 10) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    },
+    {
+      "name": "TimeShiftSec",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "AFL_WinnerV2 buffer2[SignalBar]",
+        "right": "3",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "AFL_WinnerV2 buffer2[SignalBar+1]",
+        "right": "3",
+        "direction": "not_equal",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "AFL_WinnerV2 buffer2[SignalBar]",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "AFL_WinnerV2 buffer2[SignalBar+1]",
+        "right": "0",
+        "direction": "not_equal",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Sell position closed when AFL_WinnerV2 buffer value >1 (opposite signal weakening)",
+      "Buy position closed when AFL_WinnerV2 buffer value <2 (opposite signal weakening)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT means fixed lots (MM=lot size), MMMode=FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE means MM is fraction of respective margin base"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "AFL_WinnerV2 indicator buffer 2 returns integer-like values (0,1,2,3). Buy signal: Col[1]==3 (current signal bar) AND Col[0]!=3 (previous bar was not 3) - detects fresh transition to bullish state. Sell signal: Col[1]==0 AND Col[0]!=0 - detects fresh transition to bearish state. Close signals are asymmetric: Sell close when Col[1]>1 (values 2 or 3), Buy close when Col[1]<2 (values 0 or 1). BuyPosOpen1/2 and SellPosOpen1/2 flags gate which signal types trigger entries. Signal timing uses SeriesInfoInteger(SERIES_LASTBAR_DATE)+TimeShiftSec for position open calls. Recount flag forces re-evaluation on CopyBuffer failure.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "AFL_WinnerV2 is a custom indicator that must be reimplemented in Python or its buffer values pre-computed. The indicator uses SmoothAlgorithms.mqh which provides JJMA, JurX, ParMA, T3, VIDYA, AMA smoothing - all need Python equivalents. The TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/Close functions with MarginMode-based lot calculation - this must be replicated. Entry logic depends on discrete buffer states (0,1,2,3) from a histogram-style indicator, not continuous crossover values. SL/TP are in points (not pips) - 1000 points = 100 pips on 5-digit, 1000 points = 1000 pips on 4-digit; no digit adjustment is done in code so Python version must respect raw point values. Signal is evaluated only on new bar (or bar 0 when SignalBar==0), making it inherently a on-bar-close strategy.",
+  "extraction_timestamp": "2026-05-13T04:22:07.544620",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 99.56387877464294,
+    "cost": 0
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "ea_id": "EA-17561",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom calls to external indicators (UmnickTrader_MA.ex5, UmnickTrader_RSI.ex5) and implements custom money management with margin-dependent lot scaling that cannot be auto-converted without replicating the custom indicator logic",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast MA (UmnickTrader_MA)",
+      "params": {
+        "period": 21,
+        "method": 1,
+        "applied_to": 0
+      },
+      "source": "external_library",
+      "library": "UmnickTrader_MA.ex5",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA (UmnickTrader_MA)",
+      "params": {
+        "period": 55,
+        "method": 1,
+        "applied_to": 0
+      },
+      "source": "external_library",
+      "library": "UmnickTrader_MA.ex5",
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI (UmnickTrader_RSI)",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "external_library",
+      "library": "UmnickTrader_RSI.ex5",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Digit-adjusted Stop Loss",
+      "formula": "SL*10 when _Digits==5 or _Point<0.001",
+      "used_by": "exit_rules.stop_loss"
+    },
+    {
+      "name": "Digit-adjusted Take Profit",
+      "formula": "TP*10 when _Digits==5 or _Point<0.001",
+      "used_by": "exit_rules.take_profit"
+    },
+    {
+      "name": "Margin-based lot calculation",
+      "formula": "AccountInfoDouble(ACCOUNT_MARGIN_FREE)*RiskPercent/100/OrderMargin",
+      "used_by": "position_sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA",
+        "right": "Slow MA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "RSI",
+        "right": "50",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA",
+        "right": "Slow MA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "RSI",
+        "right": "50",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjustment": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjustment": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Closes opposite direction position on reversal signal before opening new position"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.0,
+    "params": {
+      "risk_percent": 2.0,
+      "min_lots": 0.01,
+      "max_lots": 100.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "If RiskPercent<=0 use fixed Lots input; if RiskPercent>0 calculate lot size as FreeMargin*RiskPercent/100/OrderMargin, clamped to broker min/max and step"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Uses two custom indicator files (UmnickTrader_MA.ex5 and UmnickTrader_RSI.ex5) loaded via iCustom(). The MA crossover is checked on completed bars ([1] and [2]) to avoid repainting. Entry requires both MA crossover AND RSI filter confirmation. Opposite positions are closed before opening a new one (signal reversal close). Lot sizing has dual mode: negative RiskPercent means fixed lots from input, positive means dynamic margin-based calculation.",
+  "external_dependencies": [
+    "UmnickTrader_MA.ex5",
+    "UmnickTrader_RSI.ex5"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Custom indicators UmnickTrader_MA.ex5 and UmnickTrader_RSI.ex5 must be reverse-engineered or reimplemented in Python before the EA logic can be converted. The MA likely implements EMA with standard MT5 parameters but may include smoothing or offset modifications. The RSI is likely standard but must be verified. The digit-adjustment logic (multiplying SL/TP by 10 for 5-digit brokers) must be handled by normalizing to proper pip values in Python. The margin-based lot calculation can be replicated using broker API margin requirements. The new-bar guard uses IsNewBar pattern comparing current bar time to stored time, easily replicated in Python.",
+  "extraction_timestamp": "2026-05-13T11:07:48.075764",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 129.03630757331848,
+    "cost": 0
+  }
+}

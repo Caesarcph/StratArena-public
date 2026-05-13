@@ -1,0 +1,158 @@
+{
+  "ea_id": "EA-16883",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call the external Bezier custom indicator (Bezier.mq5) which implements a Bernstein polynomial smoothing algorithm with custom price types and sensitivity coefficient. The scale-in (ReOpen/dolivka) logic with position comment parsing for tracking add-on trades adds complexity beyond simple entry/exit. External .mqh library (TradeAlgorithms.mqh) handles all trade execution, position sizing, and time-level guards.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Bezier",
+      "params": {
+        "BPeriod": 8,
+        "T": 0.5,
+        "IPC": 6,
+        "shift": 0,
+        "PriceShift": 0
+      },
+      "source": "custom",
+      "library": "Bezier.mq5",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for indicator calculation",
+      "formula": "BPeriod+3+SignalBar",
+      "used_by": "BarsCalculated check and indicator data readiness"
+    },
+    {
+      "name": "Bezier smoothed value at SignalBar",
+      "formula": "Sum(i=0..BPeriod) PriceSeries(IPC,bar-i)*C(BPeriod,i)*T^i*(1-T)^(BPeriod-i)",
+      "used_by": "Entry and exit signal generation"
+    },
+    {
+      "name": "Value[0] - Bezier value at SignalBar",
+      "formula": "Bezier buffer 0 at offset SignalBar",
+      "used_by": "Current signal bar value for direction change detection"
+    },
+    {
+      "name": "Value[1] - Bezier value at SignalBar+1",
+      "formula": "Bezier buffer 0 at offset SignalBar+1",
+      "used_by": "Previous signal bar value for direction change detection"
+    },
+    {
+      "name": "Value[2] - Bezier value at SignalBar+2",
+      "formula": "Bezier buffer 0 at offset SignalBar+2",
+      "used_by": "Trend direction determination"
+    },
+    {
+      "name": "Price distance in points for scale-in check",
+      "formula": "(OpenPrice-CurrentPrice)/_Point",
+      "used_by": "ReOpen signal trigger when distance > PriceStep"
+    },
+    {
+      "name": "OrderTotal - count of add-on trades in position",
+      "formula": "Parsed from position comment string (first 3 chars)",
+      "used_by": "Limit check: OrderTotal < PosTotal"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Bezier[SignalBar]",
+        "right": "Bezier[SignalBar+1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Bezier[SignalBar]",
+        "right": "Bezier[SignalBar+1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes position: BUY_Close triggered when Bezier[SignalBar+1]>Bezier[SignalBar+2] (downtrend detected), SELL_Close triggered when Bezier[SignalBar+1]<Bezier[SignalBar+2] (uptrend detected)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "If MM<0: fixed lot = abs(MM). If MM>=0 with MMMode=FREEMARGIN: lot = FreeMargin*MM. If BALANCE: lot = Balance*MM. If LOSSFREEMARGIN: lot sized so max loss = FreeMargin*MM based on SL. If LOSSBALANCE: lot sized so max loss = Balance*MM based on SL. If LOT: fixed lot = abs(MM). Default MMMode=LOT so default is fixed lot = abs(MM) = 0.1. Scale-in (ReOpen) trades always use LOT mode regardless of MMMode setting."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Scale-in (dolivka/ReOpen) system: After initial entry, if price moves favorably by PriceStep pips (default 300), additional positions are added up to PosTotal (default 10) times. The position comment string encodes the add-on count, last entry price, and lot size for tracking. When an existing position is detected (PositionSelect), the EA parses the comment to get OrderTotal, OpenPrice, and LastLot. If OrderTotal < PosTotal and price distance from last entry > PriceStep, a scale-in signal is generated. Scale-in trades use BuyLotCount with LOT mode (fixed lot = abs(MM)) regardless of the MMMode setting. The Bezier indicator uses a Bernstein polynomial (Bezier curve) smoothing with factorial-based binomial coefficients and a sensitivity parameter T (0 to 1). Signal logic: Value[1]<Value[2] means Bezier is rising (uptrend) - triggers BUY_Open if Value[0]>Value[1] (current bar above previous = direction change upward). Value[1]>Value[2] means Bezier is falling (downtrend) - triggers SELL_Open if Value[0]<Value[1]. Time-level guard prevents re-entry until next bar time is reached after a trade (stored as GlobalVariable). The EA supports multi-timeframe operation: indicator timeframe (InpInd_Timeframe) can differ from chart timeframe, with new-bar detection on the indicator timeframe. SignalBar=0 allows intrabar recalculation, SignalBar>=1 requires new bar.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "Bezier.mq5"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The Bezier custom indicator must be reimplemented in Python - it uses Bernstein polynomial basis: B(n,k,t) = C(n,k)*t^k*(1-t)^(n-k) applied to price series. The custom price types (PRICE_SIMPL, PRICE_QUARTER, PRICE_TRENDFOLLOW0/1, PRICE_DEMARK) need to be implemented. The scale-in (ReOpen) logic tracks add-on trade state via MT5 position comments - in Python this should be tracked via a separate state manager or database since Python backtest frameworks don't have position comments. The multi-timeframe support (indicator on H4, chart can be different) requires proper bar alignment and resampling. Position sizing has 5 modes including loss-based sizing that requires margin calculation - need to implement OrderCalcProfit equivalent or use broker margin data. The TimeLevel guard using GlobalVariables must be replaced with in-memory state tracking. StopLoss/TakeProfit values in the EA are in points (not pips), so no digit adjustment is needed - they are multiplied directly by SymbolInfoDouble(SYMBOL_POINT).",
+  "extraction_timestamp": "2026-05-13T06:41:56.460003",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 335.99328541755676,
+    "cost": 0
+  }
+}

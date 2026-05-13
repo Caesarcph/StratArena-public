@@ -1,0 +1,250 @@
+{
+  "ea_id": "EA-17114",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iRSI, iMACD, iADX) with standard parameters. Simple crossover entry/exit rules. Fixed lot or risk-percent position sizing. No external .mqh libraries for trading logic. No grid, martingale, or hedging.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 34,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "Input: FasterMA"
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 55,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "Input: SlowerMA"
+    },
+    {
+      "type": "MA",
+      "name": "ZeroLag EMA (Fast)",
+      "params": {
+        "period": 34,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "FasterMA; ZeroLag = EMA(2*EMA - EMA_of_EMA)"
+    },
+    {
+      "type": "MA",
+      "name": "ZeroLag EMA (Slow)",
+      "params": {
+        "period": 55,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "SlowerMA; ZeroLag = EMA(2*EMA - EMA_of_EMA)"
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "Input: RSIperiod"
+    },
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ADX",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "Input: ADXperiod"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ZeroLag Fast EMA",
+      "formula": "2 * EMA(FasterMA) - EMA_of_EMA(FasterMA, FasterMA)",
+      "used_by": "Entry crossover signal (Fast ZeroLag vs Slow ZeroLag)"
+    },
+    {
+      "name": "ZeroLag Slow EMA",
+      "formula": "2 * EMA(SlowerMA) - EMA_of_EMA(SlowerMA, SlowerMA)",
+      "used_by": "Entry crossover signal (Fast ZeroLag vs Slow ZeroLag)"
+    },
+    {
+      "name": "Digit-adjusted SL",
+      "formula": "SLPips * 10 if _Digits==5 or _Point<0.001, else SLPips",
+      "used_by": "Stop loss calculation"
+    },
+    {
+      "name": "Digit-adjusted TP",
+      "formula": "TPPips * 10 if _Digits==5 or _Point<0.001, else TPPips",
+      "used_by": "Take profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ZeroLag EMA (Fast)",
+        "right": "ZeroLag EMA (Slow)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "RSI",
+        "right": "RSI_UpperLevel (default 70)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "ADX",
+        "right": "ADXLevel (default 25)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ZeroLag EMA (Fast)",
+        "right": "ZeroLag EMA (Slow)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "RSI",
+        "right": "RSI_LowerLevel (default 30)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "ADX",
+        "right": "ADXLevel (default 25)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "adjust_for_5digit": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "adjust_for_5digit": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "MACD divergence or opposite ZeroLag crossover closes position"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "If Lots input is negative, use fixed |Lots| lot size; if positive, treat Lots as percentage of free margin for volume calculation"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "ZeroLag EMA is computed inline: EMA_N = 2*iMA(period) - iMA(period_of_iMA). The EA uses previous bar values [1] and [2] for crossover detection (not current bar [0]). MACD is used as a confirmation/exit filter. RSI levels and ADX level are configurable inputs acting as trend-strength gates. The digit adjustment multiplies SL/TP pips by 10 when _Digits==5 or _Point<0.001 to normalize pip values across 4/5-digit brokers.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "ZeroLag EMA must be computed manually: maintain two EMA series per ZeroLag line (primary EMA and EMA-of-EMA), then derive ZeroLag = 2*EMA - EMA_of_EMA. Entry requires AND-combination of crossover + RSI filter + ADX filter. Position sizing has dual mode: negative input = fixed lots, positive input = risk fraction of free margin. Digit adjustment for SL/TP must replicate the _Digits==5 or _Point<0.001 check. New-bar detection uses static datetime comparison. All indicator lookups use [1] and [2] shifts (previous and prior bars) for crossover, not [0].",
+  "extraction_timestamp": "2026-05-13T08:40:18.078184",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 209.9729869365692,
+    "cost": 0
+  }
+}

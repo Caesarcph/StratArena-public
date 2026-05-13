@@ -1,0 +1,180 @@
+{
+  "ea_id": "EA-16027",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load a custom indicator 'SimpleZZFibo' with 7 buffers. Trading logic depends on custom ZigZag+Fibonacci level data that cannot be replicated with built-in indicators alone.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "SimpleZZFibo",
+      "params": {
+        "Retracement": 10,
+        "MAPeriod": 50,
+        "Bound": 70,
+        "LevelsColor": "clrBlack",
+        "LevelsWidth": 1,
+        "Level23": false,
+        "Level38": true,
+        "Level50": true,
+        "Level61": true,
+        "Level76": false
+      },
+      "source": "custom",
+      "library": "Market//SimpleZZFibo",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TradeDirection - direction derived from Fibo 0% vs 100% level comparison",
+      "formula": "ZZLevel000 > ZZLevel100 ? 1 : -1",
+      "used_by": "entry_rules and level breakout check"
+    },
+    {
+      "name": "FiboPriceLevels - mapped array of active Fibonacci price levels",
+      "formula": "conditionally assembled from ZZLevel000, ZZLevel023, ZZLevel038, ZZLevel050, ZZLevel061, ZZLevel076, ZZLevel100 based on Level23/38/50/61/76 input booleans",
+      "used_by": "level breakout detection and trading conditions"
+    },
+    {
+      "name": "Parabolic SAR trailing stop (AF/EP system)",
+      "formula": "Buy: SL = SL + AF*(EP-SL), AF = min(AFCap, AF+AFStep), EP = max(high); Sell: SL = SL - AF*(SL-EP), AF = min(AFCap, AF+AFStep), EP = min(low)",
+      "used_by": "trailing_stop exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Price[1].close - Price[1].open",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "ZZLevel000[1]",
+        "right": "ZZLevel100[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Price breakout below Fibo level then close above",
+        "right": "FiboPriceLeves[LevelIndex]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Price[1].open - Price[1].close",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "ZZLevel000[1]",
+        "right": "ZZLevel100[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Price breakout above Fibo level then close below",
+        "right": "FiboPriceLeves[LevelIndex]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": 0,
+      "params": {
+        "initial_sl_basis": "Price[1].low (buy) or Price[1].high (sell) plus StopLoss input buffer in points",
+        "StopLoss_input_buffer_points": 0
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "indicator_based",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "system": "parabolic_sar",
+        "AFStep": 0.01,
+        "AFCap": 0.4
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Position closes via SL hit (detected via OnTrade deal comment containing 'sl')"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 1.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three-stage entry: (1) Price must break beyond a Fibo level by Breakout points (LevelCross=true, LevelIndex set). (2) Must wait for next bar after breakout bar. (3) On confirmation bar: last bar must be in trade direction (trend bar), previous bar (2 bars ago) must have closed beyond the level, and last bar must close on the trade-direction side of the level. SL is then trailed using a parabolic SAR-like system (AF/EP) modified on each new bar. Exit is solely via SL hit. The OnTrade handler detects SL closures by checking deal comments for 'sl' string. The EA only operates when no position is open (PositionSelect check gates all entry logic). The custom indicator provides 7 buffers: buffer 2=0%, 3=23.6%, 4=38.2%, 5=50%, 6=61.8%, 7=76.4%, 8=100%.",
+  "external_dependencies": [
+    "Market//SimpleZZFibo"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The custom SimpleZZFibo indicator must be reimplemented or its buffer values pre-computed and fed as external data. The ZigZag+Fibonacci level computation is non-trivial and core to the strategy. The parabolic SAR trailing stop logic is straightforward to replicate. Entry logic uses bar indices [0],[1],[2] with series arrays, so careful bar indexing is needed. The three-stage entry (breakout detection -> wait one bar -> confirmation candle pattern) requires precise bar-by-bar state tracking. No digit adjustment is performed on SL values (uses Point() directly), so this works correctly on both 4/5 digit brokers without scaling.",
+  "extraction_timestamp": "2026-05-13T03:27:16.805686",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 191.17394971847534,
+    "cost": 0
+  }
+}

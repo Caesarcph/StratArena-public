@@ -1,0 +1,218 @@
+{
+  "ea_id": "EA-17044",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses multi-indicator confluence (PricePosition + StepUpDown) with custom derived signal logic, multi-timeframe checks, timer-based execution, and complex position management with opposite-signal closing. While only built-in iMA indicators are used, the composite signal logic and trade flow are non-trivial.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Media1 SMMA",
+      "params": {
+        "period": 26,
+        "shift": 0,
+        "method": 2,
+        "applied_to": 4
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Media2 SMA",
+      "params": {
+        "period": 20,
+        "shift": 0,
+        "method": 0,
+        "applied_to": 4
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Fast SMMA (StepUpDown Fast)",
+      "params": {
+        "period": 2,
+        "shift": 0,
+        "method": 0,
+        "applied_to": 5
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow SMMA (StepUpDown Slow)",
+      "params": {
+        "period": 30,
+        "shift": 0,
+        "method": 2,
+        "applied_to": 4
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "SIGNAL buffer (average of Media1 and Media2)",
+      "formula": "(media1[i] + media2[i]) / 2",
+      "used_by": "PricePosition indicator logic"
+    },
+    {
+      "name": "angle buffer (price crossover signal level)",
+      "formula": "LOW[i] if OPEN<=SIGNAL and CLOSE>SIGNAL; HIGH[i] if OPEN>=SIGNAL and CLOSE<SIGNAL; EMPTY_VALUE otherwise",
+      "used_by": "PricePosition direction determination"
+    },
+    {
+      "name": "direction (last non-empty angle value)",
+      "formula": "first angle[s] != EMPTY_VALUE scanning from bar 0 upward",
+      "used_by": "PricePosition buy/sell decision"
+    },
+    {
+      "name": "pip (adjusted point value)",
+      "formula": "_Point*10 if _Digits==3||5 or symbol starts with X/#; else _Point",
+      "used_by": "SL/TP calculation, trailing stop, freeze level"
+    },
+    {
+      "name": "divma520 / divma521 (fast-slow MA divergence current/previous)",
+      "formula": "mma01th1[i] - mma30th1[i] and mma01th1[i+1] - mma30th1[i+1]",
+      "used_by": "StepUpDown trend determination"
+    },
+    {
+      "name": "pwr0 / pwr1 (price power relative to daily close)",
+      "formula": "((H1CLOSE - D1_CLOSE) / D1_CLOSE) * 100 for current and previous bar",
+      "used_by": "tradeFX entry confirmation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "PricePosition",
+        "right": "StepUpDown",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "PricePosition==1",
+        "right": "StepUpDown==1 && H1CLOSE>H1OPEN && H1LOW<FastMA[0] && FastMA[0]>FastMA[1] && pwr0>pwr1",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "PricePosition",
+        "right": "StepUpDown",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "PricePosition==-1",
+        "right": "StepUpDown==-1 && H1CLOSE<H1OPEN && H1HIGH>FastMA[0] && FastMA[0]<FastMA[1] && pwr0<pwr1",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 38,
+      "params": {
+        "minimum_pips": 38,
+        "formula": "moneyrisk/(lots*tickvaluesize)+spread, minimum 38*pip"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 114,
+      "params": {
+        "formula": "SL * TPvsSLRatio (default 3.0x)"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 10,
+      "params": {
+        "trail_start_pips": 10,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "CloseOnProfit: closes position when StepUpDown reverses and current profit (including swap+commission) is positive, only when trailing stop is disabled",
+      "Same-hour trade prevention: no new trade if last deal close hour equals current hour"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "risk_percent": 3.0,
+      "fixed_lot_default": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "DynamicLotSize=1: lots = (balance_or_equity * RiskPercentage/100) / (contract_size/leverage), normalized by (PositionsTotal+1); FixedLot=0: use TradeLotSize input"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "timer",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Timer fires every 60 seconds. Trade logic only executes when minute changes (cmnt!=pmnt). Entry requires 6-condition confluence: PricePosition direction, StepUpDown trend, bullish/bearish candle (close vs open on H1), price touching Fast MA (low<ma for buy, high>ma for sell), Fast MA rising/falling (ma[0]>ma[1] or ma[0]<ma[1]), and price power (pwr0>pwr1 for buy, pwr0<pwr1 for sell). Price power compares current TF close to previous daily close as percentage. Same-hour filter prevents re-entry in the same hour as last close. CloseByOppositeSignal input controls whether opposite positions are closed before opening new ones. When trailing stop is disabled, positions are closed on StepUpDown reversal only if profitable. The SIGNAL buffer is computed as (SMMA26+MEDIAN + SMA20+MEDIAN)/2, and direction is the most recent angle value where price crossed SIGNAL.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Timer-based execution requires careful bar-change detection in Python backtest. The composite signal (PricePosition+StepUpDown+power+MA+ candle) must be computed per bar. PricePosition requires scanning backward for last non-EMPTY angle value which is a lookback-dependent operation. StepUpDown uses 9-bar lookback for MAHi/MALo extremes. pip adjustment for 5-digit brokers must be replicated. Multi-timeframe data (H1 + D1) required for power calculation. CTrade/CSymbolInfo/CPositionInfo/CAccountInfo standard library usage maps to direct API calls in Python. The margin check (FreeMarginCheck) and freeze level logic need broker-specific parameters. The same-hour re-entry filter requires tracking last deal close time. Trailing stop modifies both SL and TP simultaneously with freeze level distance checks.",
+  "extraction_timestamp": "2026-05-13T08:08:25.349720",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 244.23852443695068,
+    "cost": 0
+  }
+}

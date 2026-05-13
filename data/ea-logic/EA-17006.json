@@ -1,0 +1,175 @@
+{
+  "ea_id": "EA-17006",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for Fractal_WPR which is a non-standard custom indicator with fractal dimension calculation; external TradeAlgorithms.mqh library handles all trade execution and lot sizing with complex margin-based position sizing logic",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Fractal_WPR",
+      "params": {
+        "e_period": 30,
+        "normal_speed": 30,
+        "IPC": 1,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "Fractal_WPR.mq5",
+      "derived_period": "MathMax(e_period,normal_speed)+3+SignalBar"
+    },
+    {
+      "type": "WPR",
+      "name": "Adaptive WPR (inside Fractal_WPR)",
+      "params": {
+        "period": "round(normal_speed*beta)",
+        "method": "SMA",
+        "applied_to": "HIGH_LOW"
+      },
+      "source": "custom",
+      "library": "Fractal_WPR.mq5",
+      "derived_period": "round(normal_speed * (1 / (2 - fdi)) / 2)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Fractal Dimension Index (FDI)",
+      "formula": "1.0 + (MathLog(length) + MathLog(2.0)) / MathLog(2 * (e_period - 1))",
+      "used_by": "Adaptive WPR period calculation"
+    },
+    {
+      "name": "Hurst exponent",
+      "formula": "2 - fdi",
+      "used_by": "Adaptive WPR period calculation"
+    },
+    {
+      "name": "Trail dimension (beta divisor)",
+      "formula": "1 / (2 - fdi)",
+      "used_by": "Adaptive WPR period calculation"
+    },
+    {
+      "name": "Beta (adaptive multiplier)",
+      "formula": "trail_dim / 2 = 1 / (2 * (2 - fdi))",
+      "used_by": "Adaptive WPR speed calculation"
+    },
+    {
+      "name": "Adaptive speed for WPR",
+      "formula": "round(normal_speed * beta)",
+      "used_by": "WPR period inside GetWPR()"
+    },
+    {
+      "name": "Normalized price length",
+      "formula": "sum over kkk=0..e_period-1 of sqrt((diff[kkk]-diff[kkk-1])^2 + 1/e_period^2)",
+      "used_by": "FDI calculation"
+    },
+    {
+      "name": "Price normalization (diff)",
+      "formula": "(ExtLineBuffer1[index-kkk] - priceMin) / (priceMax - priceMin)",
+      "used_by": "length calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fractal_WPR[SignalBar]",
+        "right": "LowLevel (-70)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fractal_WPR[SignalBar]",
+        "right": "HighLevel (-30)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes current position: long signal triggers SELL_Close, short signal triggers BUY_Close; BuyPosClose and SellPosClose input flags control whether signal-based closes are allowed"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "LOT_mode": 4,
+      "FREEMARGIN_mode": 0,
+      "BALANCE_mode": 1,
+      "LOSSFREEMARGIN_mode": 2,
+      "LOSSBALANCE_mode": 3
+    },
+    "max_positions": 1,
+    "conditional_logic": "If MM<0: use absolute value of MM as fixed lot; if MM>=0 and MMMode=LOT(4): use absolute value of MM as fixed lot; if MM>=0 and MMMode=FREEMARGIN(0): lot=freemargin*MM/margin_per_lot; if MM>=0 and MMMode=BALANCE(1): lot=balance*MM/margin_per_lot; if MM>=0 and MMMode=LOSSFREEMARGIN(2): lot=(freemargin*MM)/|loss_at_SL_per_lot|; if MM>=0 and MMMode=LOSSBALANCE(3): lot=(balance*MM)/|loss_at_SL_per_lot|"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "TrendMode(DIRECT/AGAINST) reverses signal interpretation: in AGAINST mode, WPR crossing below -70 generates a SELL signal instead of BUY, and crossing above -30 generates a BUY signal instead of SELL. TimeLevel mechanism prevents re-entry until the next bar's open time after a trade is placed (global variable guard). StopCorrect adjusts SL/TP to broker minimum stop level if too close. LotFreeMarginCorrect reduces lot size if insufficient free margin. Signal is read from SignalBar index (default=1, previous completed bar) with 2-buffer copy for crossover detection.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "Fractal_WPR.mq5"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The Fractal_WPR custom indicator requires full reimplementation: it computes fractal dimension index (FDI) from normalized price series, derives Hurst exponent, then adaptively scales the WPR period. The WPR calculation itself is non-standard (uses custom price series with 12 price types including TrendFollow and Demark). Position sizing has 5 modes with conditional logic (negative=fixed lot). The TimeLevel global variable mechanism prevents re-entry until next bar. SL/TP are in points (not pips) with no 5-digit adjustment — StopCorrect only enforces broker minimum stop distance. Must implement FDI calculation precisely: length=sum(sqrt((diff[i]-diff[i-1])^2 + 1/period^2)), fdi=1+(log(length)+log(2))/log(2*(period-1)). WPR is then calculated with adaptive speed=round(normal_speed*beta) where beta=1/(2*(2-fdi)). TrendMode AGAINST reverses signal-to-direction mapping.",
+  "extraction_timestamp": "2026-05-13T07:44:59.629340",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 194.30734753608704,
+    "cost": 0
+  }
+}

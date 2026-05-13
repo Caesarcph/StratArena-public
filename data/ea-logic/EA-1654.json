@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-1654",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for F2a_AO custom indicator and includes TradeAlgorithms.mqh external library for position management, money management, and new-bar detection. Multi-timeframe logic (D1 trend + H12 signal). Cannot auto-convert without replicating custom indicator and library logic.",
+  "symbol": null,
+  "timeframe_hint": "H12",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "F2a_AO",
+      "params": {
+        "MA_Filtr": 3,
+        "MA_Fast": 13,
+        "MA_Slow": 144
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Trend direction from D1 candlestick",
+      "formula": "iClose[D1_TrendBar] - iOpen[D1_TrendBar]",
+      "used_by": "Entry gate: Trend>0 allows longs, Trend<0 allows shorts"
+    },
+    {
+      "name": "min_rates_total",
+      "formula": "max(MA_Filtr,MA_Fast,MA_Slow)+3+9+SignalBar",
+      "used_by": "BarsCalculated sufficiency check in OnTick"
+    },
+    {
+      "name": "UpSignalTime/DnSignalTime",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen/SellPositionOpen as signal timestamp"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "F2a_AO buffer 1 (UpValue)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "F2a_AO buffer 0 (DnValue)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Historical signal search: if both open and close permissions are enabled on a side, and no direct close signal exists, the EA scans backward through bars to find the most recent opposite signal and uses that as the close trigger"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT uses fixed lot size from MM input; FREEMARGIN/BALANCE uses MM as deposit fraction; LOSSFREEMARGIN/LOSSBALANCE uses MM as loss share fraction. Default is LOT mode with MM=0.1."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Dual-timeframe system: D1 candle determines trend direction (close>open = bullish, only longs allowed; close<open = bearish, only shorts allowed). F2a_AO indicator on H12 generates entry signals on SignalBar=1 (previous bar). Signal reversal closes opposite positions. Historical bar scan for close signals when no direct close signal is present and both open/close permissions are enabled. TrendBar=0 or SignalBar=0 bypasses new-bar check (re-evaluates every tick). Recount flag triggers re-evaluation on data copy failures.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must reverse-engineer or port F2a_AO custom indicator (3 MAs: filter=3, fast=13, slow=144, outputting two buffers for up/down signals). Must port TradeAlgorithms.mqh functions: BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, LoadHistory, GlobalVariableDel_. Multi-timeframe alignment (D1+H12) requires careful bar synchronization. Money management has 5 modes controlled by MarginMode enum. Signal timestamps (UpSignalTime/DnSignalTime) are passed to trade functions and may affect pending order logic in the library. Historical backward scan for close signals adds complexity.",
+  "extraction_timestamp": "2026-05-13T05:05:41.746126",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 151.488529920578,
+    "cost": 0
+  }
+}

@@ -1,0 +1,229 @@
+{
+  "ea_id": "EA-17112",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses custom Heiken Ashi calculation logic (not iCustom but custom implementation) and StepUpDown composite indicator logic. Has multi-component signal system requiring manual translation of proprietary calculation loops. Timer-based execution with minute-bar guard. Partial use of Trade library classes for margin check and trailing stop.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast SMA (Typical)",
+      "params": {
+        "period": 2,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "TYPICAL"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow SMMA (Median)",
+      "params": {
+        "period": 30,
+        "shift": 0,
+        "method": "SMMA",
+        "applied_to": "MEDIAN"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Heiken Ashi",
+      "params": {
+        "period": null,
+        "method": null,
+        "applied_to": null
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "StepUpDown",
+      "params": {
+        "lookback": 9,
+        "fast_ma_period": 2,
+        "slow_ma_period": 30
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "pip - digit-adjusted point value",
+      "formula": "_Point*10 when _Digits==3||5, else _Point; also _Point*10 when symbol starts with X or #",
+      "used_by": "Trailing stop, SL/TP calculations, RequestPrice"
+    },
+    {
+      "name": "divma520 - Fast MA minus Slow MA at bar i",
+      "formula": "sma01ar[i]-mma30ar[i]",
+      "used_by": "StepUpDown trend detection"
+    },
+    {
+      "name": "divma521 - Fast MA minus Slow MA at bar i+1",
+      "formula": "sma01ar[i+1]-mma30ar[i+1]",
+      "used_by": "StepUpDown trend detection (previous bar divergence)"
+    },
+    {
+      "name": "haOpen - Heiken Ashi Open",
+      "formula": "(ExOpen[i-1]+ExClose[i-1])/2",
+      "used_by": "Heiken Ashi signal"
+    },
+    {
+      "name": "haClose - Heiken Ashi Close",
+      "formula": "(OPEN[i]+HIGH[i]+LOW[i]+CLOSE[i])/4",
+      "used_by": "Heiken Ashi signal"
+    },
+    {
+      "name": "sltp - calculated SL/TP distance in price",
+      "formula": "(moneyrisk/(lots*tickvaluesize)/leveragerisk)+sprd, minimum 38*pip",
+      "used_by": "OpenPosition SL/TP"
+    },
+    {
+      "name": "leveragerisk - leverage risk factor",
+      "formula": "NormalizeDouble(leverage/100,0), minimum 1.0",
+      "used_by": "CalculateSLTP"
+    },
+    {
+      "name": "tickvaluesize - tick value normalized by point/ticksize",
+      "formula": "tickvalue*point/ticksize",
+      "used_by": "CalculateSLTP"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Heiken Ashi",
+        "right": "StepUpDown",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Heiken Ashi",
+        "right": "StepUpDown",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Heiken Ashi",
+        "right": "StepUpDown",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Heiken Ashi",
+        "right": "StepUpDown",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "percent",
+      "value": 3.0,
+      "params": {
+        "formula": "(moneyrisk/(lots*tickvaluesize)/leveragerisk)+sprd, min 38 pips"
+      }
+    },
+    "take_profit": {
+      "type": "percent",
+      "value": 3.0,
+      "params": {
+        "multiplier": 3.0,
+        "formula": "sltp*TPvsSLRatio"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 10,
+      "params": {
+        "trail_start_pips": 10,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "When UseTrailingStop=No and CloseOrderProfit detects opposite StepUpDown signal while position is in profit, close the position",
+      "HR_CLOSE!=HR check prevents re-entry in same hour as last close"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 3.0,
+    "params": {
+      "fixed_lot_size": 0.1,
+      "formula": "(balance*RiskPercentage/100)/(contract_size/leverage), divided by min(PositionsTotal+1, 5)",
+      "lots_min": "SYMBOL_VOLUME_MIN",
+      "lots_max": "SYMBOL_VOLUME_MAX",
+      "lots_step": "SYMBOL_VOLUME_STEP"
+    },
+    "max_positions": 1,
+    "conditional_logic": "DynamicLotSize=risk_percent formula; FixedLot=TradeLotSize input parameter"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "timer",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "StepUpDown indicator: Compares Fast SMA(2, Typical) vs Slow SMMA(30, Median). Within lookback of 9 bars, finds MAHi/MALo and their bar indices (mlHi/mlLo). Trend UP when (mlHi>mlLo and sma01ar[j]>MALo) or (mlHi<mlLo and divma520>divma521). Trend DOWN when (mlHi>mlLo and divma520<divma521) or (mlHi<mlLo and sma01ar[j]<MAHi). Heiken Ashi: Custom implementation using OHLC arrays, haOpen=(prev_haOpen+prev_haClose)/2, haClose=(O+H+L+C)/4. Bullish when haOpen<haClose, bearish when haOpen>haClose. Trade signal requires BOTH Heiken Ashi AND StepUpDown to agree. Timer fires every 60 seconds; actual logic runs only when minute changes (cmnt!=pmnt). Same-hour re-entry blocked via HR_CLOSE!=HR check. CloseByOppositeSignal input controls whether opposite position is closed before opening new one (Yes) or new position opened alongside (No). Trailing stop adjusts both SL and TP when price moves favorably. Freeze level check with +5 pip buffer. When CloseByOppositeSignal=Yes and opposite exists: opens new position first, then closes opposite after 1-second delay.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/PositionInfo.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Timer-based execution must be converted to bar-based logic in Python backtesting. Minute-change guard (cmnt!=pmnt) effectively makes this a 1-minute bar check at minimum. The Heiken Ashi calculation is self-contained and straightforward to port. StepUpDown logic requires careful translation: it iterates over lookback bars to find MAHi/MALo extrema and their positions, then uses divergence of fast-slow MA spread to determine trend. The position_gate logic has 6 signal cases (tSIGNAL 1,-1,2,-2,3,-3) that must be faithfully reproduced. SL/TP calculation uses account balance, leverage, tick value, and spread - all need broker-specific data. The pip adjustment for 5-digit brokers (_Point*10) must be handled in Python. Margin check via CAccountInfo.FreeMarginCheck needs equivalent logic. Trailing stop modifies both SL and TP simultaneously, which is unusual. Same-hour re-entry filter (HR_CLOSE!=HR) uses deal history scanning. The 1-second Sleep between open and close in case 2/-2 is a timing detail that won't apply in backtesting.",
+  "extraction_timestamp": "2026-05-13T08:35:35.282697",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 249.46245121955872,
+    "cost": 0
+  }
+}

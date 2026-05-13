@@ -1,0 +1,174 @@
+{
+  "ea_id": "EA-18040",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator for Chaikin Volatility and custom Stochastic-like oscillator derived from it; intermediate derived values (HH, LL, raw stochastic) are computed manually in code rather than using a single built-in indicator, requiring replication of custom calculation logic in Python",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Chaikin Volatility",
+      "params": {
+        "period": 10,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Stochastic",
+      "name": "Stochastic of Chaikin Volatility",
+      "params": {
+        "k_period": 14,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "SMA"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "HH - Highest High of Chaikin Volatility over K period",
+      "formula": "Highest(CVi, KPeriod)",
+      "used_by": "Stochastic of Chaikin Volatility %K line"
+    },
+    {
+      "name": "LL - Lowest Low of Chaikin Volatility over K period",
+      "formula": "Lowest(CVi, KPeriod)",
+      "used_by": "Stochastic of Chaikin Volatility %K line"
+    },
+    {
+      "name": "Raw Stochastic %K of Chaikin Volatility",
+      "formula": "(CVi - LL) / (HH - LL) * 100",
+      "used_by": "Smoothed %K and %D lines"
+    },
+    {
+      "name": "Smoothed %K (Main line)",
+      "formula": "SMA(RawStochastic, DPeriod)",
+      "used_by": "Entry crossover logic"
+    },
+    {
+      "name": "%D (Signal line)",
+      "formula": "SMA(SmoothedK, Slowing)",
+      "used_by": "Entry crossover logic"
+    },
+    {
+      "name": "SL adjusted for digit count",
+      "formula": "StopLoss * DigitAdjust",
+      "used_by": "Stop loss calculation"
+    },
+    {
+      "name": "TP adjusted for digit count",
+      "formula": "TakeProfit * DigitAdjust",
+      "used_by": "Take profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Stochastic CV Main (%K)",
+        "right": "Stochastic CV Signal (%D)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Stochastic CV Main (%K)",
+        "right": "Stochastic CV Signal (%D)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "digit_adjustment": true,
+        "adjustment_formula": "value * (_Digits==5||_Digits==3 ? 10 : 1)"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "digit_adjustment": true,
+        "adjustment_formula": "value * (_Digits==5||_Digits==3 ? 10 : 1)"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Signal reversal can close opposite position when new entry signal occurs (close opposite then open new)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA computes a Stochastic oscillator applied to Chaikin Volatility rather than price. The Chaikin Volatility is first obtained via iCustom call to a separate indicator file. Then HH/LL of the CV values are manually computed over KPeriod bars, and the raw stochastic, smoothed %K, and %D are calculated in the EA code. Digit adjustment is applied to SL/TP values: if _Digits is 5 or 3 (5-digit/3-digit broker), SL and TP input values are multiplied by 10. The IsNewBar guard ensures signals are evaluated once per completed bar using previous bar values ([1] vs [0]). Position gate ensures no duplicate positions - if an opposite signal occurs, the existing position is closed before opening the new one.",
+  "external_dependencies": [
+    "Chaikin Volatility custom indicator (.ex5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1) Must replicate Chaikin Volatility calculation in Python (HL spread SMA with rate-of-change) or use a library that provides it. 2) The Stochastic-of-CV is a two-step derived indicator requiring manual implementation: first compute CV series, then apply standard Stochastic formula to that series. 3) Digit adjustment logic must be preserved: detect 5/3-digit symbols and multiply SL/TP by 10 accordingly. 4) New-bar detection in Python requires tracking last seen bar timestamp. 5) Position management uses a 'close opposite then open new' pattern that must be preserved. 6) The iCustom call means the CV indicator source must be available or its algorithm reverse-engineered from the .mqh/custom indicator file.",
+  "extraction_timestamp": "2026-05-13T12:10:32.285286",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 102.68033790588379,
+    "cost": 0
+  }
+}

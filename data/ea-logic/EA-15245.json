@@ -1,0 +1,130 @@
+{
+  "ea_id": "EA-15245",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for NRTR indicator and #include <TradeAlgorithms.mqh> for position management, requiring recreation of both custom indicator logic and external library trading functions",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "NRTR",
+      "params": {
+        "period": 10,
+        "iDig": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of selected timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime calculation for position open time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "iPeriod+SignalBar+1",
+      "used_by": "BarsCalculated check before signal processing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "NRTR UpValue buffer[2]",
+        "right": "0 (non-zero and not EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "NRTR DnValue buffer[3]",
+        "right": "0 (non-zero and not EMPTY_VALUE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "NRTR DnValue signal triggers BUY_Close when BuyPosClose is true and DnValue[0] is non-zero/non-EMPTY_VALUE (buffer[1] additional check with BuyPosOpen && BuyPosClose)",
+      "NRTR UpValue signal triggers SELL_Close when SellPosClose is true and UpValue[0] is non-zero/non-EMPTY_VALUE (buffer[0] additional check with SellPosOpen && SellPosClose)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lots (MM=0.1 lots), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "NRTR indicator has 4 buffers: buffer[0]=Up channel line, buffer[1]=Dn channel line, buffer[2]=Up signal, buffer[3]=Dn signal. Signal is read from bar index SignalBar (default=1, previous bar). Two-stage close logic: primary close on signal reversal (buffers 2/3), secondary close on channel line confirmation (buffers 0/1) requiring both open and close flags enabled. Recount mechanism retries signal reading on CopyBuffer failure. IsNewBar class controls per-bar execution. GlobalVariableDel_ called on deinit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must recreate NRTR custom indicator logic (4-buffer channel system with breakout signals). TradeAlgorithms.mqh must be fully replaced - it wraps BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose with margin mode logic, global variable management, and position existence checks. Signal bar indexing (SignalBar=1) means signals lag by one bar. The Recount static variable pattern needs careful handling to avoid missed signals on data errors.",
+  "extraction_timestamp": "2026-05-13T01:13:53.676067",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 201.93057513237,
+    "cost": 0
+  }
+}

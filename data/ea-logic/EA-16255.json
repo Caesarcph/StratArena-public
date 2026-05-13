@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-16255",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load 'StochasticDiff' custom indicator, depends on external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms, has custom money management with multiple margin modes",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "StochasticDiff",
+      "params": {
+        "k_period": 5,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "SMA",
+        "price_field": "STO_LOWHIGH",
+        "xma_method": "T3",
+        "xlength": 13,
+        "xphase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "KPeriod+DPeriod+Slowing+GetStartBars(XMA_Method,XLength,XPhase)+3+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timing",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "KPeriod+DPeriod+Slowing+GetStartBars(XMA_Method,XLength,XPhase)+3+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "StochasticDiff[0]",
+        "right": "StochasticDiff[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "StochasticDiff[0]",
+        "right": "StochasticDiff[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy close triggered when StochasticDiff[1]>StochasticDiff[2] (downturn detected)",
+      "Sell close triggered when StochasticDiff[1]<StochasticDiff[2] (upturn detected)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT means fixed lot size of MM=0.1; other modes (FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) use MM as percentage of respective margin base"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses 3-bar comparison of single StochasticDiff buffer: Value[1]<Value[2] (upturn) + Value[0]>=Value[1] (current confirms) for buy; Value[1]>Value[2] (downturn) + Value[0]<=Value[1] (current confirms) for sell. When SignalBar=0, signals are recalculated on every tick instead of only on new bars. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans act as gate switches to independently enable/disable each direction's entry and exit. Signal time passed to trade functions uses SERIES_LASTBAR_DATE + TimeShiftSec for timing-based order management.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The StochasticDiff custom indicator must be reimplemented in Python - it applies a second smoothing (T3 by default) over standard Stochastic values. The TradeAlgorithms.mqh library provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions with built-in position checking, money management across 5 modes (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE), and deviation handling - these must be reimplemented. SmoothAlgorithms.mqh provides GetStartBars() and the T3/other smoothing implementations. The signal logic compares 3 consecutive values of the smoothed stochastic: bar[1] vs bar[2] determines direction, bar[0] vs bar[1] confirms entry. SL/TP are in points (1000/2000) not pips - need to verify if digit adjustment is needed for 5-digit brokers (no explicit adjustment found in code).",
+  "extraction_timestamp": "2026-05-13T04:13:27.251693",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 180.37463665008545,
+    "cost": 0
+  }
+}

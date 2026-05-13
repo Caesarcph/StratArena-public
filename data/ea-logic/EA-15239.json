@@ -1,0 +1,152 @@
+{
+  "ea_id": "EA-15239",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for SuperTrend indicator (not a built-in MT5 indicator) and relies on external TradeAlgorithms.mqh library for position open/close logic and money management. Custom indicator buffers require understanding of the SuperTrend implementation to replicate.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "SuperTrend",
+      "name": "SuperTrend",
+      "params": {
+        "cci_period": 50,
+        "atr_period": 5,
+        "level": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI (embedded in SuperTrend)",
+      "params": {
+        "period": 50,
+        "applied_to": "TYPICAL"
+      },
+      "source": "custom",
+      "library": "SuperTrend",
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR (embedded in SuperTrend)",
+      "params": {
+        "period": 5
+      },
+      "source": "custom",
+      "library": "SuperTrend",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timing",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars needed for indicator calculation",
+      "formula": "MathMax(CCIPeriod,ATRPeriod)+SignalBar+1",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "SuperTrend buffer 2 (Up signal)",
+        "right": "0 / not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "SuperTrend buffer 3 (Dn signal)",
+        "right": "0 / not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite SuperTrend signal closes position (Up signal closes sell, Dn signal closes buy)",
+      "Double-check close: if both BuyPosOpen and BuyPosClose enabled and SuperTrend buffer 1 (Dn trend) is active, force close buy; symmetric for sell with buffer 0 (Up trend)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum: LOT=fixed lot size (MM=0.1 lots); BALANCE=fraction of balance; FREEMARGIN=fraction of free margin; LOSSFREEMARGIN=fraction of free margin considering loss; LOSSBALANCE=fraction of balance considering loss. The MM input value is interpreted differently based on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal is evaluated on bar index SignalBar (default=1, previous closed bar). The EA uses 4 buffers from the custom SuperTrend indicator: buffer 0=Up trend line, buffer 1=Dn trend line, buffer 2=Up signal (non-empty on buy signal bar), buffer 3=Dn signal (non-empty on sell signal bar). There is a dual close check: primary close on signal reversal (buffer 2/3), plus a secondary close if the trend direction (buffer 0/1) is already opposite. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose booleans allow independently enabling/disabling long/short entry and exit. GlobalVariableDel_ cleanup on deinit suggests position tracking via global variables managed by TradeAlgorithms.mqh.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must replicate the SuperTrend indicator logic in Python since it's a custom indicator (iCustom). The SuperTrend likely uses CCI for trend direction and ATR for band offset - need to find or reimplement the exact algorithm. TradeAlgorithms.mqh handles all position management including the MarginMode lot sizing logic - this must be reimplemented. The 4-buffer scheme (trend line + signal markers) must be understood from the SuperTrend indicator source. Signal bar offset of 1 means trades are on confirmed bars, not repainting. GlobalVariableDel_ suggests stateful position tracking that must be replicated.",
+  "extraction_timestamp": "2026-05-13T01:02:25.899224",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 115.23207020759583,
+    "cost": 0
+  }
+}

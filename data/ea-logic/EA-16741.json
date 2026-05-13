@@ -1,0 +1,158 @@
+{
+  "ea_id": "EA-16741",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iBullsPower, iBearsPower, iATR) with standard Trade library classes. Simple Bulls+Bears sum crossover entry/exit logic. Fixed lot sizing. No external custom indicators or complex money management. The ATR indicator is created but not actually used in trading logic (commented out), so it doesn't affect convertibility.",
+  "symbol": null,
+  "timeframe_hint": "M5",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Bulls Power",
+      "params": {
+        "period": 5,
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "BullBearPeriod (input, default=5)"
+    },
+    {
+      "type": "Custom",
+      "name": "Bears Power",
+      "params": {
+        "period": 5,
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "BullBearPeriod (input, default=5)"
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 5
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "bull_plus_bear",
+      "formula": "iBullsPower(1) + iBearsPower(1)",
+      "used_by": "Entry signal: isBuying when > 0, isSelling when < 0"
+    },
+    {
+      "name": "isBuying",
+      "formula": "bull+bear > 0",
+      "used_by": "Long entry rule"
+    },
+    {
+      "name": "isSelling",
+      "formula": "bull+bear < 0",
+      "used_by": "Short entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "BullsPower[1]+BearsPower[1]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "BullsPower[1]+BearsPower[1]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 105,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 150,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 10,
+      "params": {
+        "trail_start_pips": 20,
+        "trail_step_pips": 10
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "No explicit opposite-signal close; the EA only manages trailing stops on open positions and does not close on signal reversal. isClosing is set to false unconditionally."
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "ATR indicator handle is created in OnInit but the ATR values are not used in any trading logic (the lines referencing ATR are commented out: b = 1*Point() + iATRGet(1)*1.5 and s = 1*Point() + iATRGet(1)*1.5). The trailing stop logic triggers when distance from current price to stop loss exceeds 2*trail_step*pip, then modifies SL by 1*trail_step*pip. Entry uses bar index [1] (previous completed bar) for indicator values, but there is no new-bar guard so the signal can trigger on every tick. isClosing is hardcoded to false and never used meaningfully. The mutual exclusion check (isBuying && !isSelling && !isClosing) prevents simultaneous buy/sell signals, but since bull+bear cannot be both >0 and <0 simultaneously, this is redundant. Minimum 200 bars required before trading starts. Free margin check: FreeMargin < 1000*lots prevents trading.",
+  "external_dependencies": [
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward conversion. Bulls Power and Bears Power are standard indicators available in most Python TA libraries (ta-lib: BBANDS-based or custom calculation). The core logic is simply: if BullsPower[1]+BearsPower[1] > 0 then buy, if < 0 then sell. Trailing stop is a simple step-trail: when price distance from SL exceeds 2*trail_step, move SL by trail_step. Note: SL/TP are calculated using raw Point() without digit adjustment, so for 5-digit brokers the pip values in inputs (e.g., 150 take-profit) represent 150 points not 150 pips. The ATR indicator can be omitted from Python conversion since it is unused in the actual trading logic.",
+  "extraction_timestamp": "2026-05-13T05:50:08.351501",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 205.40607595443726,
+    "cost": 0
+  }
+}

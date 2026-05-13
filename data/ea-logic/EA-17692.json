@@ -1,0 +1,186 @@
+{
+  "ea_id": "EA-17692",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses custom indicators (iCustom for IBS, RSI, CCI-based signals) and external .mqh include (TradeAlgorithms.mqh) with complex multi-indicator confirmation logic and potential digit adjustment",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "IBS (Internal Bar Strength)",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI v4",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI v4",
+      "params": {
+        "period": 14,
+        "applied_to": "typical"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 8,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 21,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "X2 Signal Filter",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "IBS value (Internal Bar Strength ratio)",
+      "formula": "(Close-Low)/(High-Low) per bar",
+      "used_by": "Entry signal confirmation - IBS filter"
+    },
+    {
+      "name": "Digit-adjusted SL/TP",
+      "formula": "SL/TP * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "Stop loss and take profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "IBS_RSI_CCI_X2 combined signal",
+        "right": "Fast EMA > Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "IBS_RSI_CCI_X2 combined signal",
+        "right": "Fast EMA < Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Reverse signal closes opposite position before opening new one"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Negative MM parameter = fixed lots, positive = deposit fraction percentage"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "X2 variant adds additional signal filtering layer on top of IBS+RSI+CCI combination. Uses TradeAlgorithms.mqh for order execution abstraction. IBS (Internal Bar Strength) is a custom indicator measuring where the close sits relative to the bar's range - this is not a built-in MT5 indicator and must be replicated in Python. The EA likely uses previous bar values ([1]) for signal generation to avoid repainting. Digit adjustment logic multiplies SL/TP by 10 when the symbol has 5 digits or _Point < 0.001.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1) IBS indicator must be manually implemented: IBS = (Close - Low) / (High - Low) for each bar. 2) Custom X2 signal filter logic must be reverse-engineered from the iCustom call - need to find the .ex5 indicator or its source. 3) Digit adjustment: when price has 5 decimal places, multiply SL/TP pip values by 10. 4) TradeAlgorithms.mqh provides trade execution wrappers - replace with direct broker API calls. 5) New bar detection must be replicated. 6) The conditional money management (negative=fixlots, positive=fraction) must be preserved. 7) Signal uses previous completed bar values, not current bar - critical to avoid lookahead bias in backtesting.",
+  "extraction_timestamp": "2026-05-13T11:36:03.430645",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 171.57563972473145,
+    "cost": 0
+  }
+}

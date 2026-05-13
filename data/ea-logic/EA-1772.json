@@ -1,0 +1,160 @@
+{
+  "ea_id": "EA-1772",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'RenkoLineBreak' custom indicator which is not a built-in MT5 indicator. The RenkoLineBreak indicator buffer structure and calculation logic are external and must be replicated in Python. Money management includes both fixed lot and fixed percent modes via MoneyFixedLot.mqh.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "RenkoLineBreak",
+      "params": {
+        "box_size": 500
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 4,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "box_size from InpMinBoxSize input",
+      "formula": "InpMinBoxSize",
+      "used_by": "RenkoLineBreak indicator and trigger price calculations"
+    },
+    {
+      "name": "indent in price units",
+      "formula": "InpIndentFromHL * _Point",
+      "used_by": "OpenPendingOrder for adjusting open/stop prices"
+    },
+    {
+      "name": "take_profit in price units",
+      "formula": "InpTakeProfit * _Point",
+      "used_by": "OpenPendingOrder for target price calculation"
+    },
+    {
+      "name": "rsi_vshift from InpRsiVShift input",
+      "formula": "InpRsiVShift",
+      "used_by": "Entry and exit RSI threshold calculations (50 ± rsi_vshift)"
+    },
+    {
+      "name": "RLB trend state derived from buffer 2 values",
+      "formula": "rlb[1]>0 && rlb[0]<0 → TO_UP; rlb[1]>0 && rlb[0]>=0 → UP; rlb[1]<0 && rlb[0]>0 → TO_DOWN; rlb[1]<0 && rlb[0]<=0 → DOWN",
+      "used_by": "CheckOrder and CheckPosition for entry and exit decisions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "RenkoLineBreak trend",
+        "right": "RSI < (50 - rsi_vshift) and RSI >= 0",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "RenkoLineBreak trend",
+        "right": "RSI > (50 + rsi_vshift)",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "calculation": "For BUY_STOP: lowest of last 3 bars low minus indent; For SELL_STOP: highest of last 3 bars high plus indent plus spread"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {
+        "calculation": "InpTakeProfit * _Point added to open (buy) or subtracted from open (sell)"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close BUY position when RenkoLineBreak trend changes to TO_DOWN or RSI > 50 + rsi_vshift",
+      "Close SELL position when RenkoLineBreak trend changes to TO_UP or RSI < 50 - rsi_vshift (and RSI >= 0)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 1.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM_MODE enum exists (FIXED_LOT, FIXED_PERCENT) and MoneyFixedLot.mqh is included, but only InpVolume (fixed lot) is actively used in trade execution. Fixed percent mode is declared but not implemented in OnTick flow."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a custom RenkoLineBreak indicator loaded via iCustom with buffer index 2 for trend determination. Trend is derived from 3 consecutive buffer values: rlb[1] (previous bar) determines base direction (positive=up, negative=down), and rlb[0] (current bar) determines if a reversal is occurring (sign change = TO_UP/TO_DOWN transition, same sign = UP/DOWN confirmed). Entry only triggers on confirmed UP/DOWN trend states (not transition states). Pending orders (BUY_STOP/SELL_STOP) are placed at bar[2] high/low with indent and spread adjustments. All existing pending orders are deleted when a new signal fires or when trend transitions occur (TO_UP/TO_DOWN). The RSI uses a very short period (4) with a vertical shift from the 50 level to create a contrarian filter — buying when RSI is below 50-shift during uptrend, selling when RSI is above 50+shift during downtrend.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Expert\\Money\\MoneyFixedLot.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The RenkoLineBreak custom indicator must be fully reimplemented in Python. Its buffer 2 output encodes trend direction as positive/negative values, with sign changes indicating trend transitions. The EA logic depends on comparing rlb[1] and rlb[0] (previous vs current bar) from this buffer to derive one of 5 trend states (DOWN, TO_DOWN, NO_TREND, TO_UP, UP). Renko box construction requires tick or M1 data to properly build bricks. The pending order placement uses bar[2] high/low (3 bars back from current, since CopyHigh starts at index 1 with count 3 giving bars [1],[2],[3] mapped to high[0],high[1],high[2]) as trigger prices. The indent and spread adjustments on open/stop prices must be carefully replicated. The RSI contrarian filter (entering against RSI direction within a trend) is unusual and must be preserved exactly. New-bar guarding uses datetime comparison via CopyTime. The MM_MODE enum and MoneyFixedLot.mqh include suggest planned but unimplemented percentage-based sizing — only fixed lots via InpVolume are used in the actual OrderOpen call.",
+  "extraction_timestamp": "2026-05-13T11:40:59.378824",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 68.95975303649902,
+    "cost": 0
+  }
+}

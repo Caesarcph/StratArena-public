@@ -1,0 +1,186 @@
+{
+  "ea_id": "EA-17562",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iStochastic). Standard entry/exit rules with fixed lots. No external .mqh libraries for trading logic — the included Trade/*.mqh files are standard MT5 Standard Library classes (CPositionInfo, CTrade, CSymbolInfo, CAccountInfo). Hedging-only requirement is a position management constraint, not a conversion blocker.",
+  "symbol": null,
+  "timeframe_hint": "M15",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "SMMA M15",
+      "params": {
+        "period": 99,
+        "shift": 8,
+        "method": "SMMA",
+        "applied_to": "MEDIAN"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "per_MA_M15 (input default=99)"
+    },
+    {
+      "type": "MA",
+      "name": "SMMA H1",
+      "params": {
+        "period": 184,
+        "shift": 8,
+        "method": "SMMA",
+        "applied_to": "MEDIAN"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "per_MA_H1 (input default=184)"
+    },
+    {
+      "type": "Stochastic",
+      "name": "Stochastic M15 Slow",
+      "params": {
+        "k_period": 27,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "SMA",
+        "price_field": "STO_LOWHIGH"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "per_Stoh_slow (input default=27)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MA-price distance (porog threshold)",
+      "formula": "porog*m_adjusted_point",
+      "used_by": "entry_rules long and short as proximity gate"
+    },
+    {
+      "name": "Adjusted point for 3/5 digit brokers",
+      "formula": "_Point*10 (when _Digits==3 or 5)",
+      "used_by": "SL, TP, TrailingStop, porog calculations"
+    },
+    {
+      "name": "Stochastic main line previous bar",
+      "formula": "iStochasticGet(MAIN_LINE,2)",
+      "used_by": "entry crossover detection"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "price_M15 < MA_M15 AND price_H1 < MA_H1 AND (MA_M15 - price_M15) <= porog*m_adjusted_point AND Stoh_slow < 20 AND Stoh_fast < 20 AND Stoh_fast_prev < Stoh_slow AND Stoh_fast > Stoh_slow",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Stochastic Main Line",
+        "right": "Stochastic Signal Line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "price_M15 > MA_M15 AND price_H1 > MA_H1 AND (price_M15 - MA_M15) <= porog*m_adjusted_point AND Stoh_slow > 80 AND Stoh_fast > 80 AND Stoh_fast_prev > Stoh_slow AND Stoh_fast < Stoh_slow",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Stochastic Main Line",
+        "right": "Stochastic Signal Line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 90,
+      "params": {
+        "adjusted_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 540,
+      "params": {
+        "adjusted_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 20,
+      "params": {
+        "trail_start_pips": 20,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Hedging-only mode enforced — no netting. EA does not close positions on reverse signal; only trailing stop modifies existing positions."
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 0,
+    "conditional_logic": "CheckVolume verifies sufficient margin before order placement — if check volume < Lots, order is skipped"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Multi-timeframe trend filter: M15 price must be below M15 SMMA AND H1 close must be below H1 SMMA for longs (and inverse for shorts). Additionally, price must be within 'porog' (threshold) distance of the M15 MA — the EA enters only when price is near the MA, not far away. Stochastic crossover is the trigger within oversold(<20) or overbought(>80) zones. Hedging account required — EA fails initialization on netting accounts. EA enforces PERIOD_M15 chart only. TrailingStop must be less than TakeProfit or EA refuses to init.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Multi-timeframe logic requires fetching H1 bar close alongside M15 data — must resample or fetch both timeframes. The porog (threshold) distance filter is a key nuance: price must be within porog*pip_distance of the MA, not just on the correct side. Stochastic crossover in overbought/oversold zones is the timing trigger. Digit adjustment (multiply by 10 for 5-digit) applies to SL/TP/Trailing/porog. The hedging check is MT5-specific and can be dropped for Python backtesting. Volume check (CheckVolume) before order send should be replicated as a margin sufficiency check. The MA shift parameter of 8 means the MA is calculated with an 8-bar offset — ensure this is handled correctly in Python (shift parameter in iMA).",
+  "extraction_timestamp": "2026-05-13T11:10:51.685864",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 183.6085982322693,
+    "cost": 0
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "ea_id": "EA-1641",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for the FigurelliSeries indicator which is not a built-in MT5 indicator, and depends on external TradeAlgorithms.mqh library for all trade execution logic (open/close positions, lot calculation, global variable cleanup).",
+  "symbol": null,
+  "timeframe_hint": "M30",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "FigurelliSeries",
+      "params": {
+        "iStartPeriod": 6,
+        "iStep": 6,
+        "iTotal": 36,
+        "iMAType": 1,
+        "iMAPrice": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "iStartPeriod + iStep * (iTotal - 1) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal timestamp calculation (UpSignalTime/DnSignalTime)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "FigurelliSeries buffer 0",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "FigurelliSeries buffer 0",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Time-based exit: positions closed when tm.hour==StopHour && tm.min>=StopMinute, or tm.hour>StopHour, or tm.hour<StartHour",
+      "Opposite signal closes existing position: FigurelliSeries > 0 triggers SELL_Close if SellPosClose enabled; FigurelliSeries < 0 triggers BUY_Close if BuyPosClose enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode_options": "FREEMARGIN|BALANCE|LOSSFREEMARGIN|LOSSBALANCE|LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "When MMMode=LOT, MM is treated as fixed lot size; otherwise MM is the share/fraction of deposit used for lot calculation based on MarginMode enumeration"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 8,
+      "end_hour": 23
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signals are generated only on new bars (or when SignalBar==0 which allows intrabar recalculation). However, actual trade entry is gated by a specific time window: BUY_Open1/SELL_Open1 must be true AND current time must match StartHour:StartMinute exactly. This means the EA only enters positions at one specific minute per day. Exit by time is broader: closes all positions when time reaches or passes StopHour:StopMinute, or is before StartHour. The FigurelliSeries indicator outputs a single value: positive = bullish, negative = bearish, compared against zero line. Signal is read from bar index SignalBar (default=1, previous bar). Time-based close overrides signal-based close.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The FigurelliSeries custom indicator must be replicated in Python - it computes iTotal (36) Moving Averages starting from iStartPeriod (6) with step iStep (6), so periods are 6,12,18,...,216. The aggregate series value determines direction (above/below zero). TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) must all be reimplemented. The time-gated entry logic (only at StartHour:StartMinute) is unusual and must be preserved exactly. SL/TP of 1000/2000 points likely need digit-adjustment for 5-digit brokers (multiply by 10). The MarginMode enum from TradeAlgorithms.mqh controls 5 different lot calculation methods that all need implementation.",
+  "extraction_timestamp": "2026-05-13T04:31:59.090711",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 186.93829345703125,
+    "cost": 0
+  }
+}

@@ -1,0 +1,173 @@
+{
+  "ea_id": "EA-17012",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Grid strategy with martingale volume scaling (MathPow(2,i)*Lots) and heavy pending order management (BuyLimit/SellLimit). The core logic relies on placing multiple pending orders at grid intervals, which requires tick-level execution and is inherently a broker-dependent grid/martingale system unsuitable for straightforward Python conversion.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Fractal",
+      "name": "Lowest High/Low over CountBars",
+      "params": {
+        "period": 10,
+        "method": null,
+        "applied_to": null
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "CountBars input (default 10)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ExtGrid - adjusted grid distance in points",
+      "formula": "InpGrid * digits_adjust (digits_adjust=10 if 3/5 digit symbol, else 1)",
+      "used_by": "BuyLimit/SellLimit pending order price offset"
+    },
+    {
+      "name": "ExtLimit - adjusted limit distance in points",
+      "formula": "InpLimit * digits_adjust (digits_adjust=10 if 3/5 digit symbol, else 1)",
+      "used_by": "Entry condition threshold (distance from highest/lowest)"
+    },
+    {
+      "name": "ExtLockDown - adjusted lockdown distance in points",
+      "formula": "InpLockDown * digits_adjust (digits_adjust=10 if 3/5 digit symbol, else 1)",
+      "used_by": "Break-even stop loss modification"
+    },
+    {
+      "name": "Grid lot size per level",
+      "formula": "MathPow(2, i) * Lots (i=1..4)",
+      "used_by": "BuyLimit/SellLimit pending order volumes"
+    },
+    {
+      "name": "Base lot size from balance",
+      "formula": "MathRound(Balance/100) / 1000",
+      "used_by": "Initial market order and grid order sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "below",
+        "left": "iHighest(H, CountBars) - Bid",
+        "right": "ExtLimit * Point()",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Grid BuyLimit orders",
+        "right": null,
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "Bid - iLowest(L, CountBars)",
+        "right": "ExtLimit * Point()",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Grid SellLimit orders",
+        "right": null,
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Close all positions and delete all pending orders when total profit across all positions >= Amount input (default 40)",
+      "Break-even stop loss: when position profit in points exceeds ExtLockDown (default 0 = disabled), move SL to entry price +/- 1 point"
+    ]
+  },
+  "position_sizing": {
+    "type": "grid",
+    "value": 0.01,
+    "params": {
+      "grid_levels": 4,
+      "grid_multiplier": 2.0,
+      "grid_spacing_pips": 35,
+      "balance_divisor": 100,
+      "lot_divisor": 1000
+    },
+    "max_positions": 5,
+    "conditional_logic": "Base lot = round(Balance/100)/1000. Grid levels 1-4 use volume = 2^i * base_lot. Each level placed at grid spacing ExtGrid points away from entry."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Grid/martingale EA: opens a market order when price is far enough from recent high/low, then places 4 pending limit orders at grid intervals with doubling volume (2x, 4x, 8x, 16x base lot). All positions close when cumulative profit reaches 'Amount' threshold. Break-even SL is optionally applied after ExtLockDown points of profit. CloseAll also deletes all pending orders. Position gate is no_position (only opens new grid when flat). The IsTradeAllowed function has a duplicate check for TERMINAL_TRADE_ALLOWED (lines 230 and 235).",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/OrderInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Grid/martingale strategy with pending order management is fundamentally mt5_only. The 4-level pending order grid with volume doubling (2^i scaling), price-based grid spacing, and cumulative profit-based close-all logic would require a custom order book simulation in Python. The break-even SL modification adds complexity. Pending order lifecycle management (placement, deletion on close-all, fill tracking) must be fully simulated. Tick data is essential for backtesting due to intrabar grid fill assumptions. The digit adjustment logic (multiplying by 10 for 5-digit brokers) must be preserved. Not recommended for auto-conversion due to grid+martingale combo requiring broker-level execution simulation.",
+  "extraction_timestamp": "2026-05-13T07:47:18.293273",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 124.74338436126709,
+    "cost": 0
+  }
+}

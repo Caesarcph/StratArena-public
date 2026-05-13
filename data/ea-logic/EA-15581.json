@@ -1,0 +1,141 @@
+{
+  "ea_id": "EA-15581",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() for CCI_Woodies indicator and depends on external TradeAlgorithms.mqh library for all trading operations (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar). Custom indicator logic is not portable without decompiling CCI_Woodies.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "CCI",
+      "name": "CCI Woodies Fast",
+      "params": {
+        "period": 6,
+        "applied_to": 4
+      },
+      "source": "custom",
+      "library": "CCI_Woodies",
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI Woodies Slow",
+      "params": {
+        "period": 14,
+        "applied_to": 4
+      },
+      "source": "custom",
+      "library": "CCI_Woodies",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before trading",
+      "formula": "max(FastPeriod, SlowPeriod) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade signal timestamp"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "CCI Woodies Fast (buffer 0)",
+        "right": "CCI Woodies Slow (buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "CCI Woodies Fast (buffer 0)",
+        "right": "CCI Woodies Slow (buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: buy close when slow CCI crosses above fast CCI; sell close when fast CCI crosses above slow CCI"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lot size (MM=0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses. Default is LOT with MM=0.1."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "1. Invert flag swaps buffer indices (0<->1) so fast becomes slow and vice versa, reversing all signal logic. 2. Signal comparison uses 2-bar lookback: UpIndSeries[1]>DnIndSeries[1] (previous bar fast above slow) AND UpIndSeries[0]<=DnIndSeries[0] (current bar fast at or below slow) was the prior state that triggers buy when crossover confirmed. 3. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean input gates allowing selective enable/disable of each trade direction. 4. Recount mechanism re-reads indicator data on copy failure. 5. CIsNewBar class from TradeAlgorithms.mqh controls new bar detection. SignalBar=0 forces continuous intrabar recalculation. 6. Signal timestamp uses SERIES_LASTBAR_DATE + TimeShiftSec for trade management.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "CCI_Woodies custom indicator"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "1. CCI_Woodies is a custom indicator - must be reimplemented in Python. It likely computes two CCI lines (fast period=6, slow period=14) each applied to median price. Standard ta-lib CCI can replicate each line. 2. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose - these handle market execution, SL/TP setting, and position management. Must reimplement as simple market orders with SL/TP in pips. 3. MarginMode LOT is straightforward (fixed lots). Other modes require balance/equity queries from the backtest engine. 4. SL=1000 and TP=2000 are in POINTS not pips - need digit-aware conversion (multiply by 10 for 5-digit brokers). 5. Deviation=10 points for slippage control. 6. The crossover logic reads buffer[1] vs buffer[0] where [1] is the older bar and [0] is the newer bar relative to SignalBar offset - careful with indexing direction in Python.",
+  "extraction_timestamp": "2026-05-13T02:01:50.480199",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 98.5717625617981,
+    "cost": 0
+  }
+}

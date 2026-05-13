@@ -1,0 +1,132 @@
+{
+  "ea_id": "EA-15947",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'ADXDMI' which is not a built-in MT5 indicator, and relies on external .mqh library TradeAlgorithms.mqh for all trade execution logic (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar). The custom indicator buffers and the external library trading functions must be manually replicated.",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ADXDMI",
+      "params": {
+        "period": 14,
+        "smooth": 10,
+        "applied_price_or_mode": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - bar duration in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime passed to BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before EA processes ticks",
+      "formula": "4 + 3 + SignalBar = 7 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ADXDMI Ind buffer (buffer 0, bar [0])",
+        "right": "ADXDMI Sign buffer (buffer 1, bar [0])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ADXDMI Ind buffer (buffer 0, bar [0])",
+        "right": "ADXDMI Sign buffer (buffer 1, bar [0])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose and SellPosClose input booleans gate whether signal-reversal exits are active; when SellPosClose=true, a buy crossover signal closes short positions, and when BuyPosClose=true, a sell crossunder signal closes long positions"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "mm_mode_options": "LOT=4 (fixed lots), FREEMARGIN=0 (fraction of free margin), BALANCE=1 (fraction of balance), LOSSFREEMARGIN=2 (fraction of free margin minus loss), LOSSBALANCE=3 (fraction of balance minus loss)"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum controls interpretation: LOT mode treats MM as fixed lot size; other modes (FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) treat MM as a fraction of the respective margin/balance base. Default MMMode=LOT with MM=0.1 means 0.1 lots fixed."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The entry logic uses a two-bar crossover detection pattern: Ind[1]>Sign[1] (previous bar Ind above Sign) AND Ind[0]<=Sign[0] (current bar Ind crossed to at-or-below Sign from above) triggers buy entry on the crossover up from below, while Ind[1]<Sign[1] AND Ind[0]>=Sign[0] triggers sell entry on the crossover down from above. This is actually detecting a zero-bar crossover where the relationship was opposite on bar[1] vs bar[0]. The SignalBar input (default=1) determines which bar offset is used for signal detection; when SignalBar=0, the EA recalculates on every tick instead of only on new bars. Signal timestamps (UpSignalTime/DnSignalTime) are derived from SERIES_LASTBAR_DATE + TimeShiftSec, used by the TradeAlgorithms library likely for pending order placement or timing control. LoadHistory() is called each tick to ensure bar history availability. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans independently gate each of the four trade actions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The custom ADXDMI indicator must be ported or its buffer calculation replicated - without it, the EA has no signal source. The ADXDMI likely computes ADX/DI+ /DI- values with smoothing, so consider using the built-in iADX (MODE_PLUSDI, MODE_MINUSDI, MODE_MAIN) with a separate smoothing MA as a substitute. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose - these must be reimplemented with proper MT5 Python order sending (market buy/sell with SL/TP in price terms, not points). The MM/lot calculation from MarginMode enum needs full implementation. SL=1000 and TP=2000 are in points - must convert to price using symbol's point value. The CIsNewBar class must be replicated for bar-change detection. The crossover detection uses bar[1] vs bar[0] comparison which is standard and straightforward to port.",
+  "extraction_timestamp": "2026-05-13T03:08:09.552275",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 96.3039538860321,
+    "cost": 0
+  }
+}

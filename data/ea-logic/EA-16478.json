@@ -1,0 +1,153 @@
+{
+  "ea_id": "EA-16478",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorXvaMA_Digit indicator and external StDev expansion logic; custom indicator dependency requires replication of algorithm or data feed in Python",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorXvaMA_Digit",
+      "params": {
+        "period": "XvaMA_Period (input)",
+        "method": "XvaMA_Method (input, MODE_EMA default)",
+        "applied_to": "XvaMA_Applied (input, PRICE_CLOSE default)",
+        "digit_mode": "XvaMA_DigitMode (input, true default)"
+      },
+      "source": "custom",
+      "library": "ColorXvaMA_Digit",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "StDev expansion filter",
+      "params": {
+        "stdev_period": "StDev_Period (input)",
+        "stdev_method": "StDev_Method (input, MODE_SMA default)",
+        "stdev_applied_to": "StDev_Applied (input, PRICE_CLOSE default)",
+        "expansion_factor": "KstDev (input, multiplier for threshold)"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "StDev threshold for expansion filter",
+      "formula": "iStdDev(StDev_Period, StDev_Method, StDev_Applied) * KstDev",
+      "used_by": "Entry signal gating - trades only taken when price movement exceeds standard deviation threshold"
+    },
+    {
+      "name": "Adjusted SL/TP in points for 5-digit brokers",
+      "formula": "StopLoss * (Digits==5 || Digits==3 ? 10 : 1)",
+      "used_by": "Stop loss and take profit calculation"
+    },
+    {
+      "name": "Adjusted trailing values in points for 5-digit brokers",
+      "formula": "TrailingStop * (Digits==5 || Digits==3 ? 10 : 1)",
+      "used_by": "Trailing stop calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorXvaMA_Digit buffer 0 (trend UP)",
+        "right": "Zero line / previous buffer state",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ColorXvaMA_Digit buffer 1 (trend DOWN)",
+        "right": "Zero line / previous buffer state",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": "StopLoss (input, default varies)",
+      "params": {
+        "digit_adjustment": "multiplied by 10 when _Digits==5 or _Digits==3"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": "TakeProfit (input, default varies)",
+      "params": {
+        "digit_adjustment": "multiplied by 10 when _Digits==5 or _Digits==3"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": "TrailingStop (input, default varies)",
+      "params": {
+        "trail_start_pips": "TrailingStop (same as trail distance)",
+        "trail_step_pips": "TrailingStep (input, minimum step to move SL)"
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal from ColorXvaMA_Digit closes existing position before opening new one in reverse direction"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMType: negative values = fixed lots (absolute value), positive values = risk percentage of free margin, zero = disabled/no trade"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "StDev expansion filter acts as volatility gate - entry signals from ColorXvaMA_Digit are only acted upon when the standard deviation of price exceeds KstDev * iStdDev, meaning the EA filters out signals in low-volatility conditions. The ColorXvaMA_Digit indicator provides color-coded trend direction via two buffers: buffer 0 for uptrend signals, buffer 1 for downtrend signals. Signal reversal logic: opposite signal both closes existing position AND opens new reverse position if the StDev filter permits.",
+  "external_dependencies": [
+    "ColorXvaMA_Digit.ex5 or .mq5 custom indicator"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must replicate or import the ColorXvaMA_Digit algorithm - it is a custom variable-period moving average with digit rounding mode. The StDev filter is replicable with numpy.std on a rolling window. Pay close attention to the digit adjustment logic: SL/TP/Trailing values must be multiplied by 10 for 5-digit/3-digit symbols. The MMType conditional logic (negative=fixed lots, positive=risk fraction) must be preserved. New bar detection must be implemented to ensure once-per-bar signal evaluation. The position gate checks for any open position before entry, not just same-direction.",
+  "extraction_timestamp": "2026-05-13T04:48:38.401611",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 194.30857062339783,
+    "cost": 0
+  }
+}

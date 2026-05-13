@@ -1,0 +1,222 @@
+{
+  "ea_id": "EA-16764",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for Heiken Ashi and ZigZag indicators, plus custom pivot calculation logic; multi-indicator confluence entry with complex signal reversal and partial close logic",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Heiken Ashi",
+      "params": {
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "custom",
+      "library": "Heiken Ashi",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ZigZag",
+      "params": {
+        "depth": 12,
+        "deviation": 5,
+        "backstep": 3
+      },
+      "source": "custom",
+      "library": "ZigZag",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 5,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 13,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Pivot Points",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Pivot level (PP)",
+      "formula": "(High[1]+Low[1]+Close[1])/3",
+      "used_by": "Pivot Points and S1/R1/S2/R2 calculations"
+    },
+    {
+      "name": "Support 1 (S1)",
+      "formula": "2*PP - High[1]",
+      "used_by": "Entry/exit pivot level checks"
+    },
+    {
+      "name": "Resistance 1 (R1)",
+      "formula": "2*PP - Low[1]",
+      "used_by": "Entry/exit pivot level checks"
+    },
+    {
+      "name": "Heiken Ashi trend direction",
+      "formula": "HA_Close > HA_Open = bullish; HA_Close < HA_Open = bearish",
+      "used_by": "Entry signal confirmation"
+    },
+    {
+      "name": "ZigZag swing point",
+      "formula": "iCustom ZigZag last nonzero value",
+      "used_by": "Swing high/low detection for entry confirmation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "Price",
+        "right": "Pivot PP",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Heiken Ashi",
+        "right": "bullish candle",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "Price",
+        "right": "Pivot PP",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Heiken Ashi",
+        "right": "bearish candle",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close position on opposite Heiken Ashi signal",
+      "Close on price reaching pivot S2/R2 levels"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Input Lots value: negative=fixed lot size (absolute value), positive=fraction of free margin to risk"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 2,
+      "end_hour": 22
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three-indicator confluence system: EMA crossover confirms trend direction, Heiken Ashi candle color confirms momentum, Pivot Points provide structural level filter. ZigZag used to identify recent swing highs/lows for additional confluence. Opposite signal closes current position before opening new one. SL/TP values are multiplied by 10 when _Digits==5 or _Point<0.001 (5-digit broker adjustment). Partial close of 50% at R1/S1 pivot level with trailing of remaining to breakeven.",
+  "external_dependencies": [
+    "Heiken Ashi custom indicator (.ex5)",
+    "ZigZag custom indicator (.ex5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must implement Heiken Ashi calculation from OHLC data (HA_Close=(O+H+L+C)/4, HA_Open=prev(HA_Open+HA_Close)/2). ZigZag indicator requires custom implementation with depth/deviation/backstep params. Pivot levels are standard formula from previous day HLC. Digit adjustment logic (multiply SL/TP by 10 for 5-digit) must be ported. Conditional lot sizing (negative=fixed, positive=margin fraction) needs careful translation. Time filter and spread filter are straightforward. All signal checks use previous bar values (shift=1) to avoid repainting.",
+  "extraction_timestamp": "2026-05-13T05:56:34.784740",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 76.53737783432007,
+    "cost": 0
+  }
+}

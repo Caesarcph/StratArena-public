@@ -1,0 +1,148 @@
+{
+  "ea_id": "EA-15790",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load a custom indicator 'ColorJFatl_Digit' with non-standard parameters, and relies on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for trading logic and money management. The custom indicator's buffer values (0, 1, 2) encode signal states rather than standard price/oscillator crossovers.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorJFatl_Digit",
+      "params": {
+        "JLength": 5,
+        "JPhase": -100,
+        "IPC": 1,
+        "digit_offset1": 0,
+        "digit_offset2": 0,
+        "Digit": 2,
+        "draw_on": true,
+        "color": "clrGray"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "JMA (via ColorJFatl_Digit)",
+      "params": {
+        "period": 5,
+        "method": "EMA",
+        "applied_to": 1
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before indicator is ready",
+      "formula": "39+30+1+3+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorJFatl_Digit buffer 1 (SignalBar+1)",
+        "right": "2",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorJFatl_Digit buffer 1 (SignalBar+1)",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose triggered when signal buffer value at SignalBar+1 equals 0 (downtrend state); SellPosClose triggered when signal buffer value equals 2 (uptrend state)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses. The MM input (0.1) is interpreted as either lot size or percentage depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The ColorJFatl_Digit indicator uses buffer index 1 as a signal state buffer with integer values: 0=downtrend (sell signal), 1=neutral, 2=uptrend (buy signal). Entry requires a transition: BUY_Open only if Value[1]==2 AND Value[0]<2 (transition into uptrend). SELL_Open only if Value[1]==0 AND Value[0]>0 (transition into downtrend). This is a state-transition model, not a simple crossover. SignalBar defaults to 1 (previous completed bar), with Value[1]=SignalBar and Value[0]=SignalBar+1. The BuyPosOpen/SellPosClose/SellPosOpen/BuyPosClose functions from TradeAlgorithms.mqh handle actual order placement and include their own position existence checks internally. The global variable cleanup in OnDeinit via GlobalVariableDel_ is also from TradeAlgorithms.mqh.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The core challenge is replicating the ColorJFatl_Digit custom indicator logic. It wraps a JMA (Jurik Moving Average) from SmoothAlgorithms.mqh with FATL (Fast Adaptive Trend Line) smoothing, then discretizes the result into 3 states (0,1,2) based on color/trend changes. The JMA algorithm (phase parameter -100 to +100) is proprietary and not available in standard Python libraries - consider using the 'talib' JMA equivalent or a simplified EMA approximation. The TradeAlgorithms.mqh money management logic (5 modes) must be reimplemented for position sizing. Signal logic is straightforward: read buffer[1] at bars SignalBar and SignalBar+1, check for state transitions (0->neutral/2 for buy, 2->neutral/0 for sell). SL/TP are in points (not pips), so no digit adjustment needed for 5-digit brokers as values are already in point units.",
+  "extraction_timestamp": "2026-05-13T02:28:03.756740",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 106.70085167884827,
+    "cost": 0
+  }
+}

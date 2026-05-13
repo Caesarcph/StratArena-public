@@ -1,0 +1,154 @@
+{
+  "ea_id": "EA-16015",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'i-CAi_StDev' which is an external custom indicator, plus external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing algorithms. Signal modes include complex point-based and direct line comparison logic.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "i-CAi_StDev",
+      "params": {
+        "method": "MODE_SMA_",
+        "period": 12,
+        "phase": 15,
+        "applied_to": "PRICE_CLOSE_",
+        "dK1": 1.5,
+        "dK2": 2.5,
+        "std_period": 9,
+        "ma_shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "GetStartBars(XMA_Method,XLength,XPhase)+std_period+3+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for indicator warmup",
+      "formula": "GetStartBars(XMA_Method,XLength,XPhase)+std_period+3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "BuyPosOpen=POINT: buffer[3] or buffer[5] != EMPTY_VALUE on SignalBar",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "i-CAi_StDev buffer[0] at SignalBar",
+        "right": "i-CAi_StDev buffer[0] at SignalBar+1",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "SellPosOpen=POINT: buffer[2] or buffer[4] != EMPTY_VALUE on SignalBar",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "i-CAi_StDev buffer[0] at SignalBar",
+        "right": "i-CAi_StDev buffer[0] at SignalBar+1",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips|atr_multiple|indicator_based|none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose=POINT: sell signal dots on buffer[2] or buffer[4] close buy; BuyPosClose=DIRECT: buffer[0] rising (Line[0]>Line[1]) closes buy; SellPosClose=POINT: buy signal dots on buffer[3] or buffer[5] close sell; SellPosClose=DIRECT: buffer[0] falling (Line[0]<Line[1]) closes sell"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects sizing method: LOT=fixed lot size, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry/exit signals have 3 modes each: POINT (signal dots from indicator buffers), DIRECT (line direction comparison), and WITHOUT (disabled). Buy open POINT checks buffers 3 and 5; sell open POINT checks buffers 2 and 4. Buy close POINT uses sell signal buffers (2,4); sell close POINT uses buy signal buffers (3,5). DIRECT buy open: line turns up (val[0]>val[1] && val[1]<val[2] - bottom formation). DIRECT sell open: line turns down (val[0]<val[1] && val[1]>val[2] - top formation). DIRECT buy close: line rising (val[0]>val[1]). DIRECT sell close: line falling (val[0]<val[1]). SignalBar input (default=1) controls which bar is evaluated, enabling use of confirmed bars. Recount mechanism re-evaluates signals on data errors or when SignalBar==0 (intrabar). GlobalVariableDel_ cleanup on deinit. LoadHistory ensures bar data availability.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Custom indicator i-CAi_StDev must be reimplemented in Python - it uses CXMA smoothing with configurable method (SMA/EMA/SMMA/LWMA/JJMA/JurX/ParMA/T3/VIDYA/AMA) plus standard deviation bands with multipliers dK1 and dK2. The SmoothAlgorithms.mqh library contains 10+ smoothing algorithms that all need porting. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with 5 margin mode variants, position checking, and order execution - this must be reimplemented. SignalBar=1 means signals are evaluated on the previous closed bar (common pattern). The 6 indicator buffers map to: buffer[0]=main line, buffer[2]=sell dots, buffer[3]=buy dots, buffer[4]=sell dots (alt), buffer[5]=buy dots (alt). Point values for SL/TP (1000/2000) are in points not pips - for 5-digit EURUSD that's 100 and 200 pips respectively; no digit adjustment code exists in the EA itself so the values are raw points.",
+  "extraction_timestamp": "2026-05-13T03:24:05.630916",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 173.79955863952637,
+    "cost": 0
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "ea_id": "EA-18448",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 iATR indicator. Entry/exit based on NRTR channel calculated from ATR. Simple trailing stop logic. No external .mqh dependencies. Fixed lot position sizing. Straightforward bar-based logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "ATR for NRTR channel",
+      "params": {
+        "period": 14,
+        "shift": 0,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "NRTR Upper Channel (Stop Level for shorts / trailing for longs)",
+      "formula": "Close[bar] + ATR * KATR",
+      "used_by": "Entry and trailing stop logic"
+    },
+    {
+      "name": "NRTR Lower Channel (Stop Level for longs / trailing for shorts)",
+      "formula": "Close[bar] - ATR * KATR",
+      "used_by": "Entry and trailing stop logic"
+    },
+    {
+      "name": "Trend Direction (Up/Down via NRTR)",
+      "formula": "If Close > previous UpperChannel then Up; if Close < previous LowerChannel then Down",
+      "used_by": "Entry signal determination and trailing stop direction"
+    },
+    {
+      "name": "Digit-adjusted StopLevel",
+      "formula": "StopLevel * (Digits==5||Point<0.001 ? 10 : 1)",
+      "used_by": "Minimum stop distance check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Close price",
+        "right": "NRTR Upper Channel",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Close price",
+        "right": "NRTR Lower Channel",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_based",
+      "value": 0,
+      "params": {
+        "description": "NRTR trailing stop level acts as dynamic stop loss, calculated as ATR*KATR distance from price"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "indicator_based",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "description": "NRTR channel moves with price; stop ratchets to NRTR level on each new bar when trend continues"
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Position is closed and reversed when NRTR trend direction changes (trend reversal closes existing position and opens opposite)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "NRTR (Nick Rypock Trailing Reverse) logic: The EA maintains an internal channel based on ATR*KATR multiplier. When price breaks above the upper channel, trend becomes UP and a long is opened; when price breaks below the lower channel, trend becomes DOWN and a short is opened. The channel only moves in the direction of the trend (ratcheting), never retreating. On trend reversal, the existing position is closed and a new opposite position is opened. The KATR multiplier (default 2.0) controls channel width. Periods input (default 14) sets the ATR calculation period. This is a trend-following system with ATR-based dynamic trailing stops and signal-reversal exits.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The NRTR channel state must be maintained across bars (trend direction, upper/lower channel values) as it is a stateful indicator. Implement as a class with update() method. ATR uses built-in calculation. Digit adjustment for 5-digit brokers must be handled. The trend direction enum (UP/DOWN) and channel ratcheting logic (only move in trend direction, reset on reversal) are the core state machine. Entry is simply: on new bar, if trend changed direction, close existing and open opposite. Trailing stop is updated each bar to the NRTR channel level.",
+  "extraction_timestamp": "2026-05-13T13:04:00.263084",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 83.18110632896423,
+    "cost": 0
+  }
+}

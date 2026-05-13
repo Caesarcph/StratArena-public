@@ -1,0 +1,210 @@
+{
+  "ea_id": "EA-17138",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iATR, iMA). Entry/exit rules are straightforward combinations of ATRStops and StepUpDown. Position sizing is fixed or risk-percentage based. No external .mqh libraries for trading logic (only standard Trade/SymbolInfo/PositionInfo/AccountInfo). No grid, martingale, or pending order complexity.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "ATRStops",
+      "params": {
+        "period": 5,
+        "method": null,
+        "applied_to": null,
+        "kv_multiplier": 2.5,
+        "length": 10
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Fast SMA (StepUpDown)",
+      "params": {
+        "period": 2,
+        "method": "SMA",
+        "applied_to": "TYPICAL",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow SMMA (StepUpDown)",
+      "params": {
+        "period": 30,
+        "method": "SMMA",
+        "applied_to": "MEDIAN",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "pip - digit-adjusted point value",
+      "formula": "_Point*10 when _Digits==3||5 or symbol starts with 'X'||'#', else _Point",
+      "used_by": "SL/TP calculations, Trailing Stop, RequestPrice"
+    },
+    {
+      "name": "smin/smax - ATR channel bounds",
+      "formula": "smin[br]=max(smin[br], HIGH[brx]-(Kv*atrb[brx])), smax[br]=min(smax[br], LOW[brx]+(Kv*atrb[brx]))",
+      "used_by": "ATRStops indicator"
+    },
+    {
+      "name": "atrpos - ATR direction state",
+      "formula": "atrpos[br]=+1 if CLOSE[br]>smax[br+1], -1 if CLOSE[br]<smin[br+1], else previous",
+      "used_by": "ATRStops signal generation"
+    },
+    {
+      "name": "sideup/sidedn - trailing ATR stop levels",
+      "formula": "sideup=smin when atrpos>0 (ratchet up), sidedn=smax when atrpos<0 (ratchet down)",
+      "used_by": "ATRStops signal generation"
+    },
+    {
+      "name": "StepUpDown trend direction",
+      "formula": "Based on MAHi/MALo over last 10 bars of Fast SMA and divergence of Fast SMA vs Slow SMMA",
+      "used_by": "tradeFX signal"
+    },
+    {
+      "name": "SLTP distance (CalculateSLTP)",
+      "formula": "(moneyrisk/(lots*tickvaluesize)/leveragerisk)+spread, minimum 38*pip",
+      "used_by": "OpenPosition stop loss and take profit"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "ATRStops",
+        "right": "StepUpDown",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "ATRStops",
+        "right": "StepUpDown",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "ATRStops",
+        "right": "StepUpDown",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "ATRStops",
+        "right": "StepUpDown",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": null,
+      "params": {
+        "calculation": "(moneyrisk/(lots*tickvaluesize)/leveragerisk)+spread",
+        "minimum_pips": 38,
+        "adjusted_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": null,
+      "params": {
+        "calculation": "SL_distance * TPvsSLRatio",
+        "ratio": 3.0,
+        "adjusted_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 10,
+      "params": {
+        "trail_start_pips": 10,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "CloseOrderProfit: closes buy when StepUpDown turns down and position is profitable; closes sell when StepUpDown turns up and position is profitable (only when trailing stop is disabled)",
+      "Hour-based cooldown: no new entry if last close hour equals current hour (HR_CLOSE!=HR check)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "risk_percentage": 3.0,
+      "fixed_lot_size": 0.1,
+      "leverage_adjusted": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "When MoneyManagementType=DynamicLotSize(1): lots = (balance*risk_pct/100)/(contract_size/leverage), normalized by volume step, clamped to min/max. When MoneyManagementType=FixedLot(0): uses TradeLotSize input (0.1)."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "timer",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_then_wait"
+  },
+  "custom_logic_notes": "EA runs on 60-second timer, not on tick. Trade logic checks minute change (cmnt!=pmnt) as new-bar guard. ATRStops signal: buy when sidedn[1]>0 && sidedn[0]==0 && sideup[0]>0 (flip from down to up); sell when sideup[1]>0 && sideup[0]==0 && sidedn[0]>0 (flip from up to down). StepUpDown signal: based on whether MAHi index > MALo index over lookback of 10 bars on Fast SMA, combined with divergence of Fast SMA minus Slow SMMA. Both must agree (tfx=1 for buy, tfx=-1 for sell). Entry blocked if last deal closed in same hour. Signal reversal closes opposite position when CloseByOppositeSignal=Yes. CloseOrderProfit provides a non-trailing profit exit based on StepUpDown reversal when position is in profit. SL minimum enforced at 38*pip.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1) Timer-based (60s) execution must be converted to on-bar (H1) logic since Python backtesting engines typically operate bar-by-bar. 2) ATRStops indicator is computed inline (not a standard library indicator) - must be reimplemented as a custom function computing smin/smax/sideup/sidedn arrays with ratchet logic. 3) StepUpDown is also custom logic using Fast SMA vs Slow SMMA divergence - must reimplement the MAHi/MALo/divergence logic. 4) The pip digit-adjustment logic (x10 for 5-digit brokers, XAU, etc.) must be handled in SL/TP calculation. 5) CalculateSLTP uses moneyrisk/(lots*tickvaluesize)/leveragerisk which is non-standard; the minimum 38-pip floor must be preserved. 6) CloseOrderProfit exit (StepUpDown reversal + positive profit) is an additional exit path beyond SL/TP/trailing that must be implemented. 7) Hour-cooldown gate (no re-entry in same hour as last close) must be tracked. 8) ModifySLTP trailing stop uses freeze_level+5 safety margin - must check symbol freeze level. 9) CTrade/CSymbolInfo/CPositionInfo/CAccountInfo standard library calls map to direct broker API calls in Python.",
+  "extraction_timestamp": "2026-05-13T08:59:32.539161",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 238.76787209510803,
+    "cost": 0
+  }
+}

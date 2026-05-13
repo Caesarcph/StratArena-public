@@ -1,0 +1,200 @@
+{
+  "ea_id": "EA-17841",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iCCI, iMACD, iMA). Simple entry/exit rules with fixed or percentage-based position sizing. No external .mqh libraries for trading logic. Standard market order execution.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "CCI",
+      "name": "CCI",
+      "params": {
+        "period": 14,
+        "applied_to": 5
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Moving Average",
+      "params": {
+        "period": 14,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adjust factor for 5-digit brokers",
+      "formula": "_Digits==5||_Digits==3 ? 10 : 1",
+      "used_by": "SL/TP calculation"
+    },
+    {
+      "name": "Adjusted Stop Loss",
+      "formula": "StopLoss * Adjust",
+      "used_by": "exit_rules.stop_loss"
+    },
+    {
+      "name": "Adjusted Take Profit",
+      "formula": "TakeProfit * Adjust",
+      "used_by": "exit_rules.take_profit"
+    },
+    {
+      "name": "Adjusted Trailing Stop",
+      "formula": "TrailingStop * Adjust",
+      "used_by": "exit_rules.trailing_stop"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "CCI",
+        "right": "-100",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "MACD_main",
+        "right": "MACD_signal",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "Close[1]",
+        "right": "Moving Average",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "CCI",
+        "right": "100",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "MACD_main",
+        "right": "MACD_signal",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "Close[1]",
+        "right": "Moving Average",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "adjust_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "adjust_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 15,
+      "params": {
+        "trail_start_pips": 15,
+        "trail_step_pips": 15,
+        "adjust_for_digits": true
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite position before opening new position in reverse direction"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Negative Lots value = fixed lot size; Positive Lots value = fraction of free margin (LotSize function calculates volume as Lots*FreeMargin/1000 divided by margin per lot)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The 'Camel' strategy combines CCI level crossovers with MACD histogram/signal line confirmation and a moving average trend filter. Long entry requires CCI crossing above -100, MACD main above signal, and price above MA. Short entry requires CCI crossing below 100, MACD main below signal, and price below MA. Opposite positions are closed before opening a new position in the reverse direction. The LotSize function uses a conditional sizing model: negative input lots = fixed lot size, positive input lots = fraction of free margin. All SL/TP/Trailing values are adjusted by a factor of 10 for 5-digit (3-digit JPY) brokers.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Three indicators needed: CCI(period=14, typical price), MACD(12,26,9, close), SMA(period=14, close). Entry is a 3-condition AND gate: CCI crossover of level +/-100, MACD main vs signal direction, and price vs MA direction. Signal evaluated once per new bar. SL/TP are fixed-pip with 10x adjustment for 5-digit brokers. Trailing stop is simple fixed-pip step. Position sizing has dual mode (fixed vs margin-fraction). Reverse signal closes opposite position. No complex order management or pending orders.",
+  "extraction_timestamp": "2026-05-13T12:00:07.072497",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 180.81046152114868,
+    "cost": 0
+  }
+}

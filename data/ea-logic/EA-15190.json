@@ -1,0 +1,131 @@
+{
+  "ea_id": "EA-15190",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load a custom 'Go' indicator and depends on TradeAlgorithms.mqh external library for all trade execution (open/close position functions, money management, GlobalVariableDel_, LoadHistory, CIsNewBar). The custom indicator's buffer values drive all signals.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Go",
+      "params": {
+        "period": 174,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of selected timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade execution timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "Period_+3+SignalBar+1",
+      "used_by": "BarsCalculated check before processing signals"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Go indicator buffer 1 TrendValue[0]",
+        "right": "Go indicator buffer 1 TrendValue[1]",
+        "direction": "TrendValue[0]==2 AND TrendValue[1]==1 (trend shifts from 1 to 2 = bullish)",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Go indicator buffer 1 TrendValue[0]",
+        "right": "Go indicator buffer 1 TrendValue[1]",
+        "direction": "TrendValue[0]==1 AND TrendValue[1]==2 (trend shifts from 2 to 1 = bearish)",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: if SellPosOpen AND SellPosClose AND TrendValue[1]==1 then close sell; if BuyPosOpen AND BuyPosClose AND TrendValue[1]==2 then close buy - this is an additional close-when-in-trend rule beyond reversal signals"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode_options": "FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3, LOT=4"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT (4) means fixed lot size of MM=0.1; other modes calculate lot as fraction of margin/balance per TradeAlgorithms.mqh money management: FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The Go custom indicator outputs discrete trend state values (1=bearish, 2=bullish) on buffer 1. Entry signals are trend-state transitions: 1->2 for buy, 2->1 for sell. Signal is evaluated at SignalBar=1 (previous completed bar) with 2-value lookback for transition detection. When BuyPosOpen=true and BuyPosClose=true, an additional close signal fires when TrendValue[1]==2 (already in bullish trend) - this creates a close-on-re-entry pattern. The UpSignalTime/DnSignalTime is set to last bar time + timeframe seconds, used by TradeAlgorithms.mqh for trade execution gating. The Recount static flag provides one retry on CopyBuffer failure.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Requires reimplementation of: (1) the custom 'Go' indicator logic - must obtain its source or reverse-engineer from buffer outputs (trend state 1/2 on buffer 1, buffer 0 likely price line); (2) TradeAlgorithms.mqh functions: BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, LoadHistory, GlobalVariableDel_ with all 5 money management modes. SL/TP are in points (1000/2000) - verify whether these need 5-digit adjustment (multiply by 10) since the EA does not explicitly adjust. Signal logic is straightforward: detect state transitions on completed bars only. The IsNewBar guard means Python implementation should use bar-level processing with a new-bar detection mechanism.",
+  "extraction_timestamp": "2026-05-13T00:40:34.323786",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 116.37090945243835,
+    "cost": 0
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "ea_id": "EA-1596",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the external 'TrendContinuation' indicator which is not a built-in MT5 indicator. Also depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading execution and smoothing algorithms. Custom money management with multiple margin modes requires careful porting.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "TrendContinuation",
+      "params": {
+        "period": 20,
+        "method": 7,
+        "method_name": "T3",
+        "averaging_depth": 5,
+        "averaging_phase": 61,
+        "applied_to": 1,
+        "applied_to_name": "CLOSE"
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "NPeriod+1+GetStartBars(XMethod,XPeriod,XPhase)+3+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for calculation",
+      "formula": "NPeriod+1+GetStartBars(XMethod,XPeriod,XPhase)+3+SignalBar",
+      "used_by": "BarsCalculated sufficiency check"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal timestamp calculation for trade execution"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Up buffer (TrendContinuation buffer 0)",
+        "right": "Dn buffer (TrendContinuation buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Up buffer (TrendContinuation buffer 0)",
+        "right": "Dn buffer (TrendContinuation buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: buy signal closes short, sell signal closes long, gated by BuyPosClose and SellPosClose input flags"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT",
+      "available_modes": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM parameter (0.1) is interpreted as deposit share fraction when MMMode is FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE. When MMMode=LOT, the MM value is used as a fixed lot size. LOT mode bypasses money management entirely."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signals use a 2-bar lookback: checks if Up[1]<Dn[1] on the previous bar (trend was down) AND Up[0]>=Dn[0] on the signal bar (crossover occurred). Signal is only evaluated on new bars (or when SignalBar==0 for intrabar) via CIsNewBar class. If CopyBuffer fails, Recount flag is set to retry on next tick. Trade execution functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) are from TradeAlgorithms.mqh and handle position management internally. GlobalVariableDel_ is called on deinit for cleanup. The UpSignalTime/DnSignalTime timestamps are computed from SERIES_LASTBAR_DATE plus the timeframe period in seconds, used by the trade execution functions for signal timing.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1) The TrendContinuation custom indicator must be replicated in Python - it uses the CXMA class from SmoothAlgorithms.mqh with multiple smoothing methods (T3 default). 2) The smoothing library supports 10 methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA) - only the selected method needs implementation. 3) TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose - these must be reimplemented with position existence checks, lot calculation based on MMMode, and SL/TP placement. 4) SL/TP are specified in points (1000/2000) - must confirm whether these need 10x adjustment for 5-digit brokers (no explicit adjustment in code, so likely raw points). 5) The signal crossover logic uses 2-buffer comparison (Up vs Dn lines) with a 2-bar lookback pattern. 6) New bar detection class (CIsNewBar) needs a simple Python equivalent using timestamp comparison. 7) LoadHistory and GlobalVariableDel_ are MT5-specific and need stubs or equivalents.",
+  "extraction_timestamp": "2026-05-13T03:14:22.040229",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 182.10369110107422,
+    "cost": 0
+  }
+}

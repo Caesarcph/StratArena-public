@@ -1,0 +1,148 @@
+{
+  "ea_id": "EA-17185",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iBullsPower indicator. Standard MT5 Trade library for order execution. Simple entry/exit rules with fixed pip SL/TP and trailing stop. No external custom indicators or complex money management. Hedging check is platform-specific but logic is straightforward to replicate.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Bulls Power",
+      "params": {
+        "period": 13,
+        "applied_to": 2
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "m_digits_adjust - digit-adjusted point value for SL/TP/trailing calculations",
+      "formula": "digits_adjust * _Point where digits_adjust=10 if _Digits==3||5 else 1",
+      "used_by": "stop_loss, take_profit, trailing_stop price calculations"
+    },
+    {
+      "name": "pos1pre - Bulls Power value at bar index 2",
+      "formula": "iBullsPower(buffer=0, shift=2)",
+      "used_by": "sell entry condition (declining check)"
+    },
+    {
+      "name": "pos2cur - Bulls Power value at bar index 1",
+      "formula": "iBullsPower(buffer=0, shift=1)",
+      "used_by": "sell entry condition (declining check and positive check), buy entry condition (negative check)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "below",
+        "left": "Bulls Power [1]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Bulls Power [2]",
+        "right": "Bulls Power [1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "above",
+        "left": "Bulls Power [1]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "adjusted_by_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 350,
+      "params": {
+        "adjusted_by_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "trail_start_pips": 100,
+        "trail_step_pips": 40
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "No explicit signal-based close or opposite-side close logic. Positions are only managed via trailing stop; no exit-on-signal-reversal."
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.3,
+    "params": {},
+    "max_positions": 2,
+    "conditional_logic": "Sell gate allows total<2 positions (up to 2 including both sides). Buy gate allows total<1 (only when no positions exist). Asymmetric position limits."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": " unspecified"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "EA requires hedging account mode (ACCOUNT_MARGIN_MODE_RETAIL_HEDGING) and fails initialization otherwise. Sell entry is a two-condition AND: Bulls Power declining (bar[2] > bar[1]) AND Bulls Power bar[1] still positive (>0). Buy entry is single condition: Bulls Power bar[1] is negative (<0). Position count check is asymmetric: sell allows total<2, buy allows total<1. The Comment() display labels pos1pre as 'BullsPower' and pos2cur as 'BearsPower' but both are actually Bulls Power values at different bar shifts — this is a labeling error in the source code. Trailing stop modifies SL to (current_price - TrailingStop*adjusted_point) for longs and (current_price + TrailingStop*adjusted_point) for shorts, but only moves in TrailingStep increments.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The iBullsPower indicator is equivalent to EMA(close,13) - LOW in the Elder Ray system. In Python, calculate EMA(13) on close prices, then Bulls Power = Low - EMA(13). The digit adjustment logic (multiply by 10 for 3/5-digit brokers) must be replicated: if price has 3 or 5 decimal places, SL/TP/Trailing values in 'pips' need to be multiplied by 10*point. The hedging requirement means the EA can hold both long and short simultaneously — Python implementation needs to track individual positions rather than net position. Trailing stop logic is standard: for long, if Bid - OpenPrice > TrailingStop*adj, and current SL < Bid - (TrailingStop+TrailingStep)*adj, then move SL to Bid - TrailingStop*adj. Mirror for short. Entry signals use completed bars (shift 1 and 2), not current bar, so they should be evaluated once per new bar in Python to avoid repeated signals, even though the original EA lacks a new-bar guard.",
+  "extraction_timestamp": "2026-05-13T09:16:25.089596",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 262.7338399887085,
+    "cost": 0
+  }
+}

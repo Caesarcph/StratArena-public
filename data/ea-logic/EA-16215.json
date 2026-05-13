@@ -1,0 +1,154 @@
+{
+  "ea_id": "EA-16215",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'i-SpectrAnalysis_Chaikin' which is a custom spectral analysis indicator not available as built-in MT5 indicator. Also depends on external TradeAlgorithms.mqh library for position management, money management, and new bar detection.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "i-SpectrAnalysis_Chaikin",
+      "params": {
+        "fast_ma_period": 3,
+        "slow_ma_period": 10,
+        "ma_method": 3,
+        "applied_to": 1,
+        "N": 7,
+        "SS": 20
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "min_rates_total = MathPow(2,N)+1 + Max(fast_ma_period,slow_ma_period) + 3 + SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of the indicator timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime for trade signal timestamping"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "MathPow(2,N)+1 + Max(fast_ma_period,slow_ma_period) + 3 + SignalBar",
+      "used_by": "BarsCalculated check before processing signals"
+    },
+    {
+      "name": "tnn1 - FFT window size derived from N",
+      "formula": "MathPow(2,N)",
+      "used_by": "min_rates_total calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "i-SpectrAnalysis_Chaikin Value[1]",
+        "right": "i-SpectrAnalysis_Chaikin Value[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "i-SpectrAnalysis_Chaikin Value[0]",
+        "right": "i-SpectrAnalysis_Chaikin Value[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "i-SpectrAnalysis_Chaikin Value[1]",
+        "right": "i-SpectrAnalysis_Chaikin Value[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "i-SpectrAnalysis_Chaikin Value[0]",
+        "right": "i-SpectrAnalysis_Chaikin Value[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes position: when Value[1]>Value[2] (downtrend detected), BuyPosClose triggers; when Value[1]<Value[2] (uptrend detected), SellPosClose triggers"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot size, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM parameter meaning changes based on MMMode selected."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses spectral analysis (FFT-based) of Chaikin Oscillator. Entry logic is two-condition AND: (1) Value[1] vs Value[2] determines trend direction (rising=up, falling=down), and (2) Value[0] vs Value[1] confirms momentum continuation (Value[0]>=Value[1] for long, Value[0]<=Value[1] for short). The three buffer values are read from SignalBar offset: Value[0]=current signal bar, Value[1]=1 bar before signal, Value[2]=2 bars before signal. Signal gating is controlled by BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose input booleans. When SignalBar=0, signals are recalculated every tick instead of only on new bars.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The custom indicator i-SpectrAnalysis_Chaikin must be reimplemented in Python - it performs spectral (FFT) analysis of Chaikin Oscillator with inverse FFT reconstruction using only N largest harmonics, then smoothed by SS-period MA. Requires numpy FFT functions. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, LoadHistory, GlobalVariableDel_ - all must be reimplemented. Position sizing has 5 modes (LOT, FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) that change how the MM input parameter is interpreted. SL/TP are in points (not pips) - 1000 and 2000 respectively, which may need digit-adjustment depending on broker. The Chaikin Oscillator itself is: fast_MA(AD) - slow_MA(AD) where AD = Accumulation/Distribution, then FFT is applied to this oscillator output.",
+  "extraction_timestamp": "2026-05-13T04:02:08.394794",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 218.77735829353333,
+    "cost": 0
+  }
+}

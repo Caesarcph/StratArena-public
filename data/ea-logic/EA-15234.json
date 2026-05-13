@@ -1,0 +1,134 @@
+{
+  "ea_id": "EA-15234",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for the 'Stalin' custom indicator and depends on external TradeAlgorithms.mqh library for all position open/close logic. The custom indicator has 10+ parameters and its buffer values drive all signals, requiring the Stalin indicator source to fully replicate signals in Python.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Stalin",
+      "params": {
+        "method": 1,
+        "shift": 0,
+        "fast_period": 14,
+        "slow_period": 21,
+        "rsi_period": 17,
+        "confirm": 0,
+        "flat": 0
+      },
+      "source": "custom",
+      "library": "Stalin",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of selected timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade entry timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before EA operates",
+      "formula": "MathMax(RSI,MathMax(Slow,Fast))+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Stalin indicator buffer 1 (UpValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Stalin indicator buffer 0 (DnValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "When both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled and no close signal detected on current bar, EA scans historical bars forward from SignalBar+1 to find the earliest opposite signal and sets close flag accordingly"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lots (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses. Positive MM value is interpreted as percentage for margin-based modes; as fixed lot size when MMMode=LOT."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The Stalin custom indicator is a composite signal combining MA and RSI elements. Buffer 1 (UpValue) produces buy signals; buffer 0 (DnValue) produces sell signals. When SignalBar=0, the EA evaluates signals on every tick (not just new bars). There is a 'recount' mechanism: if CopyBuffer fails, Recount is set true and the signal evaluation is retried on next tick. The EA also has a lookback scan (lines 129-155) that searches forward through historical bars to find the earliest opposing close signal when both open and close flags are enabled for a side but no close was triggered on the signal bar - this prevents staying in a trade when the indicator already flipped in a prior bar. Signal time is set to last bar date + timeframe seconds, effectively marking the open of the next bar for entry timing. The TradeAlgorithms.mqh library handles all actual order placement/closing logic including position checking within those functions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must reverse-engineer or port the Stalin custom indicator since it drives all signals. The TradeAlgorithms.mqh library must be ported to Python - it encapsulates BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose with margin mode logic. The MarginMode conditional sizing needs careful implementation (5 modes). The historical bar lookback scan for close signals (lines 129-155) is non-standard and must be preserved. SignalBar parameter shifts which bar is evaluated for signals; SignalBar=1 means previous bar, SignalBar=0 means current bar with intrabar re-evaluation. SL/TP of 1000/2000 pips are very large suggesting 5-digit broker (100.0/200.0 real pips) - verify digit adjustment in TradeAlgorithms.mqh.",
+  "extraction_timestamp": "2026-05-13T00:58:05.450808",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 180.08270645141602,
+    "cost": 0
+  }
+}

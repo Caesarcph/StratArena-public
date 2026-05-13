@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-15781",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'iStochKomposter' (non-standard), includes external TradeAlgorithms.mqh library for position sizing and trade execution, and relies on custom CIsNewBar class from the included library",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Stochastic",
+      "name": "iStochKomposter",
+      "params": {
+        "k_period": 5,
+        "d_period": 3,
+        "slowing": 3,
+        "method": 0,
+        "applied_to": 0,
+        "atr_period": 14,
+        "up_level": 70,
+        "dn_level": 30
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "max(KPeriod+DPeriod+Slowing+1,ATR_Period)+1 used as min_rates_total"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "max(KPeriod+DPeriod+Slowing+1,ATR_Period)+1+1+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "signal timestamp calculation for position open"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "iStochKomposter buffer 1 (UpValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "iStochKomposter buffer 0 (DnValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes position: Up signal closes short, Dn signal closes long. Close signals are validated by scanning historical bars for prior opposite signals when both open and close on same side are enabled."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot size, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM input value interpreted differently per mode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a custom iStochKomposter indicator with 2 buffers: buffer 1=UpValue (buy signal), buffer 0=DnValue (sell signal). Signals are read from SignalBar (default bar 1, previous bar). When both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled and no close signal is found on the current signal bar, the EA scans backward through historical bars to find a prior close signal. This ensures close signals propagate from earlier bars. The CIsNewBar class (from TradeAlgorithms.mqh) gates signal recalculation to new bars only. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean toggles allowing selective enable/disable of each trade direction and close action independently. Signal timestamps are computed as SERIES_LASTBAR_DATE + TimeShiftSec for trade execution timing.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Requires reverse-engineering the iStochKomposter custom indicator logic or finding its source code to reimplement in Python. The indicator appears to be a Stochastic with ATR-based level modification (given the name and params). TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, LoadHistory, and GlobalVariableDel_ functions - all need Python equivalents. Position sizing has 5 modes via MarginMode enum. The close-signal backward scan (lines 137-164) is non-trivial and must be faithfully reproduced. SignalBar=1 means signals lag by one bar, which is important for backtesting accuracy.",
+  "extraction_timestamp": "2026-05-13T02:26:17.055021",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 125.92183947563171,
+    "cost": 0
+  }
+}

@@ -1,0 +1,202 @@
+{
+  "ea_id": "EA-15761",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for Directed_Movement_Candle indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic. Custom indicator with multi-layer smoothing cannot be auto-converted without reimplementing the indicator.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Directed_Movement_Candle",
+      "params": {
+        "Mode": 1,
+        "RSIPeriod": 14,
+        "MA_Method1": 0,
+        "Length1": 12,
+        "Phase1": 15,
+        "MA_Method2": 4,
+        "Length2": 5,
+        "Phase2": 15,
+        "HighLevel": 70,
+        "MiddleLevel": 50,
+        "LowLevel": 30
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI (embedded in Directed_Movement_Candle)",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "First smoothing MA (on RSI)",
+      "params": {
+        "period": 12,
+        "method": 0,
+        "phase": 15
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Second smoothing MA (JJMA on first MA result)",
+      "params": {
+        "period": 5,
+        "method": 4,
+        "phase": 15
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "RSIPeriod + GetStartBars(MA_Method1,Length1,Phase1) + GetStartBars(MA_Method2,Length2,Phase2) + 2 + (1+2+SignalBar)",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade execution timing"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal expiration",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal expiration",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Directed_Movement_Candle buffer 4 [1]",
+        "right": "2",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Directed_Movement_Candle buffer 4 [0]",
+        "right": "2",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Directed_Movement_Candle buffer 4 [1]",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Directed_Movement_Candle buffer 4 [0]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal reversal: buy close triggered when Directed_Movement_Candle buffer4[1]==0 (sell signal), sell close triggered when buffer4[1]==2 (buy signal)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM parameter (0.1): when MMMode=LOT it acts as fixed lot size; when MMMode=PERCENT it acts as deposit fraction for risk calculation"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The Directed_Movement_Candle indicator outputs a color code via buffer 4: 0=bearish, 1=neutral, 2=bullish. Long entry requires buffer4[1]==2 (current signal bar bullish) AND buffer4[0]<2 (previous bar was not bullish, i.e. a transition). Short entry requires buffer4[1]==0 (current signal bar bearish) AND buffer4[0]>0 (previous bar was not bearish, i.e. a transition). This captures directional transitions. BuyPosOpen/SellPosOpen boolean inputs act as gates to enable/disable long/short entries. BuyPosClose/SellPosClose boolean inputs act as gates for signal-based closing. The EA uses TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) which contain the actual order logic including position checking. GlobalVariableDel_ cleanup on deinit suggests persistent state management from the trade library. Signal time is set to last bar date + one timeframe period, which likely serves as signal expiration for the trade library.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must first reimplement the Directed_Movement_Candle custom indicator in Python. This indicator applies RSI with two smoothing passes (first SMA/JJMA pass, second JJMA pass) and outputs a color code (0/1/2) based on level thresholds (70/50/30). The SmoothAlgorithms.mqh library contains 10 smoothing methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA) that must be ported - JJMA and JurX are non-trivial recursive algorithms. TradeAlgorithms.mqh must also be ported for BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose logic including signal time expiration. Position sizing depends on MMMode enum (LOT vs PERCENT). SL/TP are in points (1000 and 2000 respectively), which need _Point conversion - no explicit 5-digit adjustment found in code so the trade library may handle it. The new bar check uses CIsNewBar class from the trade library.",
+  "extraction_timestamp": "2026-05-13T02:17:31.623456",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 146.3653223514557,
+    "cost": 0
+  }
+}

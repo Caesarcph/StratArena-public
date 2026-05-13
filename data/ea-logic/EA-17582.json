@@ -1,0 +1,140 @@
+{
+  "ea_id": "EA-17582",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 close price comparisons (iClose wrapper), no custom indicators, simple breakout entry/exit logic, fixed SL/TP with pip adjustment, standard MoneyFixedMargin money management from MT5 Standard Library. All dependencies are standard MT5 library .mqh files, no external custom indicators.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Price Level Breakout",
+      "params": {
+        "applied_to": "close",
+        "shift": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "m_adjusted_point",
+      "formula": "_Point * digits_adjust (digits_adjust=10 if Digits==3 or 5, else 1)",
+      "used_by": "SL and TP calculation"
+    },
+    {
+      "name": "digits_adjust",
+      "formula": "10 if Digits==3 or Digits==5, else 1",
+      "used_by": "m_adjusted_point"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "iClose(1) (previous bar close)",
+        "right": "AppPrice (user-defined price level)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "iClose(1) (previous bar close)",
+        "right": "AppPrice (user-defined price level)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 140,
+      "params": {
+        "adjustment": "multiplied by digits_adjust for 3/5 digit brokers"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 180,
+      "params": {
+        "adjustment": "multiplied by digits_adjust for 3/5 digit brokers"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Closes opposite side positions before entering new trade (e.g. closes SELL positions before opening BUY when breakout triggers)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "fixed_lots_input": 0.1,
+      "percent_risk": 10
+    },
+    "max_positions": 2,
+    "conditional_logic": "Uses CMoneyFixedMargin (MoneyFixedMargin.mqh) which calculates lot size based on PercentRisk (10%) of margin. The CheckOpenLong/CheckOpenShort methods compute the lot size dynamically. If the computed lot is 0.0, trade is skipped. The 'Lots' input parameter exists but is NOT used in the actual order sending - only the money manager's computed lot is used."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "previous_bar_close",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar_then_wait"
+  },
+  "custom_logic_notes": "Hedging account required (ACCOUNT_MARGIN_MODE_RETAIL_HEDGING). The EA checks if both Buys and Sells inputs are false at init and fails if so. Entry is a simple price level breakout: when previous bar's close crosses above the AppPrice level, a BUY is triggered; when it crosses below, a SELL is triggered. The crossover detection uses bar index 1 (previous completed bar) vs bar index 2 (two bars back) compared to the static AppPrice level, effectively acting as a new-bar guard since close[1] only changes when a new bar completes. Opposite positions are closed before opening a new position. The 'Lots' input (0.1) is declared but never referenced in trade execution - lot sizing is entirely controlled by CMoneyFixedMargin.CheckOpenLong/CheckOpenShort which uses PercentRisk=10%.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh",
+    "Expert\\Money\\MoneyFixedMargin.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward breakout strategy. Key points for conversion: (1) The digit adjustment (multiply SL/TP by 10 for 5-digit brokers) must be replicated by checking the symbol's point value. (2) The CMoneyFixedMargin class calculates lot size based on fixed margin percentage - this needs to be reimplemented or replaced with a simpler risk-based lot calculation. (3) The iClose(1) and iClose(2) refer to the previous bar and two bars back respectively - this is the signal basis (previous bar close vs static price level). (4) The hedging check is MT5-specific and can be omitted in Python. (5) No custom indicators to port - only price level comparison logic. (6) AppPrice is a user-defined static price level (not an indicator), so the breakout level must be provided as a parameter. (7) Position counting by magic number and symbol must be replicated for position_gate logic.",
+  "extraction_timestamp": "2026-05-13T11:18:34.828845",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 156.3850495815277,
+    "cost": 0
+  }
+}

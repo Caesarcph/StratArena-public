@@ -1,0 +1,212 @@
+{
+  "ea_id": "EA-17502",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "EA uses custom fuzzy logic implementation with multiple membership functions and fuzzy inference rules that go beyond simple built-in indicator crossovers. The fuzzy logic system is a custom computation layer that cannot be directly mapped to standard indicator calls, requiring manual translation of the fuzzy inference engine into Python.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast Moving Average",
+      "params": {
+        "period": 8,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow Moving Average",
+      "params": {
+        "period": 21,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Fuzzy Buy Signal",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Fuzzy Sell Signal",
+      "params": {},
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Fuzzy membership degree for MA crossover (bullish)",
+      "formula": "membership_function(fast_ma - slow_ma, bullish_params)",
+      "used_by": "Fuzzy Buy Signal"
+    },
+    {
+      "name": "Fuzzy membership degree for MA crossover (bearish)",
+      "formula": "membership_function(slow_ma - fast_ma, bearish_params)",
+      "used_by": "Fuzzy Sell Signal"
+    },
+    {
+      "name": "Fuzzy membership degree for RSI (oversold zone)",
+      "formula": "membership_function(RSI, oversold_params)",
+      "used_by": "Fuzzy Buy Signal"
+    },
+    {
+      "name": "Fuzzy membership degree for RSI (overbought zone)",
+      "formula": "membership_function(RSI, overbought_params)",
+      "used_by": "Fuzzy Sell Signal"
+    },
+    {
+      "name": "Fuzzy membership degree for MACD (bullish)",
+      "formula": "membership_function(MACD_histogram, bullish_params)",
+      "used_by": "Fuzzy Buy Signal"
+    },
+    {
+      "name": "Fuzzy membership degree for MACD (bearish)",
+      "formula": "membership_function(MACD_histogram, bearish_params)",
+      "used_by": "Fuzzy Sell Signal"
+    },
+    {
+      "name": "Aggregated fuzzy buy score",
+      "formula": "fuzzy_and_or_combine(MA_bullish, RSI_oversold, MACD_bullish)",
+      "used_by": "Entry long rule"
+    },
+    {
+      "name": "Aggregated fuzzy sell score",
+      "formula": "fuzzy_and_or_combine(MA_bearish, RSI_overbought, MACD_bearish)",
+      "used_by": "Entry short rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Aggregated fuzzy buy score",
+        "right": "fuzzy_threshold",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Aggregated fuzzy sell score",
+        "right": "fuzzy_threshold",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Fuzzy logic can generate opposing signal that closes current position before opening reverse"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA implements a fuzzy inference system (FIS) with triangular/trapezoidal membership functions applied to standard indicator values. The fuzzy logic layer aggregates multiple indicator signals using fuzzy AND/OR operators (min/max or weighted average) to produce a composite buy/sell score. A defuzzification step converts the aggregated fuzzy output to a crisp trading signal when it exceeds a threshold. This custom fuzzy engine is the core differentiator and must be reimplemented in Python, typically using a library like skfuzzy or a hand-rolled membership function + rule evaluation system.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The fuzzy inference engine must be reimplemented from scratch. Key steps: 1) Define triangular/trapezoidal membership functions for each indicator input (MA difference, RSI value, MACD histogram). 2) Implement rule evaluation using fuzzy AND (min) and OR (max) operators. 3) Implement defuzzification (centroid or mean-of-maxima) to produce crisp buy/sell scores. 4) Apply threshold to generate trade signals. Consider using scikit-fuzzy (skfuzzy) library for the FIS. The underlying indicators (EMA, RSI, MACD) are straightforward with pandas-ta or ta-lib. Pay close attention to membership function parameters (a, b, c for triangular; a, b, c, d for trapezoidal) which may be hardcoded or derived from inputs in the source.",
+  "extraction_timestamp": "2026-05-13T10:48:18.008989",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 147.72115421295166,
+    "cost": 0
+  }
+}

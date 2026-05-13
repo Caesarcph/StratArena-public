@@ -1,0 +1,169 @@
+{
+  "ea_id": "EA-16672",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Pure tick-scalper with martingale lot multiplication on losses, spread-dependent stop logic, and tick-level execution requirements. Martingale with margin-dependent sizing and tick-scalping dependency makes it mt5_only.",
+  "symbol": null,
+  "timeframe_hint": "M1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": "Periods",
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": "Periods+2",
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "Periods+2"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "FastMA current bar",
+      "formula": "iMA(_Symbol, PERIOD_CURRENT, Periods, 0, MODE_EMA, PRICE_CLOSE)[0]",
+      "used_by": "Entry crossover comparison"
+    },
+    {
+      "name": "SlowMA current bar",
+      "formula": "iMA(_Symbol, PERIOD_CURRENT, Periods+2, 0, MODE_EMA, PRICE_CLOSE)[0]",
+      "used_by": "Entry crossover comparison"
+    },
+    {
+      "name": "FastMA previous bar",
+      "formula": "iMA(_Symbol, PERIOD_CURRENT, Periods, 0, MODE_EMA, PRICE_CLOSE)[1]",
+      "used_by": "Entry crossover comparison (previous bar relationship)"
+    },
+    {
+      "name": "SlowMA previous bar",
+      "formula": "iMA(_Symbol, PERIOD_CURRENT, Periods+2, 0, MODE_EMA, PRICE_CLOSE)[1]",
+      "used_by": "Entry crossover comparison (previous bar relationship)"
+    },
+    {
+      "name": "Digit-adjusted StopLoss",
+      "formula": "StopLoss * 10 when _Digits==5 || _Point<0.001",
+      "used_by": "SL calculation"
+    },
+    {
+      "name": "Digit-adjusted TakeProfit",
+      "formula": "TakeProfit * 10 when _Digits==5 || _Point<0.001",
+      "used_by": "TP calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "adjusted_for_5_digit": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "adjusted_for_5_digit": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Spread-based SL override: if spread > StopLoss in points, SL is set to current Ask - spread*2 (long) or Bid + spread*2 (short) instead of fixed SL, acting as a spread-protection mechanism"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "lot_multiplier_on_loss": 1.5,
+      "reset_on_win": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "On loss: Lot *= 1.5 (martingale). On win or initial: Lot = Lots (base input). Negative Lots input = fixed lots, positive = fraction of free margin (Lots/100 * AccountFreeMargin / Bid / LotSize)"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Martingale lot sizing: each consecutive loss multiplies lot by 1.5x. Winning trade resets to base Lots. Spread-protection logic overrides SL when spread exceeds configured StopLoss in points, using spread*2 as the effective SL distance. The Lots parameter has dual mode: negative value = fixed lot size (abs), positive value = deposit fraction (Lots/100 * FreeMargin / Bid / LotSize). EMA crossover uses previous bar ([1]) vs current bar ([0]) relationship to detect crossover on completed bars but evaluates every tick.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Tick-level scalper - requires tick data for accurate backtest. Martingale lot sizing must be precisely tracked across sequential trades (stateful). Spread-dependent SL override means the actual SL varies per trade based on real-time spread, making fixed-pip SL assumptions inaccurate. The dual-mode Lots parameter (negative=fixed, positive=margin fraction) needs careful handling. EMA crossover signal can fire on every tick within the crossover bar, so once-per-bar filtering must be added for Python to avoid duplicate entries. Digit adjustment logic (5-digit broker detection) must be replicated for proper pip-to-price conversion.",
+  "extraction_timestamp": "2026-05-13T05:19:20.813566",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 115.65591669082642,
+    "cost": 0
+  }
+}

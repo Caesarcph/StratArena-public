@@ -1,0 +1,164 @@
+{
+  "ea_id": "EA-16231",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ZigZag indicator which is a non-standard indicator call requiring manual implementation or equivalent in Python. Also includes Trade.mqh library and complex Fibonacci retracement object creation logic that needs careful porting.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ZigZag",
+      "params": {
+        "depth": 12,
+        "deviation": 5,
+        "backstep": 3
+      },
+      "source": "custom",
+      "library": "Examples\\ZigZag",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "FiboBASE - absolute difference between Fibo100 and Fibo00 (zigzag leg height)",
+      "formula": "fabs(Fibo100 - Fibo00)",
+      "used_by": "Fibonacci level calculation and TakeProfit calculation"
+    },
+    {
+      "name": "Fibo23 - 23.6% retracement level",
+      "formula": "Fibo00 - 0.236 * FiboBASE (uptrend) or Fibo00 + 0.236 * FiboBASE (downtrend)",
+      "used_by": "Entry condition check for buy/sell"
+    },
+    {
+      "name": "Fibo38 - 38.2% retracement level",
+      "formula": "Fibo00 - 0.382 * FiboBASE (uptrend) or Fibo00 + 0.382 * FiboBASE (downtrend)",
+      "used_by": "Entry condition check for buy/sell"
+    },
+    {
+      "name": "Fibo61 - 61.8% retracement level",
+      "formula": "Fibo00 - 0.618 * FiboBASE (uptrend) or Fibo00 + 0.618 * FiboBASE (downtrend)",
+      "used_by": "Entry condition check for buy/sell"
+    },
+    {
+      "name": "Fibo76 - 76.4% retracement level",
+      "formula": "Fibo00 - 0.764 * FiboBASE (uptrend) or Fibo00 + 0.764 * FiboBASE (downtrend)",
+      "used_by": "Entry condition check for buy/sell"
+    },
+    {
+      "name": "TrendDirection - determined by CheckTrend from last 4 ZigZag pivot points",
+      "formula": "1 if (hl0-hl2)>TrendPrecision AND (hl1-hl3)>TrendPrecision; -1 if (hl2-hl0)>TrendPrecision AND (hl3-hl1)>TrendPrecision; else 0",
+      "used_by": "Entry rules and Fibonacci level direction calculation"
+    },
+    {
+      "name": "HL[0..3] - last 4 ZigZag pivot price values",
+      "formula": "Populated by scanning ZZ_Buffer for non-zero values and shifting on new pivots",
+      "used_by": "CheckTrend, Fibo00, Fibo100, and FiboBASE"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "or_combination",
+        "left": "close[0]",
+        "right": "Fibo76",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position",
+        "extra_condition": "AND close[1] was below the Fibo level by SafetyBuffer. Applied to any of: Fibo76, Fibo61, Fibo38, Fibo23. TrendDirection must be 1 (up)."
+      }
+    ],
+    "short": [
+      {
+        "condition": "or_combination",
+        "left": "close[0]",
+        "right": "Fibo76",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position",
+        "extra_condition": "AND close[1] was above the Fibo level (within SafetyBuffer). Applied to any of: Fibo76, Fibo61, Fibo38, Fibo23. TrendDirection must be -1 (down)."
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 15,
+      "params": {
+        "buy_sl_formula": "BID - Point * StopLossLevel",
+        "sell_sl_formula": "ASK + Point * StopLossLevel"
+      }
+    },
+    "take_profit": {
+      "type": "indicator_level",
+      "value": 0.2,
+      "params": {
+        "buy_tp_formula": "Fibo00 + TakeProfitAt * FiboBASE (Fibonacci extension)",
+        "sell_tp_formula": "Fibo00 - TakeProfitAt * FiboBASE (Fibonacci extension)",
+        "extension_multiplier": 0.2
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Stop-loss and take-profit only via order fill parameters; no explicit close logic in OnTick"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "The EA uses ZigZag pivot points to identify the last 4 swing highs/lows (HL[0..3]). Trend is determined by comparing alternating pivots: if HL[0]>HL[2] and HL[1]>HL[3] then uptrend; if HL[0]<HL[2] and HL[1]<HL[3] then downtrend. Fibonacci retracement levels are drawn on the most recent ZigZag leg. Entry triggers when current bar close crosses above a Fibonacci level while the previous bar close was below it (for buys in uptrend) or vice versa (for sells in downtrend), with a SafetyBuffer threshold. A CloseBarPause prevents re-entry for N bars after a position is closed by stop-loss. The CheckTrend function return type is declared as bool but returns int values (0, 1, -1), which is a bug but works due to implicit conversion. The TradeCheck function uses deal=1 for Buy but case 2 for Sell, while the caller passes -1 for Sell, so the Sell path is never executed in TradeCheck — this is a bug. The Fibonacci object (MyFIBO) is created/updated on each qualifying tick as a chart object.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Key challenges: (1) ZigZag indicator must be reimplemented or sourced as a Python equivalent since it uses iCustom with Examples\\ZigZag path. (2) Fibonacci level calculation depends on the last 4 ZigZag pivots which must be tracked statefully. (3) The entry logic compares current bar close vs previous bar close against Fibonacci levels with SafetyBuffer in points — requires careful point/pip normalization. (4) The CloseBarPause mechanism tracks bars since last SL close using OnTrade history — must be replicated via trade history tracking. (5) Bug: TradeCheck Sell case uses case 2 but is called with -1, meaning sell orders never actually execute via TradeCheck — needs decision on whether to fix or replicate the bug. (6) CheckTrend return type mismatch (bool returning int) works in MQL5 but must use int in Python. (7) No new-bar guard on signal evaluation — signals are checked every tick, meaning the Fibonacci crossover condition could trigger on intrabar price movement; for backtesting, bar-close evaluation is recommended.",
+  "extraction_timestamp": "2026-05-13T04:07:53.646590",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 182.68909215927124,
+    "cost": 0
+  }
+}

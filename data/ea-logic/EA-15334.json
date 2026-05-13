@@ -1,0 +1,152 @@
+{
+  "ea_id": "EA-15334",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load 'ColorJFatl_StDev' custom indicator with 8 parameters, plus external .mqh library (TradeAlgorithms.mqh) for position management, money management, and trade execution logic",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorJFatl_StDev",
+      "params": {
+        "JLength": 5,
+        "JPhase": -100,
+        "IPC": 1,
+        "PriceShift": 0,
+        "dK1": 1.5,
+        "dK2": 2.5,
+        "std_period": 9,
+        "ma_method": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "FATLSize(39)+30+std_period"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "39+30+int(std_period)+3+int(SignalBar)",
+      "used_by": "BarsCalculated check before signal processing"
+    },
+    {
+      "name": "TimeShiftSec - timeframe period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "LoadHistory and new bar detection"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorJFatl_StDev buffer 3 (buy dot signal) or buffer 5 (buy dot signal alt)",
+        "right": "EMPTY_VALUE",
+        "direction": "not_equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "ColorJFatl_StDev buffer 0 (main line) at [SignalBar]",
+        "right": "ColorJFatl_StDev buffer 0 (main line) at [SignalBar+1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorJFatl_StDev buffer 2 (sell dot signal) or buffer 4 (sell dot signal alt)",
+        "right": "EMPTY_VALUE",
+        "direction": "not_equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "ColorJFatl_StDev buffer 0 (main line) at [SignalBar]",
+        "right": "ColorJFatl_StDev buffer 0 (main line) at [SignalBar+1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "DIRECT signal mode for close: buy close when main line rises (Line[0]>Line[1]), sell close when main line falls (Line[0]<Line[1])",
+      "POINT signal mode for close: buy close on sell dot signal (buffer 2 or 4 != EMPTY_VALUE), sell close on buy dot signal (buffer 3 or 5 != EMPTY_VALUE)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMMode selects sizing method: LOT=fixed lots (MM=0.1 lots), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "SignalMode (POINT/DIRECT/WITHOUT) independently configures each of the 4 signal channels (buy open, sell open, buy close, sell close). POINT mode checks dot signal buffers (non-EMPTY_VALUE = signal active). DIRECT mode checks main line direction (crossover/crossunder for open, directional comparison for close). WITHOUT disables that signal channel entirely. SignalBar input (default 1) shifts which bar is used for signal evaluation, enabling confirmation on prior closed bar. BuyPositionClose and SellPositionClose are called BEFORE open functions, so closing takes priority. BuyPositionOpen/SellPositionOpen track signal timestamps (UpSignalTime/DnSignalTime) to prevent duplicate entries on same signal. Recount flag triggers re-evaluation on next tick if CopyBuffer fails.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Custom indicator 'ColorJFatl_StDev' must be reimplemented in Python - it combines JMA (JFatl) with standard deviation channels using dK1/dK2 multipliers. The indicator has 6 buffers: buffer 0=main line, buffer 2=sell dots, buffer 3=buy dots, buffer 4=sell dots alt, buffer 5=buy dots alt, buffer 1 likely=std dev band. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, GlobalVariableDel_, and LoadHistory - all must be reimplemented. The conditional money management (MarginMode enum with 5 modes) requires careful implementation especially LOSSFREEMARGIN and LOSSBALANCE which subtract unrealized P&L. SL/TP of 1000/2000 pips suggest these are point values (not true pips), so digit adjustment logic must be verified against broker settings. SignalBar=1 means signals are evaluated on the previous closed bar which is safe for backtesting with bar-level data.",
+  "extraction_timestamp": "2026-05-13T01:39:03.903658",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 125.74983501434326,
+    "cost": 0
+  }
+}

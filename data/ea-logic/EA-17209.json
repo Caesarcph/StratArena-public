@@ -1,0 +1,224 @@
+{
+  "ea_id": "EA-17209",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iRSI, iBands) with simple crossover entry/exit rules and fixed lot or risk-percent position sizing. No external .mqh libraries for trading logic, no grid, no martingale, no multi-timeframe logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 5,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 13,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Trend EMA",
+      "params": {
+        "period": 50,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands",
+      "params": {
+        "period": 20,
+        "dev": 2.0,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adjusted SL points (5-digit correction)",
+      "formula": "StopLoss*10 when _Digits==5 or _Point<0.001",
+      "used_by": "stop_loss calculation"
+    },
+    {
+      "name": "Adjusted TP points (5-digit correction)",
+      "formula": "TakeProfit*10 when _Digits==5 or _Point<0.001",
+      "used_by": "take_profit calculation"
+    },
+    {
+      "name": "Normalized lot size",
+      "formula": "AccountFreeMargin*RiskPercent/100/MarketInfo(Symbol(),MODE_MARGINREQUIRED) clamped to min/max lots with step rounding",
+      "used_by": "position_sizing when RiskPercent>0"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "Close[1]",
+        "right": "Trend EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "RSI",
+        "right": "RSI_Oversold_Level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "Close[1]",
+        "right": "Trend EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "RSI",
+        "right": "RSI_Overbought_Level",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "adjusted_for_5digit": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "adjusted_for_5digit": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite EMA crossover closes existing position before opening new opposite trade"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "risk_percent": 2.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "When RiskPercent>0: lot = AccountFreeMargin * RiskPercent/100 / margin_required, rounded to lot step, clamped to min/max lots. When RiskPercent<=0: use fixed Lots value."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 8,
+      "end_hour": 20
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a multi-condition AND gate: EMA crossover + trend filter (price vs 50 EMA) + RSI confirmation. Opposite signal closes current position before entry. Bollinger Bands used as volatility filter to avoid entries during low-volatility squeeze conditions.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward conversion. All indicators are standard TA-Lib equivalents (EMA, RSI, BBANDS). The 5-digit point adjustment must be handled by detecting quote currency decimal places. Position sizing logic uses conditional branching on RiskPercent sign - implement as if/else in calc_lots(). New bar detection uses bar timestamp comparison - implement with pandas bar resampling. Time filter uses server time - map to UTC exchange hours.",
+  "extraction_timestamp": "2026-05-13T09:23:48.567121",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 150.1002163887024,
+    "cost": 0
+  }
+}

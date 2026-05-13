@@ -1,0 +1,180 @@
+{
+  "ea_id": "EA-18333",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Pipso is a tick-level scalper that operates on every tick with point/pip precision adjustments for 5-digit brokers, relies on tight tick-level execution for pip-scale profits, uses a pending-order-like price adjustment mechanism (PriceOpen adjustment relative to Ask/Bid), and its trailing stop and break-even logic operate at tick granularity. The digit-adjustment pattern (_Digits==3||_Digits==5 multiplying by 10) and point-level SL/TP manipulation are tightly coupled to MT5 broker execution semantics. Converting to Python would lose the tick-level execution advantage and broker-specific price precision handling.",
+  "symbol": null,
+  "timeframe_hint": "M1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 5,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 13,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Trend EMA",
+      "params": {
+        "period": 21,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Pip multiplier for 5-digit adjustment",
+      "formula": "(_Digits==3||_Digits==5)?10:1",
+      "used_by": "SL, TP, TrailingStop, BreakEven, PriceOpen adjustment"
+    },
+    {
+      "name": "PriceOpen buy adjustment",
+      "formula": "Ask - PriceOpen*Point*PipMult",
+      "used_by": "Buy entry price offset"
+    },
+    {
+      "name": "PriceOpen sell adjustment",
+      "formula": "Bid + PriceOpen*Point*PipMult",
+      "used_by": "Sell entry price offset"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA[1]",
+        "right": "Slow EMA[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Close[1]",
+        "right": "Trend EMA[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA[1]",
+        "right": "Slow EMA[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Close[1]",
+        "right": "Trend EMA[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "pip_multiplier_applied": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "pip_multiplier_applied": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 15,
+      "params": {
+        "trail_start_pips": 15,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Break-even logic: moves SL to entry price when price reaches BreakEven pips in profit, then trails by TrailingStop pips"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses Pipso-style price offset: buy entry price is adjusted downward by PriceOpen pips from Ask, sell entry price adjusted upward from Bid. Break-even is activated after BreakEven pips of profit, after which trailing stop kicks in at TrailingStop pips. Signal reversal closes opposite positions (if opposite EMA crossover occurs while in position, the existing position is closed and reversed). The EA checks previous completed bar values (shift [1]) for all indicator comparisons, not current bar. Digit adjustment: SL, TP, TrailingStop, BreakEven, and PriceOpen values are multiplied by 10 when _Digits==3 or _Digits==5 (5-digit/3-digit JPY pairs).",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Tick-level scalper with 5-digit adjustment logic. The PriceOpen offset mechanism (buying below Ask, selling above Bid) simulates a reentry/limit-like price improvement that depends on MT5 tick flow. Break-even to trailing-stop transition is stateful per-position. The EMA crossover on bar[1] with new-bar guard is straightforward, but the trailing stop management and PriceOpen price adjustment require precise tick-level price handling. Digit adjustment (_Digits==3||5 → multiply by 10) must be faithfully replicated. Recommend tick data for backtesting; bar data will significantly overstate fill quality. The FOK filling and deviation=1 assume instant liquidity which Python backtests may not model accurately.",
+  "extraction_timestamp": "2026-05-13T12:48:58.930947",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 172.93815112113953,
+    "cost": 0
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-16087",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "SAR trailing logic is manually implemented inline rather than using iSAR indicator; position gate only checks for single symbol position (no same-side/opposite-side nuance); random trade entry with timer flag adds unconventional logic; requires careful porting of the custom SAR state machine",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Parabolic SAR (manual implementation)",
+      "params": {
+        "af_step": 0.02,
+        "af_cap": 0.2
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "EP (Extreme Point) - highest high in uptrend or lowest low in downtrend",
+      "formula": "Price[0].high (BUY) or Price[0].low (SELL)",
+      "used_by": "SAR trailing stop calculation"
+    },
+    {
+      "name": "AF (Acceleration Factor) - increases by AFStep each time EP updates, capped at AFCap",
+      "formula": "fmin(AFCap, AF + AFStep)",
+      "used_by": "SAR trailing stop delta calculation"
+    },
+    {
+      "name": "delta - accumulated SAR movement per bar",
+      "formula": "delta += AF * (EP - StopLossLevel) [BUY] or delta += AF * (StopLossLevel - EP) [SELL]",
+      "used_by": "StopLossLevel modification decision"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "rand()",
+        "right": "16384",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "rand()",
+        "right": "16384",
+        "direction": "above_or_equal",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 10,
+      "params": {
+        "initial_sl_pips": 10
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "indicator_based",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "sar_af_step": 0.02,
+        "sar_af_cap": 0.2,
+        "min_stop_distance_points": "StopLevel (SYMBOL_TRADE_STOPS_LEVEL)"
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Trailing stop is the only exit mechanism - SL is progressively moved following SAR logic; no explicit TP or signal-based close"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 1.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry is randomized (50/50 buy/sell via rand()<16384) and gated by a timer flag set every TimerTime seconds. The SAR trailing logic is manually implemented: AF starts at AFStep, increments by AFStep each time a new EP is made (capped at AFCap), delta accumulates as AF*(EP-SL) for buys or AF*(SL-EP) for sells, and SL is modified only when delta>_Point and the new SL is at least StopLevel points away from current price. State variables (EP, AF, delta, StopLossLevel) persist across bars and reset only on new trade entry. RandomTrade input can disable auto-entry leaving only the trailing stop management active.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The SAR trailing state machine must be faithfully ported with persistent state across bars. The random entry can be replaced with configurable signals. The timer-based entry gate (TimerFlag set every 300s) needs to be mapped to a time-based check in Python backtesting. The StopLevel check (broker minimum stop distance) must be respected. The delta accumulation and AF stepping logic is bar-based (new_bar_guard), so ensure per-bar execution in the backtest loop. No iSAR handle needed - all SAR math is inline.",
+  "extraction_timestamp": "2026-05-13T03:45:52.204465",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 182.26007890701294,
+    "cost": 0
+  }
+}

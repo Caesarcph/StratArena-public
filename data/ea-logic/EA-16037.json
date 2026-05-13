@@ -1,0 +1,145 @@
+{
+  "ea_id": "EA-16037",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for PFE indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms. Custom indicator with non-standard parameters requires manual replication.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "PFE (Polarized Fractal Efficiency)",
+      "params": {
+        "period": 5,
+        "method": 4,
+        "smooth_length": 5,
+        "phase": 100,
+        "applied_to": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "CXMA (XMA smoothing inside PFE)",
+      "params": {
+        "method": 4,
+        "period": 5,
+        "phase": 100
+      },
+      "source": "external_library",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of indicator timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal timestamp"
+    },
+    {
+      "name": "min_rates_total - minimum bars needed before EA trades",
+      "formula": "PfePeriod+1+GetStartBars(XMA_Method,XLength,XPhase)+3+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "PFE[0]",
+        "right": "PFE[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "PFE[0]",
+        "right": "PFE[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long close triggered when PFE[1]>PFE[2] (downtrend detected) and BuyPosClose input is true; Short close triggered when PFE[1]<PFE[2] (uptrend detected) and SellPosClose input is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lots (0.1), FREEMARGIN=MM fraction of free margin, BALANCE=MM fraction of balance, LOSSFREEMARGIN=MM fraction of free margin minus loss, LOSSBALANCE=MM fraction of balance minus loss. MM parameter (0.1) is the fraction when not in LOT mode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal logic uses 3-bar PFE comparison: PFE[2] vs PFE[1] determines trend direction, PFE[1] vs PFE[0] determines momentum within trend. Uptrend: PFE[1]<PFE[2] AND PFE[0]>PFE[1] triggers long entry and short close. Downtrend: PFE[1]>PFE[2] AND PFE[0]<PFE[1] triggers short entry and long close. When SignalBar=0, signals are evaluated on every tick instead of only on new bars. Signal timestamps (UpSignalTime/DnSignalTime) are passed to trade functions for potential pending order placement. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose are input toggles allowing independent enable/disable of each trade direction and action. GlobalVariableDel_ cleanup on deinit suggests global variable usage for inter-EA coordination.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "PFE indicator is not available in standard Python TA libraries - must be implemented from scratch. The Polarized Fractal Efficiency formula: PFE = 100 * sign(close-close[period]) * sqrt((close-close[period])^2 + period^2) / sum(sqrt((close[i]-close[i-1])^2 + 1), i=1..period), then smoothed by XMA. The XMA smoothing (JJMA/JurX/ParMA/T3/VIDYA/AMA) algorithms from SmoothAlgorithms.mqh also need Python implementations. Trade execution functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) from TradeAlgorithms.mqh must be replicated including MarginMode position sizing logic. The GlobalVariableDel_ function suggests global variable coordination that may need replacement. SL/TP values of 1000/2000 pips are large - verify whether these are points (not pips) and adjust for 5-digit brokers accordingly.",
+  "extraction_timestamp": "2026-05-13T03:32:58.815379",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 244.78303575515747,
+    "cost": 0
+  }
+}

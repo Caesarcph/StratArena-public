@@ -1,0 +1,151 @@
+{
+  "ea_id": "EA-15328",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorHMA_StDev indicator (custom indicator with 6 buffers) and includes TradeAlgorithms.mqh for position management, BuyPositionOpen/Close, SellPositionOpen/Close functions which encapsulate complex money management logic.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorHMA_StDev",
+      "params": {
+        "period": 13,
+        "dK1": 1.5,
+        "dK2": 2.5,
+        "std_period": 9,
+        "shift1": 0,
+        "shift2": 0,
+        "applied_to": "CLOSE"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "int(MathFloor(MathSqrt(HMA_Period)))+int(HMA_Period)+int(std_period)+int(3+SignalBar)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for indicator warm-up",
+      "formula": "int(MathFloor(MathSqrt(HMA_Period)))+int(HMA_Period)+int(std_period)+int(3+SignalBar)",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "LoadHistory and new bar detection"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorHMA_StDev buffer 3 (buy dot) or buffer 5 (buy StDev dot)",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "ColorHMA_StDev buffer 0 (HMA line[0])",
+        "right": "ColorHMA_StDev buffer 0 (HMA line[1])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorHMA_StDev buffer 2 (sell dot) or buffer 4 (sell StDev dot)",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "ColorHMA_StDev buffer 0 (HMA line[0])",
+        "right": "ColorHMA_StDev buffer 0 (HMA line[1])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy close on POINT mode: sell signal dots (buffer 2 or 4) appear; Buy close on DIRECT mode: HMA line[0] > HMA line[1] (line rising, which is opposite of sell signal)",
+      "Sell close on POINT mode: buy signal dots (buffer 3 or 5) appear; Sell close on DIRECT mode: HMA line[0] < HMA line[1] (line falling)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lots, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM parameter (0.1) interpreted based on MMMode selection."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry/exit signal modes are independently configurable per direction (BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose) via SignalMode enum: POINT=signal dots from indicator buffers, DIRECT=HMA line direction change (crossover/crossunder of HMA values), WITHOUT=disabled. When SignalBar=0, signals are checked every tick instead of only on new bars. The DIRECT mode for buy open uses 3-bar HMA comparison (V-bottom: line[0]>line[1] && line[1]<line[2]) while sell open uses inverted V-top. DIRECT close modes use 2-bar comparison (line direction). SignalBar parameter defaults to 1 meaning signals are read from the previous completed bar.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The ColorHMA_StDev custom indicator must be reimplemented in Python: it's a Hull Moving Average with standard deviation coloring and signal dots across 6 buffers. The TradeAlgorithms.mqh library provides BuyPositionOpen, BuyPositionClose, SellPositionOpen, SellPositionClose functions with 5 margin modes that must be ported. The 6 indicator buffers map as: buffer 0=HMA line, buffer 1=unused/zero, buffer 2=sell color dots, buffer 3=buy color dots, buffer 4=sell StDev dots, buffer 5=buy StDev dots. The DIRECT mode V-bottom/V-top detection requires 3 consecutive HMA values. SignalBar=1 means use previous bar data (shift 1), not current bar.",
+  "extraction_timestamp": "2026-05-13T01:33:58.973765",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 121.6947124004364,
+    "cost": 0
+  }
+}

@@ -1,0 +1,195 @@
+{
+  "ea_id": "EA-16649",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicators (XMACandles, ColorStepStoch_5Star_2) from external .mqh/include files, and the entry logic depends on color values from a custom indicator buffer which requires understanding the custom indicator's internal state machine.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "XMACandles",
+      "params": {
+        "Periods": 34,
+        "MA_method": 1,
+        "Smoothing": 1,
+        "MA_Multiplicator": 1.0,
+        "Price": 5
+      },
+      "source": "custom",
+      "library": "XMACandles.mq5 or .ex5",
+      "derived_period": null
+    },
+    {
+      "type": "Stochastic",
+      "name": "ColorStepStoch_5Star_2",
+      "params": {
+        "Period1": 8,
+        "Period2": 21,
+        "Period3": 34,
+        "Smoothing": 1,
+        "MA_method": 1,
+        "Price": 5
+      },
+      "source": "custom",
+      "library": "ColorStepStoch_5Star_2.mq5 or .ex5",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "StopLoss MA",
+      "params": {
+        "period": 34,
+        "method": 1,
+        "applied_to": 5
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "input Periods (default 34)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Digit-adjusted Stop Loss",
+      "formula": "StopLoss * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "stop_loss calculation"
+    },
+    {
+      "name": "Digit-adjusted Take Profit",
+      "formula": "TakeProfit * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "take_profit calculation"
+    },
+    {
+      "name": "Digit-adjusted Trailing Stop",
+      "formula": "TrailingStop * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "trailing_stop calculation"
+    },
+    {
+      "name": "XMACandles trend direction",
+      "formula": "buffer[1] color value: 1=up, -1=down, 0=neutral",
+      "used_by": "entry_rules long and short conditions"
+    },
+    {
+      "name": "ColorStepStoch trend direction",
+      "formula": "buffer[1] color value: 1=up, -1=down, 0=neutral",
+      "used_by": "entry_rules as confirming filter"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "XMACandles indicator buffer",
+        "right": "value == 1 (bullish color)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "and_combination",
+        "left": "ColorStepStoch_5Star_2 indicator buffer",
+        "right": "value == 1 (bullish color)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "XMACandles indicator buffer",
+        "right": "value == -1 (bearish color)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "and_combination",
+        "left": "ColorStepStoch_5Star_2 indicator buffer",
+        "right": "value == -1 (bearish color)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite position when signal reverses (signal-based exit on color change)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMInput>0: deposit fraction sizing (MMInput/100 of free margin), MMInput<0: fixed lots (abs(MMInput)), MMInput==0: fixed lots from Lots input"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses two custom indicators returning color-coded trend states via their indicator buffers. XMACandles is a MA-based candle coloring indicator that outputs 1 (bullish), -1 (bearish), or 0 (neutral) into its buffer. ColorStepStoch_5Star_2 is a multi-period stochastic with 3 smoothing stages that outputs similar color values. Both must agree on direction for entry. The SL can optionally be replaced by the MA value from the StopLoss MA indicator if UseMA_SL input is true. Opposite positions are closed before entering a new direction (signal reversal close). The position sizing uses a dual-mode system: negative MMInput=fixed lots, positive=percentage of free margin.",
+  "external_dependencies": [
+    "XMACandles.mq5/.ex5",
+    "ColorStepStoch_5Star_2.mq5/.ex5"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1. Both XMACandles and ColorStepStoch_5Star_2 are custom indicators - their full source code must be obtained and ported to Python to replicate the buffer color logic. 2. The color buffer values (1/-1/0) encode the trend state from each indicator - this is not a standard crossover/comparison but a state machine output that must be faithfully reproduced. 3. Digit adjustment logic (multiplying SL/TP/Trail by 10 for 5-digit brokers) must be handled. 4. The conditional MM (money management) system has dual-mode: positive MMInput = fraction of free margin, negative = fixed lots - this must be precisely replicated. 5. The optional MA-based SL (UseMA_SL) requires computing the MA value and using it as the stop level instead of fixed pips. 6. New bar detection uses IsNewBar pattern which must be reimplemented. 7. Signal reversal close logic means the EA closes opposite positions before opening new ones.",
+  "extraction_timestamp": "2026-05-13T05:15:12.625803",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 92.20030522346497,
+    "cost": 0
+  }
+}

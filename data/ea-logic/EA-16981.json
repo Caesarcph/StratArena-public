@@ -1,0 +1,171 @@
+{
+  "ea_id": "EA-16981",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call the ColorZerolagMomentum custom indicator (.ex5 required). The zero-lag momentum is a composite of 4 smoothed MAs with weighted summation, not a single built-in MT5 indicator. Requires reimplementing the custom indicator logic in Python.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorZerolagMomentum",
+      "params": {
+        "Smoothing": 4,
+        "MA1_period": 5,
+        "MA1_method": 1,
+        "MA2_period": 8,
+        "MA2_method": 1,
+        "MA3_period": 13,
+        "MA3_method": 1,
+        "MA4_period": 21,
+        "MA4_method": 1
+      },
+      "source": "custom",
+      "library": "ColorZerolagMomentum.ex5",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ColorZerolagMomentum_SignalLine",
+      "params": {
+        "SignalPeriod": 4,
+        "SignalMethod": 1
+      },
+      "source": "custom",
+      "library": "ColorZerolagMomentum.ex5",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Zero-lag momentum composite value",
+      "formula": "Weighted sum of (MA1_diff + MA2_diff + MA3_diff + MA4_diff) where each MA_diff = MA(current) - MA(shifted_by_its_period)",
+      "used_by": "ColorZerolagMomentum indicator"
+    },
+    {
+      "name": "Digit-adjusted SL/TP",
+      "formula": "SL_Pips * 10 when _Digits==5 or _Point<0.001, else SL_Pips * 1",
+      "used_by": "Stop loss and take profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorZerolagMomentum",
+        "right": "0.0 (zero line)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "crossover",
+        "left": "ColorZerolagMomentum",
+        "right": "ColorZerolagMomentum_SignalLine",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "ColorZerolagMomentum",
+        "right": "0.0 (zero line)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "crossunder",
+        "left": "ColorZerolagMomentum",
+        "right": "ColorZerolagMomentum_SignalLine",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 300,
+      "params": {
+        "input_name": "StopLoss",
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 700,
+      "params": {
+        "input_name": "TakeProfit",
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position before opening new one"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {
+      "input_name": "Lots"
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The ColorZerolagMomentum indicator is a composite zero-lag momentum oscillator built from 4 exponential moving averages of periods 5, 8, 13, 21. Each MA's difference from its own lagged value (shifted by its period) is summed with equal weights. The result is smoothed by an EMA of period Smoothing. The X2 variant uses two buffers: buffer 0 = main line, buffer 1 = signal line. Color changes on the histogram indicate trend direction. Entry requires both the zero-line crossover AND signal line crossover confirmation. The EA reverses position on opposite signal (closes opposite before entering). The digit adjustment multiplies SL/TP by 10 for 5-digit brokers.",
+  "external_dependencies": [
+    "ColorZerolagMomentum.ex5"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The ColorZerolagMomentum custom indicator must be reimplemented in Python. The logic: compute 4 EMAs (periods 5,8,13,21), for each compute EMA[current] - EMA[current - period], sum all 4 differences, then smooth the sum with an EMA of Smoothing period (default 4). The signal line is an EMA of the main line with SignalPeriod. Zero-line crossovers and signal-line crossovers drive entry. SL/TP are fixed-pip with 5-digit adjustment (multiply by 10 when point < 0.001). New-bar guard prevents multiple entries per bar. Opposite signal triggers close-then-reverse. Use ta-lib or pandas-ta for the EMA calculations.",
+  "extraction_timestamp": "2026-05-13T07:24:59.725146",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 182.49443578720093,
+    "cost": 0
+  }
+}

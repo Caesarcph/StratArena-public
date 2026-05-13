@@ -1,0 +1,162 @@
+{
+  "ea_id": "EA-15331",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorJ2JMAStDev indicator and includes TradeAlgorithms.mqh external library for trading logic (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar). Custom indicator with 6 buffers and complex signal modes require manual mapping.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorJ2JMAStDev",
+      "params": {
+        "Length1": 5,
+        "Length2": 5,
+        "Phase1": 100,
+        "Phase2": 100,
+        "IPC": 1,
+        "dK1": 1.5,
+        "dK2": 2.5,
+        "std_period": 9
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "60+std_period+3+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "New bar detection and history loading"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "60+int(std_period)+int(3+SignalBar)",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "or_combination",
+        "left": "Buffer 3 (buy dot signal) at SignalBar",
+        "right": "Buffer 5 (buy cloud signal) at SignalBar",
+        "direction": "not_empty",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "ColorJ2JMAStDev line[SignalBar]",
+        "right": "ColorJ2JMAStDev line[SignalBar+1] and line[SignalBar+2]",
+        "direction": "bottom_turn (line[0]>line[1] && line[1]<line[2])",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "or_combination",
+        "left": "Buffer 2 (sell dot signal) at SignalBar",
+        "right": "Buffer 4 (sell cloud signal) at SignalBar",
+        "direction": "not_empty",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "ColorJ2JMAStDev line[SignalBar]",
+        "right": "ColorJ2JMAStDev line[SignalBar+1] and line[SignalBar+2]",
+        "direction": "top_turn (line[0]<line[1] && line[1]>line[2])",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "POINT mode buy close: buffer 2 or buffer 4 not empty (sell signals act as buy close)",
+      "DIRECT mode buy close: line[SignalBar] > line[SignalBar+1] (line turning down)",
+      "POINT mode sell close: buffer 3 or buffer 5 not empty (buy signals act as sell close)",
+      "DIRECT mode sell close: line[SignalBar] < line[SignalBar+1] (line turning up)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode_options": [
+        "FREEMARGIN=0",
+        "BALANCE=1",
+        "LOSSFREEMARGIN=2",
+        "LOSSBALANCE=3",
+        "LOT=4"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lots, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. MM parameter (0.1) is the fraction or lot size depending on mode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three signal modes (POINT/DIRECT/WITHOUT) independently configurable for buy open, sell open, buy close, sell close. POINT mode uses colored dot/cloud buffers (2-5) detecting non-EMPTY_VALUE signals. DIRECT mode uses line buffer (0) detecting turning points. WITHOUT disables that signal path. SignalBar input (default=1) shifts which bar is read; if SignalBar==0, signals are evaluated every tick instead of only on new bars. Recount flag triggers re-evaluation on next tick if CopyBuffer fails. CIsNewBar class from TradeAlgorithms.mqh controls new bar detection. LoadHistory pre-loads bar history. GlobalVariableDel_ cleans up global variables on deinit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "Requires reimplementation of ColorJ2JMAStDev custom indicator (J2JMA double smoothing + standard deviation channels with dK1/dK2 multipliers producing 6 buffers). TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, LoadHistory, GlobalVariableDel_) must be reimplemented. The MarginMode enum with 5 sizing modes needs careful mapping. Signal logic is mode-dependent (POINT vs DIRECT vs WITHOUT) and reads from 6 indicator buffers with different semantics per buffer. Entry uses SignalBar offset (default bar[1]) meaning signals are confirmed on closed bars.",
+  "extraction_timestamp": "2026-05-13T01:36:58.152956",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 179.17824602127075,
+    "cost": 0
+  }
+}

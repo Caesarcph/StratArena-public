@@ -1,0 +1,156 @@
+{
+  "ea_id": "EA-15764",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load 'iRSISign' custom indicator and depends on TradeAlgorithms.mqh external library for all trade execution (open/close position functions), making it impossible to auto-convert without reimplementing the custom indicator and trade library logic.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "iRSISign",
+      "params": {
+        "atr_period": 14,
+        "rsi_period": 14,
+        "rsi_applied_price": 1,
+        "up_level": 70,
+        "dn_level": 30
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI (embedded in iRSISign)",
+      "params": {
+        "period": 14,
+        "applied_to": 1
+      },
+      "source": "custom",
+      "library": "iRSISign",
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR (embedded in iRSISign)",
+      "params": {
+        "period": 14
+      },
+      "source": "custom",
+      "library": "iRSISign",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal time calculation for BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator",
+      "formula": "max(RSIPeriod+1, ATR_Period)+1 + 1+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "iRSISign buffer 1 (UpSignal)",
+        "right": "0 and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "iRSISign buffer 0 (DnSignal)",
+        "right": "0 and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: UpSignal triggers SELL_Close if SellPosClose enabled; DnSignal triggers BUY_Close if BuyPosClose enabled",
+      "Historical bar scan: if both open and close flags are enabled for same side and no close signal found on current bar, EA scans historical bars back from SignalBar+1 to find the most recent opposite signal to set close flag"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "modes": "FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3, LOT=4"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot size (0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The iRSISign custom indicator provides two buffers: buffer 0 (DnSignal) for sell signals and buffer 1 (UpSignal) for buy signals. Non-zero non-EMPTY_VALUE readings indicate active signals. When both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled simultaneously and no close signal is found on the signal bar, the EA scans backward through historical bars to find a prior opposite signal to determine if a close is warranted. SignalBar parameter (default 1) controls which bar is checked for signals, so the EA trades on the previous completed bar's signal. BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose are boolean toggles that independently enable/disable each trade action. GlobalVariableDel_ is called on deinit for cleanup.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The iRSISign custom indicator must be reimplemented in Python - it wraps RSI with overbought/oversold levels (70/30) to produce discrete buy/sell signals on buffers 0 and 1. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, and GlobalVariableDel_ functions which must be reimplemented. Position sizing is conditional based on MarginMode enum (5 modes). The historical bar scan logic (lines 135-161) for determining close signals when open+close flags coexist needs careful reproduction. SL/TP of 1000/2000 are in points not pips - likely intended for 5-digit brokers (100.0 pips SL, 200.0 pips TP), but no digit adjustment code exists in the EA itself so values are passed as-is to the trade library.",
+  "extraction_timestamp": "2026-05-13T02:19:52.829685",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 141.20537757873535,
+    "cost": 0
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "ea_id": "EA-15322",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for Bezier_StDev indicator and external TradeAlgorithms.mqh library for position management and money management logic. Custom indicator buffers require understanding of Bezier_StDev implementation to replicate in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Bezier_StDev",
+      "params": {
+        "period": 8,
+        "T": 0.5,
+        "applied_price": 6,
+        "dK": 2.0,
+        "std_period": 9,
+        "shift1": 0,
+        "shift2": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "BPeriod + 1 + std_period + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "LoadHistory call"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Buffer 3 (buy signal dot)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Bezier line (Buffer 0, bar[SignalBar])",
+        "right": "Bezier line (Buffer 0, bar[SignalBar+1])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Buffer 2 (sell signal dot)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Bezier line (Buffer 0, bar[SignalBar])",
+        "right": "Bezier line (Buffer 0, bar[SignalBar+1])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy close on DIRECT mode when Bezier line[0] > Bezier line[1] (line rising - exit long on uptrend reversal detection)",
+      "Sell close on DIRECT mode when Bezier line[0] < Bezier line[1] (line falling - exit short on downtrend reversal detection)",
+      "Buy close on POINT mode when Buffer 3 signal dot is non-zero",
+      "Sell close on POINT mode when Buffer 2 signal dot is non-zero"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot size (MM=0.1), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM input (0.1) serves as either lot size (LOT mode) or percentage fraction (other modes)."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry and exit signal modes are independently configurable via BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose (POINT, DIRECT, WITHOUT). POINT mode uses indicator signal dots (Buffer 2=sell, Buffer 3=buy). DIRECT mode uses Bezier line direction/momentum (3-bar V-bottom for buy open, 3-bar V-top for sell open, 2-bar direction change for closes). WITHOUT mode disables that signal entirely. SignalBar input allows selecting which historical bar to read (default=1, previous bar). The BuyPositionOpen/SellPositionOpen/Close functions from TradeAlgorithms.mqh handle position gate checks, signal time tracking, and order placement internally.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The Bezier_StDev custom indicator must be ported to Python first - it uses Bezier curve smoothing with standard deviation bands (buffers: 0=main line, 1=likely StDev band, 2=sell signal dots, 3=buy signal dots). The TradeAlgorithms.mqh library handles all position management (open/close with position gates, money management modes, signal time deduplication) and must be reimplemented. Key complexity: (1) the 5 MarginMode variants for position sizing, (2) the SignalMode enum providing 3 different signal generation methods per direction per action, (3) the Recount flag mechanism that re-evaluates signals on data errors, (4) GlobalVariableDel_ cleanup on deinit. SL/TP are in points (not pips) - 1000 points = 100 pips on 5-digit, check if _Point adjustment needed.",
+  "extraction_timestamp": "2026-05-13T01:28:10.951568",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 103.09962916374207,
+    "cost": 0
+  }
+}

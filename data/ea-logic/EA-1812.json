@@ -1,0 +1,187 @@
+{
+  "ea_id": "EA-1812",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iADX, iSAR). Simple entry/exit rules with conjunction conditions. Percentage-based position sizing with loss decrease factor. Single include (Trade.mqh) is standard MQL5 library. No custom indicators, no multi-timeframe, no hedging, no grid.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Moving Average",
+      "params": {
+        "period": 100,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ADX",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Parabolic SAR",
+      "params": {
+        "step": 0.02,
+        "maximum": 0.1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Optimized lot size based on free margin and maximum risk",
+      "formula": "NormalizeDouble(AccountInfoDouble(ACCOUNT_FREEMARGIN)*MaximumRisk/margin,2) with loss decrease factor",
+      "used_by": "position_sizing in CheckForOpen"
+    },
+    {
+      "name": "Decreased lot after consecutive losses",
+      "formula": "NormalizeDouble(lot-lot*losses/DecreaseFactor,1) when losses>1",
+      "used_by": "position_sizing in TradeSizeOptimized"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Bar Close",
+        "right": "MA[0]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "ADX+DI[0]",
+        "right": "ADX-DI[0]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Bar Close",
+        "right": "SAR[0]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Bar Close",
+        "right": "MA[0]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "ADX+DI[0]",
+        "right": "ADX-DI[0]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Bar Close",
+        "right": "SAR[0]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Close long when bar close falls below SAR value",
+      "Close short when bar close rises above SAR value"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.002,
+    "params": {
+      "decrease_factor": 3
+    },
+    "max_positions": 1,
+    "conditional_logic": "Base lot = FreeMargin * MaximumRisk / margin_per_lot. If consecutive losses > 1, lot reduced by lot * losses / DecreaseFactor. Final lot normalized to volume step and clamped to min/max volume."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry requires all three conditions simultaneously: price vs MA, ADX+DI vs ADX-DI, and price vs SAR. Exit is SAR-based only (no SL/TP set on order). Magic number filter on close (MAGICMA=20050610). PositionOpen called with SL=0 and TP=0. PositionClose uses timeout of 3. ADX+DI/ADX-DI uses >= and <= comparisons (not strict >/<), allowing entry when DI lines are equal. The lot decrease logic counts consecutive losses from most recent deal backward until a winning deal is found.",
+  "external_dependencies": [
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Three standard indicators needed: SMA(100), ADX(14), SAR(0.02,0.1). Entry is a 3-condition AND gate on current bar close values. Exit is SAR-based reversal only with no SL/TP. Position sizing has a loss-streak decrease factor that requires deal history tracking. New bar guard uses tick_volume>1 check on bar[1]. Only one position at a time (PositionSelect check). No digit adjustment needed since no pip-based SL/TP. SAR parameters are hardcoded (not inputs).",
+  "extraction_timestamp": "2026-05-13T12:15:28.679995",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 61.96989941596985,
+    "cost": 0
+  }
+}

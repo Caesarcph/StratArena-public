@@ -1,0 +1,147 @@
+{
+  "ea_id": "EA-15899",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for Volume_Weighted_MACandle indicator and depends on TradeAlgorithms.mqh library for all trading operations (open/close positions, money management, new bar detection). Custom indicator buffer logic cannot be auto-converted without re-implementing the indicator.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Volume_Weighted_MACandle",
+      "params": {
+        "period": 12,
+        "applied_volume": "VOLUME_TICK"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per indicator timeframe bar",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime for trade execution timestamp"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "Length + 1 + 2 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Col[1] (buffer 4 bar SignalBar+1)",
+        "right": "2",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Col[0] (buffer 4 bar SignalBar)",
+        "right": "2",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Col[1] (buffer 4 bar SignalBar+1)",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Col[0] (buffer 4 bar SignalBar)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose/SellPosClose enabled via input booleans; close opposite side when signal reverses (Col[1]==2 triggers SELL_Close, Col[1]==0 triggers BUY_Close)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "margin_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode input selects between LOT (fixed lot) and percent-based margin allocation; MM=0.1 is interpreted differently depending on MMMode"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA reads buffer index 4 from the custom Volume_Weighted_MACandle indicator. Buffer values are categorical (0=bearish, 2=bulllish). Entry logic: Col[1]==2 AND Col[0]<2 triggers BUY (color changed to bullish on previous bar, current bar not yet confirmed bullish). Col[1]==0 AND Col[0]>0 triggers SELL (color changed to bearish). Signal is evaluated only on new bars (IsNewBar guard) or when SignalBar==0 (every tick). Signal time is set to last bar date + TimeShiftSec (i.e., the open time of the next bar). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans act as master switches for each trade direction.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "Must re-implement the Volume_Weighted_MACandle custom indicator logic (buffer 4 = candle color state: 0=bearish, 2=bulllish). The TradeAlgorithms.mqh library handles BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, GlobalVariableDel_, and LoadHistory - all need Python equivalents. The margin mode LOT vs percent-based sizing must be handled. Signal logic uses 2-bar lookback on buffer 4 (SignalBar and SignalBar+1). No digit adjustment is performed on SL/TP values - they are passed directly in points.",
+  "extraction_timestamp": "2026-05-13T02:58:17.548062",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 168.11571764945984,
+    "cost": 0
+  }
+}
