@@ -1,0 +1,139 @@
+{
+  "ea_id": "EA-14314",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorBears indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing methods and trade execution logic. Custom indicator with non-standard parameters and custom smoothing algorithms (JJMA, JurX, ParMA, T3, VIDYA, AMA) cannot be auto-converted to Python without manual reimplementation of the indicator and trade libraries.",
+  "symbol": null,
+  "timeframe_hint": "H12",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorBears",
+      "params": {
+        "MA_Method1": "MODE_SMA",
+        "Length1": 12,
+        "Phase1": 15,
+        "MA_Method2": "MODE_JJMA",
+        "Length2": 5,
+        "Phase2": 15,
+        "IPC": "PRICE_CLOSE",
+        "SignalBar": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "GetStartBars(MA_Method1,Length1,Phase1)+GetStartBars(MA_Method2,Length2,Phase2)+2+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds shift for signal time",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen and SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars for indicator warm-up",
+      "formula": "GetStartBars(MA_Method1,Length1,Phase1)+GetStartBars(MA_Method2,Length2,Phase2)+2+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorBears buffer 1 (current bar SignalBar=1)",
+        "right": "0 (neutral state)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorBears buffer 1 (current bar SignalBar=1)",
+        "right": "2 (bearish state)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy position closes when ColorBears buffer transitions to bearish (Col[1]==2, Col[0]==0)",
+      "Sell position closes when ColorBears buffer transitions to bullish (Col[1]==0, Col[0]==2)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot size, FREEMARGIN=MM fraction of free margin, BALANCE=MM fraction of balance, LOSSFREEMARGIN=MM fraction of free margin minus loss, LOSSBALANCE=MM fraction of balance minus loss"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses ColorBears custom indicator with 2 buffers: buffer index 1 is a color histogram (0=bullish, 2=bearish). Entry logic: BUY when Col[1]==0 (was bullish) AND Col[0]==2 (now bearish) — this is actually a bearish-to-bullish transition reading the color buffer backwards (ColorBears shows bearish power, so color 0=low bears=bullish signal, color 2=high bears=bearish signal). SELL when Col[1]==2 AND Col[0]==0. The signal is read at SignalBar=1 (previous completed bar) and compared with bar+1 offset. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans act as gate toggles for each trade direction. Recount flag triggers re-evaluation when CopyBuffer fails.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Requires full reimplementation of: (1) ColorBears custom indicator with its two-stage smoothing using SmoothAlgorithms.mqh (JJMA, JurX, ParMA, T3, VIDYA, AMA algorithms), (2) TradeAlgorithms.mqh trade functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar), (3) GetStartBars function for warm-up calculation. The ColorBears indicator source must be located and converted alongside this EA. The margin mode conditional sizing (5 modes) must be explicitly implemented. Signal logic is color-buffer-based (0/2 values) not price-crossover-based, so the indicator's internal calculations must be faithfully reproduced.",
+  "extraction_timestamp": "2026-05-12T22:39:43.456258",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 117.0138909816742,
+    "cost": 0
+  }
+}
