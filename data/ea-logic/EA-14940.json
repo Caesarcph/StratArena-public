@@ -1,0 +1,150 @@
+{
+  "ea_id": "EA-14940",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Multi-currency martingale grid with position-dependent lot scaling, margin-dependent entry, and tick-level profit monitoring across 10 symbols simultaneously. The lot increment and direction-reversal logic tied to floating P/L makes this heavily dependent on MT5's real-time position management and margin calculations.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Lot-scaled profit threshold for adding position",
+      "formula": "Lot[i]*k_change",
+      "used_by": "entry rule for scaling in on profitable position"
+    },
+    {
+      "name": "Lot-scaled loss threshold for reversal",
+      "formula": "Lot[i]*k_change",
+      "used_by": "exit/reversal rule on losing position"
+    },
+    {
+      "name": "Global floating loss threshold",
+      "formula": "Balans-Equity>loss",
+      "used_by": "global risk control - closes all positions"
+    },
+    {
+      "name": "Global floating profit threshold",
+      "formula": "Equity-Balans>profit",
+      "used_by": "global risk control - closes all positions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Type[i]==true",
+        "right": "position does not exist AND FreeMargin>margin",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Position profit",
+        "right": "Lot[i]*k_change",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Type[i]==false",
+        "right": "position does not exist AND FreeMargin>margin",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Position profit",
+        "right": "Lot[i]*k_change",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close all 10 positions when global equity drawdown exceeds 'loss' parameter (Balans-Equity>loss)",
+      "Close all 10 positions when global equity profit exceeds 'profit' parameter (Equity-Balans>profit)",
+      "Close individual position when profit exceeds minLot*k_closse threshold (partial profit take on smallest lot)",
+      "Reverse direction (close + flip Type[i]) when individual position loss exceeds Lot[i]*k_change (martingale reversal)"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "initial_lot": "minLot (input)",
+      "increment_lot": "minLot",
+      "max_lot": "unbounded - increments by minLot each scale-in"
+    },
+    "max_positions": 10,
+    "conditional_logic": "Starts at minLot per symbol. When position profit > Lot[i]*k_change, Lot[i] increments by minLot and an additional minLot position is opened in same direction. On reversal (loss > Lot[i]*k_change), Lot[i] resets to minLot and Type[i] flips. On global close, Lot[i] resets to minLot."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Multi-currency grid/martingale EA trading 10 currency pairs simultaneously. Core logic: 1) Opens initial position per symbol at minLot based on Type[i] direction (BUY if true, SELL if false). 2) If existing position profit > Lot[i]*k_change, increments Lot[i] by minLot and opens another minLot position in same direction (grid scale-in). 3) If existing position loss > Lot[i]*k_change, flips Type[i] direction and closes the position (martingale reversal - next entry will be opposite direction). 4) If minLot position profit > minLot*k_closse, closes position (small profit target). 5) Global circuit breaker: if total floating loss > 'loss' or total floating profit > 'profit', ALL 10 positions are closed and all lots reset. 6) No SL/TP set on individual orders (0,0 passed to PositionOpen). 7) Free margin must exceed 'margin' parameter to open new positions. 8) The Lot[i] array tracks cumulative lot size per symbol for threshold calculations but actual additional orders are always minLot size. All thresholds (k_change, k_closse, loss, profit) are in account currency units, not pips.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "This EA is fundamentally tick-driven with no bar-based logic, requiring tick data for accurate backtesting. The multi-symbol simultaneous management (10 pairs with shared global equity checks) demands a portfolio-level backtesting framework. Key challenges: 1) Position-dependent lot tracking (Lot[i] array) persists across reversals - must maintain per-symbol state. 2) Global equity circuit breaker checks across all 10 symbols require aggregate portfolio P/L monitoring every tick. 3) The PositionSelect/PositionGetDouble MT5 API assumes one position per symbol (hedging=false, netting account assumed) - Python implementation must enforce this. 4) k_change, k_closse, loss, profit are in deposit currency not pips - conversion depends on symbol tick value. 5) Trade.mqh provides CTrade class for order execution - Python needs equivalent market order submission with proper error handling. 6) No SL/TP means risk is entirely managed by the global circuit breaker and individual reversal logic, which depends on tick-by-tick monitoring. 7) The martingale lot increment and direction flip logic is stateful and must be carefully preserved across trade cycles.",
+  "extraction_timestamp": "2026-05-13T00:03:03.740641",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 217.2252185344696,
+    "cost": 0
+  }
+}

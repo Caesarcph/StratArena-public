@@ -1,0 +1,136 @@
+{
+  "ea_id": "EA-14981",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for Stochastic_Histogram custom indicator and depends on TradeAlgorithms.mqh external library for all trade execution logic (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar). Two signal modes with multi-buffer custom indicator reading make logic non-trivial.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Stochastic",
+      "name": "Stochastic_Histogram",
+      "params": {
+        "k_period": 5,
+        "d_period": 3,
+        "slowing": 3,
+        "method": 0,
+        "price_field": 0,
+        "high_level": 60,
+        "low_level": 40
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per indicator timeframe bar",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal timestamp calculation for UpSignalTime/DnSignalTime"
+    },
+    {
+      "name": "min_rates_total - minimum bars for indicator warmup",
+      "formula": "KPeriod+DPeriod+Slowing+3+SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Stochastic_Histogram Up buffer[0]",
+        "right": "Stochastic_Histogram Dn buffer[0]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Stochastic_Histogram Up buffer[0]",
+        "right": "Stochastic_Histogram Dn buffer[0]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "In Levels mode: buy close when Col[1]==2 (histogram in sell zone), sell close when Col[1]==0 (histogram in buy zone). In Cross mode: buy close when Up<Dn, sell close when Up>Dn."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode_options": "FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3, LOT=4"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot size (MM=0.1 lots), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus floating loss, LOSSBALANCE=fraction of balance minus floating loss"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Two TrendMode strategies in one EA: (1) Levels mode - uses buffer 4 (Col) which returns 0=buy zone, 2=sell zone; buy when Col[0]>0 and Col[1]==0, sell when Col[0]<2 and Col[1]==2. (2) Cross mode (default) - uses buffers 0 (Up) and 1 (Dn); buy on Up crossing above Dn, sell on Up crossing below Dn. Signal calculated on bar[SignalBar] with comparison to bar[SignalBar+1]. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose boolean inputs gate each signal type independently. CIsNewBar class from TradeAlgorithms.mqh controls bar-level signal evaluation. Recount flag forces signal recalculation on next tick if CopyBuffer fails.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must reimplement Stochastic_Histogram custom indicator logic (5 buffers: Up, Dn, and color/zone buffer at index 4). TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) must be rewritten in Python. The MarginMode enum provides 5 different position sizing methods that all need implementation. SL/TP of 1000/2000 are in points (not pips) - need _Point/_Digits adjustment for target platform. Deviation=10 is slippage tolerance in points. SignalBar=1 means signals are evaluated on the previous closed bar (bar index 1), typical for avoiding repainting.",
+  "extraction_timestamp": "2026-05-13T00:21:11.801889",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 136.69755506515503,
+    "cost": 0
+  }
+}

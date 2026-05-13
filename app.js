@@ -5,8 +5,7 @@ const DATA_FILES = {
   performance: "data/performance.json",
   changelog: "data/changelog.json",
   eaCatalog: "data/ea_catalog.json",
-  eaAnalysis: "data/ea_analysis.json",
-  backtestResults: "data/backtest_results_index.json"
+  eaAnalysis: "data/ea_analysis.json"
 };
 const FAVORITES_KEY = "favorites";
 const CATEGORY_TOP_COUNT = 5;
@@ -118,8 +117,7 @@ const store = {
   performance: null,
   changelog: [],
   eaCatalog: [],
-  eaAnalysis: {},
-  eaBacktestResults: {}
+  eaAnalysis: {}
 };
 let favorites = new Set();
 let portfolioWeights = new Map();
@@ -143,13 +141,12 @@ async function init() {
 }
 
 async function loadData() {
-  const [strategies, performance, changelog, eaCatalog, eaAnalysis, backtestResults] = await Promise.all([
+  const [strategies, performance, changelog, eaCatalog, eaAnalysis] = await Promise.all([
     fetchJson(DATA_FILES.strategies),
     fetchJson(DATA_FILES.performance),
     fetchJson(DATA_FILES.changelog),
     fetchJson(DATA_FILES.eaCatalog).catch(() => []),
-    fetchJson(DATA_FILES.eaAnalysis).catch(() => ({})),
-    fetchJson(DATA_FILES.backtestResults).catch(() => ({}))
+    fetchJson(DATA_FILES.eaAnalysis).catch(() => ({}))
   ]);
 
   store.strategies = strategies.strategies || [];
@@ -157,7 +154,6 @@ async function loadData() {
   store.changelog = changelog.entries || [];
   if (Array.isArray(eaCatalog)) store.eaCatalog = eaCatalog;
   if (eaAnalysis && typeof eaAnalysis === "object" && !Array.isArray(eaAnalysis)) store.eaAnalysis = eaAnalysis;
-  if (backtestResults && typeof backtestResults === "object" && !Array.isArray(backtestResults)) store.eaBacktestResults = backtestResults;
 }
 
 async function fetchJson(path) {

@@ -1,0 +1,132 @@
+{
+  "ea_id": "EA-14953",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load WPR_Histogram custom indicator (not built-in), and depends on external TradeAlgorithms.mqh library for all trade execution functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose). Custom indicator logic is opaque without its source.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "WPR_Histogram",
+      "params": {
+        "WPRPeriod": 14,
+        "HighLevel": -30,
+        "LowLevel": -70
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of the indicator timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator to be ready",
+      "formula": "WPRPeriod + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "WPR_Histogram buffer 0 value at SignalBar",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "WPR_Histogram buffer 0 value at SignalBar",
+        "right": "2",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy position closed when WPR_Histogram buffer 1 equals 2 (sell zone); Sell position closed when WPR_Histogram buffer 1 equals 0 (buy zone)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode_options": "FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3, LOT=4"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot size of MM=0.1; FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=fraction of equity/balance/free margin as percentage determined by MM value"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The WPR_Histogram custom indicator has 3 buffers (indices 0,1,2). Buffer 2 (color buffer) is read with CopyBuffer to determine zone: value 0 = buy zone (WPR above HighLevel=-30), value 2 = sell zone (WPR below LowLevel=-70). Buffer 0 is the histogram value. Entry signal: if color buffer[1]==0 AND histogram[0]>0 → buy; if color buffer[1]==2 AND histogram[0]<2 → sell. The SignalBar input (default=1) means signals are read from the previous closed bar, not the current bar. When SignalBar=0, signals are evaluated on every tick (intrabar). UpSignalTime/DnSignalTime are set to last bar time + timeframe seconds, used as expiry/time-reference for the trade execution functions. The EA uses GlobalVariableDel_ on deinit for cleanup. Close signals are generated independently from open signals based on the opposite zone detection.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Requires reverse-engineering the WPR_Histogram custom indicator logic: it appears to be a colored WPR histogram where WPR values above -30 are colored as buy zone (buffer color=0) and below -70 as sell zone (buffer color=2), with a neutral zone between. The WPR itself is a built-in indicator (iWPR), so the histogram can likely be replicated by computing WPR and classifying into zones. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose - these must be reimplemented with standard MT5 Python API order placement logic. Position sizing has 5 modes via MarginMode enum. The SignalBar=1 default means evaluating the signal on the last closed bar - equivalent to using shifted data in Python. SL/TP are in points (1000/2000) which may need digit-adjustment for 5-digit brokers - verify whether TradeAlgorithms.mqh handles this internally or if raw point values are passed to OrderSend.",
+  "extraction_timestamp": "2026-05-13T00:11:03.196776",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 198.25690078735352,
+    "cost": 0
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "ea_id": "EA-15165",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (ColorLaguerre) requiring custom indicator file, and depends on external TradeAlgorithms.mqh library for all trade execution logic (open/close positions, margin management). The custom indicator and trade library must be manually reimplemented.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorLaguerre",
+      "params": {
+        "gamma": 0.7,
+        "high_level": 85,
+        "middle_level": 50,
+        "low_level": 15
+      },
+      "source": "custom",
+      "library": "ColorLaguerre",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per bar of indicator timeframe",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime for trade signal timing"
+    },
+    {
+      "name": "min_rates_total - minimum bars for indicator calculation",
+      "formula": "3+SignalBar+1",
+      "used_by": "BarsCalculated check before processing signals"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorLaguerre Buffer 1",
+        "right": "ColorLaguerre Buffer 1 previous",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ColorLaguerre Buffer 1",
+        "right": "ColorLaguerre Buffer 1 previous",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position (buy signal closes sell, sell signal closes buy) when BuyPosClose/SellPosClose enabled",
+      "Additional reversal close: if SellPosOpen&&SellPosClose and indicator buffer[1]==1, close sell; if BuyPosOpen&&BuyPosClose and buffer[1]==2, close buy"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "margin_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum (LOT=fixed lots, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss). Default LOT mode means MM=0.1 is fixed lot size. Other modes interpret MM as a percentage fraction."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signal logic: ColorLaguerre buffer 1 values are integer-coded (1=downtrend, 2=uptrend). Long entry: TrendValue[0]==2 && TrendValue[1]==1 (trend shifted from 1 to 2 on SignalBar). Short entry: TrendValue[0]==1 && TrendValue[1]==2 (trend shifted from 2 to 1 on SignalBar). Signal bar defaults to bar[1] (previous completed bar). When SignalBar==0, signals are evaluated on every tick instead of only on new bars. Additional close logic: if both open and close flags are enabled for same side, the EA also closes positions when the indicator remains at the opposite trend level (buffer[1]==1 for sell close, buffer[1]==2 for buy close) without requiring a crossover. UpSignalTime/DnSignalTime are passed to trade functions and may be used for order expiration or slippage timing.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The Laguerre indicator must be reimplemented in Python - it is a custom indicator based on the Laguerre filter (gamma-weighted 4-element FIR filter). The TrendValue buffer is discrete (1=bearish, 2=bullish), making signal detection straightforward once the indicator is ported. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose and GlobalVariableDel_ - these must be reimplemented with the 5 MarginMode variants. SL/TP are in points (1000/2000) which likely need digit-adjustment for 5-digit brokers. The conditional position sizing with 5 modes adds complexity. New bar detection via CIsNewBar class needs a simple Python equivalent.",
+  "extraction_timestamp": "2026-05-13T00:28:40.713201",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 130.90909099578857,
+    "cost": 0
+  }
+}

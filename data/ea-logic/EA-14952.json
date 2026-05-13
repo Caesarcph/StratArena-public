@@ -1,0 +1,129 @@
+{
+  "ea_id": "EA-14952",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for MFI_Histogram indicator and relies on TradeAlgorithms.mqh external library for all position open/close logic, which contains complex money management and execution code not visible in this file",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "MFI_Histogram",
+      "params": {
+        "period": 14,
+        "applied_volume": "VOLUME_TICK"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen and SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before indicator is ready",
+      "formula": "MFIPeriod + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "MFI_Histogram buffer 0 value at SignalBar",
+        "right": "0 (above zero threshold)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "MFI_Histogram buffer 0 value at SignalBar",
+        "right": "2 (below lower threshold, Col[0]<2)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy closed when MFI_Histogram buffer 1 equals 2 (bearish zone), Sell closed when buffer 1 equals 0 (bullish zone) - controlled by BuyPosClose/SellPosClose input flags"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum determines sizing: LOT=fixed lots, BALANCE=percent of balance, FREEMARGIN=percent of free margin, LOSSFREEMARGIN=percent of free margin minus loss, LOSSBALANCE=percent of balance minus loss. MM input value serves as either lot size or percentage depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The MFI_Histogram custom indicator has 3 buffers (0,1,2). Buffer 2 (Col array) provides zone identification: value 0 = bullish zone (MFI below LowLevel=40), value 2 = bearish zone (MFI above HighLevel=60), value 1 = neutral zone. Entry uses buffer 0 at SignalBar index: long when Col[0]>0 in bullish zone (Col[1]==0), short when Col[0]<2 in bearish zone (Col[1]==2). Exit signals are triggered by zone transitions. The HighLevel/LowLevel parameters (60/40) are passed to the custom indicator and define overbought/oversold thresholds. SignalBar defaults to 1 (previous completed bar). The CIsNewBar class controls bar-level execution. Position open/close functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) and GlobalVariableDel_ are from TradeAlgorithms.mqh - their full logic is not visible. SL/TP values of 1000/2000 points likely need digit adjustment for 5-digit brokers.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The MFI_Histogram is a custom indicator not available in standard Python libraries. It must be replicated in Python: compute MFI values, then create a histogram with 3 zones based on HighLevel/LowLevel thresholds (buffer 0=histogram color/magnitude, buffer 1=zone identifier 0/1/2). The TradeAlgorithms.mqh library handles all order execution including margin-mode position sizing - this logic must be reimplemented. The 5 margin modes (LOT, BALANCE, FREEMARGIN, LOSSFREEMARGIN, LOSSBALANCE) need careful implementation. SL/TP of 1000/2000 are in points not pips - verify whether digit adjustment is needed for 5-digit brokers. The new-bar guard using CIsNewBar must be replicated to ensure one signal per bar. Signal time tracking (UpSignalTime/DnSignalTime) is passed to position open functions - purpose unclear without seeing TradeAlgorithms.mqh.",
+  "extraction_timestamp": "2026-05-13T00:07:44.938941",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 119.06577515602112,
+    "cost": 0
+  }
+}

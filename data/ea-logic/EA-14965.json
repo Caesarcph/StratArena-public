@@ -1,0 +1,138 @@
+{
+  "ea_id": "EA-14965",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'MAOscillatorHist' and two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and money management. Custom smoothing methods beyond built-in MT5 indicators.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "MAOscillatorHist",
+      "params": {
+        "MA_Method1": "SMA (MODE_SMA_)",
+        "Length1": 13,
+        "Phase1": 15,
+        "MA_Method2": "SMA (MODE_SMA_)",
+        "Length2": 24,
+        "Phase2": 15,
+        "applied_to": "CLOSE (PRICE_CLOSE_ = 1)",
+        "iPeriod": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - time shift in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator warmup",
+      "formula": "MathMax(GetStartBars(MA_Method1,Length1,Phase1), GetStartBars(MA_Method2,Length2,Phase2)+iPeriod) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "MAOscillatorHist[2] > MAOscillatorHist[1] (histogram rising from bar+2 to bar+1)",
+        "right": "MAOscillatorHist[1] < MAOscillatorHist[0] (histogram peak: bar+1 below bar+0, i.e. momentum decelerating after rise)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "MAOscillatorHist[2] < MAOscillatorHist[1] (histogram falling from bar+2 to bar+1)",
+        "right": "MAOscillatorHist[1] > MAOscillatorHist[0] (histogram trough: bar+1 above bar+0, i.e. momentum decelerating after fall)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: BUY_Close triggered when histogram transitions from rising (Ind[2]>Ind[1]) to falling, SELL_Close triggered when histogram transitions from falling (Ind[2]<Ind[1]) to rising"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT (default) - mode switches between FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE, LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects sizing method: LOT=fixed lot (MM value=lot size), FREEMARGIN/BALANCE/LOSSFREEMARGIN/LOSSBALANCE=fraction of margin/balance (MM value=fraction 0.1=10%). When MMMode=LOT, MM=0.1 means 0.1 lots; otherwise MM=0.1 means 10% of selected base."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses a 3-bar histogram momentum pattern: long enters when histogram was rising (bar+2 > bar+1) but showing deceleration (bar+1 < bar+0) - a momentum peak/divergence signal. Short enters on the inverse pattern. The gate flags BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose control which signal directions are active. SignalBar input allows selecting which bar offset to read from (default=1, meaning signals calculated on the previous closed bar). Uses CXMA class from SmoothAlgorithms.mqh for the underlying custom smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard SMA/EMA/SMMA/LWMA).",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The MAOscillatorHist custom indicator must be reimplemented in Python - it computes a dual-smoothing oscillator using two independent MA smoothings (with 10 possible methods including JJMA, JurX, ParMA, T3, VIDYA, AMA). The TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with margin-aware lot sizing, signal-time tracking, and position management - these must be reimplemented. The 3-bar histogram comparison logic (Ind[2] vs Ind[1] vs Ind[0]) is the core signal and is straightforward to port. MMMode=LOT means fixed lot size; other modes compute lot size as fraction of free margin/balance. SL/TP are in points (not pips), so 1000/2000 points need digit-adjustment awareness for 5-digit brokers. The new-bar guard via CIsNewBar class must be replicated to prevent multiple entries per bar.",
+  "extraction_timestamp": "2026-05-13T00:13:01.664490",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 118.46677470207214,
+    "cost": 0
+  }
+}

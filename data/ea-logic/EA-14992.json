@@ -1,0 +1,138 @@
+{
+  "ea_id": "EA-14992",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "EA relies heavily on pending order management (BUYLIMIT/SELLLIMIT placed and deleted each bar), uses MQL4-specific OrderSend/OrderSelect/OrderClose/OrderDelete patterns, and has no position gate check which allows stacking pending orders. Pending order lifecycle management adds conversion complexity beyond simple market entries.",
+  "symbol": null,
+  "timeframe_hint": "M15",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands",
+      "params": {
+        "period": 20,
+        "dev": 2.0,
+        "shift": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "BB_UPPER - Bollinger Band upper band value",
+      "formula": null,
+      "used_by": "SellLimitExecute entry price"
+    },
+    {
+      "name": "BB_SMA - Bollinger Band middle band (SMA) value",
+      "formula": null,
+      "used_by": "CloseAllBuy and CloseAllSell exit conditions"
+    },
+    {
+      "name": "BB_LOWER - Bollinger Band lower band value",
+      "formula": null,
+      "used_by": "BuyLimitExecute entry price"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "below",
+        "left": "Close[0]",
+        "right": "BB_LOWER",
+        "direction": "price_at_or_below_lower_band",
+        "order_type": "limit",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "Close[0]",
+        "right": "BB_UPPER",
+        "direction": "price_at_or_above_upper_band",
+        "order_type": "limit",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy positions closed when Close[0] >= BB_SMA (price touches/crosses middle band from below)",
+      "Sell positions closed when Close[0] <= BB_SMA (price touches/crosses middle band from above)",
+      "All pending orders deleted on each new bar before new pending orders are placed"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 0,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "EA places BUYLIMIT at BB_LOWER and SELLLIMIT at BB_UPPER on every new bar. On each new bar, all existing pending orders are deleted first, then new ones are placed at the updated band values. Exit logic runs every tick: if price reaches the middle BB_SMA line, corresponding buy/sell positions are closed. The pending order management is the core mechanism - orders are only filled if price moves to touch the band levels. No SL/TP on orders; exits are purely based on middle band reversion. Magic number 1221 used for buy/sell identification but not for pending order filtering. OrderSymbol() is used as the symbol parameter in OrderSend which returns the symbol of the currently selected order, not the chart symbol - this is a bug in MQL4.",
+  "external_dependencies": [
+    "stdlib.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Pending order lifecycle must be simulated: on each new M15 bar, cancel all pending orders and place fresh BUYLIMIT at lower BB and SELLLIMIT at upper BB. Exit logic checks every tick against BB middle band. OrderSymbol() bug in OrderSend should be replaced with the chart symbol. No SL/TP simplifies conversion but the pending order fill simulation requires tick-level data to determine if price touched the band level. CloseAllPending does not filter by magic number - it deletes ALL pending orders regardless of magic number, which could interfere with other EAs.",
+  "extraction_timestamp": "2026-05-13T00:23:29.479324",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 137.67668223381042,
+    "cost": 0
+  }
+}

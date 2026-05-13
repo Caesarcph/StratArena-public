@@ -1,0 +1,154 @@
+{
+  "ea_id": "EA-14980",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator (ColorXMACDCandle) with 8 buffers and non-standard smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA). Depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading execution and smoothing algorithms. Multi-buffer custom indicator color-coding logic requires careful manual porting.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorXMACDCandle",
+      "params": {
+        "XMA_Method": 8,
+        "fast_period": 12,
+        "slow_period": 26,
+        "XPhase": 100,
+        "Signal_Method": 6,
+        "signal_period": 9,
+        "Signal_Phase": 100,
+        "applied_to": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "min_rates_total = max(GetStartBars(XMA_Method,Fast_XMA,XPhase), GetStartBars(XMA_Method,Slow_XMA,XPhase)) + GetStartBars(Signal_Method,Signal_XMA,Signal_Phase) + 2 + 3 + SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - seconds per timeframe bar",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime calculation for trade signal timestamp"
+    },
+    {
+      "name": "min_rates_total - minimum bars needed for indicator warmup",
+      "formula": "MathMax(GetStartBars(XMA_Method,Fast_XMA,XPhase),GetStartBars(XMA_Method,Slow_XMA,XPhase)) + GetStartBars(Signal_Method,Signal_XMA,Signal_Phase) + 2 + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorXMACDCandle buffer 4 (Histogram mode) Clr[1]==2 AND Clr[0]<2",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "ColorXMACDCandle buffer 7 (SignalLine mode) Clr[1]==1 AND Clr[0]!=1",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorXMACDCandle buffer 4 (Histogram mode) Clr[1]==0 AND Clr[0]>0",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "ColorXMACDCandle buffer 7 (SignalLine mode) Clr[1]==2 AND Clr[0]!=2",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy closed when histogram mode Clr[1]==0 (bearish color) or SignalLine mode Clr[1]==2; Sell closed when histogram mode Clr[1]==2 (bullish color) or SignalLine mode Clr[1]==1"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode_OPTIONS": "FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3, LOT=4"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum: FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss, LOT=fixed lot size. Default LOT=4 means fixed lot of MM=0.1"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA reads color index buffers (0,1,2 values) from the ColorXMACDCandle custom indicator. In Histogram mode (buffer 4): Clr[1]==2 means bullish histogram candle, Clr[1]==0 means bearish. Transitions are detected by comparing current bar color (Clr[1]) to previous bar color (Clr[0]) — entry triggers on color change (Clr[0]!=Clr[1]). In SignalLine mode (buffer 7): Clr[1]==1 is bullish signal line state, Clr[1]==2 is bearish. The SignalBar input (default=1) controls which bar index is sampled. Signal timestamps use SERIES_LASTBAR_DATE + TimeShiftSec to mark the expected bar open time. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean input gates allowing selective enable/disable of each trade direction and closing side.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The ColorXMACDCandle custom indicator must be reimplemented in Python. It uses 9 smoothing methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA) from SmoothAlgorithms.mqh — JJMA, JurX, ParMA, T3, VIDYA, AMA are non-standard and require porting their algorithms. The indicator has 8 buffers; buffers 4 and 7 contain color indices (integer values 0/1/2) used for signal detection. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose wrappers that handle lot calculation based on MarginMode — these must be replaced with direct mt5 order calls. The SL/TP values (1000/2000) appear to be in points and may need 10x adjustment for 5-digit brokers — verify whether TradeAlgorithms.mqh handles _Point multiplication internally. Signal detection logic compares color indices across consecutive bars — straightforward to port once the indicator is available. The new-bar guard (CIsNewBar class from TradeAlgorithms.mqh) must be replicated.",
+  "extraction_timestamp": "2026-05-13T00:18:55.103495",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 246.07436561584473,
+    "cost": 0
+  }
+}
