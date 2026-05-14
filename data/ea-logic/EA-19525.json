@@ -1,0 +1,190 @@
+{
+  "ea_id": "EA-19525",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses two iCustom indicators ('MA Cross 3MACross Alert WarnSig' and 'price_channel') for signal generation and auto SL/TP. Although the underlying indicators are three MAs and a price channel, the EA reads signals from custom compiled .ex5 indicators via iCustom handles, requiring manual recreation of these custom indicators in Python. The standard library includes (Trade\\*.mqh, MoneyFixedMargin.mqh) are MT5 framework helpers, not trading logic dependencies.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "MA Cross 3MACross Alert WarnSig",
+      "params": {
+        "period_first": 23,
+        "shift_first": 0,
+        "method_first": 2,
+        "period_second": 61,
+        "shift_second": 0,
+        "method_second": 2,
+        "period_third": 122,
+        "shift_third": 0,
+        "method_third": 2
+      },
+      "source": "custom",
+      "library": "MA Cross 3MACross Alert WarnSig",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Price Channel",
+      "params": {
+        "period": 15
+      },
+      "source": "custom",
+      "library": "price_channel",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ExtStopLoss - adjusted stop loss in price units",
+      "formula": "InpStopLoss * m_adjusted_point where m_adjusted_point = _Point * 10 if Digits==5 or Digits==3, else _Point",
+      "used_by": "Entry SL/TP calculation and trailing stop"
+    },
+    {
+      "name": "ExtTakeProfit - adjusted take profit in price units",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "Entry SL/TP calculation"
+    },
+    {
+      "name": "ExtTrailingStop - adjusted trailing stop in price units",
+      "formula": "InpTrailingStop * m_adjusted_point",
+      "used_by": "Trailing stop logic"
+    },
+    {
+      "name": "ExtBreakEven - adjusted breakeven distance in price units",
+      "formula": "InpBreakEven * m_adjusted_point",
+      "used_by": "Auto SL/TP fallback and BreakEven logic"
+    },
+    {
+      "name": "Auto SL for long - channel lower or BreakEven-based",
+      "formula": "ch_dn if ch_dn < Ask - ExtBreakEven else Ask - ExtBreakEven",
+      "used_by": "Long entry when InpAutoSLTP=true"
+    },
+    {
+      "name": "Auto TP for long - channel upper or BreakEven-based",
+      "formula": "ch_up if ch_up > Ask + ExtBreakEven else Ask + ExtBreakEven",
+      "used_by": "Long entry when InpAutoSLTP=true"
+    },
+    {
+      "name": "Auto SL for short - channel upper or BreakEven-based",
+      "formula": "ch_up if ch_up > Bid + ExtBreakEven else Bid + ExtBreakEven",
+      "used_by": "Short entry when InpAutoSLTP=true"
+    },
+    {
+      "name": "Auto TP for short - channel lower or BreakEven-based",
+      "formula": "ch_dn if ch_dn < Bid - ExtBreakEven else Bid - ExtBreakEven",
+      "used_by": "Short entry when InpAutoSLTP=true"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "3MACross Cross Up buffer (buffer 0)",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "3MACross Cross Down buffer (buffer 1)",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "auto_mode": "uses Price Channel lower (long) or upper (short) when InpAutoSLTP=true, else BreakEven distance when InpAutoSLTP=false and InpBreakEven>0"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 145,
+      "params": {
+        "auto_mode": "uses Price Channel upper (long) or lower (short) when InpAutoSLTP=true"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 5
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BreakEven exit: moves SL to open price +/- ExtBreakEven when price moves ExtBreakEven+ExtTrailingStep in profit (only when TrailingStop==0 and AutoSLTP==false and BreakEven>0)",
+      "Auto SL/TP trailing: moves long SL up to ch_dn when ch_dn > current SL, moves short SL down to ch_up when ch_up < current SL (only when TrailingStop==0 and AutoSLTP==true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "risk_percent": 10,
+      "money_manager": "CMoneyFixedMargin"
+    },
+    "max_positions": 5,
+    "conditional_logic": "If InpLots > 0, use fixed lots (InpLots). If InpLots <= 0, use CMoneyFixedMargin with Risk percent of free margin to calculate lot size."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three mutually exclusive exit management modes: (1) TrailingStop>0 activates fixed-pip trailing stop with step; (2) AutoSLTP=true uses Price Channel levels as dynamic SL/TP that trail with the channel; (3) BreakEven>0 (with both others off) moves SL to breakeven+step once profit exceeds BreakEven distance. Signal comes from custom '3MACross' indicator which internally computes three SMMA crossovers (periods 23/61/122). Price Channel (period 15) is used for auto SL/TP placement and trailing. Entry on bar index TradeBar (1 if TradeAtCloseBar=true, 0 otherwise). Max 5 positions per side allowed. Opposite-side positions are closed before entering new direction.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh",
+    "Expert\\Money\\MoneyFixedMargin.mqh",
+    "MA Cross 3MACross Alert WarnSig (custom indicator .ex5)",
+    "price_channel (custom indicator .ex5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The three SMMA indicators can be recreated in Python using pandas ewm with alpha=1/(period+1) for SMMA equivalent, or talib.SMA with manual smoothing. The Price Channel is a simple highest-high/lowest-low over 15 periods. The crossover signal logic from the custom 3MACross indicator must be reverse-engineered: it likely triggers when fast MA crosses medium MA while both are above/below slow MA. The three exit management modes (trailing, auto channel-based, breakeven) must be implemented as a switch. The CMoneyFixedMargin lot calculation uses Risk% of free margin divided by margin required per lot - must replicate or use a fixed-fraction approach. Digit adjustment (multiply pips by 10 for 5-digit brokers) must be handled. TradeAtCloseBar flag means signals are read from bar[1] (previous closed bar), not bar[0].",
+  "extraction_timestamp": "2026-05-13T16:10:55.360226",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 223.45974731445312,
+    "cost": 0
+  }
+}

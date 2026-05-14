@@ -1,0 +1,158 @@
+{
+  "ea_id": "EA-20781",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "EA uses hedging/locking logic (opening opposite positions instead of closing), which requires multi-position management and implicit position netting that is more complex than simple directional strategies. Uses only built-in indicators but the core locking mechanism is non-standard.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast Moving Average",
+      "params": {
+        "period": 5,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow Moving Average",
+      "params": {
+        "period": 21,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "RSI",
+        "right": "30",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "RSI",
+        "right": "70",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Lock mechanism: instead of closing losing position, opens opposite hedge position when loss threshold reached; positions are closed as pairs when net profit target is met"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 2,
+    "conditional_logic": "Initial trade uses fixed lots; lock (hedge) position uses same lot size as the initial position to create a neutral lock"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Core lock/hedge logic: When an open position reaches a floating loss exceeding LockStart (input parameter in pips), the EA opens an equal-sized opposite position to 'lock' the account exposure. The locked pair is then monitored; when the net floating profit of both positions combined exceeds LockProfit (input parameter), both positions are closed simultaneously. This creates a hedging cycle: entry → lock on drawdown → close pair on net profit. The EA tracks which positions are 'locked' together via magic number or comment tagging. Entry signals (EMA crossover + RSI filter) are only used for the initial directional trade, not for unlock decisions.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Lock/hedge mechanism requires maintaining a position registry that tracks paired (locked) positions. Python implementation needs: (1) A PositionManager class that pairs long+short positions and monitors their combined P&L, (2) Careful handling of partial closes when lock profit target is hit — both sides must close atomically, (3) The lock threshold logic monitors unrealized P&L per position, not per pair, (4) Unlike standard EAs, this one can hold simultaneous long and short positions on the same symbol — ensure the broker/execution layer supports hedging mode, (5) The RSI filter values (30/70) and EMA periods (5/21) are typical defaults but should be parameterized from inputs.",
+  "extraction_timestamp": "2026-05-13T20:38:36.228459",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 165.7576186656952,
+    "cost": 0
+  }
+}

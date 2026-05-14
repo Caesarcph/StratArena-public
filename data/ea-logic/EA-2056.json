@@ -1,0 +1,168 @@
+{
+  "ea_id": "EA-2056",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for BlauErgodic indicator and relies on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for core smoothing and trade execution logic. Multi-smoothing chain with custom applied price enum makes conversion non-trivial.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BlauErgodic",
+      "params": {
+        "XMA_Method": 1,
+        "XLength": 2,
+        "XLength1": 20,
+        "XLength2": 5,
+        "XLength3": 3,
+        "XLength4": 3,
+        "XPhase": 15,
+        "IPC": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for indicator warmup",
+      "formula": "GetStartBars(XMA_Method,XLength,XPhase)+GetStartBars(XMA_Method,XLength1,XPhase)+GetStartBars(XMA_Method,XLength2,XPhase)+GetStartBars(XMA_Method,XLength3,XPhase)+GetStartBars(XMA_Method,XLength4,XPhase)+3+SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - bar duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime calculation for trade functions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "BlauErgodic Histogram (buffer 2)",
+        "right": "zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "BlauErgodic Histogram (bar[1])",
+        "right": "BlauErgodic Histogram (bar[2])",
+        "direction": "above (direction change - falling to rising)",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "BlauErgodic Up line (buffer 0)",
+        "right": "BlauErgodic Dn line (buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "BlauErgodic Histogram (buffer 2)",
+        "right": "zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "BlauErgodic Histogram (bar[1])",
+        "right": "BlauErgodic Histogram (bar[2])",
+        "direction": "below (direction change - rising to falling)",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "BlauErgodic Up line (buffer 0)",
+        "right": "BlauErgodic Dn line (buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose/SellPosClose triggered by opposite signal in all three modes; close permission gates (BuyPosClose, SellPosClose inputs) control whether signal-based closes are executed"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM input: positive values = deposit fraction (share of deposit), negative values = fixed lot size. MMMode selects between LOT (fixed lot), FLOT (fractional lot), or other margin modes from MarginMode enum in TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three distinct entry modes selected via AlgMode enum: 'breakdown' (histogram crosses zero), 'twist' (histogram direction change using 3-bar lookback), 'cloudtwist' (signal cloud color change via Up/Dn line crossover). Entry permission gates (BuyPosOpen, SellPosOpen) independently control long/short entries. Exit permission gates (BuyPosClose, SellPosClose) independently control signal-based closes. SignalBar parameter shifts signal evaluation back by N bars (default=1 means confirmed bar). Recount flag forces signal recalculation on CopyBuffer failure. GlobalVariableDel_ called on deinit for cleanup. Trade execution delegated to BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose from TradeAlgorithms.mqh which handle position management internally.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "Must reimplement BlauErgodic indicator from scratch - it uses 4-stage smoothing chain (momentum → EMA1 → EMA2 → EMA3 → signal EMA) via CXMA class from SmoothAlgorithms.mqh. The SmoothAlgorithms library supports multiple smoothing methods (JJMA, VIDIA, AMA, etc.) via Smooth_Method enum; only MODE_EMA (1) is the default but all methods are available. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with margin calculation logic that must be replicated. The custom Applied_price_ enum (9 price types including TrendFollow) must also be reimplemented. SL/TP are in points (1000/2000) - must confirm whether these need 10x adjustment for 5-digit brokers (no explicit adjustment in code, but TradeAlgorithms.mqh may handle it). Signal timing uses SERIES_LASTBAR_DATE + TimeShiftSec for next bar open assumption.",
+  "extraction_timestamp": "2026-05-13T19:37:54.449888",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 136.7272002696991,
+    "cost": 0
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "ea_id": "EA-20501",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Pure tick-level price impulse/scalping EA with no conventional indicators. Relies on real-time bid/ask tick comparisons, tick-level spread filtering, and immediate market execution with tight stops. The intrabar signal behavior (repeat_while_true) and tick-driven logic with no new-bar guard make it fundamentally dependent on MT5's OnTick event model and tick-level execution fidelity. Backtesting meaningfully requires tick data and MT5's tick-level simulation.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Price impulse detection - bid exceeds previous bid by impulse threshold",
+      "formula": "SymbolInfoDouble(_Symbol, SYMBOL_BID) > previous_bid + impulse_threshold*_Point",
+      "used_by": "long entry rule"
+    },
+    {
+      "name": "Price impulse detection - ask drops below previous ask by impulse threshold",
+      "formula": "SymbolInfoDouble(_Symbol, SYMBOL_ASK) < previous_ask - impulse_threshold*_Point",
+      "used_by": "short entry rule"
+    },
+    {
+      "name": "Spread in points",
+      "formula": "SymbolInfoInteger(_Symbol, SYMBOL_ASK) - SymbolInfoInteger(_Symbol, SYMBOL_BID)",
+      "used_by": "spread filter"
+    },
+    {
+      "name": "Digit-adjusted SL/TP values",
+      "formula": "SL*_Point (with _Point already encoding digit adjustment); if _Digits==3||5, input values implicitly need *10 adjustment or are already in pip-equivalent units",
+      "used_by": "stop_loss and take_profit"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "current_bid",
+        "right": "previous_bid + impulse_threshold*_Point",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "current_ask",
+        "right": "previous_ask - impulse_threshold*_Point",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "adjust_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "adjust_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": []
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Price impulse EA: detects sudden price movements (impulse) by comparing each incoming tick's bid/ask against the previously stored bid/ask. If the price jumps by more than impulse_threshold points within a single tick, it triggers a trade in the impulse direction. The EA stores previous_bid and previous_ask on each tick and compares against the new values. This is a tick-scalping approach - no indicators, purely price-action driven at the tick level. Digit adjustment is critical: SL and TP values in inputs are in 'pips' concept and must be multiplied by _Point; for 5-digit brokers the _Point is already 0.00001 so the conversion is direct, but the impulse_threshold, SL, and TP input values may need to be scaled by 10 when switching between 4-digit and 5-digit brokers (typical MT5 convention).",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "This EA is tick-level scalping with no bar-based indicators, making Python conversion extremely challenging. Key issues: (1) Requires tick-by-tick data for meaningful backtesting - bar data (even M1) will miss intrabar impulse spikes. (2) The 'repeat_while_true' intrabar behavior means multiple signals can fire within a single bar if price keeps impulsing - Python bar-based backtesters cannot replicate this. (3) Position gate check (no_position) must be checked at tick level. (4) Spread filter uses real-time spread which varies tick-to-tick. (5) To approximate in Python with bar data, you would need to assume worst-case: impulse detected at bar close, enter at next bar open, which fundamentally changes the strategy's edge. (6) The impulse detection logic itself is trivial to code in Python, but the execution model is not. Recommend: if conversion is attempted, use a tick-level data source (Dukascopy tick data etc.) and simulate tick-by-tick processing. SL/TP digit adjustment: multiply input values by 10 if symbol has 5 digits (3 for JPY pairs).",
+  "extraction_timestamp": "2026-05-13T19:26:17.078600",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 93.29096913337708,
+    "cost": 0
+  }
+}

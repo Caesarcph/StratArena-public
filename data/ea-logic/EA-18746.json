@@ -1,0 +1,187 @@
+{
+  "ea_id": "EA-18746",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses built-in iEnvelopes indicator with QEMA (quadruple EMA) computed from standard iMA calls. Entry/exit rules are crossover-based with fixed SL/TP and digit adjustment. No external .mqh libraries for trading logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "QEMA (Quadruple EMA)",
+      "params": {
+        "period": 14,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "QEMA Envelopes Upper",
+      "params": {
+        "period": 14,
+        "method": "EMA",
+        "applied_to": "close",
+        "dev": 0.2
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "QEMA Envelopes Lower",
+      "params": {
+        "period": 14,
+        "method": "EMA",
+        "applied_to": "close",
+        "dev": 0.2
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "QEMA Envelopes Middle (QEMA line)",
+      "params": {
+        "period": 14,
+        "method": "EMA",
+        "applied_to": "close",
+        "dev": 0.0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "QEMA value (quadruple-smoothed EMA from 4x iMA EMA cascade)",
+      "formula": "QEMA = 2*EMA(EMA) - EMA(EMA(EMA)) + EMA(EMA(EMA(EMA))) adjusted for lag elimination",
+      "used_by": "Envelopes middle band and signal generation"
+    },
+    {
+      "name": "Digit-adjusted SL/TP (multiply by 10 when _Digits==5 or _Point<0.001)",
+      "formula": "StopLoss_Adjusted = StopLoss * (_Digits==5 || _Point<0.001 ? 10 : 1)",
+      "used_by": "stop_loss and take_profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Close price",
+        "right": "QEMA Envelopes Lower Band",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Close price",
+        "right": "QEMA Middle Line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Close price",
+        "right": "QEMA Envelopes Upper Band",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Close price",
+        "right": "QEMA Middle Line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite envelope signal closes current position before opening reverse"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "QEMA (Quadruple EMA) is computed as a cascade of 4 EMA applications to reduce lag. The 'Digit_System' naming indicates automatic 5-digit broker adjustment where SL/TP in pips are multiplied by 10 when _Digits==5 or _Point<0.001. Color coding visualizes trend direction on chart. The Envelopes deviation parameter controls band width around QEMA center line. Entry uses previous bar values ([1]) to avoid repainting.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "QEMA requires 4 cascaded EWM calculations (pandas ewm). Envelopes bands = QEMA +/- dev*QEMA/100. Digit adjustment: if point_value < 0.001, multiply SL/TP by 10. Signal uses iloc[-2] (previous completed bar) not iloc[-1] (current bar). Use ta-lib or manual ewm for EMA cascade. Verify QEMA formula: QEMA = 2*EMA2 - EMA3 + EMA4 where EMA2=EMA(EMA), EMA3=EMA(EMA2), EMA4=EMA(EMA3).",
+  "extraction_timestamp": "2026-05-13T13:46:04.205307",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 125.48846745491028,
+    "cost": 0
+  }
+}

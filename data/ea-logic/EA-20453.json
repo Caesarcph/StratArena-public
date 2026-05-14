@@ -1,0 +1,117 @@
+{
+  "ea_id": "EA-20453",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses CTrade from Trade.mqh for order execution, implements custom futures rollover logic with SymbolSelect/SymbolInfoInteger for expiration detection, and uses Sleep() for execution timing - requires manual mapping of broker-specific futures symbol naming conventions and expiration handling",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Time to expiration in seconds",
+      "formula": "SymbolInfoInteger(TradeFutures,SYMBOL_EXPIRATION_TIME)-TimeCurrent()",
+      "used_by": "CheckPos rollover trigger"
+    },
+    {
+      "name": "Current futures symbol name",
+      "formula": "short_name+'-'+mon+'.'+year%100",
+      "used_by": "CurrFutures and NextFutures symbol lookup"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "lot",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "lot",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Position closed via trade.PositionClose when time to expiration < hours_before_expiration*3600 seconds"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0,
+    "params": {},
+    "max_positions": 3,
+    "conditional_logic": "Input lot per symbol: positive lot = Buy volume, negative lot = Sell volume (absolute value taken). Lot1/Lot2/Lot3 are per-symbol fixed sizes."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "This is a futures portfolio rollover EA, not a signal-based trading system. It maintains up to 3 futures positions with fixed lot sizes. Core logic: (1) On each tick, check each of 3 configured futures symbols. (2) If the current contract's expiration time is within hours_before_expiration hours, close the position, deselect the symbol, and roll to the next contract month via NextFutures(). (3) If no position exists on the current (or newly rolled) contract, open a new position: Buy if lot>0, Sell(abs(lot)) if lot<0. (4) CurrFutures() finds the nearest non-expired contract by iterating forward month-by-month. (5) NextFutures() finds the contract after the current one by locating the first contract whose expiration exceeds the current contract's expiration. Symbol naming convention: BASE-MONTH.YEAR (e.g. MXI-12.17). Sleep(3000) used after close and after open to avoid rapid repeated execution.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "This EA is a futures contract rollover manager, not a signal-based strategy. Key challenges for Python conversion: (1) Requires a broker API that supports futures contract metadata (expiration dates, symbol naming conventions like MXI-12.17). (2) SymbolSelect/SymbolInfoInteger calls for SYMBOL_EXPIRATION_TIME have no direct Python equivalent - need broker-specific futures chain data. (3) The CTrade class wraps order send; map to broker API's market order function. (4) Sleep(3000) after trades is a crude execution guard - replace with order status polling. (5) PositionSelect check maps to checking open positions via API. (6) The enum esym maps Russian MOEX futures ticker prefixes (Si, Eu, ED, AUDU, GBPU, BR, GOLD, SBRF, GAZR, MXI, RTS, LKOH, ROSN, VTBR) - these are broker/market-specific. (7) No indicators, no SL/TP, no signal logic - pure position maintenance and contract rollover.",
+  "extraction_timestamp": "2026-05-13T19:05:25.444531",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 141.95102429389954,
+    "cost": 0
+  }
+}

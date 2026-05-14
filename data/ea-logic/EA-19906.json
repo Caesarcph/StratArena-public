@@ -1,0 +1,206 @@
+{
+  "ea_id": "EA-19906",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Multi-timeframe logic (uses iCustom or manual MTF data retrieval for different timeframe MAs), requiring cross-TF data coordination that cannot be directly auto-converted from built-in indicator calls alone",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast MA (Current TF)",
+      "params": {
+        "period": 10,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "FastMA_Period (input)"
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA (Current TF)",
+      "params": {
+        "period": 50,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "SlowMA_Period (input)"
+    },
+    {
+      "type": "MA",
+      "name": "Fast MA (Higher TF)",
+      "params": {
+        "period": 10,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "FastMA_Period (input)"
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA (Higher TF)",
+      "params": {
+        "period": 50,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "SlowMA_Period (input)"
+    },
+    {
+      "type": "Custom",
+      "name": "Higher Timeframe MA Data",
+      "params": {
+        "timeframe": "H1"
+      },
+      "source": "external_library",
+      "library": "Diff_TF_MA_EA.mqh or iCustom MTF retrieval",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Digit-adjusted SL value",
+      "formula": "StopLoss * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "stop_loss order placement"
+    },
+    {
+      "name": "Digit-adjusted TP value",
+      "formula": "TakeProfit * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "take_profit order placement"
+    },
+    {
+      "name": "Current TF MA difference",
+      "formula": "Fast_MA - Slow_MA (current TF)",
+      "used_by": "entry_rules long/short conditions"
+    },
+    {
+      "name": "Higher TF MA difference",
+      "formula": "Fast_MA_HTF - Slow_MA_HTF (higher TF)",
+      "used_by": "entry_rules trend confirmation gate"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA (Current TF)",
+        "right": "Slow MA (Current TF)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "Fast MA (Higher TF)",
+        "right": "Slow MA (Higher TF)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA (Current TF)",
+        "right": "Slow MA (Current TF)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "Fast MA (Higher TF)",
+        "right": "Slow MA (Higher TF)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position before opening new one (implied by no_opposite_side gate)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses dual-timeframe MA crossover: current timeframe for entry signal, higher timeframe for trend filter confirmation. Both timeframes must agree on direction for trade entry. Higher TF data retrieved via SeriesCopy or iCustom MTF helper. Digit adjustment applied to SL/TP for 5-digit brokers.",
+  "external_dependencies": [
+    "Diff_TF_MA_EA.mqh or MTF data retrieval helper"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Multi-timeframe data retrieval requires resampling lower-TF bars to higher-TF in Python (e.g., using pandas resample). The higher-TF MA calculation must use the resampled data, then align signals with the current-TF crossover. Digit adjustment logic (multiply SL/TP by 10 for 5-digit) must be replicated. Position gate (close opposite before entry) must be handled explicitly in the order manager. The new-bar guard requires tracking bar timestamps to prevent multiple entries per bar.",
+  "extraction_timestamp": "2026-05-13T17:15:09.525686",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 154.78350353240967,
+    "cost": 0
+  }
+}

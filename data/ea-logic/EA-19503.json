@@ -1,0 +1,188 @@
+{
+  "ea_id": "EA-19503",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iRSI). Simple entry/exit rules with fixed lot sizing. No external .mqh libraries for trading logic—Trade.mqh is standard MQL5. Single timeframe, market orders, no grid/martingale.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast SMA",
+      "params": {
+        "period": 5,
+        "shift": 0,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow SMA",
+      "params": {
+        "period": 200,
+        "shift": 0,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 2,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "P - pip multiplier for digit adjustment",
+      "formula": "_Digits==5||_Digits==3||_Digits==1 ? 10 : 1",
+      "used_by": "stopLoss and takeProfit calculation (stopLossPipsFinal*_Point*P)"
+    },
+    {
+      "name": "stopLossPipsFinal - adjusted stop loss pips",
+      "formula": "max(stopLossPips, stopLevelPips)",
+      "used_by": "stop loss level calculation"
+    },
+    {
+      "name": "takeProfitPipsFinal - adjusted take profit pips",
+      "formula": "max(takeProfitPips, stopLevelPips)",
+      "used_by": "take profit level calculation"
+    },
+    {
+      "name": "stopLevelPips - broker minimum stop level in pips",
+      "formula": "(SYMBOL_TRADE_STOPS_LEVEL + SYMBOL_SPREAD) / P",
+      "used_by": "stopLossPipsFinal and takeProfitPipsFinal"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "RSI[1]",
+        "right": "RSILongEntry threshold",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Close[1]",
+        "right": "Slow SMA[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "RSI[1]",
+        "right": "RSIShortEntry threshold",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Close[1]",
+        "right": "Slow SMA[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 30,
+      "params": {
+        "adjust_for_digits": true,
+        "broker_stop_level_check": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 60,
+      "params": {
+        "adjust_for_digits": true,
+        "broker_stop_level_check": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when Close[1] > Fast SMA[1]",
+      "Short position closed when Close[1] < Fast SMA[1]"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 1.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "previous_bar_close",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Connors RSI2 strategy: Long when RSI(2) dips below 6 while price is above 200 SMA (pullback in uptrend), exit long when price closes above 5 SMA (short-term strength returns). Short when RSI(2) rises above 95 while price is below 200 SMA (bounce in downtrend), exit short when price closes below 5 SMA. Entry uses bar[1] (previous completed bar) for signal evaluation but executes at current ask/bid tick prices. Sell entry incorrectly uses currentAsk instead of currentBid for order price (line 221). Exit logic evaluates every tick with no new-bar guard, so exit signal fires on every tick while condition holds but PositionClose only succeeds once. Stop level floor ensures SL/TP respect broker minimum distances.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1) Digit adjustment: P=10 for 5/3/1-digit symbols, P=1 otherwise. All SL/TP must multiply by P*_Point. 2) Signal uses previous bar (index [1]) values only—implement new-bar detection for correct signal timing to avoid repeated evaluation. 3) Exit conditions are checked on every tick; in Python backtesting, evaluate exit at each bar close to match typical backtest behavior. 4) Entry price: long=ask, short=bid (note: original code has a bug using ask for sell entry). 5) Position gate: only enters when no position exists for the symbol (flat-only). 6) Stop level floor: SL and TP pips must be >= (stops_level + spread) / P to respect broker constraints. 7) RSI thresholds are asymmetric: long entry at RSI<6, short entry at RSI>95.",
+  "extraction_timestamp": "2026-05-13T16:02:50.085139",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 199.89442920684814,
+    "cost": 0
+  }
+}

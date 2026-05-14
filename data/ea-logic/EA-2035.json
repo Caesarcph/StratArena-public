@@ -1,0 +1,186 @@
+{
+  "ea_id": "EA-2035",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for BlauTSStochastic custom indicator and includes external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic. Multi-timeframe logic with InpInd_Timeframe parameter.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BlauTSStochastic",
+      "params": {
+        "XMA_Method": "MODE_EMA",
+        "XLength": 5,
+        "XLength1": 20,
+        "XLength2": 5,
+        "XLength3": 3,
+        "XLength4": 3,
+        "XPhase": 15,
+        "IPC": "PRICE_CLOSE"
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "min_rates_total = GetStartBars(XLength) + GetStartBars(XLength1) + GetStartBars(XLength2) + GetStartBars(XLength3) + GetStartBars(XLength4) + 3 + SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "GetStartBars(XMA_Method,XLength,XPhase) + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + GetStartBars(XMA_Method,XLength4,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade signal timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Hist[1] (previous bar histogram, buffer 2)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Hist (buffer 2)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Hist[1] < Hist[2] (histogram was falling)",
+        "right": "Hist[0] > Hist[1] (histogram now rising)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "crossover",
+        "left": "Up buffer (buffer 0)",
+        "right": "Dn buffer (buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Hist[1] (previous bar histogram, buffer 2)",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Hist (buffer 2)",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Hist[1] > Hist[2] (histogram was rising)",
+        "right": "Hist[0] < Hist[1] (histogram now falling)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Up buffer (buffer 0)",
+        "right": "Dn buffer (buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position via BuyPositionClose/SellPositionClose when BUY_Close or SELL_Close flags are set"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM input: positive values = share of deposit in deal (fractional sizing), negative values = fixed lot size. MMMode enum controls lot calculation method (LOT, PCT, etc.)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three trading modes selected via AlgMode enum: (1) 'breakdown' - histogram crosses zero line using buffer 2; (2) 'twist' - histogram direction change using 3-bar comparison of buffer 2; (3) 'cloudtwist' - signal cloud color change when Up buffer (0) crosses Dn buffer (1). SignalBar input controls which bar is used for signal (0=current, 1=previous completed bar). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean inputs gate whether each trade action is permitted. Recount flag ensures signal recalculation on data issues.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Custom BlauTSStochastic indicator must be reimplemented in Python using the SmoothAlgorithms.mqh library logic (triple smoothed stochastic with configurable smoothing methods - JJMA, VIDIA, AMA, etc.). The three entry modes (breakdown/twist/cloudtwist) map cleanly to distinct strategy branches. Multi-timeframe support requires resampling OHLC data. Position sizing uses conditional logic: negative MM = fixed lots, positive MM = deposit fraction. TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) must be reimplemented. No digit adjustment detected - SL/TP in points used directly.",
+  "extraction_timestamp": "2026-05-13T18:51:57.852699",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 164.91149377822876,
+    "cost": 0
+  }
+}

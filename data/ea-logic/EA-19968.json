@@ -1,0 +1,176 @@
+{
+  "ea_id": "EA-19968",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale-like lot sizing (switches to larger lot after loss, reverts after profit), balance-graduated lot tiers, H4 bar-open timing gate with minute<=15 check tied to OnTick, and hard-coded EURUSD symbol in signal logic make this strategy dependent on MT5's position tracking, deal history, and tick-driven bar-change detection for correct execution",
+  "symbol": "EURUSD",
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "H4 Bar Direction (Close vs Open)",
+      "params": {
+        "period": 1,
+        "shift": 1,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "H4 Bar Bullish Signal",
+      "formula": "iClose(1, EURUSD, PERIOD_H4) > iOpen(1, EURUSD, PERIOD_H4)",
+      "used_by": "Long entry rule"
+    },
+    {
+      "name": "H4 Bar Bearish Signal",
+      "formula": "iClose(1, EURUSD, PERIOD_H4) < iOpen(1, EURUSD, PERIOD_H4)",
+      "used_by": "Short entry rule"
+    },
+    {
+      "name": "Adjusted Point",
+      "formula": "m_symbol.Point() * digits_adjust (10 when Digits==5)",
+      "used_by": "SL and TP calculation"
+    },
+    {
+      "name": "ExtStopLoss",
+      "formula": "InpStopLoss * m_adjusted_point",
+      "used_by": "Stop loss price"
+    },
+    {
+      "name": "ExtTakeProfit",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "Take profit price"
+    },
+    {
+      "name": "Lot1 (base lot after win)",
+      "formula": "Lots1 scaled by balance tier (0.1 at 1x, 0.2 at 2x, etc.)",
+      "used_by": "position_sizing after profit"
+    },
+    {
+      "name": "Lot2 (recovery lot after loss)",
+      "formula": "Lots3 scaled by balance tier (0.7 at 1x, 1.4 at 2x, etc.)",
+      "used_by": "position_sizing after loss"
+    },
+    {
+      "name": "Balance Lot Tier",
+      "formula": "if Balance > minBalance*N then lots multiplied by N",
+      "used_by": "All lot size calculations"
+    },
+    {
+      "name": "PlanB flag",
+      "formula": "Set true when last closed position was a loss and lots were already Lot1; switches to Lot2 (larger lot)",
+      "used_by": "Martingale recovery logic"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Previous H4 Bar Close",
+        "right": "Previous H4 Bar Open",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Previous H4 Bar Close",
+        "right": "Previous H4 Bar Open",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 240,
+      "params": {
+        "adjusted_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 40,
+      "params": {
+        "adjusted_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "No explicit exit logic beyond SL/TP; positions are held until SL or TP is hit; no signal-based close"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "base_lot_after_win": "Lots1 (0.1 * balance_tier)",
+      "recovery_lot_after_loss": "Lots3 (0.7 * balance_tier)",
+      "balance_tier_multiplier": "lots scale up when balance reaches 2x, 3x, 4x, 5x, 6x of initial minimum balance"
+    },
+    "max_positions": 1,
+    "conditional_logic": "After a losing trade (Pribl<0), if currently using Lot1 (base), switch to Lot2 (recovery=7x base); if already on Lot2 and still losing, set PlanB flag to use Lot2 on next entry. After a winning trade (Pribl>=0), revert to Lot1. Lot sizes also scale up in tiers as account balance grows relative to initial balance."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Martingale lot sizing: After a loss, switches from base lot (Lots1) to recovery lot (Lots3=7x base). After a win, reverts to base lot. Balance-graduated tiers: as account balance grows to 2x, 3x, 4x, 5x, 6x the initial balance, all lot sizes are proportionally scaled up. Entry timing gate: only enters within the first 15 minutes of a new H4 bar (str1.min<=15 && Vhod). Signal is derived from previous completed H4 bar direction (Close vs Open of bar index 1). Profit/loss tracking uses OnTradeTransaction to capture deal results. Symbol is hard-coded to EURUSD in signal logic. The SL:TP ratio is 240:40 = 6:1 (wide stop, tight target), making it a mean-reversion style with martingale recovery after losses.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Key challenges: (1) Martingale lot sizing logic requires persistent state tracking of last trade result (Pribl) and PlanB flag across trades - need a trade result tracker that updates on position close. (2) Balance-tier lot scaling requires tracking minBalanse and maxBalance across the session. (3) H4 new-bar detection with 15-minute entry window needs precise bar-change timing. (4) OnTradeTransaction equivalent needed to capture deal P&L for martingale decisions. (5) The 6:1 SL:TP ratio with martingale recovery is high-risk and needs careful backtesting with tick data to verify fill assumptions. (6) Custom iOpen/iClose/iTime helper functions replicate MT4-style calls using CopyOpen/CopyClose/CopyTime - straightforward to replicate in Python. (7) Position counting filters by symbol and magic number.",
+  "extraction_timestamp": "2026-05-13T17:46:24.159085",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 256.24566745758057,
+    "cost": 0
+  }
+}

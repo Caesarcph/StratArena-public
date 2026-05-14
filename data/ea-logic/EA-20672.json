@@ -1,0 +1,155 @@
+{
+  "ea_id": "EA-20672",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only custom SMA calculation on median price (no external indicators or iCustom calls), simple entry/exit rules based on AO direction change, fixed or percentage-based position sizing, no external .mqh libraries for trading logic (Trade.mqh is standard), no grid/martingale/pending order complexity.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Awesome Oscillator (Median Price)",
+      "params": {
+        "period": 34,
+        "method": "SMA",
+        "applied_to": "MEDIAN"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Awesome Oscillator (Median Price)",
+      "params": {
+        "period": 5,
+        "method": "SMA",
+        "applied_to": "MEDIAN"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Awesome Oscillator",
+      "params": {
+        "fast_period": 5,
+        "slow_period": 34,
+        "method": "SMA",
+        "applied_to": "MEDIAN"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "Period_sma_fast - Period_sma_slow (i.e. SMA(median,5,i) - SMA(median,34,i))"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Median Price array",
+      "formula": "(High[i] + Low[i]) / 2",
+      "used_by": "AO_calculate (both fast and slow SMA)"
+    },
+    {
+      "name": "AO array values (5 elements)",
+      "formula": "SMA(median, Period_sma_slow, i) - SMA(median, Period_sma_fast, i)",
+      "used_by": "Entry rules (AO[0] vs AO[1] comparison)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "below",
+        "left": "AO[0]",
+        "right": "AO[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "AO[0]",
+        "right": "AO[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes all opposite-side positions: when AO[0]<AO[1] all sells are closed; when AO[0]>AO[1] all buys are closed"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 10,
+    "conditional_logic": "If LotFromPercent>0 then lot = MathFloor(FreeMargin*LotFromPercent/ContractSize/LotStep)*LotStep, clamped to [Lot_min, Lot_max]; otherwise use LotFixed=0.01, also clamped to [Lot_min, Lot_max]"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA stacks positions up to 'Orders' (default 10) per side. AO is calculated manually as SMA5(median) - SMA34(median) on the current bar index 0 and 1. Entry condition AO[0]<AO[1] means AO is declining (not a zero-line crossover, but a momentum-direction change between the two most recent bars). Close logic: when AO direction reverses, ALL opposite-side positions are closed via while-loop iteration. There is a bug on line 132: margin check for SELL uses ORDER_TYPE_BUY instead of ORDER_TYPE_SELL. No SL/TP are set on any trade (both passed as 0). The 'bars' variable controls how much history to copy: Period_sma_fast+Period_sma_slow=39, but only 5 elements of AO are computed and only the first 2 are used.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The AO calculation is straightforward: compute median price as (H+L)/2, then SMA5 and SMA34 on that median, then AO = SMA5 - SMA34. Entry when AO declines (AO[0]<AO[1]) -> buy; when AO rises (AO[0]>AO[1]) -> sell. Signal reversal closes all opposite positions. No built-in indicator handles needed - all calculated from OHLC data. Position stacking up to max_positions per side. Margin check function should be adapted to broker API equivalents. Note the ORDER_TYPE_BUY bug on the sell margin check line should be fixed in conversion (use SELL type). Normalize price to tick size before placing orders.",
+  "extraction_timestamp": "2026-05-13T20:11:06.206364",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 216.5225088596344,
+    "cost": 0
+  }
+}

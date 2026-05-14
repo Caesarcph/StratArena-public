@@ -1,0 +1,154 @@
+{
+  "ea_id": "EA-19637",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale position sizing with factor-based volume increase per level, grid-like step-based position stacking, and margin-dependent volume checking via CTrade.CheckVolume. The strategy inherently relies on sequential position opening at price steps which requires precise margin tracking and broker-dependent lot validation that cannot be reliably replicated in Python backtesting.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "m_adjusted_point - point value adjusted for 3/5 digit brokers",
+      "formula": "Point()*10 when Digits==3 or Digits==5, else Point()*1",
+      "used_by": "ExtTakeProfit and ExtStep calculations"
+    },
+    {
+      "name": "ExtTakeProfit - take profit in price units",
+      "formula": "InpTakeProfit*m_adjusted_point",
+      "used_by": "TP setting on buy and sell orders"
+    },
+    {
+      "name": "ExtStep - step between positions in price units",
+      "formula": "InpStep*m_adjusted_point",
+      "used_by": "Grid step check for adding new positions"
+    },
+    {
+      "name": "counter_skipped - number of bars since last deal",
+      "formula": "CopyOpen count from last_deal_in to TimeCurrent minus 1",
+      "used_by": "Skip logic determining when to add new positions vs wait"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "arr_close[0] (bar 1 close)",
+        "right": "arr_close[14] (bar 15 close)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "price_lowest_buy - m_symbol.Ask()",
+        "right": "ExtStep",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "arr_close[0] (bar 1 close)",
+        "right": "arr_close[14] (bar 15 close)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "m_symbol.Bid() - price_highest_sell",
+        "right": "ExtStep",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 65,
+      "params": {
+        "pips_input": 65,
+        "adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close all positions when total_profit > InpMinProfit (10.0) and counter_skipped <= InpBarsSkipped",
+      "Close all positions when both buy and sell positions exist simultaneously (error condition)"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "base_lot": 0.01,
+      "increase_factor": 1.7,
+      "max_lot": 6.0,
+      "formula": "base_lot * InpIncreaseFactor^count_of_same_side_positions"
+    },
+    "max_positions": 999,
+    "conditional_logic": "Lot = InpLots * MathPow(InpIncreaseFactor, count_buys_or_count_sells), capped at InpMaxLot. Volume validated by LotCheck (normalized to step, min/max checked) and CTrade.CheckVolume (margin check). Position only opened if lot != 0.0 and lot < InpMaxLot."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Martingale/grid hybrid EA for small deposits. Opens first position based on 15-bar price trend comparison (close[1] vs close[15]). Subsequent positions added at ExtStep price intervals with exponentially increasing volume (factor^count). Bars-skipped counter tracks how many bars since last deal; new positions only added when skipped bars exceed InpBarsSkipped threshold. All positions closed when total profit (including swap and commission) exceeds InpMinProfit. Mixed buy/sell positions trigger emergency close-all. No stop loss on individual positions - exit is purely profit-target based on aggregate portfolio. TP is set per-position but the real exit is the profit-target close-all.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Core martingale sizing logic (InpLots * factor^N) is straightforward to convert. However, the margin-check via CTrade.CheckVolume has no direct Python equivalent and must be approximated or omitted. The grid-step re-entry logic (price distance > ExtStep) requires tracking open positions and their prices. The bars-skipped counter logic (CopyOpen from last deal time) needs careful bar-index handling. The TP on individual positions is redundant since exit is profit-target based. Digit adjustment (5-digit broker handling) must be replicated. The filling type detection (FOK/IOC/RETURN) is broker-dependent and not applicable in Python backtesting. No technical indicators used, so no indicator conversion needed.",
+  "extraction_timestamp": "2026-05-13T16:43:59.981518",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 250.09948468208313,
+    "cost": 0
+  }
+}

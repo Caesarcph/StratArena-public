@@ -1,0 +1,118 @@
+{
+  "ea_id": "EA-20762",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Classic martingale strategy with margin-dependent position sizing (doubles lot after loss), no SL/TP on trades, relies on averaging down which requires persistent position management and margin-dependent sizing that is not straightforward to replicate in signal-based Python backtesting",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Martingale lot multiplier calculation",
+      "formula": "Lot * MathPow(Multiplier, consecutive_losses)",
+      "used_by": "position_sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Random or fixed direction",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Random or fixed direction",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": null,
+      "params": {
+        "profit_target": "close all when total profit >= TakeProfit amount"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Closes all positions when total floating profit reaches TakeProfit money target",
+      "No individual trade SL/TP - exits are portfolio-level based on aggregate profit"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "initial_lot": "Lot input parameter",
+      "multiplier": "Multiplier input parameter (default 2.0)",
+      "max_lot": "MaxLot input parameter",
+      "sizing_logic": "After a loss, next trade lot = previous lot * Multiplier, resets to initial Lot after a win"
+    },
+    "max_positions": 1,
+    "conditional_logic": "Lot size doubles (or multiplies by Multiplier) after each consecutive loss, resets to base Lot after a win. Clamped by MaxLot."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Martingale EA: opens a single market order in a fixed or random direction. If the trade reaches a profit target (TakeProfit in money), it closes all and resets lot size. If the trade goes against the position by a distance (Step in points), it opens an additional position in the same direction with a larger lot (Lot * Multiplier). This continues until the aggregate profit across all open positions reaches TakeProfit. No stop loss on individual trades - the strategy relies on averaging down with increasing size, which is inherently high-risk and margin-dependent. The Step parameter controls the distance in points between successive entries. After a winning cycle (all positions closed at profit), lot resets to initial. After a losing cycle (margin call or stop out), the position sizing escalation makes recovery impossible without sufficient margin.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Martingale/grid strategies are extremely difficult to backtest accurately in Python because: (1) Position sizing depends on account equity/margin which changes with every trade, (2) Multiple positions in same direction need to be tracked as a basket with aggregate profit calculation, (3) No individual SL means positions can grow indefinitely - margin call simulation required, (4) The Step parameter creates a grid-like entry pattern that needs persistent order management across many bars, (5) Tick-level entry precision matters for the Step distance calculation. Recommend classifying as mt5_only for accurate backtesting, or implementing a simplified version that simulates the basket-level P&L without full margin modeling.",
+  "extraction_timestamp": "2026-05-13T20:33:59.729296",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 177.21704387664795,
+    "cost": 0
+  }
+}

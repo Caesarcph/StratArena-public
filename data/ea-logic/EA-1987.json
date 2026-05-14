@@ -1,0 +1,172 @@
+{
+  "ea_id": "EA-1987",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load the external BlauErgodicMDI custom indicator, and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic. Multi-mode entry logic with three algorithm variants adds complexity.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BlauErgodicMDI",
+      "params": {
+        "XMA_Method": 1,
+        "XLength": 20,
+        "XLength1": 5,
+        "XLength2": 3,
+        "XLength3": 8,
+        "XPhase": 15,
+        "IPC": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before EA starts trading",
+      "formula": "GetStartBars(XMA_Method,XLength,XPhase) + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal timestamp calculation for UpSignalTime and DnSignalTime"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Histogram[1]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Histogram[1]",
+        "right": "Histogram[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "UpCloud[1]",
+        "right": "DnCloud[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Histogram[1]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Histogram[1]",
+        "right": "Histogram[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "UpCloud[1]",
+        "right": "DnCloud[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "In 'breakdown' mode: long closes when histogram goes negative, short closes when histogram goes positive",
+      "In 'twist' mode: long closes when histogram starts declining, short closes when histogram starts rising",
+      "In 'cloudtwist' mode: long closes when UpCloud drops below DnCloud, short closes when UpCloud rises above DnCloud",
+      "Exit permissions are controlled by BuyPosClose and SellPosClose input booleans"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "When MM is negative, it is treated as a fixed lot size. When MM is positive, it is treated as a share/fraction of the deposit, with the calculation method determined by MMMode (LOT, FO, MM, or LMM as defined in TradeAlgorithms.mqh)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three mutually exclusive algorithm modes selected via 'Mode' enum: (1) 'breakdown' - histogram crosses zero line using buffer index 2; (2) 'twist' - histogram direction change (3 bars compared) using buffer index 2; (3) 'cloudtwist' - signal cloud crossover using buffer indices 0 (Up) and 1 (Dn). Entry signals use previous bars (SignalBar offset, default=1), comparing bar[SignalBar] vs bar[SignalBar+1] (and bar[SignalBar+2] for twist). Each mode generates both open and close signals simultaneously. Signal timestamps (UpSignalTime/DnSignalTime) are set to the next bar open time and passed to BuyPositionOpen/SellPositionOpen functions from TradeAlgorithms.mqh. A Recount flag triggers signal recalculation if CopyBuffer fails. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans gate whether each signal type is acted upon.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The BlauErgodicMDI custom indicator must be reimplemented in Python using the CXMA class methods from SmoothAlgorithms.mqh (supports JJMA, VIDIA, AMA, and standard MA methods). The indicator has 3 buffers: buffer 0 (Up cloud line), buffer 1 (Down cloud line), buffer 2 (Histogram). The TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) must also be reimplemented. Position sizing uses conditional logic: negative MM = fixed lots, positive MM = deposit fraction based on MMMode enum. SL/TP of 1000/2000 points are large suggesting this is designed for 5-digit pricing (100.0 / 200.0 pips equivalent). The SignalBar=1 default means signals are evaluated on the last closed bar, not the forming bar, which is good for backtesting accuracy.",
+  "extraction_timestamp": "2026-05-13T17:12:34.741418",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 112.46492719650269,
+    "cost": 0
+  }
+}

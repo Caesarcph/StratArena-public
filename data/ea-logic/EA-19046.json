@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-19046",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Core trading logic relies on Burg spectral extrapolation (maximum entropy method) implemented as custom numerical algorithm with Levinson-Durbin recursion - not a built-in MT5 indicator. Requires porting complex linear prediction coefficients, autocorrelation, and forecast extrapolation math to Python.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Burg Spectral Extrapolator",
+      "params": {
+        "degree": 30,
+        "forecast_bars": 500
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Burg linear prediction coefficients (a[])",
+      "formula": "Levinson-Durbin recursion on autocorrelation of detrended price series",
+      "used_by": "Burg Spectral Extrapolator forecast computation"
+    },
+    {
+      "name": "Prediction error (pe)",
+      "formula": "Initial = 2*autocorrelation[0]; iteratively reduced via reflection coefficients",
+      "used_by": "Coefficient normalization in Burg recursion"
+    },
+    {
+      "name": "Reflection coefficients (k[])",
+      "formula": "k = -2 * sum(ref[i]*ref[i-1]) / sum(ref[i]^2 + ref[i-1]^2)",
+      "used_by": "Levinson-Durbin coefficient update"
+    },
+    {
+      "name": "Forecast price series (extrapolated future bars)",
+      "formula": "AR model: price[n] = -sum(a[i]*price[n-i], i=1..degree)",
+      "used_by": "Entry/exit signal generation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Forecast price curve",
+        "right": "Current price",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Forecast price curve",
+        "right": "Current price",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Position closed on opposite forecast signal - when extrapolated curve reverses direction relative to current price"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA implements Burg's maximum entropy method (MEM) for spectral analysis and linear prediction. The core algorithm: (1) Detrends input price series, (2) Computes reflection coefficients via Burg's method minimizing forward/backward prediction errors, (3) Solves AR coefficients via Levinson-Durbin recursion, (4) Extrapolates price series forward by 'ForecastBars' bars using the AR model, (5) Generates buy signal when extrapolated curve trends above current close, sell when below. No SL/TP by default - exits only on signal reversal. The forecast is recomputed each new bar. Degree parameter controls AR model order (complexity), ForecastBars controls how far ahead to extrapolate. Higher degree = more complex spectral model capturing more frequency components but risk of overfitting.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The Burg/MEM algorithm must be ported from scratch - no direct library equivalent in standard Python trading frameworks. Use numpy for Levinson-Durbin recursion. scipy.signal has linear_prediction_coefficients but Burg-specific variant needs custom implementation. Key steps: (1) Implement Burg reflection coefficient computation with forward/backward error minimization, (2) Implement Levinson-Durbin recursion for AR coefficient extraction, (3) Implement AR forecast extrapolation, (4) Wrap as signal generator. The forecast curve visualization is not needed for trading - only the forecast direction relative to current price matters. Consider using statsmodels.tsa.ar_model.AutoReg as approximate alternative but Burg method has specific regularization properties that differ from Yule-Walker.",
+  "extraction_timestamp": "2026-05-13T14:19:28.737757",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 143.69980096817017,
+    "cost": 0
+  }
+}

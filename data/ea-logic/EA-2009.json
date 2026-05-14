@@ -1,0 +1,147 @@
+{
+  "ea_id": "EA-2009",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for BlauTStochI indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trading logic. Custom indicator and external dependencies require manual replication.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BlauTStochI",
+      "params": {
+        "method": "EMA",
+        "period": 20,
+        "depth1": 5,
+        "depth2": 8,
+        "depth3": 3,
+        "phase": 15,
+        "applied_to": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for indicator calculation",
+      "formula": "XLength + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "BlauTStochI[SignalBar]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "BlauTStochI[SignalBar+1] vs BlauTStochI[SignalBar+2]",
+        "right": "BlauTStochI[SignalBar] vs BlauTStochI[SignalBar+1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "BlauTStochI[SignalBar]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "BlauTStochI[SignalBar+1] vs BlauTStochI[SignalBar+2]",
+        "right": "BlauTStochI[SignalBar] vs BlauTStochI[SignalBar+1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Breakdown mode: long closes when indicator crosses below zero; short closes when indicator crosses above zero",
+      "Twist mode: long closes when indicator direction changes from falling to rising (Value[1]>Value[2] triggers BuyPosClose); short closes when indicator direction changes from rising to falling (Value[1]<Value[2] triggers SellPosClose)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM>0: deposit fraction; MM<0: absolute lot size. MMMode selects between LOT, PCT, and other margin modes via TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Two entry algorithms selectable via Mode enum: (1) 'breakdown' - enters when BlauTStochI crosses zero line (Value[1]>0 and Value[0]<=0 for buy, Value[1]<0 and Value[0]>=0 for sell); (2) 'twist' - enters on direction change (Value[1]<Value[2] declining, then Value[0]>=Value[1] turning up for buy; Value[1]>Value[2] rising, then Value[0]<=Value[1] turning down for sell). SignalBar input (default=1) shifts which bar is used for signal detection, allowing delayed signal confirmation. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans independently gate each trade action. Trading functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) and GlobalVariableDel_ are from TradeAlgorithms.mqh. CIsNewBar class handles new bar detection. CXMA class from SmoothAlgorithms.mqh calculates starting bars for indicator warmup.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "BlauTStochI is a triple-smoothed stochastic momentum indicator from William Blau's work. Must replicate the full smoothing chain: (1) calculate raw momentum, (2) apply first EMA smoothing (XLength1=5), (3) apply second EMA smoothing (XLength2=8), (4) apply third EMA smoothing (XLength3=3), (5) normalize as stochastic index. The XMA_Method supports multiple smoothing types (JJMA, VIDIA, AMA beyond just EMA) via SmoothAlgorithms.mqh - these non-standard smoothers must be ported if XMA_Method is changed from default. TradeAlgorithms.mqh provides position open/close wrappers that handle lot sizing (MM>0=fraction, MM<0=fixed lots), SL/TP placement, and deviation checks - must replicate this full logic. The 'twist' mode direction-change detection requires 3 consecutive indicator values. SignalBar=1 means signals are evaluated on the previous closed bar, not the current forming bar, which avoids repainting. SL/TP are in points (not pips) - no digit adjustment needed since values are passed directly to trade functions.",
+  "extraction_timestamp": "2026-05-13T18:08:32.794974",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 190.42897772789001,
+    "cost": 0
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "ea_id": "EA-1954",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the 'BlauCSI' custom indicator, and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing calculations and trading execution logic. Custom indicator data cannot be reproduced without porting the indicator itself.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BlauCSI",
+      "params": {
+        "XMA_Method": 1,
+        "XLength": 1,
+        "XLength1": 20,
+        "XLength2": 5,
+        "XLength3": 3,
+        "XPhase": 15,
+        "IPC1": 1,
+        "IPC2": 2,
+        "signal_shift": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "min_rates_total = XLength + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + 3 + SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for valid calculation",
+      "formula": "XLength + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade signal timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "BlauCSI[SignalBar+1]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "BlauCSI[SignalBar+1]",
+        "right": "BlauCSI[SignalBar+2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "BlauCSI[SignalBar+1]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "BlauCSI[SignalBar+1]",
+        "right": "BlauCSI[SignalBar+2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Breakdown mode: close long when BlauCSI[SignalBar+1]<0, close short when BlauCSI[SignalBar+1]>0; Twist mode: close long when BlauCSI[SignalBar+1]>BlauCSI[SignalBar+2], close short when BlauCSI[SignalBar+1]<BlauCSI[SignalBar+2]"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MM input: positive values = share of deposit in deal (fraction), negative values = fixed lot size; MMMode selects between FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE, and LOT (fixed lot) methods"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA operates in two modes controlled by 'Mode' input: (1) 'breakdown' - zero-line crossover: Buy when BlauCSI crosses above zero, Sell when crosses below zero. (2) 'twist' - direction change: Buy when BlauCSI starts declining (Value[1]<Value[2]) and previous bar was rising (Value[0]>=Value[1]), Sell when BlauCSI starts rising (Value[1]>Value[2]) and previous bar was declining (Value[0]<=Value[1]). Signal is read at SignalBar offset (default=1, meaning previous completed bar). Entry requires BuyPosOpen/SellPosOpen permissions; exit requires BuyPosClose/SellPosClose permissions. Signal time is computed as SERIES_LASTBAR_DATE + TimeShiftSec for trade management. If SignalBar==0, signals are evaluated on every tick instead of only on new bars.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must port the BlauCSI custom indicator first - it implements William Blau's CSI (Ergodic CSI) with triple-smoothed momentum using configurable smoothing methods (EMA/SMA/SMMA/LWMA/Jurik/VIDyA etc. from SmoothAlgorithms.mqh). TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions and GlobalVariableDel_ helper - these must be reimplemented. The MM (money management) logic supports 5 modes via MarginMode enum. Pay attention to the SignalBar parameter which shifts which bar is used for signal reading (default 1 = last closed bar). The 'twist' mode entry logic is counter-intuitive: it buys when the indicator starts declining from a rising state (momentum exhaustion/reversal), and sells when it starts rising from a declining state. No digit adjustment is performed on SL/TP values - they are used as-is, meaning the user must account for 5-digit brokers when setting input values.",
+  "extraction_timestamp": "2026-05-13T16:15:46.408720",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 169.38408374786377,
+    "cost": 0
+  }
+}

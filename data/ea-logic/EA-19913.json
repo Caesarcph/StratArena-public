@@ -1,0 +1,186 @@
+{
+  "ea_id": "EA-19913",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call external custom indicator Percentage_Crossover_Channel.mq5. The indicator is available but requires custom implementation in Python. No other complex features prevent conversion.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Percentage Crossover Channel",
+      "params": {
+        "percent": 50.0,
+        "applied_to": 0
+      },
+      "source": "custom",
+      "library": "Percentage_Crossover_Channel.mq5",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "1-period SMA (inside custom indicator)",
+      "params": {
+        "period": 1,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": "Percentage_Crossover_Channel.mq5",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "plus_value (upper envelope multiplier)",
+      "formula": "1+percent/100",
+      "used_by": "Percentage_Crossover_Channel upper band and middle line recursion"
+    },
+    {
+      "name": "minus_value (lower envelope multiplier)",
+      "formula": "1-percent/100",
+      "used_by": "Percentage_Crossover_Channel lower band and middle line recursion"
+    },
+    {
+      "name": "Middle line (recursive smoothing)",
+      "formula": "if(price*minus_value>prev_middle) then price*minus_value else if(price*plus_value<prev_middle) then price*plus_value else prev_middle",
+      "used_by": "Channel upper and lower bands"
+    },
+    {
+      "name": "Upper band",
+      "formula": "Middle_line*plus_value",
+      "used_by": "Entry short signal (High crosses above)"
+    },
+    {
+      "name": "Lower band",
+      "formula": "Middle_line*minus_value",
+      "used_by": "Entry long signal (Low crosses below)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Low",
+        "right": "Lower Channel Band",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "crossover",
+        "left": "Close",
+        "right": "Middle Channel Line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "High",
+        "right": "Upper Channel Band",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "crossover",
+        "left": "Close",
+        "right": "Middle Channel Line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "stoplevel_adjustment": true,
+        "spread_multiplier": 2
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "stoplevel_adjustment": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Closes opposite positions before entering new direction: CloseSell() before Buy, CloseBuy() before Sell. StopLevel and spread-adjusted minimum distance enforced on SL/TP placement."
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {
+      "lot_min": "symbol_info.LotsMin()",
+      "lot_max": "symbol_info.LotsMax()",
+      "lot_step": "symbol_info.LotsStep()",
+      "volume_check": "trade.CheckVolume()"
+    },
+    "max_positions": 1,
+    "conditional_logic": "Lot size corrected to nearest valid step rounded down; also checked against symbol LotsLimit per side. CheckVolume normalizes to broker constraints."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Two entry modes controlled by InpCrossMiddle: (1) CrossMiddle=Yes signals on Close crossing the middle line - long when Close crosses below middle (bearish reversal expected), short when Close crosses above middle. (2) CrossMiddle=No signals on Low crossing below lower band for longs, High crossing above upper band for shorts. InpReverce flag inverts all signal directions. Hedge account required (netting accounts rejected in OnInit). Entry uses bars [1] and [2] (previous completed and one before) for crossover detection. Position gate: closes opposite side first, then only opens if no same-side position exists (num_b==0 or num_s==0).",
+  "external_dependencies": [
+    "Arrays/ArrayLong.mqh",
+    "Trade/TerminalInfo.mqh",
+    "Trade/AccountInfo.mqh",
+    "Trade/Trade.mqh",
+    "Percentage_Crossover_Channel.mq5"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Custom indicator Percentage_Crossover_Channel must be reimplemented in Python. The middle line uses recursive smoothing similar to SuperTrend: middle[i] = price*minus_value if price*minus_value>middle[i+1] else price*plus_value if price*plus_value<middle[i+1] else middle[i+1], where price is a 1-period SMA of the applied price. Upper/lower bands are simple percentage offsets. Entry signals use previous two completed bars (shift 1 and 2). InpReverce flag flips all signals. SL/TP are in points using _Point directly (no 5-digit adjustment). StopLevel enforcement uses spread*InpSizeSpread as fallback when StopsLevel==0. Filling type is auto-detected from broker symbol settings, defaulting to FOK. Two entry mode variants (middle crossover vs boundary crossover) must both be supported. Only operates on hedge accounts.",
+  "extraction_timestamp": "2026-05-13T17:20:12.848027",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 303.32071137428284,
+    "cost": 0
+  }
+}

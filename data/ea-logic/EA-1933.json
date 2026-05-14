@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-1933",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call 'BlauCMI' custom indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BlauCMI",
+      "params": {
+        "method": 1,
+        "momentum_depth": 1,
+        "length1": 20,
+        "length2": 5,
+        "length3": 3,
+        "phase": 15,
+        "applied_price1": 1,
+        "applied_price2": 2,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "(XLength-1) + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade signal timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "BlauCMI[0]",
+        "right": "BlauCMI[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "BlauCMI[0]",
+        "right": "BlauCMI[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: long closed when BlauCMI[1]>BlauCMI[2] (declining indicator), short closed when BlauCMI[1]<BlauCMI[2] (rising indicator), gated by BuyPosClose/SellPosClose input flags"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "If MM is negative, treated as fixed lot size; if positive, treated as share of deposit (deposit fraction). MMMode selects between LOT and FROZEN_MARGIN methods via TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Entry logic uses 3-bar comparison of BlauCMI values: Value[0] (SignalBar), Value[1] (SignalBar+1), Value[2] (SignalBar+2). Long condition: Value[1]<Value[2] AND Value[0]>Value[1] - indicator was declining then reversed upward. Short condition: Value[1]>Value[2] AND Value[0]<Value[1] - indicator was rising then reversed downward. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans gate entry and exit permissions independently. Signal timing uses SERIES_LASTBAR_DATE + TimeShiftSec for trade synchronization. LoadHistory() called each tick for proper IsNewBar operation. Validation: IPC1==IPC2 && XLength==1 causes INIT_FAILED.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "BlauCMI is a custom indicator requiring reimplementation in Python. It uses triple-smoothed momentum (CMI = Cumulative Momentum Index by William Blau). The smoothing algorithm (CXMA) supports multiple methods (EMA, JJMA, VIDIA, AMA) via SmoothAlgorithms.mqh - must replicate the selected method (default EMA). The TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with built-in position checks, deviation handling, and margin-based lot calculation - must replicate these wrappers. Position sizing logic is conditional on MM sign (negative=fixed lot, positive=deposit fraction). Signal logic compares 3 consecutive indicator values for momentum reversal detection. New bar guard prevents multiple entries per bar.",
+  "extraction_timestamp": "2026-05-13T15:07:48.965920",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 158.16029977798462,
+    "cost": 0
+  }
+}

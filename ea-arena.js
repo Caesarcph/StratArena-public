@@ -401,28 +401,91 @@ function renderEADetail(route) {
     ${paramsHtml}`;
   }
 
+  let backtestHtml = "";
+  const bt = store.eaBacktestIndex[id];
+  if (bt && bt.status !== "pending") {
+    const isZh = getLang() === "zh";
+    const pnlClass = bt.pnl_pct > 0 ? "ea-bt-profit" : bt.pnl_pct < 0 ? "ea-bt-loss" : "";
+    const hasTrades = bt.total_trades > 0;
+    const wrClass = bt.win_rate >= 50 ? "ea-bt-profit" : "ea-bt-loss";
+    const sharpeClass = bt.sharpe_ratio > 0 ? "ea-bt-profit" : bt.sharpe_ratio < 0 ? "ea-bt-loss" : "";
+    backtestHtml = `
+      <div class="ea-section ea-backtest-section">
+        <h2>${isZh ? "回测结果" : "Backtest Results"}</h2>
+        <div class="ea-bt-summary">
+          <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
+            <span class="ea-bt-label">${isZh ? "总盈亏" : "Total P&L"}</span>
+            <span class="ea-bt-value">${bt.pnl_pct > 0 ? "+" : ""}${bt.pnl_pct.toFixed(2)}%</span>
+            <span class="ea-bt-sub">$${bt.start_value ? bt.pnl.toFixed(2) : "—"}</span>
+          </div>
+          <div class="ea-bt-metric">
+            <span class="ea-bt-label">${isZh ? "初始资金" : "Start Value"}</span>
+            <span class="ea-bt-value">$${bt.start_value ? bt.start_value.toLocaleString() : "10,000"}</span>
+          </div>
+          <div class="ea-bt-metric">
+            <span class="ea-bt-label">${isZh ? "最终资金" : "End Value"}</span>
+            <span class="ea-bt-value">$${bt.end_value ? bt.end_value.toLocaleString() : "—"}</span>
+          </div>
+        </div>
+        <div class="ea-bt-grid">
+          <div class="ea-bt-metric">
+            <span class="ea-bt-label">${isZh ? "总交易数" : "Total Trades"}</span>
+            <span class="ea-bt-value">${bt.total_trades}</span>
+          </div>
+          <div class="ea-bt-metric">
+            <span class="ea-bt-label">${isZh ? "胜 / 负" : "Won / Lost"}</span>
+            <span class="ea-bt-value">${bt.won} / ${bt.lost}</span>
+          </div>
+          <div class="ea-bt-metric ${hasTrades ? wrClass : ""}">
+            <span class="ea-bt-label">${isZh ? "胜率" : "Win Rate"}</span>
+            <span class="ea-bt-value">${bt.win_rate.toFixed(1)}%</span>
+          </div>
+          <div class="ea-bt-metric ${sharpeClass}">
+            <span class="ea-bt-label">${isZh ? "夏普比率" : "Sharpe Ratio"}</span>
+            <span class="ea-bt-value">${bt.sharpe_ratio !== undefined ? bt.sharpe_ratio.toFixed(3) : "—"}</span>
+          </div>
+          <div class="ea-bt-metric">
+            <span class="ea-bt-label">${isZh ? "最大回撤" : "Max Drawdown"}</span>
+            <span class="ea-bt-value ea-bt-loss">${bt.max_drawdown_pct !== undefined ? bt.max_drawdown_pct.toFixed(2) : "—"}%</span>
+          </div>
+          <div class="ea-bt-metric">
+            <span class="ea-bt-label">${isZh ? "年化收益" : "Annual Return"}</span>
+            <span class="ea-bt-value ${bt.annual_return > 0 ? "ea-bt-profit" : bt.annual_return < 0 ? "ea-bt-loss" : ""}">${bt.annual_return !== undefined ? bt.annual_return.toFixed(2) : "—"}%</span>
+          </div>
+          <div class="ea-bt-metric">
+            <span class="ea-bt-label">${isZh ? "数据源" : "Data Source"}</span>
+            <span class="ea-bt-value ea-bt-small">${bt.data_file || "—"}</span>
+          </div>
+          ${bt.timestamp ? `<div class="ea-bt-metric"><span class="ea-bt-label">${isZh ? "回测时间" : "Backtest Time"}</span><span class="ea-bt-value ea-bt-small">${new Date(bt.timestamp).toLocaleDateString()}</span></div>` : ""}
+        </div>
+        ${!hasTrades ? `<p class="ea-bt-note">${isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment."}</p>` : ""}
+      </div>`;
+  }
+
   return `
-  <section class="ea-detail-page section">
-    <a class="ea-back-link" href="?page=ea-arena">← ${getLang() === "zh" ? "返回 EA 竞技场" : "Back to EA Arena"}</a>
-    <div class="ea-detail-header">
-      <div class="ea-detail-badges">
-        <span class="ea-detail-id">${ea.id}</span>
-        ${eaCategoryBadge(ea.category || "Unclassified")}
-        ${eaRiskBadge(ea.overall_risk)}
-        ${eaStars(ea.rating)}
-        ${store.eaAnalysis[id] ? `<span class="ea-analyzed-badge">${getLang() === "zh" ? "已分析" : "Analyzed"}</span>` : `<span class="ea-pending-badge">${getLang() === "zh" ? "待定" : "Pending"}</span>`}
-        ${ea.absorbed_by ? `<span class="ea-absorbed-badge">${getLang() === "zh" ? "已吸收" : "Absorbed"}</span>` : ""}
+    <section class="ea-detail-page section">
+      <a class="ea-back-link" href="?page=ea-arena">← ${getLang() === "zh" ? "返回 EA 竞技场" : "Back to EA Arena"}</a>
+      <div class="ea-detail-header">
+        <div class="ea-detail-badges">
+          <span class="ea-detail-id">${ea.id}</span>
+          ${eaCategoryBadge(ea.category || "Unclassified")}
+          ${eaRiskBadge(ea.overall_risk)}
+          ${eaStars(ea.rating)}
+          ${store.eaAnalysis[id] ? `<span class="ea-analyzed-badge">${getLang() === "zh" ? "已分析" : "Analyzed"}</span>` : `<span class="ea-pending-badge">${getLang() === "zh" ? "待定" : "Pending"}</span>`}
+          ${ea.absorbed_by ? `<span class="ea-absorbed-badge">${getLang() === "zh" ? "已吸收" : "Absorbed"}</span>` : ""}
+        </div>
+        <h1>${ea.name || (getLang() === "zh" ? "未知 EA" : "Unknown EA")}</h1>
+        <p class="ea-detail-desc">${ea.description || (getLang() === "zh" ? "暂无描述。" : "No description available.")}</p>
       </div>
-      <h1>${ea.name || (getLang() === "zh" ? "未知 EA" : "Unknown EA")}</h1>
-      <p class="ea-detail-desc">${ea.description || (getLang() === "zh" ? "暂无描述。" : "No description available.")}</p>
-    </div>
 
-    <div class="ea-info-grid">${infoItems}</div>
+      <div class="ea-info-grid">${infoItems}</div>
 
-    ${analysis && analysis.summary ? `<div class="ea-section"><h2>${getLang() === "zh" ? "摘要" : "Summary"}</h2><p>${analysis.summary}</p></div>` : ""}
+      ${backtestHtml}
 
-    ${analysisHtml}
-  </section>`;
+      ${analysis && analysis.summary ? `<div class="ea-section"><h2>${getLang() === "zh" ? "摘要" : "Summary"}</h2><p>${analysis.summary}</p></div>` : ""}
+
+      ${analysisHtml}
+    </section>`;
 }
 
 function bindEADetail(route) {}

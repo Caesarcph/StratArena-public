@@ -1,0 +1,145 @@
+{
+  "ea_id": "EA-20637",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 standard library classes (CTrade, CPositionInfo, CSymbolInfo, COrderInfo) with no custom indicators or external .mqh trading logic. Simple time-based pending order placement with fixed SL/TP and trailing stop. All logic is straightforward and convertible to Python.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "ExtStopLoss",
+      "formula": "InpStopLoss * m_adjusted_point (where m_adjusted_point = Point()*10 if Digits==3 or 5, else Point())",
+      "used_by": "SL calculation in PlacePending"
+    },
+    {
+      "name": "ExtTakeProfit",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "TP calculation in PlacePending"
+    },
+    {
+      "name": "ExtTrailingStop",
+      "formula": "InpTrailingStop * m_adjusted_point",
+      "used_by": "Trailing stop distance in Trailing()"
+    },
+    {
+      "name": "ExtTrailingStep",
+      "formula": "InpTrailingStep * m_adjusted_point",
+      "used_by": "Trailing activation threshold in Trailing()"
+    },
+    {
+      "name": "ExtDistanceSet",
+      "formula": "InpDistanceSet * m_adjusted_point",
+      "used_by": "Pending order distance from market price in PlacePending()"
+    },
+    {
+      "name": "m_adjusted_point",
+      "formula": "Point()*10 if Digits==3||5, else Point()*1",
+      "used_by": "All pip-to-price conversions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Time == InpTimeSet",
+        "right": "null",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Time == InpTimeSet",
+        "right": "null",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "note": "applied to pending order price, adjusted for 3/5 digit brokers"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 150,
+      "params": {
+        "note": "applied to pending order price, adjusted for 3/5 digit brokers"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 5,
+      "params": {
+        "trail_start_pips": 5,
+        "trail_step_pips": 5
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Time-based exit: at InpTimeDel (default 22:30), all pending orders are deleted and all positions are closed",
+      "On deal entry: when any pending order fills (DEAL_ENTRY_IN), all remaining pending orders are deleted immediately via OnTradeTransaction"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 0,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 10,
+      "end_hour": 22
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 10,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "This is a news/straddle EA: at a configured time (InpTimeSet, default 10:30), it places a BUY STOP and SELL STOP at a distance (InpDistanceSet, default 20 pips) from current price. When one order fills, the opposite pending order is deleted via OnTradeTransaction. At a configured removal time (InpTimeDel, default 22:30), all remaining pending orders and open positions are closed. The time check uses exact hour:minute match (once per minute). Trailing stop activates when position profit exceeds ExtTrailingStop+ExtTrailingStep from open price, then modifies SL to current price minus trailing stop distance. Trailing uses a combined threshold: position must be in profit by (ExtTrailingStop+ExtTrailingStep) before SL is moved, and new SL is set at current price minus ExtTrailingStop (not cumulative).",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\OrderInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Time-based pending order strategy with no indicators. Key conversion points: 1) Implement time-based trigger (exact hour:minute match) to place BUY STOP and SELL STOP orders at Ask+distance and Bid-distance respectively. 2) On fill of one pending order, delete the opposite order (straddle logic). 3) At removal time, close all positions and delete all pending orders. 4) Trailing stop implementation: for BUY, move SL to current_price - trailing_stop when (current_price - open_price) > trailing_stop + trailing_step AND current SL < current_price - trailing_stop - trailing_step. For SELL, move SL to current_price + trailing_stop when (open_price - current_price) > trailing_stop + trailing_step AND (current SL > current_price + trailing_stop + trailing_step OR SL==0). 5) Digit adjustment: multiply pip values by 10 for 3/5 digit symbols. 6) No indicator data needed - only price and time data required.",
+  "extraction_timestamp": "2026-05-13T19:57:44.988677",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 164.43607640266418,
+    "cost": 0
+  }
+}

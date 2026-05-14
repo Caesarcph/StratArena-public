@@ -1,0 +1,153 @@
+{
+  "ea_id": "EA-1935",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for BlauCMomentum indicator and relies on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BlauCMomentum",
+      "params": {
+        "method": 1,
+        "momentum_depth": 1,
+        "first_avg_depth": 20,
+        "second_avg_depth": 5,
+        "third_avg_depth": 3,
+        "phase": 15,
+        "applied_price_close": 1,
+        "applied_price_open": 2,
+        "buffer": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for calculation",
+      "formula": "XLength + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "BlauCMomentum[1]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "BlauCMomentum[0]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "BlauCMomentum[1]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "BlauCMomentum[0]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: in breakdown mode, BUY_Close when indicator goes negative, SELL_Close when indicator goes positive; in twist mode, BUY_Close when indicator starts declining, SELL_Close when indicator starts rising"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "If MM is negative, absolute value is fixed lot size; if MM is positive, it represents the share of deposit per deal (fractional sizing controlled by MMMode enum: LOT, PRC, FIX)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Two operating modes: (1) 'breakdown' - entry on zero-line crossover of BlauCMomentum; buy when Value[1]>0 and Value[0]<=0 (crossed above zero), sell when Value[1]<0 and Value[0]>=0 (crossed below zero). (2) 'twist' - entry on direction change of BlauCMomentum; buy when Value[1]<Value[2] (was declining) and Value[0]>=Value[1] (now rising), sell when Value[1]>Value[2] (was rising) and Value[0]<=Value[1] (now declining). SignalBar parameter allows using non-current bar for signal (default=1, previous bar). Entry is gated by BuyPosOpen/SellPosOpen permission flags and BuyPosClose/SellPosClose for signal-reversal closes. Recount mechanism retries signal calculation if CopyBuffer fails. Validation rejects IPC1==IPC2 with XLength==1 as invalid. Uses GlobalVariableDel_ for cleanup on deinit.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The BlauCMomentum custom indicator must be reimplemented in Python - it is a triple-smoothed momentum indicator with configurable smoothing methods (EMA, JJMA, VIDYA, AMA). The SmoothAlgorithms.mqh library provides CXMA class with GetStartBars() and smoothing functions. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, LoadHistory, GlobalVariableDel_, and CIsNewBar - all must be reimplemented. Position sizing logic (MM parameter with LOT/PRC/FIX MarginMode) must be ported carefully. The two entry modes (breakdown vs twist) are straightforward to convert. SL/TP are in points so digit-adjustment may be needed for 5-digit brokers. SignalBar=1 means signals are evaluated on the previous completed bar, which maps naturally to Python backtesting.",
+  "extraction_timestamp": "2026-05-13T15:21:08.534130",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 303.1669476032257,
+    "cost": 0
+  }
+}

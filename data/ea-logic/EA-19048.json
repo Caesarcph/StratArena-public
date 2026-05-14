@@ -1,0 +1,121 @@
+{
+  "ea_id": "EA-19048",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Grid strategy with 5-level pending limit orders placed simultaneously on both sides. Profit/loss exit based on floating P&L across all grid positions. Relies on pending order management, grid position tracking, and MT5 trade transaction handling. Grid behavior is fundamentally MT5 platform-dependent and requires tick-level order management.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Adjusted point value",
+      "formula": "_Point * 10 when _Digits==3 or _Digits==5, else _Point * 1",
+      "used_by": "ExtStep calculation and step distance for grid orders"
+    },
+    {
+      "name": "ExtStep (grid step in price)",
+      "formula": "InpStep * m_adjusted_point",
+      "used_by": "SellLimit and BuyLimit order placement distances"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "grid_placement",
+        "left": "Bid - (i+1)*ExtStep",
+        "right": "current price",
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "grid_placement",
+        "left": "Ask + (i+1)*ExtStep",
+        "right": "current price",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Close all positions and delete all orders when floating profit >= InpProfitTarget (500 money units)",
+      "Close all positions and delete all orders when floating loss <= -InpMaxLoss (150 money units)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 10,
+    "conditional_logic": "Grid places 5 BuyLimit + 5 SellLimit = 10 pending orders, each with InpLot size. No scaling."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 30,
+    "filling": "FOK_or_IOC_or_RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_flat"
+  },
+  "custom_logic_notes": "Pure grid EA: On each tick, checks if there are zero pending orders and zero positions. If flat with no orders, places a symmetric grid of 5 BuyLimit orders below price and 5 SellLimit orders above price, each separated by ExtStep pips. Once positions exist, monitors total floating P&L (commission + swap + profit). If total profit >= InpProfitTarget, closes all positions and deletes all orders (take profit in money). If total loss >= InpMaxLoss, same action (stop loss in money). Grid is then re-placed on next tick when flat. Uses magic number 105033354 to identify its own orders/positions. No directional bias - pure mean-reversion grid.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\OrderInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Grid strategy with pending order management is complex to replicate in Python. Must implement: (1) pending order grid placement with limit orders, (2) real-time P&L monitoring across all grid positions including commission+swap, (3) bulk close + order deletion on profit/loss threshold, (4) automatic grid re-placement when flat. The 5x5 symmetric grid with step spacing and floating P&L exit thresholds requires persistent order state management. MT5 filling type detection (FOK/IOC/RETURN) must be mapped to broker-specific behavior. The digit adjustment (multiply step by 10 for 3/5 digit brokers) is critical for correct grid spacing.",
+  "extraction_timestamp": "2026-05-13T14:22:08.013768",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 159.27489829063416,
+    "cost": 0
+  }
+}

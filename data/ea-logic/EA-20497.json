@@ -1,0 +1,148 @@
+{
+  "ea_id": "EA-20497",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Pure price action strategy with no custom indicators or external trading logic libraries. Uses only standard MT5 price functions (CopyOpen, CopyHigh, CopyLow, CopyClose, CopyTime) and standard Trade/AccountInfo/SymbolInfo libraries for order execution. Simple entry/exit with fixed lot sizing and point-based SL/TP. All logic is self-contained and straightforward to replicate in Python.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Mother bar range to inside bar range ratio",
+      "formula": "(High[2]-Low[2])/(High[1]-Low[1])",
+      "used_by": "Entry signal gate (must be >2)"
+    },
+    {
+      "name": "Mother bar midpoint",
+      "formula": "(High[2]+Low[2])/2",
+      "used_by": "Entry signal directional bias"
+    },
+    {
+      "name": "StopLevel for SL/TP correction",
+      "formula": "StopsLevel==0 ? Spread*InpSizeSpread : StopsLevel",
+      "used_by": "CorrectStopLoss and CorrectTakeProfit"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Inside Bar Pattern",
+        "right": "Bullish Directional Bias",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side",
+        "custom_conditions": [
+          "High[1]<High[2] AND Low[1]>Low[2] (bar[1] is inside bar of bar[2])",
+          "(High[2]-Low[2])/(High[1]-Low[1])>2 (mother bar range > 2x inside bar range)",
+          "Close[1]>Open[1] (inside bar is bullish)",
+          "High[1]<(High[2]+Low[2])/2 (inside bar high below mother bar midpoint)",
+          "Close[2]<Open[2] (mother bar is bearish)"
+        ]
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Inside Bar Pattern",
+        "right": "Bearish Directional Bias",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side",
+        "custom_conditions": [
+          "High[1]<High[2] AND Low[1]>Low[2] (bar[1] is inside bar of bar[2])",
+          "(High[2]-Low[2])/(High[1]-Low[1])>2 (mother bar range > 2x inside bar range)",
+          "Close[1]<Open[1] (inside bar is bearish)",
+          "Low[1]<(High[2]+Low[2])/2 (inside bar low below mother bar midpoint)",
+          "Close[2]>Open[2] (mother bar is bullish)"
+        ]
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "adjustment": "SL in points, corrected by StopLevel=max(StopsLevel, Spread*InpSizeSpread); SL price = min(Ask-StopsLevel*Point, Ask-InpStopLoss*Point) for buy; default 0 means no SL"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "adjustment": "TP in points, corrected by StopLevel=max(StopsLevel, Spread*InpSizeSpread); TP price = max(Ask+StopsLevel*Point, Ask+InpTakeProfit*Point) for buy; default 0 means no TP"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "In OPENED_MODE_ALL_SWING and OPENED_MODE_ONE_SWING modes, opposite side positions are closed before opening a new position in the opposite direction (swing behavior)",
+      "No SL/TP mode warning displayed when OPENED_MODE_ALL with zero SL/TP: positions can only be closed manually or by opposite signal"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {
+      "min_lot": "symbol_info.LotsMin()",
+      "max_lot": "symbol_info.LotsMax()",
+      "lot_step": "symbol_info.LotsStep()",
+      "correction": "floor(volume/step)*step rounded down to min, capped at max"
+    },
+    "max_positions": -1,
+    "conditional_logic": "Max positions depend on InpModeOpen: OPENED_MODE_ALL=unlimited stacking, OPENED_MODE_ALL_SWING=unlimited one-direction stacking (opposite closed first), OPENED_MODE_ONE_SWING=max 1 position total"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "auto"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The core pattern is a 'Small Inside Bar' strategy: bar[1] must be an inside bar of bar[2] (High[1]<High[2] AND Low[1]>Low[2]) with a size ratio >2 (mother bar is at least 2x the range of the inside bar). Directional bias: for long, the inside bar must be bullish (Close[1]>Open[1]) and positioned in the upper half of the mother bar (High[1]<midpoint), while the mother bar must be bearish (Close[2]<Open[2]) — a bearish mother bar followed by a bullish consolidation near the top signals upward breakout. For short, the mirror logic applies. InpReverse flag swaps long/short signals. The EA requires a hedge account (netting accounts are rejected in OnInit). SL/TP values are in points (not pips) and are adjusted by StopLevel which equals max(symbol StopsLevel, Spread*InpSizeSpread). The default InpSizeSpread=2 means the effective minimum stop distance is 2x spread when StopsLevel is 0.",
+  "external_dependencies": [
+    "Arrays/ArrayLong.mqh",
+    "Trade/AccountInfo.mqh",
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Pure price action — no indicator handles needed. Just need OHLC bars (bar[1] and bar[2] for the signal). The size ratio and midpoint calculations are trivial. Key complexity is the position management modes (3 modes) and the StopLevel-aware SL/TP placement. In Python, the inside bar detection is straightforward: check if bar[-2] is inside bar[-3] with ratio>2, then apply directional bias rules. SL/TP in 'points' needs conversion: in Python use points = price * point_value. The swing mode (close opposite then open new) requires tracking open positions. The hedge account requirement means the EA can hold simultaneous long/short in ALL mode; in Python backtesting, simulate this with separate long/short position lists. No indicator data needed — only OHLC and spread for StopLevel calculation.",
+  "extraction_timestamp": "2026-05-13T19:18:43.662304",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 297.2388858795166,
+    "cost": 0
+  }
+}

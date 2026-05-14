@@ -1,0 +1,159 @@
+{
+  "ea_id": "EA-19643",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'arrows_curves' which is a non-standard custom indicator whose buffer logic cannot be auto-converted without the indicator source code. Also depends on CMoneyFixedMargin from MoneyFixedMargin.mqh for conditional position sizing.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Arrows and Curves",
+      "params": {
+        "SSP": 20,
+        "Channel": 0,
+        "Ch_Stop": 30,
+        "relay": 10
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "m_adjusted_point",
+      "formula": "Point * 10 when Digits==3 or Digits==5, else Point * 1",
+      "used_by": "ExtStopLoss, ExtTakeProfit, ExtTrailingStop, ExtTrailingStep"
+    },
+    {
+      "name": "ExtStopLoss",
+      "formula": "InpStopLoss * m_adjusted_point",
+      "used_by": "OpenBuy SL, OpenSell SL"
+    },
+    {
+      "name": "ExtTakeProfit",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "OpenBuy TP, OpenSell TP"
+    },
+    {
+      "name": "ExtTrailingStop",
+      "formula": "InpTrailingStop * m_adjusted_point",
+      "used_by": "Trailing()"
+    },
+    {
+      "name": "ExtTrailingStep",
+      "formula": "InpTrailingStep * m_adjusted_point",
+      "used_by": "Trailing()"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "iCustom buffer 0 at bar [1]",
+        "right": "0.0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "iCustom buffer 1 at bar [1]",
+        "right": "0.0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "input_pips": 50,
+        "adjusted": "InpStopLoss * m_adjusted_point"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "input_pips": 50,
+        "adjusted": "InpTakeProfit * m_adjusted_point"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 5
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "When a buy signal fires while a sell position is open, the sell position is closed (and vice versa). Trailing stop modifies SL when price moves TrailingStop+TrailingStep beyond open price."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "fixed_lots": 0.1,
+      "risk_percent": 5.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "If InpLots > 0.0, use fixed lot size InpLots. If InpLots <= 0.0, use CMoneyFixedMargin with Risk percent of free margin to calculate lot size dynamically."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses an iCustom indicator 'arrows_curves' with 2 buffers: buffer 0 = buy signal (non-zero = signal active), buffer 1 = sell signal (non-zero = signal active). Signals are read from bar index [1] (previous completed bar). When flat and buy signal: open long. When flat and sell signal: open short. When already in a position and opposite signal fires: close opposite side positions first, then trail existing positions. The filling type is auto-detected at init: FOK preferred, then IOC, then RETURN. CMoneyFixedMargin.CheckOpenLong/CheckOpenShort is used for dynamic lot calculation when InpLots<=0. CTrade.CheckVolume is called before order send as a pre-check to avoid 'not enough money' errors.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh",
+    "Expert\\Money\\MoneyFixedMargin.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The custom indicator 'arrows_curves' must be reverse-engineered or reimplemented in Python before the signal logic can be replicated. The indicator parameters SSP=20 (reversal period), Channel=0, Ch_Stop=30, relay=10 need to be understood from the indicator source. The digit adjustment logic (multiplying by 10 for 3/5 digit brokers) must be replicated for correct SL/TP pip calculations. CMoneyFixedMargin logic from MoneyFixedMargin.mqh must be ported for the conditional lot sizing path. Signal reversal close logic (close opposite on new signal) must be carefully implemented. The trailing stop uses a two-condition gate: price must exceed open by (TrailingStop+TrailingStep), and current SL must be behind by (TrailingStop+TrailingStep) before modifying.",
+  "extraction_timestamp": "2026-05-13T16:46:24.013909",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 144.03157830238342,
+    "cost": 0
+  }
+}

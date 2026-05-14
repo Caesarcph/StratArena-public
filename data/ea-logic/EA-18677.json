@@ -1,0 +1,199 @@
+{
+  "ea_id": "EA-18677",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "EA uses iCustom calls to external indicators (ColorRSS, ColorMA, HeikenAshi) and references custom indicator buffers for signal logic, requiring manual recreation of custom indicator logic in Python. Entry rules are moderately complex with multi-indicator confirmation including HeikenAshi candle color filtering.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Color RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "custom",
+      "library": "ColorRSS.mq5",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Color MA",
+      "params": {
+        "period": 14,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "custom",
+      "library": "ColorMA.mq5",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Heiken Ashi",
+      "params": {},
+      "source": "custom",
+      "library": "HeikenAshi.mq5",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Stop Loss MA",
+      "params": {
+        "period": 14,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "HeikenAshi bullish candle confirmation",
+      "formula": "HA_Close > HA_Open",
+      "used_by": "Long entry rule"
+    },
+    {
+      "name": "HeikenAshi bearish candle confirmation",
+      "formula": "HA_Close < HA_Open",
+      "used_by": "Short entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Color RSI",
+        "right": "Oversold level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Color MA",
+        "right": "Price",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "HeikenAshi candle",
+        "right": "bullish",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Color RSI",
+        "right": "Overbought level",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Color MA",
+        "right": "Price",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "HeikenAshi candle",
+        "right": "bearish",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": 0,
+      "params": {
+        "indicator": "Stop Loss MA",
+        "offset_pips": 0
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close on opposite signal from Color RSI/Color MA combination"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses Color RSI custom indicator which likely changes color/buffer values based on overbought/oversold zones. Color MA custom indicator provides trend direction coloring. HeikenAshi smoothed candles act as trend confirmation filter - long entries only on bullish HA candles, short entries only on bearish HA candles. Stop loss is dynamically placed at the Stop Loss MA indicator value rather than a fixed pip distance. Signal reversal closes existing position before opening new opposite direction trade.",
+  "external_dependencies": [
+    "ColorRSS.mq5",
+    "ColorMA.mq5",
+    "HeikenAshi.mq5"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Three custom indicators (ColorRSS, ColorMA, HeikenAshi) must be reimplemented in Python. HeikenAshi has well-known formulas and can be computed from OHLC data. Color RSI is likely a standard RSI with color-coded zones - reconstruct from standard RSI with threshold levels. Color MA is likely a standard MA with color-coded direction - reconstruct from standard EMA with slope/direction detection. The Stop Loss MA dynamic SL requires computing the MA value and using it as the SL price level. New bar detection must be implemented for once-per-bar signal logic. Position check before entry must prevent stacking multiple positions.",
+  "extraction_timestamp": "2026-05-13T13:38:49.455787",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 175.96563410758972,
+    "cost": 0
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "ea_id": "EA-2026",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses external .mqh include (coensiotrader1v06.mqh) for chart drawing/utility functions, multi-timeframe logic (H4 MAs inside H1/D1 strategy), wininet.dll for HTTP calls, and complex optimization data mining logic that is MT5-platform-specific",
+  "symbol": "EURUSD",
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands",
+      "params": {
+        "period": 30,
+        "shift": 1,
+        "dev": 1.5,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "BPeriod1 (input param, default 30)"
+    },
+    {
+      "type": "Custom",
+      "name": "DEMA (Double EMA)",
+      "params": {
+        "period": 20,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "DemaPeriod1 (input param, default 20)"
+    },
+    {
+      "type": "MA",
+      "name": "SMA 21 H4",
+      "params": {
+        "period": 21,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "SMA 50 H4",
+      "params": {
+        "period": 50,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "SMA 100 H4",
+      "params": {
+        "period": 100,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Pip value (digit-adjusted)",
+      "formula": "if _Digits==5: 10*_Point; if _Digits==3: 10*_Point; if _Digits==6: 100*_Point; else 1*_Point",
+      "used_by": "SL/TP calculation, slippage, lot sizing, trailing stop"
+    },
+    {
+      "name": "Slippage (digit-adjusted)",
+      "formula": "if _Digits==5: 10*Slip; if _Digits==3: 10*Slip; if _Digits==6: 100*Slip; else 1*Slip",
+      "used_by": "CTrade deviation in points"
+    },
+    {
+      "name": "CoensioIndex (optimization metric)",
+      "formula": "ProfitFactor * (Growth / EquityDD_percent^2)",
+      "used_by": "Optimization filtering and ranking"
+    },
+    {
+      "name": "MarketDirection",
+      "formula": "DemaVal[0]>DemaVal[1]>DemaVal[2] = uptrend; DemaVal[0]<DemaVal[1]<DemaVal[2] = downtrend",
+      "used_by": "Displayed on chart, computed only for chart symbol"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Mrate[1].open < BBLow[1] AND Mrate[1].close > BBLow[1]",
+        "right": "Higher low (Mrate[1].low > Mrate[2].low) AND Lower low prev (Mrate[2].low < Mrate[3].low) AND DEMA uptrend (DemaVal[0]>DemaVal[1]>DemaVal[2])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Mrate[1].open > BBUp[1] AND Mrate[1].close < BBUp[1]",
+        "right": "Lower high (Mrate[1].high < Mrate[2].high) AND Higher high prev (Mrate[2].high > Mrate[3].high) AND DEMA downtrend (DemaVal[0]<DemaVal[1]<DemaVal[2])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "note": "StopLossPips1 default=100; varies per currency pair (100-200)"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 250,
+      "params": {
+        "note": "TakeProfitPips1 default=250; varies per currency pair (100-300)"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 10,
+      "params": {
+        "trail_start_pips": 110,
+        "trail_step_pips": 10,
+        "note": "Trails when distance from price exceeds (StopLoss+TrailingStep)*Pip, then moves SL by TrailingStep*Pip"
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Equity take profit: closes ALL positions when AccountEquity > AccountBalance * EquityTakeProfit (default 1.2)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "If RiskMax>0: risk-based sizing = ((RiskMax/100)*FreeMargin / StopLossPips) / (Pip/Point); If RiskMax==0 AND LotSize>0: fixed lots = LotSize; If RiskMax==0 AND LotSize==0: deposit fraction = Equity / LotBalanceDivider (default 1000000). Clamped to MODE_MINLOT and MODE_MAXLOT, normalized to 2 decimals."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "timer",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "1) BarLogic() creates new indicator handles EVERY bar (iBands, iDEMA, iMA) — resource leak, handles are never released. 2) H4 SMA 21/50/100 are copied but never used in entry/exit decisions — possibly vestigial or for future use. 3) MarketDirection is only set when symbol==Symbol() (chart symbol only), but entry signals use DEMA trend independently for each currency pair. 4) CheckOpenOrders() uses PositionSelect(symbol) which only checks by symbol name, not iterating all positions — may miss positions in multi-currency mode. 5) OpenSell returns false on success (bug — returns false at line 498 instead of true). 6) EA phones home to coensio.com for version verification and optimization result uploads via wininet.dll. 7) Supports up to 6 currency pairs simultaneously with separate indicator params per pair.",
+  "external_dependencies": [
+    "coensiotrader1v06.mqh",
+    "Trade\\Trade.mqh",
+    "ChartObjects\\ChartObjectsTxtControls.mqh",
+    "wininet.dll"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1) Indicator handle leak in BarLogic() must be restructured — create handles once in __init__, use CopyBuffer on each bar. 2) Multi-currency support needs proper position tracking per symbol (not just PositionSelect by symbol). 3) H4 SMAs are computed but unused — can be omitted unless intended for future logic. 4) Timer-based event model (OnTimer at 60s intervals) must be replicated with scheduled checks. 5) DEMA is a built-in MT5 indicator but must be manually implemented in Python (EMA of EMA). 6) Bollinger Band entry logic uses bar[1] vs bar[2] vs bar[3] comparison — ensure shifted bar access is correct. 7) Digit-adjustment logic (Pip calculation) must be handled per symbol. 8) wininet.dll HTTP calls for EA verification and optimization upload are platform-specific and should be removed or replaced. 9) The OpenSell bug (returning false on success) should be fixed in conversion. 10) Trailing stop logic: distance check uses (StopLoss+TrailingStep)*Pip threshold before stepping — this is non-standard trailing, must replicate exactly.",
+  "extraction_timestamp": "2026-05-13T18:46:14.470754",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 217.88355565071106,
+    "cost": 0
+  }
+}

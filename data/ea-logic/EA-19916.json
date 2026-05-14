@@ -1,0 +1,132 @@
+{
+  "ea_id": "EA-19916",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Time-based open/close EA with no indicators, fixed lot sizing, simple entry/exit rules. Uses only standard MQL5 Trade library classes (CTrade, CSymbolInfo, CAccountInfo, CTerminalInfo) and ArrayLong.mqh - no custom indicators or complex logic. The core logic is purely time-triggered position management.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "open_time (minutes from midnight)",
+      "formula": "InpHourOpen*60+InpMinuteOpen",
+      "used_by": "entry time check"
+    },
+    {
+      "name": "close_time (minutes from midnight)",
+      "formula": "InpHourClose*60+InpMinuteClose",
+      "used_by": "exit time check"
+    },
+    {
+      "name": "stop_level (adjusted stop level in points)",
+      "formula": "StopsLevel==0 ? Spread*InpSizeSpread : StopsLevel",
+      "used_by": "CorrectStopLoss and CorrectTakeProfit"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "current_time",
+        "right": "open_time",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "current_time",
+        "right": "open_time",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "adjustment": "SL clamped to broker StopLevel using max(StopLevel, InputSL)*Point; StopLevel = StopsLevel or Spread*InpSizeSpread"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "adjustment": "TP clamped to broker StopLevel using max(StopLevel, InputTP)*Point; StopLevel = StopsLevel or Spread*InpSizeSpread"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Time-based close: when current bar time crosses close_time threshold, all positions of the configured type are closed",
+      "Opposite side close: when opening BUY and SELL positions exist, they are closed first; when opening SELL and BUY positions exist, they are closed first"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {
+      "lot_correction": "CorrectLots rounds down to nearest valid lot step, clamps to min/max, and checks symbol LotsLimit against accumulated volume"
+    },
+    "max_positions": 1,
+    "conditional_logic": "Lot is adjusted via trade.CheckVolume() for symbol constraints and CheckLotForLimitAccount() for total volume limit per symbol side. Volume is rounded down to nearest valid step."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 1,
+      "end_hour": 0
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "This is a time-based EA that opens a position at a specified time (hour:minute) and closes it at another specified time. Entry trigger: when current time (hour*60+minute) >= open_time AND bar[0] time was <= open_time (i.e. the open_time was crossed between bar[0] open and current tick). Similarly for close. The position type (BUY or SELL) is a static input - not signal-driven. If opening BUY and SELL positions exist, SELL is closed first (and vice versa). Requires hedge account (netting accounts rejected in OnInit). SL/TP in points (not pips) - adjusted by broker StopLevel: SL/TP is set to max(broker_stop_level, input_value)*Point. The size_spread multiplier is used to calculate an artificial stop level when broker StopsLevel is 0 (spread*size_spread).",
+  "external_dependencies": [
+    "Arrays/ArrayLong.mqh",
+    "Trade/TerminalInfo.mqh",
+    "Trade/AccountInfo.mqh",
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Simple time-based EA. No indicators needed. Key logic: (1) Track bar-open time vs current tick time to detect crossing of open_time/close_time thresholds. (2) Open fixed-lot BUY or SELL at open_time, close at close_time. (3) Close opposite side before opening. (4) SL/TP adjusted for broker stop level. (5) Requires hedge-mode account semantics. No indicator data needed - only time and price. M1 bars sufficient for backtesting since the trigger is time-based with new-bar guard.",
+  "extraction_timestamp": "2026-05-13T17:24:55.614009",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 174.51958966255188,
+    "cost": 0
+  }
+}

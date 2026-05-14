@@ -1,0 +1,183 @@
+{
+  "ea_id": "EA-19608",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iSAR). Simple entry/exit rules with fixed lot sizing. Standard Trade library .mqh includes are MQL5 boilerplate, not custom trading logic. No multi-timeframe, no hedging, no grid, no martingale.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "SMA",
+      "params": {
+        "period": 18,
+        "shift": 2,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Parabolic SAR",
+      "params": {
+        "step": 0.02,
+        "maximum": 0.2
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adjusted point value for 3/5 digit brokers",
+      "formula": "Point()*10 when Digits==3 or Digits==5, else Point()",
+      "used_by": "StopLoss, TakeProfit, TrailingStop, TrailingStep calculations"
+    },
+    {
+      "name": "ExtStopLoss",
+      "formula": "InpStopLoss * m_adjusted_point",
+      "used_by": "Entry SL calculation, Trailing"
+    },
+    {
+      "name": "ExtTakeProfit",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "Entry TP calculation"
+    },
+    {
+      "name": "ExtTrailingStop",
+      "formula": "InpTrailingStop * m_adjusted_point",
+      "used_by": "Trailing stop logic"
+    },
+    {
+      "name": "ExtTrailingStep",
+      "formula": "InpTrailingStep * m_adjusted_point",
+      "used_by": "Trailing stop activation threshold and step"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "or_combination",
+        "left": "SAR[0]",
+        "right": "MA[0]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Close[InpMA_ma_shift]",
+        "right": "MA[0]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "or_combination",
+        "left": "SAR[0]",
+        "right": "MA[0]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Close[InpMA_ma_shift]",
+        "right": "MA[0]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "adjusted_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "adjusted_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 15,
+      "params": {
+        "trail_start_pips": 20,
+        "trail_step_pips": 5
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "None - EA does not close positions on opposite signal, only opens new position if flat"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {
+      "min_volume_check": true,
+      "max_volume_check": true,
+      "volume_step_check": true
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Entry uses OR logic: long if (SAR < MA) OR (Close[ma_shift] < MA), short if (SAR > MA) OR (Close[ma_shift] > MA). The ma_shift parameter (default 2) offsets the close price comparison bar. Trailing stop activation requires profit > ExtTrailingStop + ExtTrailingStep (combined threshold of 20 pips default), then modifies SL to PriceCurrent - ExtTrailingStop. If a position already exists, the EA only trails it and returns without checking for new entries. The filling type auto-detects FOK > IOC > RETURN priority.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Straightforward conversion. Two built-in indicators (SMA, Parabolic SAR) with standard params. Entry is OR-combination of SAR vs MA and Close[shift] vs MA. Trailing stop has a combined activation threshold (TrailingStop+TrailingStep) before modifying SL. No new-bar guard means signals fire every tick — must track position state to avoid repeated opens. Digit adjustment logic (multiply by 10 for 3/5 digit) must be replicated. Filling type detection is broker-specific and can default to FOK in Python backtest. The standard Trade library includes are boilerplate and do not require separate conversion.",
+  "extraction_timestamp": "2026-05-13T16:36:27.950119",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 187.1602795124054,
+    "cost": 0
+  }
+}

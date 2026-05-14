@@ -1,0 +1,230 @@
+{
+  "ea_id": "EA-20815",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 price functions (iHighest/iLowest reimplemented via CopyHigh/CopyLow) and standard Trade library classes. Simple range-based entry/exit rules with fixed-pip SL/TP and trailing stop. Position sizing is either fixed lots or risk-percent via CMoneyFixedMargin (standard library). No custom indicators or external .mqh for trading logic.",
+  "symbol": "EURUSD",
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Highest High (3 bars)",
+      "params": {
+        "count": 3,
+        "start": 0,
+        "type": "MODE_HIGH"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Lowest Low (3 bars)",
+      "params": {
+        "count": 3,
+        "start": 0,
+        "type": "MODE_LOW"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Range diff (highest - lowest over 3 bars)",
+      "formula": "iHighest(HIGH,3,0) - iLowest(LOW,3,0)",
+      "used_by": "entry_rules and SL calculation"
+    },
+    {
+      "name": "Buy SL",
+      "formula": "lowest - diff/3.0",
+      "used_by": "long entry stop_loss"
+    },
+    {
+      "name": "Sell SL",
+      "formula": "highest + diff/3.0",
+      "used_by": "short entry stop_loss"
+    },
+    {
+      "name": "ExtDiffMin (adjusted)",
+      "formula": "InpDiffMin * m_adjusted_point",
+      "used_by": "entry range filter minimum"
+    },
+    {
+      "name": "ExtDiffMax (adjusted)",
+      "formula": "InpDiffMax * m_adjusted_point",
+      "used_by": "entry range filter maximum"
+    },
+    {
+      "name": "ExtTakeProfit (adjusted)",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "take_profit"
+    },
+    {
+      "name": "ExtTrailingStop (adjusted)",
+      "formula": "InpTrailingStop * m_adjusted_point",
+      "used_by": "trailing_stop"
+    },
+    {
+      "name": "ExtTrailingStep (adjusted)",
+      "formula": "InpTrailingStep * m_adjusted_point",
+      "used_by": "trailing_stop step"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "diff (3-bar range)",
+        "right": "ExtDiffMin",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "diff (3-bar range)",
+        "right": "ExtDiffMax",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bid",
+        "right": "lowest + diff/4.0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bid",
+        "right": "lowest",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "diff (3-bar range)",
+        "right": "ExtDiffMin",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "diff (3-bar range)",
+        "right": "ExtDiffMax",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bid",
+        "right": "highest - diff/4.0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bid",
+        "right": "highest",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": 0,
+      "params": {
+        "long_formula": "lowest - diff/3.0",
+        "short_formula": "highest + diff/3.0",
+        "note": "Dynamic SL based on 3-bar range extremes"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "note": "InpTakeProfit pips, adjusted for 5-digit brokers"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 15,
+      "params": {
+        "trail_start_pips": 15,
+        "trail_step_pips": 5
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "No explicit opposite-signal close; positions are managed only by trailing stop, SL, and TP"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "If InpLots>0 and Risk==0: use fixed lots (InpLots). If InpLots==0 and Risk>0: use CMoneyFixedMargin with Risk percent of free margin. Both cannot be non-zero simultaneously. Both cannot be zero simultaneously."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 2
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Night/flat range breakout strategy: identifies a narrow 3-bar range (between DiffMin and DiffMax pips) during a 2-hour window (InpOpenHour to InpOpenHour+1). Long entry when price is in the bottom quarter of the range (above lowest but below lowest+diff/4). Short entry when price is in the top quarter of the range (below highest but above highest-diff/4). SL is set at 1/3 of the range beyond the range extreme. Symbol is hardcoded to EURUSD and timeframe to H1 - EA fails OnInit if either doesn't match. Free margin must be >= 100. iHighest/iLowest are custom reimplementation functions using CopyHigh/CopyLow, not the deprecated MQL4 builtins.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh",
+    "Expert/Money/MoneyFixedMargin.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The core logic is a range filter on 3-bar high/low with zone-based entry. Replace iHighest/iLowest with rolling 3-bar max/min on high/low arrays. The time filter is a simple hour check. Position sizing uses conditional logic: fixed lots vs risk-percent margin calculation. The trailing stop logic uses a step-based approach (moves SL only when price moves TrailingStop+TrailingStep beyond current SL). Digit adjustment (multiply by 10 for 5-digit) must be preserved. CMoneyFixedMargin logic needs to be reimplemented: it calculates lot size so that margin required equals Risk% of free margin.",
+  "extraction_timestamp": "2026-05-13T20:45:35.318786",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 336.4796998500824,
+    "cost": 0
+  }
+}

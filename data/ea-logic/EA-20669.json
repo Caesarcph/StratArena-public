@@ -1,0 +1,165 @@
+{
+  "ea_id": "EA-20669",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iCCI, custom MA via iMA). Simple crossover entry/exit rules with fixed SL/TP. No external .mqh libraries for trading logic. Standard position sizing with optional fraction mode.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true if SL/TP multiplied by 10 when _Digits==5 or _Point<0.001"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "KWAN MA (Signal Line)",
+      "params": {
+        "period": 5,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "KWAN CCI",
+      "params": {
+        "period": 14,
+        "applied_to": "TYPICAL"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "KWAN MA (Base Line)",
+      "params": {
+        "period": 34,
+        "method": "LWMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "KWAN CCC composite signal line",
+      "formula": "iMA(EMA, Periods_Short) applied to iCCI(Periods) buffer",
+      "used_by": "crossover entry rules and signal reversal exit"
+    },
+    {
+      "name": "KWAN CCC base line",
+      "formula": "iMA(LWMA, Periods_Long) applied to iCCI(Periods) buffer",
+      "used_by": "crossover entry rules and signal reversal exit"
+    },
+    {
+      "name": "Digit-adjusted SL value",
+      "formula": "StopLoss * 10 if _Digits==5 or _Point<0.001, else StopLoss",
+      "used_by": "stop_loss exit rule"
+    },
+    {
+      "name": "Digit-adjusted TP value",
+      "formula": "TakeProfit * 10 if _Digits==5 or _Point<0.001, else TakeProfit",
+      "used_by": "take_profit exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "KWAN MA (Signal Line) EMA of CCI",
+        "right": "KWAN MA (Base Line) LWMA of CCI",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "KWAN MA (Signal Line) EMA of CCI",
+        "right": "KWAN MA (Base Line) LWMA of CCI",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjustment": "multiply by 10 when 5-digit broker"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjustment": "multiply by 10 when 5-digit broker"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position before opening new one in reverse direction"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Negative Lots value = fixed lot size (abs value); Positive Lots value = fraction of free margin (Lots/100 of free margin)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The KWAN CCC indicator applies two moving averages (EMA short-period and LWMA long-period) directly to the CCI indicator buffer values, creating a composite momentum oscillator. Crossover of the EMA-of-CCI (signal) above the LWMA-of-CCI (base) triggers long; crossover below triggers short. The EA closes the opposite position on signal reversal before entering a new trade. Position sizing uses a dual-mode system: negative input = absolute fixed lots, positive input = percentage of free margin (Lots/100). Digit adjustment is applied to SL/TP values for 5-digit brokers.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Straightforward conversion. The core logic is: (1) compute CCI with period input, (2) apply EMA(period_short) and LWMA(period_long) to the CCI series, (3) detect crossovers on completed bars (bar[-1] vs bar[-2]). The dual MA-on-CCI approach is easily replicated in pandas. Digit adjustment for SL/TP is a simple 10x multiplier when price decimals >= 5. Position sizing branch on sign of Lots input is trivial. No custom indicators or external libraries needed.",
+  "extraction_timestamp": "2026-05-13T20:04:24.181252",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 162.45781636238098,
+    "cost": 0
+  }
+}

@@ -1,0 +1,269 @@
+{
+  "ea_id": "EA-19535",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator calls (DTMACD), complex multi-condition entry logic with multiple timeframe checks, partial close/scale-in logic, hedging-aware position management with buy/sell coexistence, and elaborate money management with risk-based and conditional lot sizing.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MACD",
+      "name": "DT MACD (Custom)",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": "CLOSE"
+      },
+      "source": "custom",
+      "library": "DTMACD",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 5,
+        "method": "EMA",
+        "applied_to": "CLOSE",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 13,
+        "method": "EMA",
+        "applied_to": "CLOSE",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Trend EMA",
+      "params": {
+        "period": 50,
+        "method": "EMA",
+        "applied_to": "CLOSE",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 14,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "CLOSE",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "MACD Signal Line EMA",
+      "params": {
+        "signal_period": 9,
+        "method": "EMA",
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "DT MACD Histogram",
+      "params": {},
+      "source": "custom",
+      "library": "DTMACD",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Pip value adjusted for 5-digit brokers",
+      "formula": "_Point * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "SL, TP, trailing stop pip calculations"
+    },
+    {
+      "name": "Lot size from risk percentage",
+      "formula": "(AccountBalance * RiskPercent / 100) / (StopLossPips * PipValue)",
+      "used_by": "position_sizing when RiskPercent > 0"
+    },
+    {
+      "name": "MACD histogram value",
+      "formula": "MACD_main - MACD_signal",
+      "used_by": "entry_rules crossover conditions"
+    },
+    {
+      "name": "Adjust factor for digit normalization",
+      "formula": "_Digits==5 || _Digits==3 ? 10 : 1",
+      "used_by": "all pip-based SL/TP/trailing calculations"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "MACD Main Line",
+        "right": "MACD Signal Line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "above",
+        "left": "Fast EMA(5)",
+        "right": "Slow EMA(13)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "above",
+        "left": "Close price",
+        "right": "Trend EMA(50)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "MACD Main Line",
+        "right": "MACD Signal Line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "below",
+        "left": "Fast EMA(5)",
+        "right": "Slow EMA(13)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "below",
+        "left": "Close price",
+        "right": "Trend EMA(50)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "adjustable": true,
+        "input_name": "StopLoss"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "adjustable": true,
+        "input_name": "TakeProfit"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "adjustable": true,
+        "input_name": "TrailingStop"
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Partial close at configurable profit target (scale-out logic)",
+      "Break-even stop move when profit reaches threshold",
+      "Opposite MACD crossover can close existing position",
+      "RSI overbought/oversold level can trigger close"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "fixed_lots_input": "Lots",
+      "risk_percent_input": "RiskPercent"
+    },
+    "max_positions": 2,
+    "conditional_logic": "If RiskPercent <= 0, use fixed Lots input; if RiskPercent > 0, calculate lots from risk percentage based on account balance and stop loss distance. Allows both buy and sell positions simultaneously (hedging mode)."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA allows hedging - both buy and sell positions can be open simultaneously. Uses a custom DTMACD indicator loaded via iCustom() which provides MACD histogram with color coding for trend direction. Has partial close/scale-out logic that closes a percentage of the position at configurable profit targets. Break-even functionality moves SL to entry price once a profit threshold is reached. The EA checks previous bar values (shift=1) for crossover confirmation to avoid repainting. Multi-condition entry requires MACD crossover + EMA alignment + trend filter from EMA50. RSI is used as an additional filter/exit confirmation.",
+  "external_dependencies": [
+    "DTMACD.ex5"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Must implement custom DTMACD indicator equivalent in Python - extract MACD histogram calculation with standard EMA functions. The hedging logic (allowing both long and short simultaneously) requires a position management system that tracks positions by direction separately. Partial close logic needs order splitting capability. The digit adjustment factor (_Digits==5 ? 10 : 1) must be applied consistently to all pip-based values. Break-even and trailing stop logic require real-time position monitoring. Spread filter needs tick-level spread data. The multi-condition entry (MACD crossover AND EMA alignment AND trend filter) must be evaluated on completed bars (shift=1) to avoid look-ahead bias in backtesting.",
+  "extraction_timestamp": "2026-05-13T16:12:57.023384",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 121.66224837303162,
+    "cost": 0
+  }
+}

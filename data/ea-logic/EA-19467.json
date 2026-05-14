@@ -1,0 +1,166 @@
+{
+  "ea_id": "EA-19467",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iStochastic indicators with standard parameters. Simple entry rules (price pattern + stochastic confirmation). Fixed lot sizing. No external custom indicators or .mqh libraries affecting trading logic. Standard MQL5 Trade library includes only.",
+  "symbol": null,
+  "timeframe_hint": "M5",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Stochastic",
+      "name": "Stochastic #1 (M5)",
+      "params": {
+        "k_period": 5,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "SMA",
+        "price_field": "STO_LOWHIGH"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Stochastic",
+      "name": "Stochastic #2 (M6)",
+      "params": {
+        "k_period": 5,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "SMA",
+        "price_field": "STO_LOWHIGH"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adjusted point value for 3/5 digit brokers",
+      "formula": "_Point*10 (when Digits==3 or Digits==5)",
+      "used_by": "SL and TP calculation"
+    },
+    {
+      "name": "ExtStopLoss",
+      "formula": "InpStopLoss*m_adjusted_point",
+      "used_by": "Buy order SL price"
+    },
+    {
+      "name": "ExtTakeProfit",
+      "formula": "InpTakeProfit*m_adjusted_point",
+      "used_by": "Buy order TP price"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "4-bar ascending highs (high[4]>high[3]>high[2]>high[1]) AND 4-bar ascending opens (open[4]>open[3]>open[2]>open[1])",
+        "right": "null",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "above",
+        "left": "Stochastic #1 Main line",
+        "right": "Stochastic #1 Signal line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "Stochastic #2 Main line",
+        "right": "Stochastic #2 Signal line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": []
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "note": "default 0, configurable via InpStopLoss",
+        "pips_are_adjusted": "true (multiplied by 10 for 5-digit)"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 32,
+      "params": {
+        "note": "configurable via InpTakeProfit",
+        "pips_are_adjusted": "true (multiplied by 10 for 5-digit)"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "No short signal to close longs; no explicit close logic - positions are managed only by SL/TP"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 6,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "BUY-ONLY EA - no short/sell entry logic exists. Entry requires 4 consecutive bars with strictly ascending highs AND strictly ascending opens (bars [1],[2],[3],[4] relative to current bar [0]). Both Stochastic indicators on different timeframes (M5 and M6) must have main line above signal line on both current bar [0] and previous bar [1]. Stochastic parameters are hardcoded (K=5, D=3, slowing=3, SMA, Low/High) - not configurable via inputs. The two timeframe periods must satisfy sto_period_1 < sto_period_2 (validated in OnInit). Position count is checked against InpMaxPositions before entry - this acts as a cap on total same-direction positions (buy only). Margin check is performed via CTrade.CheckVolume() before order send.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward conversion. Multi-timeframe stochastic requires care - two Stochastic instances on M5 and M6 timeframes. The 4-bar ascending pattern check uses bars [1],[2],[3],[4] relative to the new bar. SL/TP need digit adjustment (multiply by 10 for 5-digit brokers). Only buy-side logic exists - no short entries. Position counting filters by magic number and symbol. The new-bar guard uses datetime comparison. CTrade/CSymbolInfo are standard MQL5 library wrappers - map to direct broker API calls in Python.",
+  "extraction_timestamp": "2026-05-13T15:43:37.649189",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 206.188321352005,
+    "cost": 0
+  }
+}

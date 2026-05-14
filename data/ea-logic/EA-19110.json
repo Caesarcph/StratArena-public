@@ -1,0 +1,185 @@
+{
+  "ea_id": "EA-19110",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'i-Regr' (Regression Channel) which is not a built-in MT5 indicator. Multi-timeframe logic (M1, M5, H1). The custom indicator must be available and its logic replicated or its values sourced in Python. Position sizing is simple (fixed lots), but the custom indicator dependency makes auto-conversion impossible without manual handling of the i-Regr indicator.",
+  "symbol": null,
+  "timeframe_hint": "M5",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "i-Regr (M1)",
+      "params": {
+        "degree": 1,
+        "kstd": 2.0,
+        "bars": 250,
+        "shift": 0
+      },
+      "source": "external_library",
+      "library": "i-Regr",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "i-Regr (M5)",
+      "params": {
+        "degree": 1,
+        "kstd": 2.0,
+        "bars": 250,
+        "shift": 0
+      },
+      "source": "external_library",
+      "library": "i-Regr",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "i-Regr (H1)",
+      "params": {
+        "degree": 1,
+        "kstd": 2.0,
+        "bars": 250,
+        "shift": 0
+      },
+      "source": "external_library",
+      "library": "i-Regr",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "M1 slope (resistance direction)",
+      "formula": "iRegr_M1_buffer0[0] - iRegr_M1_buffer0[Inp_bars]",
+      "used_by": "M1 timeframe trend direction (not directly used for entry, computed but unused)"
+    },
+    {
+      "name": "M5 slope (resistance direction)",
+      "formula": "iRegr_M5_buffer0[0] - iRegr_M5_buffer0[Inp_bars]",
+      "used_by": "M5 timeframe trend direction (computed but not directly used for entry)"
+    },
+    {
+      "name": "H1 slope (resistance direction)",
+      "formula": "iRegr_H1_buffer0[0] - iRegr_H1_buffer0[Inp_bars]",
+      "used_by": "Primary trend filter - determines trade direction (negative=short, positive=long)"
+    },
+    {
+      "name": "Short SL distance (price)",
+      "formula": "(M5_resistance - M5_line) / 2.0",
+      "used_by": "Sell order stop loss placed at Bid + shortSL"
+    },
+    {
+      "name": "Long SL distance (price)",
+      "formula": "(M5_line - M5_support) / 2.0",
+      "used_by": "Buy order stop loss placed at Ask - longSL"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "H1 regression channel slope > 0 AND M5 Low <= M5 support AND M1 Low <= M1 support",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "H1 regression channel slope < 0 AND M5 High >= M5 resistance AND M1 High >= M1 resistance",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": null,
+      "params": {
+        "short_sl_formula": "Bid + (M5_resistance - M5_line) / 2.0",
+        "long_sl_formula": "Ask - (M5_line - M5_support) / 2.0",
+        "based_on_timeframe": "M5",
+        "indicator_buffers_used": "resistance(buffer0), middle_line(buffer1), support(buffer2)"
+      }
+    },
+    "take_profit": {
+      "type": "indicator_level",
+      "value": null,
+      "params": {
+        "short_tp": "M5 middle line (i-Regr buffer 1 on M5)",
+        "long_tp": "M5 middle line (i-Regr buffer 1 on M5)",
+        "based_on_timeframe": "M5",
+        "indicator_buffer_used": "middle_line(buffer1)"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "SL and TP are set at order open time; no explicit close-on-reversal logic; if both buys and sells exist simultaneously, the EA returns without trading (error guard)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Fixed lot size (InpLots). CheckVolume validates against SYMBOL_VOLUME_MIN, SYMBOL_VOLUME_MAX, and SYMBOL_VOLUME_STEP before order send."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Multi-timeframe regression channel strategy: H1 slope determines trend direction, M5 price touching resistance/support confirms zone, M1 price touching resistance/support confirms entry. The i-Regr indicator is a polynomial regression channel with 3 buffers: resistance(0), middle line(1), support(2). Slope is calculated as current resistance minus resistance at Inp_bars offset. Short entry: price touches upper channel on M5 and M1 while H1 slopes down. Long entry: price touches lower channel on M5 and M1 while H1 slopes up. SL is half the channel width from entry price toward the middle line; TP is the middle line. The EA also guards against having both buy and sell positions simultaneously. The digit adjustment (m_adjusted_point) is computed but never used in actual SL/TP calculations since SL/TP are price-level based from indicator values.",
+  "external_dependencies": [
+    "i-Regr",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1. The i-Regr custom indicator must be replicated in Python - it's a polynomial regression channel (linear/parabolic/third-power) with configurable kstd multiplier and bars period. 2. Three instances on M1, M5, H1 must be maintained simultaneously with proper multi-timeframe bar alignment. 3. Slope calculation requires accessing the indicator value at index[0] and index[Inp_bars(250)], meaning a large lookback window is needed. 4. SL/TP are price-level based from indicator buffers, not pip-based, so no digit adjustment needed for SL/TP. 5. No new-bar guard means the strategy can fire on every tick - in Python backtesting, evaluate signal on each tick or at minimum on each M1 bar close. 6. The M5 and M1 High/Low checks use the current bar (index 0), meaning intrabar price levels are checked, requiring tick-level or at least M1 bar-level data for accurate backtesting. 7. Margin check via CheckVolume must be replicated to avoid unrealistic position sizes.",
+  "extraction_timestamp": "2026-05-13T14:39:11.925927",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 316.30852150917053,
+    "cost": 0
+  }
+}

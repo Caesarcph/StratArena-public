@@ -1,0 +1,240 @@
+{
+  "ea_id": "EA-193",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses a multi-layer perceptron neural network with custom online weight adjustment (SinapticsAjust) that is non-standard and cannot be directly mapped to built-in indicator combinations. The weight update logic is custom and stateful, requiring manual conversion of the learning/adaptation mechanism. All indicators are built-in however.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast MA (IND1 component)",
+      "params": {
+        "period": 5,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA (IND1 component)",
+      "params": {
+        "period": 9,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI (IND2)",
+      "params": {
+        "period": 14,
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI (IND3)",
+      "params": {
+        "period": 14,
+        "applied_to": "TYPICAL"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "MA Slope (IND4)",
+      "params": {
+        "period": 5,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Awesome Oscillator (IND5)",
+      "params": {
+        "period": 20
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "IND1 signal - MA crossover",
+      "formula": "ma1_buffer[2]<ma2_buffer[1] && ma1_buffer[1]>ma2_buffer[1] => +1; reverse => -1",
+      "used_by": "NN1..NN5 as input"
+    },
+    {
+      "name": "IND2 signal - RSI overbought/oversold",
+      "formula": "rsi_buffer[2]<30 && rsi_buffer[1]>30 => +1; rsi_buffer[2]>70 && rsi_buffer[1]<70 => -1",
+      "used_by": "NN1..NN5 as input"
+    },
+    {
+      "name": "IND3 signal - CCI threshold cross",
+      "formula": "cci_buffer[2]<-100 && cci_buffer[1]>-100 => +1; cci_buffer[2]>100 && cci_buffer[1]<100 => -1",
+      "used_by": "NN1..NN5 as input"
+    },
+    {
+      "name": "IND4 signal - MA slope direction",
+      "formula": "ma1_buffer_a[1]>ma1_buffer_a[2] => +1; ma1_buffer_a[1]<ma1_buffer_a[2] => -1",
+      "used_by": "NN1..NN5 as input"
+    },
+    {
+      "name": "IND5 signal - Awesome Oscillator peak/trough",
+      "formula": "ao_buffer[1]==0 => +1; ao_buffer[1]==1 => -1",
+      "used_by": "NN1..NN5 as input"
+    },
+    {
+      "name": "NN1 output - perceptron excluding IND1",
+      "formula": "IND2_V*NNS1IND2 + IND3_V*NNS1IND3 + IND4_V*NNS1IND4 + IND5_V*NNS1IND5",
+      "used_by": "StartBrain"
+    },
+    {
+      "name": "NN2 output - perceptron excluding IND2",
+      "formula": "IND1_V*NNS2IND1 + IND3_V*NNS2IND3 + IND4_V*NNS2IND4 + IND5_V*NNS2IND5",
+      "used_by": "StartBrain"
+    },
+    {
+      "name": "NN3 output - perceptron excluding IND3",
+      "formula": "IND1_V*NNS3IND1 + IND2_V*NNS3IND2 + IND4_V*NNS3IND4 + IND5_V*NNS3IND5",
+      "used_by": "StartBrain"
+    },
+    {
+      "name": "NN4 output - perceptron excluding IND4",
+      "formula": "IND1_V*NNS4IND1 + IND2_V*NNS4IND2 + IND3_V*NNS4IND3 + IND5_V*NNS4IND5",
+      "used_by": "StartBrain"
+    },
+    {
+      "name": "NN5 output - perceptron excluding IND5",
+      "formula": "IND1_V*NNS5IND1 + IND2_V*NNS5IND2 + IND3_V*NNS5IND3 + IND4_V*NNS5IND4",
+      "used_by": "StartBrain"
+    },
+    {
+      "name": "StartBrain output - ensemble decision",
+      "formula": "NN1_V*NNS1 + NN2_V*NNS2 + NN3_V*NNS3 + NN4_V*NNS4 + NN5_V*NNS5",
+      "used_by": "OnTick entry logic"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "StartBrain output",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "StartBrain output",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "digit_adjusted": true,
+        "adjusted_value_for_5digit": 1000
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 40,
+      "params": {
+        "digit_adjusted": true,
+        "adjusted_value_for_5digit": 400
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "SL/TP only - no signal-based close; opposite signal blocked by LastTradeType and PositionSelect gates, does not close existing position"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_then_wait"
+  },
+  "custom_logic_notes": "Two-layer perceptron ensemble: 5 sub-perceptrons (NN1-NN5) each omit one of 5 indicator signals, then a meta-perceptron (StartBrain) weights their outputs. Online learning via SinapticsAjust() adjusts all weights (NNS1-5 and NNSxINDy) after each trade based on profit/loss outcome and signal direction alignment. Reward: reinforce weights that contributed to correct direction; penalize weights that contributed to wrong direction. SinPlus/SinMinus (default 0.03) are the learning rate. Weights are clamped to [SinMin, SinMax] range [0,5]. CRITICAL BUG: SinapticsAjust() is defined but NEVER CALLED in OnTick or any event handler - the learning mechanism is dead code. BUG: Lines 335, 653, 690, 716, 753, 1095, 1132, 1476, 1513, 1855, 1892 modify wrong weight variables (NNS2IND4/NNS3IND2 instead of NNS3IND4/NNS4IND2). BUG: IND1 crossover comparison uses ma1_buffer[2] vs ma1_buffer[1] against ma2_buffer[1] - mixing indices inconsistently. BUG: LastTradeType gate prevents re-entry after opposite-side trade closes, not reset on position close. Double return(0) in OnInit at lines 191 and 193.",
+  "external_dependencies": [
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The neural network ensemble with online weight adaptation is the core challenge. Since SinapticsAjust() is never called, the EA effectively runs with static weights (all initialized to 1.0), making StartBrain a simple weighted sum of indicator signals. This simplifies conversion significantly: it's essentially a majority-vote ensemble of 5 indicators with equal weights. However, if the learning mechanism was intended to work, it would require persistent state across trades (weight memory), trade outcome tracking (profit per closed trade), and careful replication of the weight update rules. The cross-variable bugs (NNS2IND4 written where NNS3IND4 should be) mean the 'intended' learning is broken and would produce wrong results. For Python conversion: (1) model each NN layer as a dot product of signal vector and weight vector, (2) StartBrain as a second-layer dot product, (3) if implementing learning, track last trade signals/weights and update after position close event, (4) the _Digits==5 SL/TP adjustment must be replicated based on symbol metadata.",
+  "extraction_timestamp": "2026-05-13T15:05:10.804681",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 234.6298704147339,
+    "cost": 0
+  }
+}
