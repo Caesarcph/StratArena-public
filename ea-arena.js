@@ -496,7 +496,7 @@ function bindEADetail(route) {
     .then(r => r.json())
     .then(data => {
       if (data.equity_curve && data.equity_curve.length > 0) {
-        requestAnimationFrame(() => drawEquityCurve(data.equity_curve, data.start_value));
+        setTimeout(() => drawEquityCurve(data.equity_curve, data.start_value), 100);
       }
     })
     .catch(() => {});

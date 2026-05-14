@@ -1,0 +1,218 @@
+{
+  "ea_id": "EA-22100",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom calls to 'Sprut' and 'RsiEma' custom indicators which are external .mqh/indicator dependencies not available as built-in MT5 indicators. Complex multi-indicator confirmation logic with custom indicator signal integration.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Sprut Indicator",
+      "params": {},
+      "source": "custom",
+      "library": "Sprut",
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI with EMA Signal",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "custom",
+      "library": "RsiEma",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 8,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 21,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Trend EMA",
+      "params": {
+        "period": 50,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Sprut buy signal",
+      "formula": "iCustom(Symbol(), Period(), \"Sprut\", 0, 0) > 0",
+      "used_by": "long entry rule"
+    },
+    {
+      "name": "Sprut sell signal",
+      "formula": "iCustom(Symbol(), Period(), \"Sprut\", 1, 0) > 0",
+      "used_by": "short entry rule"
+    },
+    {
+      "name": "RsiEma buy signal",
+      "formula": "iCustom(Symbol(), Period(), \"RsiEma\", 0, 0) > 0",
+      "used_by": "long entry rule confirmation"
+    },
+    {
+      "name": "RsiEma sell signal",
+      "formula": "iCustom(Symbol(), Period(), \"RsiEma\", 1, 0) > 0",
+      "used_by": "short entry rule confirmation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Sprut buy signal",
+        "right": "RsiEma buy signal",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Sprut sell signal",
+        "right": "RsiEma sell signal",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": 2,
+      "params": {
+        "atr_period": 14
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": 3,
+      "params": {
+        "atr_period": 14
+      }
+    },
+    "trailing_stop": {
+      "type": "atr_multiple",
+      "value": 1.5,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close on opposite Sprut signal",
+      "Close on EMA crossover reversal"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 2.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Lot size calculated based on ATR-derived SL distance and risk percentage of account balance"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Sprut EA uses two custom indicators ('Sprut' and 'RsiEma') as primary signal generators. The built-in EMA crossover serves as a trend filter/confirmation. Trend direction is additionally filtered by the 50-period EMA. Signal reversal closes existing positions before opening new ones in the opposite direction. The custom indicators' buffer values (buffer 0 for buy, buffer 1 for sell) are read at bar index 0 for current signal and bar index 1 for previous bar confirmation.",
+  "external_dependencies": [
+    "Sprut.ex5",
+    "RsiEma.ex5"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The two custom indicators (Sprut and RsiEma) must be reverse-engineered or reimplemented in Python before the EA logic can be converted. Without understanding their internal calculations (which require their .mq5 source files), the converted strategy will not replicate the original behavior. The Sprut indicator likely combines momentum/volatility analysis while RsiEma likely applies an EMA smoothing to RSI values. Consider requesting the .mq5 source for both indicators, or approximate RsiEma as RSI with EMA smoothing in Python using ta-lib. ATR-based SL/TP and trailing stop require careful point-value handling for 5-digit vs 4-digit brokers.",
+  "extraction_timestamp": "2026-05-14T01:28:16.190835",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 90.32007360458374,
+    "cost": 0
+  }
+}

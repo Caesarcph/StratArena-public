@@ -1,0 +1,164 @@
+{
+  "ea_id": "EA-22122",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iMA indicators (3x SMA). Simple entry/exit rules with fixed lot sizing. Standard Trade library includes only. No custom indicators, no external .mqh trading logic libraries, no multi-timeframe, no hedging, no partial close/scale-in.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "First SMA",
+      "params": {
+        "period": 160,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Second SMA",
+      "params": {
+        "period": 80,
+        "shift": 1,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Third SMA",
+      "params": {
+        "period": 20,
+        "shift": 2,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Indent half-width (ExtIndent/2)",
+      "formula": "InpIndent * m_adjusted_point / 2.0",
+      "used_by": "Entry rules - threshold offset for tunnel boundary crossing"
+    },
+    {
+      "name": "Adjusted point (m_adjusted_point)",
+      "formula": "m_symbol.Point() * 10 (when Digits==3 or Digits==5, else *1)",
+      "used_by": "StopLoss, TakeProfit, TrailingStop, TrailingStep, Indent"
+    },
+    {
+      "name": "Trailing activation threshold",
+      "formula": "ExtTrailingStop + ExtTrailingStep",
+      "used_by": "Trailing stop - position must be in profit by this amount before trailing activates"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Third SMA (shift 2)",
+        "right": "First SMA (shift 0)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Third SMA (shift 2)",
+        "right": "Second SMA (shift 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 5,
+      "params": {
+        "trail_start_pips": 5,
+        "trail_step_pips": 5
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "No explicit opposite-signal close. Position must close via SL/TP before new entry is considered (position gate blocks new entries while position exists)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_then_wait"
+  },
+  "custom_logic_notes": "Entry uses a 'tunnel' concept: First SMA (slow, period 160, shift 0) and Second SMA (medium, period 80, shift 1) form upper and lower tunnel boundaries. Third SMA (fast, period 20, shift 2) must cross from outside the tunnel to inside with an indent margin. Long: third[1] < first[1] - indent/2 AND third[0] > first[0] + indent/2 (crosses above upper tunnel boundary with offset). Short: third[1] > second[1] + indent/2 AND third[0] < second[0] - indent/2 (crosses below lower tunnel boundary with offset). A 45-second pause timer (InpPause) prevents re-entry too quickly. The indent parameter (1 pip default) adds a buffer zone around each tunnel boundary to filter weak signals. SL is validated: for buys, SL must be below Bid; for sells, SL must be above Ask - otherwise entry is skipped.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Three SMA indicators with different periods and shifts. The entry logic compares MA[1] (previous bar) and MA[0] (current bar) values across three different MAs - this is a crossover-within-tunnel pattern. Note the indent offset (ExtIndent/2) applied to tunnel boundaries. The pause timer (45s) is tick-based, not bar-based, so intrabar behavior matters. Trailing stop activates only when profit exceeds trailing_stop + trailing_step combined, then moves SL to current_price - trailing_stop. Digit adjustment (10x for 5-digit brokers) applies to all pip values. The position gate (no_position) is strict - only one position at a time. Standard library classes (CTrade, CPositionInfo, CSymbolInfo) need Python equivalents for order management.",
+  "extraction_timestamp": "2026-05-14T01:36:43.388196",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 200.40293383598328,
+    "cost": 0
+  }
+}

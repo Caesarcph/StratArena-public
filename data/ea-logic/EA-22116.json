@@ -1,0 +1,194 @@
+{
+  "ea_id": "EA-22116",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 iMA indicator with simple crossover entry/exit rules and fixed lot or risk-percent position sizing. No external .mqh libraries for trading logic, no custom indicators, no grid/martingale/hedging logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast MA (Rounding Signal)",
+      "params": {
+        "period": "Periods",
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA (Rounding Signal)",
+      "params": {
+        "period": "Periods+2",
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "Periods+2"
+    },
+    {
+      "type": "MA",
+      "name": "Fast MA (Trend Filter)",
+      "params": {
+        "period": "TrendPeriods",
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA (Trend Filter)",
+      "params": {
+        "period": "TrendPeriods+2",
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "TrendPeriods+2"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Slow rounding MA period",
+      "formula": "Periods+2",
+      "used_by": "Slow MA (Rounding Signal)"
+    },
+    {
+      "name": "Slow trend MA period",
+      "formula": "TrendPeriods+2",
+      "used_by": "Slow MA (Trend Filter)"
+    },
+    {
+      "name": "Rounding candle close (rounded to _Point)",
+      "formula": "MathRound(close/_Point)*_Point",
+      "used_by": "Entry signal comparison"
+    },
+    {
+      "name": "Digit-adjusted StopLoss",
+      "formula": "StopLoss*(10 if _Digits==5 or _Point<0.001)",
+      "used_by": "SL calculation"
+    },
+    {
+      "name": "Digit-adjusted TakeProfit",
+      "formula": "TakeProfit*(10 if _Digits==5 or _Point<0.001)",
+      "used_by": "TP calculation"
+    },
+    {
+      "name": "Digit-adjusted TrailingStop",
+      "formula": "TrailingStop*(10 if _Digits==5 or _Point<0.001)",
+      "used_by": "Trailing stop calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA (Rounding Signal)",
+        "right": "Slow MA (Rounding Signal)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Fast MA (Rounding Signal)",
+        "right": "Slow MA (Rounding Signal)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": "StopLoss",
+      "params": {
+        "digit_adjustment": "multiply by 10 if 5-digit broker"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": "TakeProfit",
+      "params": {
+        "digit_adjustment": "multiply by 10 if 5-digit broker"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": "TrailingStop",
+      "params": {
+        "trail_start_pips": "TrailingStop",
+        "trail_step_pips": "0"
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position before opening new one (implicit in position_gate no_opposite_side)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": "Lots",
+    "params": {
+      "risk_percent": "DecreaseFactor when Lots>0"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If Lots<=0: risk-percent sizing using DecreaseFactor as risk percent; if Lots>0: fixed lot sizing with DecreaseFactor as lot-reduction factor after consecutive losses"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": "Deviation",
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The 'Rounding Candle' concept rounds the close price to the nearest _Point before comparing MA values. This means the MA values are computed on normally-close bars, but the signal comparison uses values derived from bar-close data. A trend filter using a separate pair of MAs (TrendPeriods, TrendPeriods+2) on a higher timeframe restricts entries to the prevailing trend direction. The DecreaseFactor serves dual purpose: when Lots>0 it reduces lot size after consecutive losses (money management recovery); when Lots<=0 it acts as the risk percentage for fractional position sizing. The trailing stop activates when price moves TrailingStop pips in profit and modifies SL to breakeven+gap.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must replicate the rounding logic: round(close/Point)*Point before MA comparison. The dual-use DecreaseFactor parameter requires conditional branching in position sizing. The digit adjustment (multiply SL/TP/Trail by 10 for 5-digit brokers) must be handled. New bar detection using IsNewBar pattern needs to be implemented. The trend filter on a separate timeframe requires multi-timeframe data access. Signal reversal (close opposite before entry) must be atomic or sequenced to avoid double-position issues.",
+  "extraction_timestamp": "2026-05-14T01:30:20.091129",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 123.89923763275146,
+    "cost": 0
+  }
+}
