@@ -1,0 +1,147 @@
+{
+  "ea_id": "EA-2220",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorJJRSX indicator (custom indicator, not built-in), relies on TradeAlgorithms.mqh external library for all trade execution and money management, and uses custom CIsNewBar class from external header",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorJJRSX",
+      "params": {
+        "JurXPeriod": 8,
+        "JMAPeriod": 3,
+        "JMAPhase": 100,
+        "IPC": 1,
+        "draw_type": "DRAW_COLOR_HISTOGRAM",
+        "shift1": 0,
+        "shift2": 0,
+        "shift3": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for calculation",
+      "formula": "2 + 30 + int(3+SignalBar)",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy signal bar",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell signal bar",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorJJRSX buffer[1] < buffer[2] AND buffer[0] > buffer[1]",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorJJRSX buffer[1] > buffer[2] AND buffer[0] < buffer[1]",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: SELL_Close triggered when ColorJJRSX buffer[1]<buffer[2] (rising histogram), BUY_Close triggered when buffer[1]>buffer[2] (falling histogram)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects between FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE, and LOT (fixed lot). Default is LOT mode. MM=0.1 is the share/fraction parameter interpreted based on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal logic reads 3 values from ColorJJRSX buffer at offset SignalBar (default=1, previous bar). The histogram direction change is the core signal: buffer[1]<buffer[2] indicates rising JJRSX (bullish), and if buffer[0]>buffer[1] it confirms continuation, triggering BUY_Open. Vice versa for sell. When SignalBar=0, signals are recalculated every tick instead of only on new bars. The Recount flag forces recalculation if CopyBuffer fails. GlobalVariableDel_ is called on deinit for cleanup. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose are boolean gates that can individually disable long/short entry and exit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The custom ColorJJRSX indicator must be reimplemented in Python - it is a Jurik RSX smoothed by JMA (Jurik Moving Average). The JurX smoothing algorithm and JMA (Jurik Moving Average with phase parameter) are proprietary and non-trivial to replicate exactly. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions - these must be reimplemented with equivalent position management, lot sizing based on MMMode enum, and order execution logic. The CIsNewBar class must be replaced with a new-bar detection mechanism. Signal bar indexing (SignalBar=1 means using previous completed bar) must be handled carefully in Python backtesting to avoid look-ahead bias. The Value[0], Value[1], Value[2] arrays correspond to bars at SignalBar, SignalBar+1, SignalBar+2 offsets respectively.",
+  "extraction_timestamp": "2026-05-14T01:44:56.143645",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 153.1425542831421,
+    "cost": 0
+  }
+}

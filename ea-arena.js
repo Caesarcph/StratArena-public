@@ -489,7 +489,7 @@ ${!hasTrades ? `<p class="ea-bt-note">${isZh ? "该策略在当前数据集上�
 }
 
 function bindEADetail(route) {
-  const id = route.id;
+  const id = route.params.get("id");
   const bt = store.eaBacktestIndex[id];
   if (!bt || bt.total_trades <= 0) return;
   fetch(`data/backtest-results/${id}.json`)
