@@ -458,8 +458,8 @@ function renderEADetail(route) {
           </div>
           ${bt.timestamp ? `<div class="ea-bt-metric"><span class="ea-bt-label">${isZh ? "回测时间" : "Backtest Time"}</span><span class="ea-bt-value ea-bt-small">${new Date(bt.timestamp).toLocaleDateString()}</span></div>` : ""}
         </div>
-        ${!hasTrades ? `<p class="ea-bt-note">${isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment."}</p>` : ""}
-      </div>`;
+${!hasTrades ? `<p class="ea-bt-note">${isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment."}</p>` : `<div class="ea-bt-chart-wrap"><canvas id="equity-curve-chart" class="ea-bt-chart"></canvas></div>`}
+</div>`;
   }
 
   return `
@@ -488,4 +488,92 @@ function renderEADetail(route) {
     </section>`;
 }
 
-function bindEADetail(route) {}
+function bindEADetail(route) {
+  const id = route.id;
+  const bt = store.eaBacktestIndex[id];
+  if (!bt || bt.total_trades <= 0) return;
+  fetch(`data/backtest-results/${id}.json`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.equity_curve && data.equity_curve.length > 0) {
+        drawEquityCurve(data.equity_curve, data.start_value);
+      }
+    })
+    .catch(() => {});
+}
+
+function drawEquityCurve(curve, startValue) {
+  const canvas = document.getElementById("equity-curve-chart");
+  if (!canvas || !curve.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const W = rect.width;
+  const H = 260;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  const pad = { t: 20, r: 16, b: 36, l: 60 };
+  const cW = W - pad.l - pad.r;
+  const cH = H - pad.t - pad.b;
+  const vals = curve.map(p => p.v);
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
+  const range = maxV - minV || 1;
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const gridColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+  const textColor = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)";
+  const startLineY = pad.t + cH * (1 - (startValue - minV) / range);
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (cH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    const v = maxV - (range / 4) * i;
+    ctx.fillStyle = textColor;
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(v >= 10000 ? "$" + (v / 1000).toFixed(1) + "k" : "$" + v.toFixed(0), pad.l - 8, y + 4);
+  }
+  if (startValue >= minV && startValue <= maxV) {
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)";
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.l, startLineY); ctx.lineTo(W - pad.r, startLineY); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  const n = curve.length;
+  const xStep = cW / (n - 1);
+  const profit = vals[vals.length - 1] >= startValue;
+  const lineColor = profit ? "#1f6f78" : "#c0392b";
+  const fillTop = profit ? "rgba(31,111,120,0.25)" : "rgba(192,57,43,0.25)";
+  const fillBot = "rgba(0,0,0,0)";
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const x = pad.l + i * xStep;
+    const y = pad.t + cH * (1 - (vals[i] - minV) / range);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.lineTo(pad.l + (n - 1) * xStep, pad.t + cH);
+  ctx.lineTo(pad.l, pad.t + cH);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + cH);
+  grad.addColorStop(0, fillTop);
+  grad.addColorStop(1, fillBot);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  const dateLabels = [0, Math.floor(n / 4), Math.floor(n / 2), Math.floor(3 * n / 4), n - 1];
+  ctx.fillStyle = textColor;
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "center";
+  dateLabels.forEach(i => {
+    if (i < n) {
+      const x = pad.l + i * xStep;
+      ctx.fillText(curve[i].d.slice(5), x, H - 8);
+    }
+  });
+}

@@ -1,0 +1,162 @@
+{
+  "ea_id": "EA-21976",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iCCI, iRSI). Simple entry/exit rules with fixed lot sizing. Standard trailing stop logic. No external .mqh libraries for trading logic - only standard Trade library includes for order execution helpers.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "CCI",
+      "name": "CCI",
+      "params": {
+        "period": 12,
+        "applied_to": 5
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 15,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adjusted point value for 3/5 digit brokers",
+      "formula": "_Point * 10 when Digits==3 or Digits==5, else _Point * 1",
+      "used_by": "SL, TP, Trailing Stop, Trailing Step calculations"
+    },
+    {
+      "name": "ExtStopLoss",
+      "formula": "InpStopLoss * m_adjusted_point",
+      "used_by": "Buy/Sell SL price calculation"
+    },
+    {
+      "name": "ExtTakeProfit",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "Buy/Sell TP price calculation"
+    },
+    {
+      "name": "ExtTrailingStop",
+      "formula": "InpTrailingStop * m_adjusted_point",
+      "used_by": "Trailing stop distance"
+    },
+    {
+      "name": "ExtTrailingStep",
+      "formula": "InpTrailingStep * m_adjusted_point",
+      "used_by": "Trailing activation threshold"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "RSI[1] > RSI_level_up && RSI[2] > RSI_level_up",
+        "right": "CCI[1] > CCI_level_up && CCI[2] > CCI_level_up",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "RSI[1] < RSI_level_down && RSI[2] < RSI_level_down",
+        "right": "CCI[1] < CCI_level_down && CCI[2] < CCI_level_down",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 125,
+      "params": {
+        "adjusted_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 60,
+      "params": {
+        "adjusted_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 5,
+      "params": {
+        "trail_start_pips": 5,
+        "trail_step_pips": 5
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "SL sanity check: for BUY, if calculated SL >= Bid then trade is skipped; for SELL, if calculated SL <= Ask then trade is skipped"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 0,
+    "conditional_logic": "CheckVolume validates lot against symbol min/max/step before order send"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry requires BOTH RSI and CCI to be beyond their threshold levels for TWO consecutive completed bars ([1] and [2]). This is a sustained-level filter, not a crossover. BUY: RSI > 75 AND CCI > 80 on bars [1] and [2]. SELL: RSI < 30 AND CCI < -95 on bars [1] and [2]. Trailing stop activates when position profit exceeds ExtTrailingStop + ExtTrailingStep; then modifies SL to PriceCurrent - ExtTrailingStop (BUY) or PriceCurrent + ExtTrailingStop (SELL). No position gate - EA can open multiple positions if signal persists across bars. Magic number filter applied for trailing stop only.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward conversion. Both iCCI and iRSI have direct Python equivalents (ta-lib CCI/RSI). Entry logic is a simple threshold-and combination on 2 consecutive bars. Digit adjustment logic (multiply by 10 for 5-digit) must be replicated. Trailing stop is standard: activate when profit > stop+step, then move SL to current_price - stop (or + for short). Note: no position gate means signals can stack positions on every new bar if conditions persist. The Trade library includes are standard MT5 execution helpers - no custom indicator or strategy logic in them.",
+  "extraction_timestamp": "2026-05-14T00:48:14.723809",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 202.0592861175537,
+    "cost": 0
+  }
+}
