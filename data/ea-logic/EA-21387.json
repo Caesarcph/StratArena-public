@@ -1,0 +1,156 @@
+{
+  "ea_id": "EA-21387",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses multiple MT5 Standard Library .mqh includes (Trade\\PositionInfo.mqh, Trade\\Trade.mqh, Trade\\SymbolInfo.mqh, Trade\\AccountInfo.mqh, Trade\\DealInfo.mqh, Trade\\OrderInfo.mqh, Expert\\Money\\MoneyFixedMargin.mqh) for position management and trade execution. While indicators are built-in (iMA only), the EA relies heavily on CTrade/CSymbolInfo/CAccountInfo wrapper classes for order execution and position management, requiring careful translation of Standard Library method calls to raw Python equivalents. The time-based intrabar entry logic with minute guards and the conditional stop-loss exit (not a simple SL/TP close) adds conversion complexity.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "EMA on H1 (open price)",
+      "params": {
+        "period": 11,
+        "shift": 0,
+        "method": 1,
+        "applied_to": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "EMA_SPEED (input param, default 11)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "EMA slope (derivative)",
+      "formula": "ema_new - ema_old (consecutive H1 EMA values)",
+      "used_by": "Entry rules: SLOPE_SMALL <= ema_slope <= SLOPE_LARGE for long; -SLOPE_LARGE <= ema_slope <= -SLOPE_SMALL for short"
+    },
+    {
+      "name": "Adjusted point value",
+      "formula": "_Point * 10 (when Digits==3 or 5), else _Point",
+      "used_by": "All pip-based parameters (BIG_JUMP, DOUBLE_JUMP, STOP_LOSS, EMERGENCY_LOSS, TAKE_PROFIT, SLOPE_SMALL, SLOPE_LARGE, SLIP_BEGIN, SLIP_END, ADJUST)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "EMA slope",
+        "right": "SLOPE_SMALL to SLOPE_LARGE band",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side",
+        "additional_conditions": [
+          "minute > MINUTES_BEGIN",
+          "current bar close <= current bar open (bearish current bar)",
+          "current bar close <= current bar low + SLIP_BEGIN",
+          "no big jump in last 5 bars (BIG_JUMP check)",
+          "no double-jump in last 4 overlapping pairs (DOUBLE_JUMP check)"
+        ]
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "EMA slope",
+        "right": "-SLOPE_SMALL to -SLOPE_LARGE band",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side",
+        "additional_conditions": [
+          "minute > MINUTES_BEGIN",
+          "current bar close >= current bar open (bullish current bar)",
+          "current bar close >= current bar high - SLIP_BEGIN",
+          "no big jump in last 5 bars (BIG_JUMP check)",
+          "no double-jump in last 4 overlapping pairs (DOUBLE_JUMP check)"
+        ]
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "note": "EMERGENCY_LOSS is the actual SL set on the order; STOP_LOSS=20 is a conditional soft stop implemented in OnTick logic that closes when additional time/price conditions are met"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 25,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Conditional soft stop-loss: if position is in loss by STOP_LOSS pips AND minute > MINUTES_END AND bar shows retracement signal (close vs open/high/low with SLIP_END tolerance), then close position",
+      "Volume-based exit: if previous bar volume <= MIN_VOLUME, close any open position",
+      "Duplicate prevention: if same-direction position exists, block new entry in that direction"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 1.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 0,
+      "note": "Uses minute-of-hour filter (MINUTES_BEGIN=25, MINUTES_END=25) rather than session filter. Entry allowed only when current minute > MINUTES_BEGIN. Soft SL exit allowed only when current minute > MINUTES_END."
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "1. EMA is calculated on H1 timeframe regardless of chart timeframe (hardcoded PERIOD_H1 in iMA call). 2. Entry uses a 'pullback within trend' pattern: EMA slope must be in a moderate range (not too flat, not too steep), then waits for a counter-trend bar at bar close near extreme (close near low for longs, close near high for shorts). 3. BIG_JUMP filter: checks 5 consecutive bar-to-bar opens for gaps >= 30 adjusted pips, zeroing all entry chances if any found. 4. DOUBLE_JUMP filter: checks 4 overlapping 2-bar spans for combined moves >= 55 adjusted pips. 5. The 'open_price' for SL comparison is stored as a static variable, calculated as bar open +/- ADJUST + spread at entry time, NOT the actual fill price. 6. EMERGENCY_LOSS (50 pips) is the hard SL on the order; STOP_LOSS (20 pips) is a soft conditional SL that only triggers when additional minute and price-reversal conditions are met. 7. ADJUST parameter (default 1 pip) is added/subtracted from bar open price to compute the reference open_price for SL comparison - described as 'imaginary spread adjustment'.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh",
+    "Trade\\DealInfo.mqh",
+    "Trade\\OrderInfo.mqh",
+    "Expert\\Money\\MoneyFixedMargin.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1. EMA indicator uses H1 timeframe hardcoded - must fetch H1 bars regardless of signal timeframe. 2. The soft stop-loss logic is NOT a trailing stop - it is a conditional exit that checks: position in loss by >= STOP_LOSS pips from reference open_price AND minute > MINUTES_END AND bar shows reversal candle. This requires tick-level monitoring. 3. The reference open_price is NOT the fill price but a computed value (bar_open - ADJUST + spread for longs, bar_open + ADJUST + spread for shorts). This must be stored per-position. 4. Big jump and double-jump filters scan 6 previous bars' open prices - need bar history buffer. 5. Minute-of-hour filter uses TimeCurrent().min (current minute within the hour), not a session time filter. 6. CTrade/CSymbolInfo/CAccountInfo Standard Library wrappers need to be replaced with direct broker API calls. 7. CMoneyFixedMargin is declared but never instantiated or used in OnInit/OnTick - can be ignored. 8. Volume exit check uses iVolume of previous bar (index 1) compared to MIN_VOLUME input (default 0, effectively disabled by default). 9. Position gate: max 1 position total (if count_buys+count_sells>1, closes all as error), no same-side entry (blocks buy if long exists, blocks sell if short exists).",
+  "extraction_timestamp": "2026-05-13T22:25:38.260446",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 226.00909662246704,
+    "cost": 0
+  }
+}

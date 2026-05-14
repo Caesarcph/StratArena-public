@@ -458,9 +458,10 @@ function renderEADetail(route) {
           </div>
           ${bt.timestamp ? `<div class="ea-bt-metric"><span class="ea-bt-label">${isZh ? "回测时间" : "Backtest Time"}</span><span class="ea-bt-value ea-bt-small">${new Date(bt.timestamp).toLocaleDateString()}</span></div>` : ""}
         </div>
-        ${!hasTrades ? `<p class="ea-bt-note">${isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment."}</p>` : ""}
-      </div>`;
-  }
+${!hasTrades ? `<p class="ea-bt-note">${isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment."}</p>` : ""}
+${hasTrades ? `<div class="ea-bt-chart-wrap"><canvas id="ea-bt-chart-${id}" class="ea-bt-chart"></canvas></div>` : ""}
+</div>`;
+}
 
   return `
     <section class="ea-detail-page section">
@@ -488,4 +489,79 @@ function renderEADetail(route) {
     </section>`;
 }
 
-function bindEADetail(route) {}
+function bindEADetail(route) {
+  const id = route.id;
+  const bt = store.eaBacktestIndex[id];
+  if (!bt || bt.total_trades <= 0) return;
+  fetch(`data/backtest-results/${id}.json`).then(r => r.json()).then(data => {
+    const curve = data.equity_curve;
+    if (!curve || !curve.length) return;
+    drawEquityCurve(`ea-bt-chart-${id}`, curve);
+  }).catch(() => {});
+}
+
+function drawEquityCurve(canvasId, curve) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const w = rect.width;
+  const h = 220;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  const pad = { top: 20, right: 16, bottom: 30, left: 60 };
+  const cw = w - pad.left - pad.right;
+  const ch = h - pad.top - pad.bottom;
+
+  const values = curve.map(p => p.v);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const range = maxV - minV || 1;
+
+  ctx.clearRect(0, 0, w, h);
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const gridColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+  const textColor = isDark ? "#aaa" : "#666";
+
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (ch / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y);
+    ctx.strokeStyle = gridColor; ctx.lineWidth = 1; ctx.stroke();
+    const val = maxV - (range / 4) * i;
+    ctx.fillStyle = textColor; ctx.font = "11px sans-serif"; ctx.textAlign = "right";
+    ctx.fillText("$" + val.toFixed(0), pad.left - 8, y + 4);
+  }
+
+  const startV = curve[0].v;
+  const isProfit = curve[curve.length - 1].v >= startV;
+  const lineColor = isProfit ? "#22c55e" : "#ef4444";
+
+  ctx.beginPath();
+  for (let i = 0; i < curve.length; i++) {
+    const x = pad.left + (i / (curve.length - 1)) * cw;
+    const y = pad.top + (1 - (values[i] - minV) / range) * ch;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = lineColor; ctx.lineWidth = 2; ctx.stroke();
+
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+  grad.addColorStop(0, isProfit ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.lineTo(pad.left + cw, pad.top + ch);
+  ctx.lineTo(pad.left, pad.top + ch);
+  ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+
+  const dates = curve.map(p => p.d);
+  const step = Math.max(1, Math.floor(dates.length / 5));
+  ctx.fillStyle = textColor; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
+  for (let i = 0; i < dates.length; i += step) {
+    const x = pad.left + (i / (curve.length - 1)) * cw;
+    ctx.fillText(dates[i].substring(5), x, h - 6);
+  }
+}
