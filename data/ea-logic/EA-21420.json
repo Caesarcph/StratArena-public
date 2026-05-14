@@ -1,0 +1,157 @@
+{
+  "ea_id": "EA-21420",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses custom indicator 'AbsolutelyNoLagLwma' via iCustom, external .mqh library for neural network (NN3) and money management recommendation (MMRec), plus digit adjustment logic and complex multi-layer signal aggregation",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AbsolutelyNoLagLwma",
+      "params": {
+        "period": 0,
+        "method": "LWMA",
+        "applied_to": "close"
+      },
+      "source": "external_library",
+      "library": "AbsolutelyNoLagLwma",
+      "derived_period": "Periods input param"
+    },
+    {
+      "type": "Custom",
+      "name": "NN3 Signal Aggregator",
+      "params": {},
+      "source": "custom",
+      "library": "NN3_Core",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Digit Adjustment Reference",
+      "params": {
+        "period": 0,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Digit-adjusted SL/TP",
+      "formula": "SL*10 when _Digits==5 or _Point<0.001",
+      "used_by": "stop_loss and take_profit calculation"
+    },
+    {
+      "name": "NN3 composite signal",
+      "formula": "weighted aggregation of AbsolutelyNoLagLwma directional components",
+      "used_by": "entry_rules long and short conditions"
+    },
+    {
+      "name": "MMRec lot size recommendation",
+      "formula": "based on account balance, risk percent, and stop distance",
+      "used_by": "position_sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "AbsolutelyNoLagLwma",
+        "right": "Price",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "AbsolutelyNoLagLwma",
+        "right": "Price",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close on opposite NN3 signal"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MMRec module calculates lot size based on risk fraction; negative Lots input = fixed lots, positive = fraction of deposit recommended by MM module"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "AbsolutelyNoLagLwma is a zero-lag weighted moving average that applies a correction algorithm to eliminate standard LWMA lag. NN3 is a 3-layer neural network that takes the filtered LWMA directional components as inputs and produces a composite buy/sell signal. MMRec module recommends position size based on account equity, risk tolerance, and current stop distance. Digit adjustment multiplies SL/TP by 10 for 5-digit brokers (_Digits==5 or _Point<0.001).",
+  "external_dependencies": [
+    "AbsolutelyNoLagLwma.mq5",
+    "NN3_Core.mqh",
+    "MMRec.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires reimplementation of AbsolutelyNoLagLwma zero-lag LWMA algorithm in Python (use numpy convolve with corrected weights or ta library custom wrapper). NN3 neural network layer weights must be extracted from the .mqh include or trained from scratch using historical data. MMRec money management can be replicated with a simple risk-based lot sizing function. Digit adjustment logic is straightforward: multiply pip values by 10 when price has 5 decimal places. The EA processes on new bar only (OnTick with new bar guard), making bar-based backtesting in Python viable. All indicator values reference previous completed bar (shift=1), so no lookahead bias concerns.",
+  "extraction_timestamp": "2026-05-13T22:38:43.527637",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 72.74465322494507,
+    "cost": 0
+  }
+}

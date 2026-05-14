@@ -1,0 +1,173 @@
+{
+  "ea_id": "EA-21409",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses custom indicator ColorJFatl_Digit via iCustom, neural network (3-layer perceptron) for signal filtering, and complex money management (MMRec) with deposit fraction sizing. The JFatl indicator is not a built-in MT5 indicator - it combines JMA smoothing with FATL digital filter coefficients, requiring custom indicator porting or reimplementation.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorJFatl_Digit",
+      "params": {
+        "period": 8,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "custom",
+      "library": "ColorJFatl_Digit.mq5",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ColorJFatl_Digit (Signal)",
+      "params": {
+        "period": 8,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "custom",
+      "library": "ColorJFatl_Digit.mq5",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "NN3 Neural Network Perceptron",
+      "params": {
+        "inputs": 4,
+        "hidden_layers": 1,
+        "hidden_neurons": 8,
+        "activation": "sigmoid"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "JFatl main line value",
+      "formula": "iCustom(ColorJFatl_Digit,0,Periods,Method,AppliedTo,0,shift)",
+      "used_by": "Entry signal direction"
+    },
+    {
+      "name": "JFatl signal line value",
+      "formula": "iCustom(ColorJFatl_Digit,0,Periods,Method,AppliedTo,1,shift)",
+      "used_by": "Entry crossover detection"
+    },
+    {
+      "name": "JFatl color index",
+      "formula": "iCustom(ColorJFatl_Digit,0,Periods,Method,AppliedTo,2,shift)",
+      "used_by": "Trend direction confirmation"
+    },
+    {
+      "name": "NN3 perceptron output",
+      "formula": "sigmoid(W3 * sigmoid(W2 * sigmoid(W1 * inputs + B1) + B2) + B3)",
+      "used_by": "Signal filtering/confirmation"
+    },
+    {
+      "name": "Digit-adjusted StopLevel",
+      "formula": "StopLevel * (if _Digits==5 or _Point<0.001 then 10 else 1)",
+      "used_by": "SL/TP calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "JFatl main line",
+        "right": "JFatl signal line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "JFatl main line",
+        "right": "JFatl signal line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes current position before opening new one",
+      "NN3 neural network can veto signal preventing entry but does not independently close positions"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_fraction": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMRec mode: negative input value = fixed lots at abs(value); positive input value = fraction of free margin for position sizing. The 'Recommended' preset uses deposit fraction with 10% of free margin."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The NN3 (3-layer neural network perceptron) acts as a signal filter. It takes market state inputs (price changes, indicator readings) and produces a binary go/no-go decision. A trade signal from the JFatl crossover is only executed if the NN3 output confirms the direction. The ColorJFatl_Digit indicator uses FATL digital filter coefficients (pre-computed as a weighted sum of 39 previous closes) combined with JMA adaptive smoothing. The 'Digit' variant applies an automatic 10x multiplier on SL/TP values when running on 5-digit brokers (or when _Point < 0.001), so input pip values remain consistent regardless of broker digit configuration. The MMRec money management calculates lot size as: lot = (FreeMargin * MMFraction) / (ContractSize * StopLevel_Points * PointValue), clamped to broker min/max lot constraints.",
+  "external_dependencies": [
+    "ColorJFatl_Digit.mq5"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Major challenges: (1) ColorJFatl_Digit custom indicator must be reimplemented in Python - requires FATL digital filter coefficient table (39 weights) plus JMA adaptive smoothing algorithm. This is non-trivial as JMA is proprietary Jurik smoothing. (2) NN3 perceptron weights are typically pre-trained and hardcoded in the EA - these must be extracted from the .mq5 source. Without the binary source being readable, exact weights cannot be determined. (3) The digit adjustment logic (10x for 5-digit brokers) must be handled in Python by checking price decimal places. (4) MMRec lot calculation requires live margin info which differs between backtest engines - consider using fixed fractional sizing as approximation. (5) Recommend re-implementing JFatl as a combination of scipy/numpy digital filter (FATL coefficients) + adaptive smoothing approximation (e.g., Kaufman AMA or T3 as JMA proxy). (6) Signal logic uses [1] previous bar values for crossover detection - ensure Python implementation uses same shift semantics.",
+  "extraction_timestamp": "2026-05-13T22:33:11.041385",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 195.19878959655762,
+    "cost": 0
+  }
+}

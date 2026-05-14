@@ -1,0 +1,187 @@
+{
+  "ea_id": "EA-21411",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Hedging logic with over-hedge management requires careful porting; multi-position management with opposite-side position stacking is non-trivial to replicate in Python backtesting frameworks",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 8,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 21,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Trend EMA",
+      "params": {
+        "period": 50,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Hedge lot offset",
+      "formula": "opposite_side_lot - same_side_lot",
+      "used_by": "hedge entry logic"
+    },
+    {
+      "name": "Digit-adjusted SL",
+      "formula": "SL * (Digits==5||Digits==3 ? 10 : 1)",
+      "used_by": "stop_loss calculation"
+    },
+    {
+      "name": "Digit-adjusted TP",
+      "formula": "TP * (Digits==5||Digits==3 ? 10 : 1)",
+      "used_by": "take_profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "Close",
+        "right": "Trend EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "Close",
+        "right": "Trend EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "hedge_close_when_net_profit_target_reached",
+      "over_hedge_reduction_when_opposite_signal"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": -1,
+    "conditional_logic": "lots parameter: negative=fixed lots, positive=fraction of free margin; hedge lots calculated as offset to achieve net zero or partial hedge"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "OverHedgeV2 manages hedging by opening opposite-side positions when signals reverse without closing existing positions. It tracks net exposure (over-hedge) and calculates lot sizes to offset the dominant direction. When a hedge profit target is reached, it closes the hedge pair. The EA may stack multiple hedged positions and manage them as a group by net profit/loss rather than individual trade P&L.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Hedging logic requires maintaining a full position ledger with side-aware lot tracking. Net position and over-hedge calculation must be implemented. Group close by net profit target needs careful order management. Conditional lot sizing (negative=fixed, positive=margin fraction) must be ported. Digit adjustment for SL/TP on 5-digit brokers is critical. Multi-position management is beyond simple vectorized backtesting - requires event-driven or bar-by-bar simulation with full state tracking.",
+  "extraction_timestamp": "2026-05-13T22:37:30.782042",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 168.94196391105652,
+    "cost": 0
+  }
+}
