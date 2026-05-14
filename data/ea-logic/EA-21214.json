@@ -1,0 +1,161 @@
+{
+  "ea_id": "EA-21214",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses two custom indicators (SilverTrend and ColorJFatl_Digit) via iCustom calls with external .mqh includes (JFatl_Digit and CJfatl_Digit). Custom indicator logic cannot be auto-converted to Python without manual reimplementation of the indicator algorithms.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "SilverTrend",
+      "params": {
+        "period": 40,
+        "band": 2
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ColorJFatl_Digit",
+      "params": {
+        "period": 15
+      },
+      "source": "custom",
+      "library": "JFatl_Digit",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Digit-adjusted StopLoss in points (multiply by 10 for 5-digit brokers)",
+      "formula": "StopLoss * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "SL calculation in order send"
+    },
+    {
+      "name": "Digit-adjusted TakeProfit in points (multiply by 10 for 5-digit brokers)",
+      "formula": "TakeProfit * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "TP calculation in order send"
+    },
+    {
+      "name": "Digit-adjusted TrailingStop in points (multiply by 10 for 5-digit brokers)",
+      "formula": "TrailingStop * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "Trailing stop calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "SilverTrend buffer[0]",
+        "right": "ColorJFatl_Digit trend direction",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "SilverTrend",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "SilverTrend buffer[1]",
+        "right": "ColorJFatl_Digit trend direction",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "SilverTrend",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal reversal closes opposite position before opening new one"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "When MoneyManagement input is negative, uses fixed lot size (Lots=0.1); when positive, calculates lot size as deposit fraction based on risk percentage and margin requirements"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA combines SilverTrend (a signal indicator based on range breakout with dynamic thresholds using High/Low of a lookback period) and ColorJFatl_Digit (a JMA-based FATL digital filter with trend coloring). Entry requires both indicators to agree on direction: SilverTrend must signal and ColorJFatl_Digit trend color must confirm. Opposite signal first closes existing position, then opens new one on next signal bar. The digit adjustment pattern (multiplying SL/TP/Trail by 10 for 5-digit brokers) is a legacy MQL4 pattern carried into this MQ5 port. The custom indicator libraries (JFatl_Digit, CJfatl_Digit .mqh files) contain the core algorithm logic that must be manually ported.",
+  "external_dependencies": [
+    "JFatl_Digit.mqh",
+    "CJfatl_Digit.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1. SilverTrend indicator algorithm must be manually reimplemented - it calculates dynamic support/resistance levels from High/Low over a lookback period with a band multiplier. 2. ColorJFatl_Digit requires porting the JFatl (Jurik Fast Adaptive Trend Line) digital filter which depends on CJfatl_Digit class and JFatl_Digit algorithm from .mqh includes. 3. The digit adjustment (SL/TP * 10 for 5-digit) is unnecessary in Python since you work with absolute price values directly. 4. Position gate logic: EA checks IsPosition before entry - must implement position tracking. 5. Signal reversal close: opposite signal closes existing position first, new entry on next bar. 6. New bar detection uses static datetime comparison - implement equivalent bar tracking. 7. Trailing stop logic uses standard point-based trailing with digit adjustment. 8. Money management: negative Lots input = fixed lots; positive = risk-based sizing using AccountInfoDouble(ACCOUNT_MARGIN) and order margin calculation.",
+  "extraction_timestamp": "2026-05-13T21:51:28.206596",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 147.84722113609314,
+    "cost": 0
+  }
+}

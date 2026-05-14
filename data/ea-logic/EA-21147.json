@@ -1,0 +1,210 @@
+{
+  "ea_id": "EA-21147",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iATR) with simple entry/exit rules based on candle shadow patterns. Fixed lot sizing with no external dependencies. Straightforward logic suitable for automated conversion.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 8,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 21,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 14,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Candle body size",
+      "formula": "MathAbs(Close[1] - Open[1])",
+      "used_by": "Entry signal validation - ensures candle has meaningful body"
+    },
+    {
+      "name": "Upper shadow length",
+      "formula": "High[1] - MathMax(Close[1], Open[1])",
+      "used_by": "Short entry signal - detects bearish rejection candle"
+    },
+    {
+      "name": "Lower shadow length",
+      "formula": "MathMin(Close[1], Open[1]) - Low[1]",
+      "used_by": "Long entry signal - detects bullish rejection candle"
+    },
+    {
+      "name": "Shadow-to-body ratio",
+      "formula": "shadow_length / body_size",
+      "used_by": "Entry signal validation - confirms dominant shadow pattern"
+    },
+    {
+      "name": "SL distance (ATR-based)",
+      "formula": "ATR[1] * SL_ATR_Multiplier",
+      "used_by": "Stop loss calculation"
+    },
+    {
+      "name": "TP distance (ATR-based)",
+      "formula": "ATR[1] * TP_ATR_Multiplier",
+      "used_by": "Take profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Candle Shadow Pattern",
+        "right": "EMA Trend Filter",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "above",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Lower shadow of previous bar",
+        "right": "Body size * ShadowMultiplier",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Candle Shadow Pattern",
+        "right": "EMA Trend Filter",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "below",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Upper shadow of previous bar",
+        "right": "Body size * ShadowMultiplier",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": 1.5,
+      "params": {
+        "atr_period": 14,
+        "placement": "below_low_for_long_above_high_for_short"
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": 2.0,
+      "params": {
+        "atr_period": 14
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite position on reverse signal before opening new position"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Core logic: Identifies candle shadow (wick) rejection patterns on the previous completed bar. A long lower shadow relative to body indicates bullish rejection (hammer-like); a long upper shadow indicates bearish rejection (shooting-star-like). The shadow must significantly exceed the body (configurable ratio). EMA trend filter (8/21 crossover) ensures entries align with the prevailing trend direction. ATR-based SL is placed beyond the candle extreme (low for longs, high for shorts) with ATR multiplier buffer.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Candle shadow pattern is pure price-action logic - trivially computed from OHLC data. iMA and iATR map directly to pandas-ta or ta-lib equivalents. ATR-based SL/TP requires per-bar ATR value multiplied by user-defined factors. New bar detection uses timestamp comparison - implement via bar index increment check. Digit adjustment (5-digit brokers) requires _Point/_Digits awareness when converting pip inputs to price distances. Spread filter uses SymbolInfoDouble(SYMBOL_ASK)-SymbolInfoDouble(SYMBOL_BID). No custom indicators or external libraries needed.",
+  "extraction_timestamp": "2026-05-13T21:44:31.664931",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 195.52602672576904,
+    "cost": 0
+  }
+}
