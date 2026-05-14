@@ -1,0 +1,182 @@
+{
+  "ea_id": "EA-2159",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for Digital_MACD indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing algorithms. Custom indicator with non-standard parameters makes auto-conversion impractical.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Digital_MACD",
+      "params": {
+        "signal_method": "MODE_SMA",
+        "signal_period": 5,
+        "signal_phase": 100,
+        "applied_price": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "66+GetStartBars(Signal_Method,Signal_XMA,Signal_Phase)+2"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "66+GetStartBars(Signal_Method,Signal_XMA,Signal_Phase)+2+3+SignalBar",
+      "used_by": "BarsCalculated check before signal generation"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Digital_MACD buffer 0",
+        "right": "zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Digital_MACD[0]",
+        "right": "Digital_MACD[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Digital_MACD signal line[0]",
+        "right": "Digital_MACD signal line[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Digital_MACD[0]",
+        "right": "Signal line[0]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Digital_MACD buffer 0",
+        "right": "zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Digital_MACD[0]",
+        "right": "Digital_MACD[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Digital_MACD signal line[0]",
+        "right": "Digital_MACD signal line[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Digital_MACD[0]",
+        "right": "Signal line[0]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes position when BuyPosClose/SellPosClose permissions are enabled; signal logic inherently generates close signals alongside open signals"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "margin_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum (LOT, FREEMARGIN, etc.) from TradeAlgorithms.mqh determines whether MM is fixed lots or deposit fraction. When MMMode=LOT, MM value is lot size; when MMMode=FREEMARGIN, MM is share of deposit."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA implements 4 selectable trading algorithms via AlgMode enum: (1) 'breakdown' - MACD histogram crosses zero; (2) 'MACDtwist' - MACD direction change (3-bar comparison: Value[0]>Value[1]>Value[2] reversal); (3) 'SIGNALtwist' - Signal line direction change (same 3-bar logic on buffer 1); (4) 'MACDdisposition' - MACD crosses signal line. Entry permissions are gated by BuyPosOpen/SellPosOpen booleans. Exit permissions are gated by BuyPosClose/SellPosClose booleans. When SignalBar=0, the EA evaluates on current bar (intrabar); otherwise waits for new bar. Recount flag forces recalculation on data issues. Signal timing uses SeriesInfoInteger(SERIES_LASTBAR_DATE)+TimeShiftSec for trade timing passed to open functions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H4",
+  "python_conversion_notes": "Requires reimplementation of Digital_MACD custom indicator logic from SmoothAlgorithms.mqh (digital filter smoothing). The TradeAlgorithms.mqh library provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions with built-in position checking, lot calculation, and order management - all must be reimplemented. The 4 AlgMode variants each use different buffer comparisons (buffer 0 vs zero, 3-bar reversal on buffer 0, 3-bar reversal on buffer 1, buffer 0 vs buffer 1 crossover). SignalBar parameter shifts all lookback indices. The Recount mechanism handles data availability failures. MarginMode enum from TradeAlgorithms.mqh controls lot sizing logic. SL/TP are in points (not pips), need to verify if 5-digit adjustment is needed for the specific symbol.",
+  "extraction_timestamp": "2026-05-13T23:21:27.301654",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 121.90465331077576,
+    "cost": 0
+  }
+}

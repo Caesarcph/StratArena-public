@@ -1,0 +1,144 @@
+{
+  "ea_id": "EA-2171",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for BW-wiseMan-1 custom indicator and relies on TradeAlgorithms.mqh external library for all trade execution logic (open/close positions, money management, deviation handling). Custom indicator buffer interpretation requires manual porting.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BW-wiseMan-1 (Bill Williams WiseMan-1 / Alligator-based)",
+      "params": {
+        "back": 2,
+        "jaw_period": 13,
+        "jaw_shift": 8,
+        "teeth_period": 8,
+        "teeth_shift": 5,
+        "lips_period": 5,
+        "lips_shift": 3,
+        "ma_method": 2,
+        "applied_to": 4
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for valid calculation",
+      "formula": "max(jaw_period, teeth_period, lips_period) + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for position open timing"
+    },
+    {
+      "name": "N1/N2 buffer index swap based on retrogradely flag",
+      "formula": "if !retrogradely: N1=1,N2=0 else: N1=0,N2=1",
+      "used_by": "CopyBuffer calls to select up/down signal buffers"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "BW-wiseMan-1 UpValue buffer (buffer N1)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "BW-wiseMan-1 DnValue buffer (buffer N2)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Historical backward scan: if no direct close signal on SignalBar, EA scans backward from SignalBar+1 through all bars looking for the most recent opposite signal to determine close direction. UpValue triggers SELL_Close, DnValue triggers BUY_Close.",
+      "Close signals are gated by BuyPosClose and SellPosClose input booleans"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM input controls deposit share; MMMode (LOT vs FREEMARGIN vs AUTO) determines lot calculation method, handled entirely by TradeAlgorithms.mqh"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The retrogradely input reverses which indicator buffer maps to buy vs sell signals (N1/N2 swap). When retrogradely=true, buffer 0 is used for sell signals and buffer 1 for buy signals; when false, the opposite. The EA also performs a historical scan backward from SignalBar+1 to find the last trading direction for generating close signals when both open and close permissions are enabled. SignalBar=0 allows intrabar signal recalculation on every tick (bypasses new bar guard). TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and LoadHistory - all critical trading functions are externalized.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1) The custom indicator BW-wiseMan-1 must be ported first - it uses Alligator (SMMA) with 3 lines and a back-period analysis to detect WiseMan-1 divergence signals. 2) TradeAlgorithms.mqh must be fully decompiled/reimplemented for position sizing (LOT/FREEMARGIN/AUTO modes), order execution with deviation, and position close logic. 3) The retrogradely flag swaps buffer semantics which must be preserved. 4) The backward historical scan for close signals (lines 132-157) is unusual and must be replicated exactly. 5) SL/TP are in points (not pips) - need _Point conversion for Python. 6) SignalBar=0 enables per-tick signal refresh which is an important edge case.",
+  "extraction_timestamp": "2026-05-13T23:52:56.011652",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 198.96278548240662,
+    "cost": 0
+  }
+}

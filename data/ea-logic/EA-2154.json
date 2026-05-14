@@ -1,0 +1,195 @@
+{
+  "ea_id": "EA-2154",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMACD, iMA). Simple entry/exit rules with fixed lot sizing. External .mqh includes (Trade.mqh, SymbolInfo.mqh, PositionInfo.mqh, AccountInfo.mqh) are standard MT5 library wrappers for trade execution, not custom logic. No multi-timeframe, hedging, or grid logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MACD",
+      "name": "MACD(12,26,9)",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA trend",
+      "params": {
+        "period": 26,
+        "method": 1,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adjusted point (m_adjusted_point)",
+      "formula": "Symbol.Point() * (Digits==3||Digits==5 ? 10 : 1)",
+      "used_by": "MACD open/close levels, trailing stop, take profit"
+    },
+    {
+      "name": "MACD open level (m_macd_open_level)",
+      "formula": "InpMACDOpenLevel * m_adjusted_point",
+      "used_by": "LongOpened, ShortOpened entry threshold"
+    },
+    {
+      "name": "MACD close level (m_macd_close_level)",
+      "formula": "InpMACDCloseLevel * m_adjusted_point",
+      "used_by": "LongClosed, ShortClosed exit threshold"
+    },
+    {
+      "name": "Trailing stop value (m_traling_stop)",
+      "formula": "InpTrailingStop * m_adjusted_point",
+      "used_by": "LongModified, ShortModified SL calculation"
+    },
+    {
+      "name": "Take profit value (m_take_profit)",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "LongOpened, ShortOpened TP calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "MACD_main",
+        "right": "MACD_signal",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "MathAbs(MACD_main_current)",
+        "right": "m_macd_open_level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "EMA_current",
+        "right": "EMA_previous",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "MACD_main",
+        "right": "MACD_signal",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "MACD_main_current",
+        "right": "m_macd_open_level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "EMA_current",
+        "right": "EMA_previous",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "adjusted_by_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 30,
+      "params": {
+        "trail_start_pips": 30,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "MACD signal crossover close: long closed when MACD_main crosses below MACD_signal while both above zero and MACD_main > m_macd_close_level; short closed when MACD_main crosses above MACD_signal while both below zero and |MACD_main| > m_macd_close_level"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_then_wait"
+  },
+  "custom_logic_notes": "10-second timeout between trade operations (ExtTimeOut=10). Entry requires all conditions met simultaneously: MACD crossover + MACD above threshold + EMA trending in same direction. Long entry only when MACD_main<0 (below zero line), short entry only when MACD_main>0 (above zero line). Deviation in points is 3*digits_adjust (3 for 4-digit, 30 for 5-digit). Bar count guard: Bars > 2*InpMATrendPeriod before processing. Typo in source: m_traling_stop (should be m_trailing_stop). SL is 0.0 at entry for both long and short; only trailing stop modifies SL after position is profitable by InpTrailingStop pips.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/PositionInfo.mqh",
+    "Trade/AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1) Digit adjustment logic must be replicated: multiply SL/TP/levels by 10 for 5-digit/3-digit symbols. 2) MACD uses iMACD builtin with fast=12, slow=26, signal=9 on PRICE_CLOSE; EMA uses period=26 on PRICE_CLOSE. 3) Entry is a 3-condition AND: MACD crossover + MACD_above_threshold + EMA_trending. 4) Long entry only when MACD_main<0 zone; short only when MACD_main>0 zone. 5) No initial SL set (SL=0 at open); trailing stop activates when position is profitable by InpTrailingStop adjusted pips. 6) TP set at entry only. 7) Signal reversal close uses MACD crossover + threshold check. 8) Margin check via FreeMarginCheck before opening. 9) 10-second cooldown between trade operations. 10) Single position per symbol (position_gate=no_position). 11) Standard MT5 Trade library classes need Python equivalents for order placement and position management.",
+  "extraction_timestamp": "2026-05-13T22:58:33.198684",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 68.80113101005554,
+    "cost": 0
+  }
+}

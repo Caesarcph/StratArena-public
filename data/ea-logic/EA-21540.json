@@ -1,0 +1,161 @@
+{
+  "ea_id": "EA-21540",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for AbsolutelyNoLagLwma and Range_Channel custom indicators which require custom indicator files to be available; time filter module adds moderate complexity; no external .mqh for core trading logic but custom indicators must be replicated in Python",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AbsolutelyNoLagLwma",
+      "params": {
+        "period": 0,
+        "method": "LWMA",
+        "applied_to": "close",
+        "price_shift": 0,
+        "start_bar": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "Periods input parameter"
+    },
+    {
+      "type": "Custom",
+      "name": "Range_Channel",
+      "params": {
+        "period": 0,
+        "method": "LWMA",
+        "applied_to": "close",
+        "range_multiplier": 1.0,
+        "atr_period": 14
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "Same as AbsolutelyNoLagLwma period"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "NoLagLWMA value - zero-lag weighted moving average",
+      "formula": "Sum_Weighted_Prices / Sum_Weights with price_shift compensation",
+      "used_by": "AbsolutelyNoLagLwma indicator and entry/exit rules"
+    },
+    {
+      "name": "Range Channel Upper Band",
+      "formula": "NoLagLWMA + RangeMultiplier * ATR or range deviation",
+      "used_by": "Short entry and Long exit rules"
+    },
+    {
+      "name": "Range Channel Lower Band",
+      "formula": "NoLagLWMA - RangeMultiplier * ATR or range deviation",
+      "used_by": "Long entry and Short exit rules"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Price (Close)",
+        "right": "AbsolutelyNoLagLwma Lower Band",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Price (Close)",
+        "right": "AbsolutelyNoLagLwma Upper Band",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "input_name": "StopLoss",
+        "adjusts_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "input_name": "TakeProfit",
+        "adjusts_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal": true,
+    "other_exits": [
+      "Time-based exit via Tm module - closes positions outside allowed trading hours",
+      "Opposite signal closes current position before opening new one"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "fixed_lots_input": "Lots",
+      "risk_fraction_input": "LotFraction"
+    },
+    "max_positions": 1,
+    "conditional_logic": "Negative Lots value = fixed lot sizing (abs value used), positive Lots value = deposit fraction sizing using LotFraction parameter"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The 'Plus' variant includes an information panel displaying current position, indicator values, and trade status. The 'Tm' component adds configurable time window filtering (StartHour/EndHour or Mon-Fri day filters). The AbsolutelyNoLagLwma indicator uses a proprietary zero-lag algorithm that recalculates weighted coefficients to minimize lag compared to standard LWMA. The Range_Channel builds dynamic bands around the NoLagLWMA line. When StopLoss or TakeProfit is 0, signal-reversal is the primary exit mechanism. Digit adjustment: SL/TP in points are multiplied by 10 when _Digits==5 or _Point<0.001 (standard 5-digit broker handling).",
+  "external_dependencies": [
+    "Exp_AbsolutelyNoLagLwma_Range_Channel_Tm_Plus.mq5 uses iCustom calls to AbsolutelyNoLagLwma and Range_Channel indicator .ex5 files which must be present in Indicators directory"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must reimplement the AbsolutelyNoLagLwma zero-lag algorithm in Python - the weighted coefficient calculation is non-standard and cannot be replaced with simple LWMA. The Range_Channel bands must also be ported. Time filter logic is straightforward (hour/day window checks). Position sizing conditional logic (negative=fixed, positive=fraction) must be preserved. Digit adjustment logic (multiply SL/TP by 10 for 5-digit brokers) must be handled in Python by checking price decimal places. New bar detection using IsNewBar pattern must be implemented. No pending order management simplifies conversion.",
+  "extraction_timestamp": "2026-05-13T22:59:27.314107",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 54.114492654800415,
+    "cost": 0
+  }
+}

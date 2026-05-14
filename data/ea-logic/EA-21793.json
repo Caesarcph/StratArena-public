@@ -1,0 +1,146 @@
+{
+  "ea_id": "EA-21793",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for UltraMFI indicator and implements martingale money management with recovery logic, requiring manual handling of custom indicator replication and complex position sizing",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "UltraMFI",
+      "params": {
+        "period": 14
+      },
+      "source": "custom",
+      "library": "UltraMFI",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Martingale lot multiplier after loss",
+      "formula": "Multiplier * previous_lot",
+      "used_by": "position_sizing"
+    },
+    {
+      "name": "Recovery lot after consecutive losses",
+      "formula": "Recovery_Lot when consecutive losses >= Recovery_Threshold",
+      "used_by": "position_sizing"
+    },
+    {
+      "name": "Digit-adjusted Stop Loss in points",
+      "formula": "StopLoss * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "exit_rules"
+    },
+    {
+      "name": "Digit-adjusted Take Profit in points",
+      "formula": "TakeProfit * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "exit_rules"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "UltraMFI indicator",
+        "right": "buy signal buffer",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "UltraMFI indicator",
+        "right": "sell signal buffer",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjustment": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjustment": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal reversal closes opposite position before opening new one"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "multiplier": 1.5,
+      "recovery_lot": 0.1,
+      "recovery_threshold": 3
+    },
+    "max_positions": 1,
+    "conditional_logic": "Default lot on win/recovery threshold met; previous_lot * Multiplier on loss; resets to default after win or after consecutive losses reach Recovery_Threshold"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Martingale recovery system: after a loss, lot size is multiplied by Multiplier. After Recovery_Threshold consecutive losses, lot resets to Recovery_Lot. After a win, lot resets to default. The UltraMFI custom indicator provides buy/sell signal buffers that drive entry decisions. Signal reversal logic closes existing position before opening opposite direction.",
+  "external_dependencies": [
+    "UltraMFI"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Must replicate UltraMFI custom indicator logic or provide it as a separate module. Martingale position sizing with recovery threshold requires careful state tracking of consecutive losses. Digit adjustment logic for SL/TP (multiply by 10 for 5-digit brokers) must be implemented. Spread filter check before entry needs live spread data. New bar detection needed to limit entries to one per bar.",
+  "extraction_timestamp": "2026-05-14T00:11:53.334110",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 137.72730588912964,
+    "cost": 0
+  }
+}

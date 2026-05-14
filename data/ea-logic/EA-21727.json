@@ -1,0 +1,112 @@
+{
+  "ea_id": "EA-21727",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale volume expansion on losing trades with balance-drawdown monitoring and ExpertRemove() safety kill-switch; OnTradeTransaction deal-tracking for loss recovery; random entry direction (MathRand>16384) is tick-timing dependent; margin check via CheckVolume; no technical indicators",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "MathRand()",
+        "right": "16384",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "MathRand()",
+        "right": "16384",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 15,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 30,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Maximum balance drawdown exit: if position loss exceeds InpMaxLoss(75%) of balance, position is closed and EA removes itself via ExpertRemove()"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "multiplier_on_loss": 1.6,
+      "reset_to_start_lots_on_profit": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "On losing deal: volume = previous_volume * 1.6 (InpKMartin). On profitable deal where balance >= previous max: volume resets to InpLots(0.1). On profitable deal where balance < previous max: volume = previous_volume * 1.6. If LotCheck returns 0 (insufficient margin), volume resets to InpLots."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry direction is randomly determined by MathRand()>16384 (roughly 50/50 buy vs sell). Trades only execute every 9th tick (counter mod 9). Position gate ensures only one position at a time (OnTick returns immediately if position already exists). OnTradeTransaction monitors deal closes: losing trades trigger martingale volume increase (multiply by InpKMartin=1.6), winning trades reset volume to InpLots only if new balance high is reached; otherwise also increase volume. Drawdown kill-switch closes position and stops EA if single position loss exceeds InpMaxLoss percent of account balance.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Random entry direction (MathRand) makes deterministic backtesting impossible without seeded RNG. Martingale position sizing with balance tracking requires deal-level PnL monitoring equivalent to OnTradeTransaction. The 9-tick counter gate depends on tick frequency which varies by session. The drawdown kill-switch (ExpertRemove) needs equivalent shutdown logic. Standard MT5 Trade library includes are used only for position/account info and order execution - replace with broker API calls. No technical indicators to convert. Main challenge is replicating the deal-event-driven martingale logic and the tick-count gating in Python.",
+  "extraction_timestamp": "2026-05-13T23:59:43.634154",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 222.95660042762756,
+    "cost": 0
+  }
+}

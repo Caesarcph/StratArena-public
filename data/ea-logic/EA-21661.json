@@ -1,0 +1,281 @@
+{
+  "ea_id": "EA-21661",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses CMoneyFixedMargin from Trade standard library for risk-based position sizing, and implements martingale-like lot doubling on last-deal-loss. Also uses CTrade/CSymbolInfo/CAccountInfo/CPositionInfo standard library wrappers which require careful Python equivalent implementation. No custom iCustom indicators, but the money management and martingale logic add complexity beyond simple auto-conversion.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Ichimoku",
+      "name": "Ichimoku Kinko Hyo",
+      "params": {
+        "tenkan_sen": 9,
+        "kijun_sen": 26,
+        "senkou_span_b": 52
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adjusted point value (m_adjusted_point)",
+      "formula": "_Point * 10 if _Digits==3 or _Digits==5, else _Point",
+      "used_by": "StopLoss, TakeProfit, TrailingStop, TrailingStep calculation"
+    },
+    {
+      "name": "ExtStopLoss",
+      "formula": "InpStopLoss * m_adjusted_point",
+      "used_by": "Buy/Sell SL price calculation"
+    },
+    {
+      "name": "ExtTakeProfit",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "Buy/Sell TP price calculation"
+    },
+    {
+      "name": "ExtTrailingStop",
+      "formula": "InpTrailingStop * m_adjusted_point",
+      "used_by": "Trailing stop modification"
+    },
+    {
+      "name": "ExtTrailingStep",
+      "formula": "InpTrailingStep * m_adjusted_point",
+      "used_by": "Trailing step activation threshold"
+    },
+    {
+      "name": "Last deal loss flag (m_last_deal_LOSS)",
+      "formula": "deal_commission + deal_swap + deal_profit < 0.0",
+      "used_by": "Martingale lot doubling in OpenBuy/OpenSell"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "or_combination",
+        "left": "Tenkan-sen/Kijun-sen crossover OR Chinkou Span crossover",
+        "right": "with cloud + candlestick confirmation",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side",
+        "sub_conditions": [
+          {
+            "condition": "crossover",
+            "left": "Tenkan-sen (bar 1)",
+            "right": "Kijun-sen (bar 1)",
+            "direction": "above",
+            "note": "Ten1<=Kij1 on bar[2] and Ten>Kij on bar[1]"
+          },
+          {
+            "condition": "above",
+            "left": "Ask",
+            "right": "Senkou Span A (bar 1)",
+            "direction": "above",
+            "note": "Price above cloud"
+          },
+          {
+            "condition": "above",
+            "left": "Ask",
+            "right": "Senkou Span B (bar 1)",
+            "direction": "above",
+            "note": "Price above cloud"
+          },
+          {
+            "condition": "above",
+            "left": "Close (bar 1)",
+            "right": "Open (bar 1)",
+            "direction": "above",
+            "note": "Bullish candle: iOpen[1] < iClose[1]"
+          }
+        ],
+        "alt_sub_conditions": [
+          {
+            "condition": "crossover",
+            "left": "Chinkou Span (bar 1)",
+            "right": "Close (bar 10)",
+            "direction": "above",
+            "note": "Chinkou1<=iClose[11] and Chinkou>iClose[10]"
+          },
+          {
+            "condition": "above",
+            "left": "Ask",
+            "right": "Senkou Span A (bar 1)",
+            "direction": "above"
+          },
+          {
+            "condition": "above",
+            "left": "Ask",
+            "right": "Senkou Span B (bar 1)",
+            "direction": "above"
+          },
+          {
+            "condition": "above",
+            "left": "Close (bar 1)",
+            "right": "Open (bar 1)",
+            "direction": "above"
+          }
+        ]
+      }
+    ],
+    "short": [
+      {
+        "condition": "or_combination",
+        "left": "Tenkan-sen/Kijun-sen crossunder OR Chinkou Span crossunder",
+        "right": "with cloud + candlestick confirmation",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side",
+        "sub_conditions": [
+          {
+            "condition": "crossunder",
+            "left": "Tenkan-sen (bar 1)",
+            "right": "Kijun-sen (bar 1)",
+            "direction": "below",
+            "note": "Ten1>=Kij1 on bar[2] and Ten<Kij on bar[1]"
+          },
+          {
+            "condition": "below",
+            "left": "Bid",
+            "right": "Senkou Span A (bar 1)",
+            "direction": "below",
+            "note": "Price below cloud"
+          },
+          {
+            "condition": "below",
+            "left": "Bid",
+            "right": "Senkou Span B (bar 1)",
+            "direction": "below",
+            "note": "Price below cloud"
+          },
+          {
+            "condition": "below",
+            "left": "Close (bar 1)",
+            "right": "Open (bar 1)",
+            "direction": "below",
+            "note": "Bearish candle: iOpen[1] > iClose[1]"
+          }
+        ],
+        "alt_sub_conditions": [
+          {
+            "condition": "crossunder",
+            "left": "Chinkou Span (bar 1)",
+            "right": "Open (bar 10)",
+            "direction": "below",
+            "note": "Chinkou1>=iOpen[11] and Chinkou<iOpen[10]"
+          },
+          {
+            "condition": "below",
+            "left": "Bid",
+            "right": "Senkou Span A (bar 1)",
+            "direction": "below"
+          },
+          {
+            "condition": "below",
+            "left": "Bid",
+            "right": "Senkou Span B (bar 1)",
+            "direction": "below"
+          },
+          {
+            "condition": "below",
+            "left": "Close (bar 1)",
+            "right": "Open (bar 1)",
+            "direction": "below"
+          }
+        ]
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "adjusted": true,
+        "pips_definition": "InpStopLoss input in pips, multiplied by m_adjusted_point"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "adjusted": true,
+        "pips_definition": "InpTakeProfit input in pips, multiplied by m_adjusted_point"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 15,
+      "params": {
+        "trail_start_pips": 20,
+        "trail_step_pips": 5,
+        "activation_logic": "Position must be profitable by (ExtTrailingStop + ExtTrailingStep) before trail activates. SL then moved to PriceCurrent -/+ ExtTrailingStop. Only moves SL in favorable direction."
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "SL sanity check: if calculated SL for Buy >= Bid (or SL for Sell <= Ask), trade is not opened and bar is reset"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "fixed_lots_input": 0,
+      "risk_percent_input": 5,
+      "logic": "If InpLots > 0 and Risk == 0: use fixed lots (InpLots). If InpLots == 0 and Risk > 0: use CMoneyFixedMargin with Risk percent. Both cannot be > 0 simultaneously.",
+      "martingale_multiplier": 2.0,
+      "martingale_condition": "If m_last_deal_LOSS is true (previous closed deal was a net loss), double the calculated lot size"
+    },
+    "max_positions": 5,
+    "conditional_logic": "InpLots>0 and Risk==0 → fixed lots; InpLots==0 and Risk>0 → risk-percent via CMoneyFixedMargin; martingale: if last deal was a loss, lot *= 2.0"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Martingale lot doubling: OnTradeTransaction tracks deal results. If last closed deal (DEAL_ENTRY_OUT) had negative net profit (commission+swap+profit < 0), the next trade's lot is multiplied by 2.0. The Chinkou Span crossover for BUY compares against iClose at shift 10/11, and for SELL compares against iOpen at shift 10/11 (asymmetric). SL sanity check prevents opening trades where SL would already be triggered. Position counting filters by symbol AND magic number.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh",
+    "Expert/Money/MoneyFixedMargin.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1. CMoneyFixedMargin from Expert/Money/MoneyFixedMargin.mqh must be reimplemented - it calculates lot size based on risk percentage of free margin with SL distance. 2. Martingale doubling logic in OnTradeTransaction needs careful replication - track last closed deal P&L. 3. Digit adjustment logic (multiply pips by 10 for 3/5 digit symbols) must be ported. 4. Trailing stop uses a two-stage check: price must exceed open by (trail_stop + trail_step) AND SL must be behind current price by (trail_stop + trail_step) before modifying. 5. The Chinkou Span entry uses shift 10/11 which corresponds to the default kijun_sen period offset - this is the standard Ichimoku displacement. 6. iOpen/iClose comparisons in SELL Chinkou condition use iOpen (not iClose) unlike the BUY condition which uses iClose - this asymmetry must be preserved.",
+  "extraction_timestamp": "2026-05-13T23:43:00.764846",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 111.56024885177612,
+    "cost": 0
+  }
+}

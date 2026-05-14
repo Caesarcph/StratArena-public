@@ -1,0 +1,170 @@
+{
+  "ea_id": "EA-2183",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for 'Slow-Stoch' custom indicator and depends on external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Stochastic",
+      "name": "Slow-Stoch",
+      "params": {
+        "k_period": 5,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "SMA",
+        "price_field": "STO_LOWHIGH",
+        "xma_method": "JJMA",
+        "xlength": 5,
+        "xphase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars for indicator calculation",
+      "formula": "KPeriod+DPeriod+Slowing+GetStartBars(XMA_Method,XLength,XPhase)+3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime signal timestamp calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Stochastic buffer 0",
+        "right": "50",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Stochastic[0]",
+        "right": "Stochastic[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Upper cloud (buffer 0)",
+        "right": "Lower cloud (buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Stochastic buffer 0",
+        "right": "50",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Stochastic[0]",
+        "right": "Stochastic[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Upper cloud (buffer 0)",
+        "right": "Lower cloud (buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position via BuyPositionClose/SellPositionClose when BuyPosClose/SellPosClose permissions are enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: positive values = share of deposit in deal, negative values = fixed lot size; MMMode selects between LOT, RISK, or other MarginMode enumeration methods"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three entry modes selected by AlgMode enum: (1) 'breakdown' - Stochastic crosses 50 level, (2) 'twist' - Stochastic direction change (3-bar comparison: [0] vs [1] vs [2]), (3) 'cloudtwist' - Signal cloud color change (buffer 0 vs buffer 1 crossover). Signal is evaluated on bar specified by SignalBar input (default=1, meaning previous completed bar). When SignalBar=0, signals are recalculated on every tick. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean inputs gate each direction's entry and exit independently. GlobalVariableDel_ called on deinit for cleanup.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Three distinct signal modes must be implemented. The custom 'Slow-Stoch' indicator is loaded via iCustom and requires the SmoothAlgorithms.mqh library - its JJMA smoothing implementation must be ported or a Python equivalent found. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions which likely handle position existence checks, order sending, and error recovery - these must be reimplemented. The MM (money management) parameter has dual meaning: positive=deposit fraction, negative=fixed lot. Signal timestamps (UpSignalTime/DnSignalTime) are used for trade identification via GlobalVariableDel_ cleanup. The SignalBar parameter controls lookback depth (1=previous bar for confirmed signals, 0=re-evaluate every tick). SL/TP are in points not pips - need broker digit awareness.",
+  "extraction_timestamp": "2026-05-14T00:19:47.349487",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 117.80659413337708,
+    "cost": 0
+  }
+}

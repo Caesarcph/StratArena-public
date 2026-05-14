@@ -1,0 +1,199 @@
+{
+  "ea_id": "EA-21558",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iDEMA is a standard MA method in MT5). Simple crossover entry/exit with time filter and fixed/fractional position sizing. No external .mqh libraries for trading logic. All indicator calls use standard iMA with DEMA method.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast DEMA",
+      "params": {
+        "period": 14,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "InpPeriodsFast (input parameter)"
+    },
+    {
+      "type": "MA",
+      "name": "Slow DEMA",
+      "params": {
+        "period": 28,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "InpPeriodsSlow (input parameter)"
+    },
+    {
+      "type": "Custom",
+      "name": "DEMA Range Channel Upper",
+      "params": {
+        "period": 14,
+        "method": "DEMA",
+        "applied_to": "close",
+        "shift": 0,
+        "channel_distance": "ATR-based or fixed offset"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "InpPeriodsFast (input parameter)"
+    },
+    {
+      "type": "Custom",
+      "name": "DEMA Range Channel Lower",
+      "params": {
+        "period": 14,
+        "method": "DEMA",
+        "applied_to": "close",
+        "shift": 0,
+        "channel_distance": "ATR-based or fixed offset"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "InpPeriodsFast (input parameter)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adjusted Stop Loss value",
+      "formula": "InpStopLoss * 10 when _Digits==5 or _Point<0.001, else InpStopLoss",
+      "used_by": "stop_loss calculation"
+    },
+    {
+      "name": "Adjusted Take Profit value",
+      "formula": "InpTakeProfit * 10 when _Digits==5 or _Point<0.001, else InpTakeProfit",
+      "used_by": "take_profit calculation"
+    },
+    {
+      "name": "DEMA Range Channel Bandwidth",
+      "formula": "DEMA value +/- channel offset (range distance)",
+      "used_by": "channel upper and lower bands"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast DEMA",
+        "right": "Slow DEMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Close[1]",
+        "right": "DEMA Range Channel Lower",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast DEMA",
+        "right": "Slow DEMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Close[1]",
+        "right": "DEMA Range Channel Upper",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 300,
+      "params": {
+        "input_name": "InpStopLoss",
+        "adjusted_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 600,
+      "params": {
+        "input_name": "InpTakeProfit",
+        "adjusted_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Time-based exit: close positions at specified end time (InpTimeEndHour:InpTimeEndMinute) on specified day (InpTimeEndDay)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "input_name": "InpLotSize"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If InpLotSize is negative, treated as fixed lot size (absolute value). If InpLotSize is positive, treated as fraction of free margin for position sizing."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 8,
+      "end_hour": 20
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses DEMA (Double Exponential Moving Average) for both the crossover signal and range channel construction. The range channel creates upper and lower bands around the DEMA line. Time filter restricts trading to a specified window. A separate time-based exit forces closure of all positions at a configurable end time/day. Position sizing is dual-mode: negative input = fixed lots, positive input = margin fraction. SL/TP values are auto-adjusted by 10x for 5-digit brokers. The 'Tm' in the name refers to the time-managed exit feature. 'Plus' likely refers to enhanced position sizing or additional risk controls compared to the base version.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1. DEMA can be computed as 2*EMA(period) - EMA(EMA(period), period) - implement manually or use ta-lib EMA with DEMA formula. 2. Range channel upper/lower bands = DEMA +/- channel_offset, where offset may be ATR-derived or fixed - need to determine exact channel distance calculation. 3. Digit adjustment logic (multiply SL/TP by 10 for 5-digit) must be replicated using symbol info (tick_size/pip_size). 4. New bar detection must be implemented (compare current bar time vs stored bar time). 5. Time filter and forced exit at end time need careful timezone handling. 6. Dual position sizing mode (negative=fixed lots, positive=margin fraction) must be preserved. 7. Position check before entry must query open positions for the symbol. 8. Signal reversal close: when opposite signal fires, close existing position before opening new one.",
+  "extraction_timestamp": "2026-05-13T23:07:38.592939",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 289.17853903770447,
+    "cost": 0
+  }
+}

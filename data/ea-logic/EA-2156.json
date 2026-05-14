@@ -1,0 +1,169 @@
+{
+  "ea_id": "EA-2156",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load the 'T3_TRIX' custom indicator, and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing calculations and trade execution logic. Custom indicator buffers and multi-mode signal logic require manual mapping.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "T3_TRIX",
+      "params": {
+        "method": "MODE_T3",
+        "fast_period": 10,
+        "slow_period": 18,
+        "phase": 70,
+        "applied_price": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total (minimum bars for indicator warmup)",
+      "formula": "MathMax(GetStartBars(XMA_Method,XLength1,XPhase), GetStartBars(XMA_Method,XLength2,XPhase)) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec (chart period in seconds)",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal timestamp calculation for UpSignalTime/DnSignalTime"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "T3_TRIX Histogram[1]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "T3_TRIX Histogram direction",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "T3_TRIX UpCloud[1]",
+        "right": "T3_TRIX DnCloud[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "T3_TRIX Histogram[1]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "T3_TRIX Histogram direction",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "T3_TRIX UpCloud[1]",
+        "right": "T3_TRIX DnCloud[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "In 'breakdown' mode: BUY_Close triggered when histogram goes negative; SELL_Close triggered when histogram goes positive",
+      "In 'twist' mode: BUY_Close triggered when histogram starts declining; SELL_Close triggered when histogram starts rising",
+      "In 'cloudtwist' mode: BUY_Close triggered when UpCloud crosses below DnCloud; SELL_Close triggered when UpCloud crosses above DnCloud"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "Negative MM values (-0.1) = fixed lot size of 0.1; Positive MM values = fraction of deposit. MMMode (LOT, FO, MM) determines lot calculation method when MM is positive."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three selectable entry algorithms via AlgMode enum: (1) 'breakdown' - histogram crosses zero line using buffer[2] at SignalBar and SignalBar+1; (2) 'twist' - histogram direction change using 3 consecutive buffer[2] values; (3) 'cloudtwist' - signal cloud color change comparing buffer[0] vs buffer[1] crossover. SignalBar=0 allows intrabar recalculation without new bar check. UpSignalTime/DnSignalTime timestamps are set to last bar date + period seconds, used by TradeAlgorithms.mqh for position management. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean inputs act as permission gates for each trade direction and action.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must reimplement T3_TRIX custom indicator with T3 smoothing from SmoothAlgorithms.mqh - need to extract the CT3 class logic. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose, CIsNewBar, LoadHistory, GlobalVariableDel_ - all must be reimplemented in Python. The conditional position sizing (negative=lot, positive=deposit fraction) with MarginMode enum must be carefully ported. The three signal modes (breakdown/twist/cloudtwist) map to distinct signal generators. Entry signals use previous bar data (SignalBar default=1) so no lookahead bias. Signal timestamps are used for trade identification - need to map this to Python order management.",
+  "extraction_timestamp": "2026-05-13T23:10:43.919574",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 185.32552480697632,
+    "cost": 0
+  }
+}

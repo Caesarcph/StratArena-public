@@ -1,0 +1,156 @@
+{
+  "ea_id": "EA-21723",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorXPWMA indicator which is a non-standard custom indicator requiring separate implementation or replacement with standard MA crossover logic; also uses recovery/martingale money management",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorXPWMA",
+      "params": {
+        "period": 12,
+        "method": "EMA",
+        "applied_to": "close",
+        "price_field": "close"
+      },
+      "source": "custom",
+      "library": "ColorXPWMA.ex5",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Signal MA",
+      "params": {
+        "period": 50,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Digit-adjusted StopLoss",
+      "formula": "StopLoss * (10 if _Digits==5 or _Point<0.001 else 1)",
+      "used_by": "exit_rules.stop_loss"
+    },
+    {
+      "name": "Digit-adjusted TakeProfit",
+      "formula": "TakeProfit * (10 if _Digits==5 or _Point<0.001 else 1)",
+      "used_by": "exit_rules.take_profit"
+    },
+    {
+      "name": "Recovery lot size",
+      "formula": "Lot * K_Martingale ^ consecutive_losses",
+      "used_by": "position_sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorXPWMA fast line",
+        "right": "ColorXPWMA signal line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ColorXPWMA fast line",
+        "right": "ColorXPWMA signal line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite position on signal reversal before opening new position"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "martingale_factor": 1.5,
+      "max_lot": 10.0,
+      "reset_on_win": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "Base lot used after win; lot multiplied by K_Martingale factor after each consecutive loss; reset to base lot on win"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "ColorXPWMA is a dual-colored XP-weighted moving average that changes color on trend change. The EA reads buffer 0 and buffer 1 for trend direction (color state). When color changes from red to blue = long signal; blue to red = short signal. Recovery money management increases lot size after consecutive losses by a martingale multiplier (K_Martingale), resetting to base lot after a win. Digit adjustment multiplies SL/TP by 10 for 5-digit brokers (_Digits==5 or _Point<0.001). Opposite position is closed before opening a new one on signal reversal.",
+  "external_dependencies": [
+    "ColorXPWMA.ex5"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Replace ColorXPWMA custom indicator with standard dual EMA crossover (fast EMA / slow EMA) as approximation. The ColorXPWMA is essentially a smoothed weighted MA with color-change signaling trend direction - implement as two-period WMA crossover. Recovery MM logic must be carefully replicated: track consecutive losses, multiply lot by K_Martingale factor each time, reset on win. Digit adjustment: if price_decimals==5, multiply SL/TP pips by 10. New bar guard essential - only evaluate signals on new bar formation using bar timestamps.",
+  "extraction_timestamp": "2026-05-13T23:56:00.676306",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 184.66384744644165,
+    "cost": 0
+  }
+}
