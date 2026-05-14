@@ -1,0 +1,170 @@
+{
+  "ea_id": "EA-46309",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iATR indicator, simple random entry logic, fixed/ATR-based SL/TP with risk-percent sizing, no external .mqh libraries for trading logic (Trade.mqh is standard MT5), no grid/martingale/hedging, single position management.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "ATR(10)",
+      "params": {
+        "period": 10,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "pip_point - pip value adjusted for 3/5 digit brokers",
+      "formula": "digits==2||3 ? point : point*10",
+      "used_by": "SL/TP distance calculation, breakeven activation distance"
+    },
+    {
+      "name": "stop_level - minimum stop distance with 10-point buffer",
+      "formula": "SYMBOL_TRADE_STOPS_LEVEL * point + 10 * point",
+      "used_by": "ValidateOrderPlacement, ValidateSLModify"
+    },
+    {
+      "name": "freeze_level - minimum freeze distance with 10-point buffer",
+      "formula": "SYMBOL_TRADE_FREEZE_LEVEL * point + 10 * point",
+      "used_by": "ValidateSLModify (market order SL modification guard)"
+    },
+    {
+      "name": "sl_distance (PIP mode)",
+      "formula": "loss_pip * pip_point",
+      "used_by": "OpenNewPosition BUY/SELL SL price calculation"
+    },
+    {
+      "name": "sl_distance (ATR mode)",
+      "formula": "loss_atr * atr_array[0]",
+      "used_by": "OpenNewPosition BUY/SELL SL price calculation"
+    },
+    {
+      "name": "tp_distance",
+      "formula": "sl_distance * reward_risk_ratio",
+      "used_by": "OpenNewPosition BUY/SELL TP price calculation"
+    },
+    {
+      "name": "breakeven_activation_points",
+      "formula": "breakeven_distance * pip_point",
+      "used_by": "CheckBreakeven"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "MathRand() % 2",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "MathRand() % 2",
+        "right": "1",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 20,
+      "params": {
+        "atr_mode": {
+          "type": "atr_multiple",
+          "value": 5,
+          "params": {
+            "atr_period": 10
+          }
+        }
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 40,
+      "params": {
+        "derived_from": "sl_distance * reward_risk_ratio",
+        "default_ratio": 2
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "breakeven_move: when price moves breakeven_distance pips in favor, SL is moved to entry price (open_price). Only activated once per position via breakeven_activated flag."
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 1,
+    "params": {
+      "lot_calculation": "(balance * risk_percent / 100) / (sl_points * tick_value)",
+      "lot_rounding": "MathFloor(lot_size / lot_step) * lot_step",
+      "max_lot_source": "SYMBOL_VOLUME_LIMIT if > 0 else SYMBOL_VOLUME_MAX",
+      "margin_fallback": "if insufficient margin and use_max_margin=true, calculate max lot from available margin with 10% buffer"
+    },
+    "max_positions": 1,
+    "conditional_logic": "When use_max_margin=true and free_margin < required_margin, lot size is recalculated to maximum possible from available margin. When false, trade is rejected if margin insufficient."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "This is a random-direction EA - entry direction is determined by MathRand() % 2 with no technical analysis signal. It maintains exactly one position at a time (PositionsTotal()==0 to enter, PositionsTotal()==1 for breakeven check). The breakeven mechanism moves SL to entry price once price travels breakeven_distance pips in favor, but only once per position (guarded by breakeven_activated flag). The CTradeValidation class adds 10*point buffer to both stop_level and freeze_level from broker values. SL/TP validation checks broker minimum distances before order placement and before SL modification. The default CTrade filling mode is FOK.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Random entry EA with no indicator-based signal logic - simplest possible conversion. Key complexity: (1) pip_point digit adjustment must replicate MQL5 logic (digits 2/3 -> point, digits 4/5 -> point*10); (2) SL/TP validation against broker stop_level/freeze_level with 10-point buffer; (3) lot sizing formula requires tick_value from symbol info; (4) margin check with fallback to max-possible-lot calculation; (5) breakeven is a one-time SL move to entry price, not a trailing stop. No new-bar guard means the EA attempts entry on every tick when flat - in Python backtesting, decide whether to sample per-tick or per-bar. ATR mode reads atr_array[0] (current bar) so needs real-time ATR value at entry time.",
+  "extraction_timestamp": "2026-05-14T10:41:17.999310",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 186.34016633033752,
+    "cost": 0
+  }
+}

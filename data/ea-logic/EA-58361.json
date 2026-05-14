@@ -1,0 +1,216 @@
+{
+  "ea_id": "EA-58361",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses partial close logic with GlobalVariable persistence, complex multi-TP management, custom ICT concept implementations (FVG, MSS, NDOG/NWOG, liquidity sweeps), and multi-timeframe bias - all requiring careful manual translation",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "HTF Moving Average (Bias)",
+      "params": {
+        "period": 200,
+        "method": "SMA",
+        "applied_to": "close",
+        "timeframe": "H1"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR (NDOG/NWOG Threshold)",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "digitsFactor - multiplier for 5/3 digit brokers",
+      "formula": "_Digits==5 || _Digits==3 ? 10 : 1",
+      "used_by": "FindProtectiveStopLoss, TrailingSL calculation, BE_PlusPips"
+    },
+    {
+      "name": "NDOG/NWOG threshold",
+      "formula": "ATR[0] * NDOG_NWOG_Threshold (0.5)",
+      "used_by": "CheckNDOG_NWOG"
+    },
+    {
+      "name": "TP1/TP2/TP3 prices",
+      "formula": "entryPrice +/- (entryPrice - stopLossPrice) * TP_RR",
+      "used_by": "CheckSilverBulletEntry, Check2022ModelEntry"
+    },
+    {
+      "name": "risk amount per trade",
+      "formula": "accountBalance * (RiskPercentPerTrade / 100.0)",
+      "used_by": "CalculateLotSize"
+    },
+    {
+      "name": "calculated lot size",
+      "formula": "riskAmount / (slDistancePoints * tickValue), floored to lotStep",
+      "used_by": "OpenTrade"
+    },
+    {
+      "name": "OTE entry price",
+      "formula": "level1 + range * 0.618 (if level1 < level2)",
+      "used_by": "CalculateEntryPrice"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "HTF MA Bias",
+        "right": "price > MA[1] AND MA[1] > MA[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "SilverBullet confluence",
+        "right": "liquiditySwept AND mssConfirmed AND fvgExists AND isNDOG_NWOG AND priceInFVG",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "2022Model confluence",
+        "right": "inducement AND mssConfirmed AND fvgExists AND isNDOG_NWOG AND priceInFVG",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "HTF MA Bias",
+        "right": "price < MA[1] AND MA[1] < MA[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "SilverBullet confluence",
+        "right": "liquiditySwept AND mssConfirmed AND fvgExists AND isNDOG_NWOG AND priceInFVG",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "2022Model confluence",
+        "right": "inducement AND mssConfirmed AND fvgExists AND isNDOG_NWOG AND priceInFVG",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": null,
+      "params": {
+        "description": "Lowest low of last 10 bars minus pointValue*digitsFactor for buy; highest high plus pointValue*digitsFactor for sell"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": null,
+      "params": {
+        "tp1_rr": 1.0,
+        "tp2_rr": 2.0,
+        "tp3_rr": 3.0,
+        "partial_close_tp1_pct": 50.0,
+        "partial_close_tp2_pct": 25.0,
+        "partial_close_tp3_pct": 25.0,
+        "description": "3-tier partial TP system based on R:R multiples"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 10.0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "activation": "after TP2 hit",
+        "description": "Trailing SL of 10 pips activated after TP2 partial close"
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Break-even SL moved after TP1 hit (BE_PlusPips=1 pip above entry)",
+      "Total drawdown limit: 10% of InitialBalance stops all trading",
+      "Daily drawdown limit: 5% of InitialBalance stops daily trading"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 0.25,
+    "params": {
+      "risk_per_trade_pct": 0.25,
+      "lot_rounding": "floor to lotStep",
+      "initial_balance": 5000.0
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 10,
+      "end_hour": 11,
+      "description": "Silver Bullet window 10:00-11:00; 2022Model has no time filter"
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 5,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "ICT-based EA with two strategies: Silver Bullet (time-gated 10:00-11:00 NY session) and 2022 Model (no time gate). Both require 4 confluences: liquidity sweep/inducement, Market Structure Shift (MSS), Fair Value Gap (FVG), and New Day/New Week Opening Gap (NDOG/NWOG). Entry via OTE (Fibonacci 0.618-0.786 zone) or FVG midpoint. Partial close system persists TP state via GlobalVariables. ATR handle is created and destroyed on every CheckNDOG_NWOG call (inefficient). BE_PlusPips uses digitsFactor for pip adjustment. TrailingSL uses digitsFactor. Silver Bullet uses liquiditySwept with same bias direction; 2022Model uses inducement with opposite bias for liquidity sweep check.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/AccountInfo.mqh",
+    "Trade/PositionInfo.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Critical: (1) GlobalVariable persistence for partial TP state must be reimplemented with a state dict or database. (2) ATR handle leak - created/destroyed every tick in CheckNDOG_NWOG - should be cached in Python. (3) ICT concepts (FVG, MSS, liquidity sweep, NDOG/NWOG) are custom heuristics that need direct translation - FVG detection logic has a bug (checks rates[i].high < rates[i-2].low for bullish FVG which is inverted). (4) positionInfo.SelectByMagic is used as both a gate check and position selector - Python needs a positions filter by magic number. (5) The digitsFactor=10 adjustment for 5-digit brokers must be preserved. (6) BE_PlusPips and TrailingSL calculations use pointValue*digitsFactor which equals 'pips'. (7) Partial close logic modifies position volume mid-trade - requires tracking remaining volume. (8) Daily drawdown reset logic uses calendar day comparison. (9) Filling mode hardcoded to FOK (0) - may need broker-specific adjustment.",
+  "extraction_timestamp": "2026-05-14T12:05:28.141699",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 174.08752274513245,
+    "cost": 0
+  }
+}

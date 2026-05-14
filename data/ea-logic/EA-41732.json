@@ -1,0 +1,159 @@
+{
+  "ea_id": "EA-41732",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses standard MT5 Trade library (.mqh includes) for order management which maps to API calls, but has pending order management (BUY_STOP/SELL_STOP daily), comment-based order tracking with StringSplit, and daily breakout logic that requires careful bar-level replication. No custom indicators but complex order lifecycle management.",
+  "symbol": null,
+  "timeframe_hint": "D1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Previous Day High/Low Breakout",
+      "params": {
+        "period": 1,
+        "shift": 1,
+        "applied_to": "high_low"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Bar1High - Previous daily bar high",
+      "formula": "iHigh(_Symbol, PERIOD_D1, 1)",
+      "used_by": "Buy stop entry price"
+    },
+    {
+      "name": "Bar1Low - Previous daily bar low",
+      "formula": "iLow(_Symbol, PERIOD_D1, 1)",
+      "used_by": "Sell stop entry price"
+    },
+    {
+      "name": "BuyStop OpenPrice",
+      "formula": "Bar1High + InpAddPrice_pip * Pips2Double",
+      "used_by": "BUY_STOP order"
+    },
+    {
+      "name": "SellStop OpenPrice",
+      "formula": "Bar1Low - InpAddPrice_pip * Pips2Double",
+      "used_by": "SELL_STOP order"
+    },
+    {
+      "name": "Pips2Double",
+      "formula": "_Digits%2==1 ? _Point*10 : _Point",
+      "used_by": "All pip-based calculations (SL, TP, price offset)"
+    },
+    {
+      "name": "Pips2Points",
+      "formula": "_Digits%2==1 ? 10 : 1",
+      "used_by": "Slippage conversion"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Current Price",
+        "right": "Previous Day High + Offset",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Current Price",
+        "right": "Previous Day Low - Offset",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 5.0,
+      "params": {
+        "distance_from_entry_pips": 5.0
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 5.0,
+      "params": {
+        "trail_start_pips": 5.0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Trailing stop moves SL to breakeven and beyond when price moves Inpuser_SL pips in favor; no TP set so exits are purely via trailing stop or SL hit"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.01,
+    "params": {
+      "risk_percent": 1.0,
+      "base_lot": 0.01
+    },
+    "max_positions": 1,
+    "conditional_logic": "If isVolume_Percent=false: fixed lot = Inpuser_lot. If isVolume_Percent=true: LotSize = (InpRisk * FreeMargin / 100000), rounded down to nearest Inpuser_lot multiple, clamped to [LotsMin, LotsMax], minimum Inpuser_lot"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 7,
+      "end_hour": 22
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 3,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Daily breakout strategy: places BUY_STOP above previous day high and SELL_STOP below previous day low at start of each new D1 bar. Old pending orders are deleted before placing new ones each day. Order comments encode bot name, symbol, and bar count (semicolon-separated) used for order identification in DeleteOldOrds via StringSplit. Trailing stop is fixed-pip trailing that moves SL as price moves favorably - it modifies position SL whenever distance from current price to SL exceeds Inpuser_SL pips. The EA deletes old pending orders using comment parsing (splits 'BotName;Symbol;TotalBars' to match symbol). Weekend filter skips Saturday(6) and Sunday(0). Spread filter with 0 means disabled (floating). Time filter checks server hour >= start hour but end hour check is commented out in code.",
+  "external_dependencies": [
+    "Trade/PositionInfo.mqh",
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/AccountInfo.mqh",
+    "Trade/OrderInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1) Daily breakout logic is straightforward - get previous D1 bar high/low and place stop orders. 2) Key complexity is the pending order lifecycle: delete old orders by comment matching each new day, then place new ones. In Python, track orders by custom ID/tag instead of comment parsing. 3) Trailing stop logic modifies SL whenever price-SL distance exceeds threshold - must run on every tick or M1 bar. 4) The digit adjustment (Pips2Double) is critical for 5-digit brokers - SL values must be scaled correctly. 5) No TP means positions are only closed by SL hit or trailing stop - need accurate tick-level SL modification for backtesting accuracy. 6) Order freeze level and stops level checks should be replicated for realism. 7) The conditional position sizing (fixed vs risk-percent) needs both paths implemented. 8) Time filter only checks start hour (end hour check is commented out in source). 9) Margin check via OrderCalcMargin should be approximated or skipped in Python backtest.",
+  "extraction_timestamp": "2026-05-14T10:07:34.101720",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 170.51471281051636,
+    "cost": 0
+  }
+}

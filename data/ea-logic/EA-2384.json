@@ -1,0 +1,134 @@
+{
+  "ea_id": "EA-2384",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call 'CronexRSI' custom indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing algorithms. Money management is conditional based on MarginMode enum from external library.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "CronexRSI",
+      "params": {
+        "period": 25,
+        "applied_to": 0,
+        "method": 0,
+        "fast_period": 14,
+        "slow_period": 25,
+        "phase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime passed to BuyPositionOpen/SellPositionOpen"
+    },
+    {
+      "name": "min_rates_total - minimum bars required for indicator to be ready",
+      "formula": "RSIPeriod + GetStartBars(XMA_Method,FastPeriod,XPhase) + GetStartBars(XMA_Method,SlowPeriod,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "CronexRSI Main Line (buffer 0)",
+        "right": "CronexRSI Signal Line (buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "CronexRSI Main Line (buffer 0)",
+        "right": "CronexRSI Signal Line (buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose and SellPosClose input booleans gate whether opposite-signal closes are enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum (FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE, LOT) determines how MM input is interpreted: LOT=fixed lots, others=percentage-based money management on different margin bases"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses SignalBar=1 (previous bar) for crossover detection: compares Ind[1]>Sign[1] (two bars ago) with Ind[0]<=Sign[0] (one bar ago) to detect that the main line was above signal and crossed to below or equal - this is a delayed crossover confirmation. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input flags act as gates to independently enable/disable each trade direction and close action. LoadHistory is called each tick to ensure series data availability. GlobalVariableDel_ cleans up global variables on deinit. The crossover logic compares bar [1] vs bar [0] from CopyBuffer starting at SignalBar offset, so the actual comparison is between bar (SignalBar+1) and bar (SignalBar) relative to current.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The CronexRSI custom indicator must be reimplemented in Python: it is an RSI smoothed by two XMA (extended moving average) lines using algorithms from SmoothAlgorithms.mqh (supports SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA). The main line is the fast-smoothed RSI and the signal line is the slow-smoothed RSI. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose wrappers with MarginMode-based lot sizing - these must be reimplemented. The crossover detection uses a 2-bar lookback from SignalBar offset, not standard current/previous bar comparison. SL/TP are in points (not pips) - value of 1000/2000 points needs digit-aware conversion. No digit adjustment is done in the EA itself, so Python version must handle 5-digit vs 4-digit broker normalization.",
+  "extraction_timestamp": "2026-05-14T06:15:11.786706",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 61.37568378448486,
+    "cost": 0
+  }
+}

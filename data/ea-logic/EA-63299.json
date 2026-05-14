@@ -1,0 +1,133 @@
+{
+  "ea_id": "EA-63299",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Hedging logic opens opposite positions without SL/TP, tracks hedged positions by ID in a dynamic array, uses CTrade/CPositionInfo/CSymbolInfo/CAccountInfo wrapper classes from Trade .mqh libraries, and lot sizing is derived from existing position volume multiplied by a coefficient - requires careful state management for the hedged_positions tracker and cooldown timer",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "point_adjust for pip calculation",
+      "formula": "(Digits==3||Digits==5)?10:1",
+      "used_by": "loss_in_pips calculation"
+    },
+    {
+      "name": "loss_in_pips for BUY position",
+      "formula": "(PriceOpen - PriceCurrent) / (Point * point_adjust)",
+      "used_by": "hedge trigger condition"
+    },
+    {
+      "name": "loss_in_pips for SELL position",
+      "formula": "(PriceCurrent - PriceOpen) / (Point * point_adjust)",
+      "used_by": "hedge trigger condition"
+    },
+    {
+      "name": "hedge_lot",
+      "formula": "LotCheck(PositionVolume * InpLotCoefficient)",
+      "used_by": "hedge order execution"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "existing SELL position floating loss",
+        "right": "InpLosing (pips)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "existing BUY position floating loss",
+        "right": "InpLosing (pips)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "No SL/TP set on hedge positions - explicit warning in source code that EA has no stop loss or take profit",
+      "Hedge positions are opened as protection only with SL=0 and TP=0"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0,
+    "params": {
+      "lot_coefficient": 1.5
+    },
+    "max_positions": 0,
+    "conditional_logic": "hedge_lot = LotCheck(existing_position_volume * InpLotCoefficient). Coefficient-based sizing: multiplies the losing position's volume by a configurable coefficient (1.0-3.0), then normalizes to broker lot constraints (step, min, max). If result is below LotsMin, returns 0 and trade is skipped."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "This is a hedging EA, not a signal-based EA. It monitors existing positions (filtered by magic number and symbol) and when a position's floating loss exceeds the configurable threshold in pips, it opens an opposite hedge position. Key logic: (1) One-hedge-per-position: tracks position IDs in hedged_positions[] array to prevent re-hedging. (2) Cooldown: InpCooldownMinutes between hedge trades. (3) Max hedges limit: InpMaxHedges caps total hedges (0=unlimited). (4) Hedge positions are excluded from monitoring by checking against InpHedgeMagicNumber. (5) Margin safety: requires 80% free margin remaining after hedge. (6) Symbol filter: only hedges positions on current chart symbol. (7) Digit adjustment: point_adjust=10 for 3/5-digit symbols, 1 otherwise. (8) No SL/TP on any positions - explicitly warned as demo-only EA.",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Requires maintaining a hedged_positions set (use Python set of position IDs) and last_hedge_time timestamp for cooldown. Position monitoring loop iterates all open positions each tick. Loss-in-pips calculation needs digit-aware point adjustment (multiply by 10 for 3/5-digit). Lot normalization must respect broker min/step/max constraints. Margin check uses 80% free margin threshold. The CTrade/CPositionInfo/CSymbolInfo/CAccountInfo wrappers map to basic broker API calls (get positions, place market orders, get symbol info, check margin). No indicators to convert. Key challenge: the position-tracking state (hedged_positions array) must persist across ticks and be serializable for backtesting. Since hedge positions have no SL/TP, the backtest engine must handle positions without exit rules.",
+  "extraction_timestamp": "2026-05-14T12:48:29.732012",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 200.88125491142273,
+    "cost": 0
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "ea_id": "EA-48222",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 functions (SymbolInfoDouble, AccountInfoDouble, OrderCheck, OrderSend, HistoryDealSelect). No custom indicators, no external .mqh libraries, no grid/martingale. Simple alternating buy/sell market orders with risk-based position sizing. Single position at a time.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "tick_size - price increment per tick for the symbol",
+      "formula": "SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE)",
+      "used_by": "SL/TP calculation and volume sizing"
+    },
+    {
+      "name": "margin_risk - dollar amount of equity risked per trade",
+      "formula": "AccountInfoDouble(ACCOUNT_EQUITY) * risk_percent_equity / 100",
+      "used_by": "GetVolByRisk position sizing"
+    },
+    {
+      "name": "margin_risk_1lot - risk in account currency for 1 lot at given SL distance",
+      "formula": "delta_stoploss / tick_size * tick_value",
+      "used_by": "GetVolByRisk position sizing"
+    },
+    {
+      "name": "volume - calculated lot size based on risk",
+      "formula": "MathFloor(margin_risk / margin_risk_1lot / lot_step) * min_lot, clamped to [min_lot, max_lot]",
+      "used_by": "order volume"
+    },
+    {
+      "name": "profit_expected - expected profit/loss amount based on risk percent",
+      "formula": "AccountInfoDouble(ACCOUNT_EQUITY) * risk_percent_equity / 100",
+      "used_by": "logging in OnTradeTransaction"
+    },
+    {
+      "name": "delta_stoploss - absolute price distance between entry and SL",
+      "formula": "MathAbs(price_open - price_stoploss)",
+      "used_by": "GetVolByRisk"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "order_type alternating toggle",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "order_type alternating toggle",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "basis": "tick_size * stoploss_points",
+        "adjustment": "uses SYMBOL_TRADE_TICK_SIZE not _Point, so no digit adjustment needed"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "basis": "tick_size * stoploss_points",
+        "adjustment": "TP equals SL distance (1:1 risk/reward)"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Position is closed by SL or TP only; no other exit logic. OnTradeTransaction detects DEAL_ENTRY_OUT to reset pos_open flag."
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 1,
+    "params": {
+      "risk_field": "risk_percent_equity",
+      "calculation": "margin_risk / margin_risk_1lot, rounded down to lot_step increments",
+      "tick_size_source": "SYMBOL_TRADE_TICK_SIZE",
+      "tick_value_source": "SYMBOL_TRADE_TICK_VALUE",
+      "min_lot_source": "SYMBOL_VOLUME_MIN",
+      "max_lot_source": "SYMBOL_VOLUME_MAX",
+      "lot_step_source": "SYMBOL_VOLUME_STEP"
+    },
+    "max_positions": 1,
+    "conditional_logic": "Volume = floor((equity * risk% / 100) / (SL_ticks * tick_value) / lot_step) * min_lot. If zero, uses min_lot. If above max_lot, uses max_lot."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 5,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "The EA uses an alternating order_type toggle (BUY↔SELL) that flips on every new entry attempt, regardless of market conditions. There are NO technical indicators or signal conditions — the EA simply alternates between buy and sell on every tick when no position is open. This is essentially a random-entry testing framework with risk-based position sizing. SL and TP are symmetric (equal distances). The EA logs expected vs actual profit on deal close via OnTradeTransaction.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Straightforward conversion. No indicators needed. Key functions to replicate: (1) Alternating buy/sell toggle with pos_open gate, (2) GetVolByRisk using tick_size/tick_value for risk-based lot calculation, (3) OnTradeTransaction equivalent for detecting position close and resetting state, (4) SL/TP set symmetrically using tick_size * stoploss_points. The tick_size-based SL/TP is broker/symbol-agnostic so no digit adjustment logic needed. Use broker's tick_size and tick_value directly from symbol info.",
+  "extraction_timestamp": "2026-05-14T10:59:50.655866",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 175.17204642295837,
+    "cost": 0
+  }
+}

@@ -1,0 +1,151 @@
+{
+  "ea_id": "EA-30304",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iATR indicator. Simple entry/exit rules based on daily range vs ATR. Fixed lot sizing. No external libraries. No grid, martingale, or hedging logic.",
+  "symbol": null,
+  "timeframe_hint": "D1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "Daily ATR",
+      "params": {
+        "period": 20,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "atr_range - ATR value converted to points",
+      "formula": "atr_array[1] / _Point",
+      "used_by": "atr_trigger, atr_rest, SL, TP calculations"
+    },
+    {
+      "name": "atr_trigger - trigger threshold in points",
+      "formula": "atr_range * perTrigger / 100",
+      "used_by": "entry rules and stop loss"
+    },
+    {
+      "name": "atr_rest - remaining range after trigger in points",
+      "formula": "atr_range - atr_trigger",
+      "used_by": "take profit calculation"
+    },
+    {
+      "name": "day_range - current daily range in points",
+      "formula": "(day_high - day_low) / _Point",
+      "used_by": "range_reached flag"
+    },
+    {
+      "name": "day_tohigh - distance from current ask to daily high in points",
+      "formula": "(day_high - day_curask) / _Point",
+      "used_by": "sell entry rule"
+    },
+    {
+      "name": "day_tolow - distance from current bid to daily low in points",
+      "formula": "(day_curbid - day_low) / _Point",
+      "used_by": "buy entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "day_tolow",
+        "right": "atr_trigger",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "day_tohigh",
+        "right": "atr_trigger",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": 0,
+      "params": {
+        "atr_fraction_percent": "perTrigger (default 60%)"
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": 0,
+      "params": {
+        "atr_fraction_percent": "(100 - perTrigger) (default 40%)"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "End-of-day close: OnTimer checks if sec_left < 0 (past midnight), closes any open position by ticket, and resets all flags for the next day"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Validates iLots against SYMBOL_VOLUME_MIN, SYMBOL_VOLUME_MAX, and SYMBOL_VOLUME_STEP. If iLots does not align with volume_step, defaults to min_volume."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 20,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Strategy: Breakout-style EA that waits for the daily price range to exceed a configurable percentage (perTrigger, default 60%) of the average daily ATR range. It determines trend direction by comparing distance-to-high vs distance-to-low: if day_tolow > day_tohigh, trend is UP (buy), otherwise DOWN (sell). On first tick, if the daily range already exceeds the trigger, the EA aborts. At end-of-day (timer-based), any open position is closed and all state is reset for the next trading day. SL is set at atr_trigger points from entry, TP at atr_rest points from entry, reflecting the asymmetrical split of the ATR range. The trade_opened flag prevents re-entry after the first trade each day even if the condition remains true on subsequent ticks.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Intrabar signal behavior is repeat_while_true but gated by trade_opened flag, so effectively once per day. SL/TP are calculated as (atr_fraction * _Point) then normalized - in Python, compute ATR in price units directly rather than converting to/from points. The end-of-day timer reset logic must be replicated: close position at day boundary, reset flags. The margin check (free margin < 1000 * lots) should be adapted to the Python broker API equivalent. The range_reached flag on first_tick acts as a daily pre-filter that should be checked at session start.",
+  "extraction_timestamp": "2026-05-14T07:41:36.393549",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 121.77106356620789,
+    "cost": 0
+  }
+}

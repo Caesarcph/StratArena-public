@@ -1,0 +1,164 @@
+{
+  "ea_id": "EA-43278",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iBands, iAlligator). Simple entry/exit rules with fixed lot sizing. No external .mqh libraries, no custom indicators, no grid/martingale logic. Standard market orders with retry logic.",
+  "symbol": "GBPAUD",
+  "timeframe_hint": "M15",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands",
+      "params": {
+        "period": 5,
+        "dev": 2.5,
+        "shift": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Alligator",
+      "params": {
+        "period": 27,
+        "shift": 17,
+        "fast_period": 21,
+        "fast_shift": 0,
+        "signal_period": 6,
+        "signal_shift": 4,
+        "method": 2,
+        "applied_to": 4
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Pip value - digit-adjusted price unit for SL/TP calculation",
+      "formula": "_Digits==4||5 ? 0.0001 : _Digits==2||3 ? 0.01 : _Digits==1 ? 0.1 : 1",
+      "used_by": "GetStopLossPrice, GetTakeProfitPrice, GetTrailingStopPrice"
+    },
+    {
+      "name": "Sigma - tiny epsilon for floating point comparison",
+      "formula": "0.000001",
+      "used_by": "GetEntrySignal, ManageClose"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Open[0]",
+        "right": "BB Lower Band[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Open[1]",
+        "right": "BB Lower Band[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Open[0]",
+        "right": "BB Upper Band[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Open[1]",
+        "right": "BB Upper Band[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 46,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 46,
+      "params": {
+        "trail_start_pips": 46,
+        "trail_step_pips": 1
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Alligator-based close: BUY closed when Alligator Teeth line is rising (Teeth[1] > Teeth[2] + sigma), SELL closed when Alligator Teeth line is falling (Teeth[1] < Teeth[2] - sigma)",
+      "Session force close: positions closed at session end if sessionCloseAtFridayClose or sessionCloseAtSessionClose enabled",
+      "Trailing stop touches price: if trailing stop price equals current bid (buy) or ask (sell), position is closed instead of modified"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.3,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses Bollinger Bands: Long when price crosses below lower band (Open[0] < LowerBB[1] AND Open[1] > LowerBB[2]), Short when price crosses above upper band (Open[0] > UpperBB[1] AND Open[1] < UpperBB[2]). Exit uses Alligator Teeth (buffer index 1) direction: close BUY when Teeth rising, close SELL when Teeth falling. Trailing stop uses previous bar High/Low +/- SL pips. Filling type auto-fallback: FOK->IOC->RETURN on INVALID_FILL error. Entry only allowed when flat (posType==OP_FLAT). CopyBuffer indexing uses start_pos=1 with count=2, so index[1] is previous completed bar and index[0] is the bar before that.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "CopyBuffer with start_pos=1 count=2 returns array where [1]=bar-1 (most recently completed) and [0]=bar-2. Entry signal compares bar-1 and bar-2 Bollinger Band values against Open[0]=bar-1 and Open[1]=bar-2. The Alligator close checks Teeth line (buffer index 1) momentum between bar-1 and bar-2. Trailing stop for BUY: High[1] - SL*pip; for SELL: Low[1] + spread + SL*pip. Stop level must respect broker SYMBOL_TRADE_STOPS_LEVEL. Pip value requires digit detection (4/5 digit=0.0001, 2/3 digit=0.01). Session filter currently set to 24h all week but logic is present for day-of-week and time restrictions.",
+  "extraction_timestamp": "2026-05-14T10:21:22.200184",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 132.4380383491516,
+    "cost": 0
+  }
+}

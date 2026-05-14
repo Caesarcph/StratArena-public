@@ -1,0 +1,129 @@
+{
+  "ea_id": "EA-58135",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 functions (iLowest, iHighest, CopyHigh, CopyLow, OrderCalcProfit, OrderCalcMargin). No custom indicators or external libraries for trading logic. Simple mean reversion entry/exit with fixed percentage risk sizing.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Mean price (midpoint of lookback high/low)",
+      "formula": "(highest_price + lowest_price) / 2",
+      "used_by": "Buy TP, Sell TP, SL calculation"
+    },
+    {
+      "name": "Buy stop loss",
+      "formula": "2 * Ask - Mean",
+      "used_by": "Buy entry"
+    },
+    {
+      "name": "Sell stop loss",
+      "formula": "2 * Bid - Mean",
+      "used_by": "Sell entry"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "iLowest(current bar index)",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "iHighest(current bar index)",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": null,
+      "params": {
+        "formula": "2*Entry-Mean (symmetric to TP on opposite side of Mean)"
+      }
+    },
+    "take_profit": {
+      "type": "indicator_level",
+      "value": null,
+      "params": {
+        "formula": "Mean (midpoint of lookback high/low range)"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "None - EA only opens new positions when flat, TP/SL are set on order placement"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 1,
+    "params": {
+      "risk_per_trade_input": 1,
+      "sizing_method": "iterative_lot_increment_until_PnL_exceeds_risk_threshold"
+    },
+    "max_positions": 1,
+    "conditional_logic": "Starts at SYMBOL_VOLUME_MIN, increments by SYMBOL_VOLUME_STEP until potential loss at SL equals risk_per_trade% of balance. If PnL calculation fails or is non-negative at minimum lot, returns minimum lot."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": null,
+    "filling": null
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Mean reversion strategy: Buys when current bar's low is the lowest in the lookback period (price at floor), sells when current bar's high is the highest in the lookback period (price at ceiling). TP is the mean (midpoint of highest high and lowest low over lookback). SL is symmetrically placed on the opposite side of the mean from entry (SL = 2*Entry - Mean). Position sizing iteratively finds the largest lot size where potential loss at SL does not exceed risk_per_trade% of account balance. NormalizeVolume is defined but never called from the main flow (dead code at line 76).",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "iLowest/iHighest check if bar[0] is the extreme over lookback - replicate with rolling min/max index on Low/High series. Mean() is simply (rolling_max(High, lookback) + rolling_min(Low, lookback)) / 2. SL/TP are dynamically computed from this mean. Position sizing loop requires OrderCalcProfit equivalent - approximate with pip_value * lot * stop_distance_pips <= risk_percent * balance. No digit adjustment needed since SL/TP are absolute price levels, not pip offsets. Watch for the every-tick re-evaluation when flat - no new-bar guard means signal fires on every tick while condition holds.",
+  "extraction_timestamp": "2026-05-14T12:02:34.053280",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 64.35890698432922,
+    "cost": 0
+  }
+}

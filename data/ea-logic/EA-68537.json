@@ -1,0 +1,253 @@
+{
+  "ea_id": "EA-68537",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale position sizing with margin-dependent lot calculation, ONNX neural network model dependency for signal generation, grid-like recovery series with up to 8 stacked positions, and tick-level distance calculation for martingale entry all make this MT5-only. The ONNX runtime is MT5-specific and the martingale recovery logic requires live position management with margin checks.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "ATR 14",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA 200",
+      "params": {
+        "period": 200,
+        "shift": 0,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Envelopes",
+      "params": {
+        "period": 8,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "close",
+        "dev": 0.06
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ONNX Trend Detector",
+      "params": {
+        "num_features": 9,
+        "input_shape": "1x9",
+        "output_labels": 3
+      },
+      "source": "external_library",
+      "library": "trend_detector.onnx",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "EMA200 slope (normalized)",
+      "formula": "(ema200[1] - ema200[6]) / (ema200[1] + 1e-9)",
+      "used_by": "ONNX feature f[0]"
+    },
+    {
+      "name": "Price vs EMA200 distance (normalized)",
+      "formula": "(close[1] - ema200[1]) / (ema200[1] + 1e-9)",
+      "used_by": "ONNX feature f[1]"
+    },
+    {
+      "name": "ATR raw value",
+      "formula": "atr[1]",
+      "used_by": "ONNX feature f[2]"
+    },
+    {
+      "name": "Intraday range normalized by ATR",
+      "formula": "(high[1] - low[1]) / (atr[1] + 1e-9)",
+      "used_by": "ONNX feature f[3]"
+    },
+    {
+      "name": "Upside breakout strength (normalized)",
+      "formula": "(max(0, high[1] - high[2]) / (atr[1] + 1e-9)) * 100",
+      "used_by": "ONNX feature f[4]"
+    },
+    {
+      "name": "Body ratio (abs body / range)",
+      "formula": "abs(close[1] - open[1]) / (high[1] - low[1] + 1e-9)",
+      "used_by": "ONNX feature f[5]"
+    },
+    {
+      "name": "Day of week",
+      "formula": "TimeCurrent().day_of_week",
+      "used_by": "ONNX feature f[6]"
+    },
+    {
+      "name": "Hour of day",
+      "formula": "TimeCurrent().hour",
+      "used_by": "ONNX feature f[7]"
+    },
+    {
+      "name": "Previous bar direction",
+      "formula": "close[2] > open[2] ? 1.0 : -1.0",
+      "used_by": "ONNX feature f[8]"
+    },
+    {
+      "name": "Martingale pip distance (digit-adjusted)",
+      "formula": "DistanceMartingalePips * ((_Digits==5 || _Digits==3) ? 10 : 1)",
+      "used_by": "Martingale recovery entry distance check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Close[1]",
+        "right": "Envelopes Lower Band[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "ONNX Sideways Probability",
+        "right": "InpAISidewayThreshold (0.70)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Distance from last trade price",
+        "right": "Required martingale distance (digit-adjusted)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Close[1]",
+        "right": "Envelopes Upper Band[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "ONNX Sideways Probability",
+        "right": "InpAISidewayThreshold (0.70)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Distance from last trade price",
+        "right": "Required martingale distance (digit-adjusted)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "percent",
+      "value": 50.0,
+      "params": {
+        "metric": "(balance - equity) / balance * 100"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_usd",
+      "value": 12,
+      "params": {
+        "target_field": "TakeProfitTargetUSD"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Close all positions when total floating profit across all open positions in series >= TakeProfitTargetUSD ($12)",
+      "Equity drawdown stop-loss: closes all positions when (balance - equity)/balance >= StopLossByMarginPercent (50%)",
+      "AI safety gate blocks martingale recovery entry if opposing trend probability exceeds InpAISafetyThreshold (0.75) but does NOT close existing positions"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.08,
+    "params": {
+      "base_lot": 0.08,
+      "multiplier": 2.0,
+      "max_series_trades": 8,
+      "lot_rounding": "step-aligned via SymbolInfoDouble(SYMBOL_VOLUME_STEP)",
+      "volume_limit_check": "true",
+      "margin_check": "true"
+    },
+    "max_positions": 8,
+    "conditional_logic": "First trade uses InpLotSize (0.08). Each subsequent recovery trade in the same series multiplies previous lot by LotMultiplier (2.0). Series capped at MaxTradesInSeries (8). Lot is rounded to broker step size and clamped to min/max volume limits."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "This EA combines an ONNX neural network classifier (3-class: sideways/bull/bear) with Envelopes indicator for mean-reversion entries during sideways markets. The core strategy is a martingale recovery system: on initial entry at Envelopes band touch with high sideways probability, the EA opens a base-size position. If price moves against the position by DistanceMartingalePips (digit-adjusted), it adds a recovery position at 2x the previous lot size, same direction, up to MaxTradesInSeries=8 trades. An AI safety gate (InpAISafetyThreshold=0.75) can block recovery entries if the ONNX model detects a strong opposing trend. All positions in a series are closed when cumulative floating profit >= $12 (TakeProfitTargetUSD). An equity drawdown circuit-breaker closes everything at 50% margin erosion. Feature engineering for the ONNX model uses bar[1] and bar[2] values (previous completed bar and one before), plus time features (day_of_week, hour). The EA uses _Digits/_Point adjustment for pip-to-point conversion on 5/3-digit brokers.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "trend_detector.onnx"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The ONNX model (trend_detector.onnx) must be available for Python inference via onnxruntime or similar. The martingale series management requires tracking position series state (direction, last lot, last entry price). The Envelopes indicator can be replicated with numpy/pandas. The digit-adjustment logic for pip distance must be preserved. Margin check and equity drawdown stop-loss require broker-specific margin calculations. The volume limit and lot step rounding logic must mirror MT5 behavior exactly. Feature calculation uses iClose/iOpen/iHigh/iLow at bar[1] and bar[2] — must use completed bars only. The new-bar guard means signals are evaluated once per bar close. Tick data is needed for accurate martingale distance measurement between entry prices.",
+  "extraction_timestamp": "2026-05-14T13:23:54.883257",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 111.4986412525177,
+    "cost": 0
+  }
+}

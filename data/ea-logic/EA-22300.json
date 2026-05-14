@@ -1,0 +1,144 @@
+{
+  "ea_id": "EA-22300",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for JFATL indicator from external JFatlCandle indicator, plus complex money management (MMRec) with recursive lot calculation and deposit fraction logic. External .mqh includes for trading logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "JFATL",
+      "params": {
+        "period": 0,
+        "method": null,
+        "applied_to": null,
+        "JLength": 3,
+        "Phase": 100,
+        "Length": 5,
+        "ATRPeriod": 14
+      },
+      "source": "custom",
+      "library": "JFatlCandle",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "JFATL candle body check (bullish/bearish candle direction)",
+      "formula": "Close[1] vs JFATL[1] — candle close above/below JFATL value determines direction",
+      "used_by": "entry_rules long/short conditions"
+    },
+    {
+      "name": "MM lot size from deposit fraction",
+      "formula": "MM=-1: fixed lots; MM>0: fraction of free margin / (contract_size * price * margin_per_lot)",
+      "used_by": "position_sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Close[1]",
+        "right": "JFATL[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Close[1]",
+        "right": "JFATL[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "input_param": "StopLoss",
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "input_param": "TakeProfit",
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position before opening new one (close+reverse logic)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "MM_param": -1,
+      "MMPercent_param": 100,
+      "fixed_lots_param": "Lots"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0: fixed lot size from Lots parameter; MM>=0: fraction of free margin calculated as (free_margin * MM/100) / (contract_size * price), recursively adjusting to fit broker lot step constraints"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Uses JFatlCandle custom indicator (JFATL = JMA-smoothed FATL digital filter). Entry based on previous completed bar's close vs JFATL value. On opposite signal, existing position is closed first then reversed. Money management uses recursive lot normalization to fit broker lot step and min/max constraints. SL/TP values are adjusted by factor of 10 when _Digits==5 or _Point<0.001 (5-digit broker adjustment). Position counting is done by EA magic number.",
+  "external_dependencies": [
+    "JFatlCandle"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "JFATL indicator must be reimplemented in Python (JMA smoothing + FATL digital filter coefficients) or pre-computed and fed as external data. The digit adjustment logic (multiply SL/TP by 10 for 5-digit brokers) must be handled. Money management lot normalization with recursive step/size fitting must be replicated exactly. Signal logic uses previous bar [1] values, so ensure bar indexing matches MT5 convention (0=current, 1=previous completed).",
+  "extraction_timestamp": "2026-05-14T02:04:42.385408",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 154.89100241661072,
+    "cost": 0
+  }
+}

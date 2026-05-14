@@ -1,0 +1,182 @@
+{
+  "ea_id": "EA-27286",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale position sizing with margin-dependent lot adjustment, tick-level virtual stop monitoring, hedging-like lock detection, and reliance on MT4Bridge library for order management. The SkipBadTime margin-failure retry mechanism and virtual trailing stop implementation require tick-precision execution unsuitable for bar-based backtesting.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "lots_test - maximum possible lot after all martingale multiplications",
+      "formula": "iterative: lots_test = MathFloor((lots_test * Factor) / lotstep) * lotstep, repeated Limit times, capped at MODE_MAXLOT",
+      "used_by": "Martingale lot validation - if next martingale lot exceeds lots_test, reset to initial Lots"
+    },
+    {
+      "name": "take_profit in price terms",
+      "formula": "TakeProfit * point",
+      "used_by": "Virtual stop exit for BUY and SELL"
+    },
+    {
+      "name": "stop_loss in price terms",
+      "formula": "StopLoss * point",
+      "used_by": "Virtual stop exit and trailing stop calculation"
+    },
+    {
+      "name": "next martingale lot size",
+      "formula": "MathFloor((OrderLots() * Factor) / lots_step) * lots_step",
+      "used_by": "Position sizing after a losing trade"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ticket_buy < 0 && ticket_sell < 0 && StartType == 0",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "ticket_sell > 0 && OrderCloseTime > 0 && OrderProfit < 0",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "custom",
+        "left": "ticket_buy > 0 && OrderCloseTime > 0 && OrderProfit >= 0",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ticket_buy < 0 && ticket_sell < 0 && StartType == 1",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "ticket_buy > 0 && OrderCloseTime > 0 && OrderProfit < 0",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "custom",
+        "left": "ticket_sell > 0 && OrderCloseTime > 0 && OrderProfit >= 0",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "implementation": "virtual_stop_not_broker_side",
+        "points_not_pips": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "implementation": "virtual_stop_not_broker_side",
+        "points_not_pips": true,
+        "coef_currently_hardcoded_to_1": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "trail_start_pips": 500,
+        "trail_step_pips": 0,
+        "mode": "tt_NONE|tt_BREAKEVEN|tt_STRAIGHT selectable",
+        "step_distance": "spread * point",
+        "condition": "take_profit >= stop_loss AND Trail != tt_NONE"
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Virtual stop-loss/take-profit implemented in OnTick - orders are sent with SL=0, TP=0 and closed programmatically when price crosses the virtual level",
+      "Lock detection: if both ticket_buy > 0 and ticket_sell > 0 simultaneously, EA freezes and prints warning",
+      "After profitable close, reopens same direction with initial lot",
+      "After losing close, opens opposite direction with martingale lot multiplier",
+      "Commented-out time-decay coefficient (coef) for TP/SL that could widen stops over time"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "factor": 2.0,
+      "limit": 5,
+      "lot_step": "MarketInfo(Symbol, MODE_LOTSTEP)",
+      "max_lot": "MarketInfo(Symbol, MODE_MAXLOT)",
+      "reset_logic": "If next_martingale_lot > lots_test, reset to initial Lots"
+    },
+    "max_positions": 1,
+    "conditional_logic": "After loss: lots = MathFloor((OrderLots() * Factor) / lotstep) * lotstep; if lots > lots_test then lots = initial Lots. After profit: lots = initial Lots."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 2,
+      "end_hour": 22
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 2,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Multi-currency martingale reversal EA. Tracks one BUY and one SELL ticket per symbol instance. On loss, reverses direction with multiplied lot (Factor). On profit, reopens same direction with initial lot. Virtual SL/TP monitored every tick (not broker-side). SkipBadTime mechanism: on OrderSend failure, calculates a 'bad day' timestamp and skips all trading until that period elapses - acts as a rate-limit/throttle after order failures. Trailing stop has two modes: BREAKEVEN (moves SL to breakeven after price moves stop_loss distance) and STRAIGHT (trails immediately). The coef variable (currently hardcoded to 1.0) was designed for time-decay adjustment of virtual stops. Settings can be specified per-symbol via a DSL string in _WorkSymbols input with format: name±lots*factor^limit(sl,tp)[start,stop];... Supports duplicate symbol detection. ExpMartinPool manages multiple symbol instances traded simultaneously from a single chart.",
+  "external_dependencies": [
+    "MT4Bridge/MT4MarketInfo.mqh",
+    "MT4Bridge/MT4Time.mqh",
+    "MT4Bridge/MT4Account.mqh",
+    "MT4Bridge/MT4Orders.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Requires tick-level data due to virtual SL/TP monitoring on every tick. MT4Bridge library must be fully reimplemented: MarketInfo (MODE_BID, MODE_ASK, MODE_SPREAD, MODE_POINT, MODE_MINLOT, MODE_MAXLOT, MODE_LOTSTEP), OrderSelect/OrderSend/OrderClose/OrderModify, AccountFreeMarginCheck, Hour(), TimeCurrent(), OrderMagicNumber/OrderSymbol/OrderType/OrderTicket/OrderLots/OrderProfit/OrderOpenPrice/OrderStopLoss/OrderTakeProfit/OrderOpenTime/OrderCloseTime. The martingale lot calculation must respect lot_step rounding (MathFloor pattern). The SkipBadTime state machine (badDay static variable shared across all symbols) must be preserved. Multi-symbol support requires per-symbol position tracking with independent ticket management. Orders sent with SL=0/TP=0 so all exit logic is in code - critical to replicate exactly. The lock detection guard (both buy and sell open simultaneously) must be implemented. Time filter uses broker Hour() not UTC.",
+  "extraction_timestamp": "2026-05-14T07:07:31.387112",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 101.22772264480591,
+    "cost": 0
+  }
+}

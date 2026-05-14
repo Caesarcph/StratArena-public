@@ -1,0 +1,160 @@
+{
+  "ea_id": "EA-36713",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Heavy pending order management with OnTradeTransaction event-driven logic, stop-loss triggered re-entry via pending orders, expiration-based order lifecycle, and broker-specific stop-level calculation. The OnTradeTransaction handler creates new pending orders when positions close by stop-loss, requiring tick-level transaction event processing that is MT5-specific.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Stochastic",
+      "name": "Stochastic Oscillator",
+      "params": {
+        "k_period": 22,
+        "d_period": 7,
+        "slowing": 2,
+        "method": "EMA",
+        "applied_to": "STO_CLOSECLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "stopprice - minimum distance for pending order placement from current price",
+      "formula": "(SYMBOL_TRADE_STOPS_LEVEL + SYMBOL_SPREAD) * _Point",
+      "used_by": "SellStop and BuyStop pending order price calculation"
+    },
+    {
+      "name": "expdate (OnTick) - pending order expiration in OnTick",
+      "formula": "TimeCurrent() + PeriodSeconds(PERIOD_H4)",
+      "used_by": "SellStop/BuyStop expiration in OnTick entry logic"
+    },
+    {
+      "name": "expdate (OnTradeTransaction) - pending order expiration on SL re-entry",
+      "formula": "TimeCurrent() + PeriodSeconds(Expirydate)",
+      "used_by": "SellStop/BuyStop expiration in OnTradeTransaction SL re-entry logic"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Stochastic Main[0]",
+        "right": "Stochastic Main[2]",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "custom",
+        "left": "DEAL_REASON_SL on SELL position",
+        "right": "trans.price < trans.price_sl",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Stochastic Main[0]",
+        "right": "Stochastic Main[2]",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "custom",
+        "left": "DEAL_REASON_SL on BUY position",
+        "right": "trans.price > trans.price_sl",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 900,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 200,
+      "params": {
+        "trail_start_pips": 200,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Pending orders expire after PERIOD_H4 (OnTick entries) or Expirydate input parameter (SL re-entry orders)",
+      "No explicit position close on signal reversal - commented out CheckPositionForClose calls"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 10,
+    "filling": "SYMBOL_DEPENDENT"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "OnTradeTransaction re-entries after SL hit: When a BUY position closes by stop-loss (DEAL_REASON_SL with negative profit and trans.price > trans.price_sl), a SellStop pending order is placed. When a SELL position closes by stop-loss (DEAL_REASON_SL with negative profit and trans.price < trans.price_sl), a BuyStop pending order is placed. This creates a reversal chain after each SL hit. Pending orders are placed at (current_price +/- stopprice) distance from current price, where stopprice incorporates broker's SYMBOL_TRADE_STOPS_LEVEL and spread. The Stochastic comparison uses MainBuffer[0] vs MainBuffer[2] (current vs 2 bars ago), skipping the previous bar. CheckPendingOrder prevents duplicate pending orders by matching comment strings. CTrailingFixedPips is included but never actually applied to any position in the code. The Step input parameter (500) is declared but never used in the code.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/PositionInfo.mqh",
+    "Trade/OrderInfo.mqh",
+    "Trade/HistoryOrderInfo.mqh",
+    "Expert/Trailing/TrailingFixedPips.mqh",
+    "Tools/Datetime.mqh",
+    "Trade/SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "OnTradeTransaction is MT5-specific event that fires on each trade transaction - Python backtesting frameworks lack this event model. The SL-triggered re-entry logic requires simulating deal events and checking DEAL_REASON_SL, which needs deep MT5 history order/deal access. Pending order lifecycle (placement, expiration, deletion tracking) must be manually managed. The comment-based deduplication (CheckPendingOrder) and position counting (SumPosition) are straightforward to replicate. CTrailingFixedPips is included but unused - can be ignored. The Stochastic signal logic (MainBuffer[0] vs MainBuffer[2]) is simple to replicate. Broker stop-level calculation is symbol-specific and must be parameterized. Two different expiration times are used: PERIOD_H4 for OnTick entries vs user-configurable Expirydate for SL re-entries.",
+  "extraction_timestamp": "2026-05-14T09:13:09.509688",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 171.2222843170166,
+    "cost": 0
+  }
+}

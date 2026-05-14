@@ -1,0 +1,141 @@
+{
+  "ea_id": "EA-23039",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iSAR (Parabolic SAR) indicator with standard parameters. Simple SAR reversal entry/exit logic. Fixed lot sizing. No external .mqh libraries. No complex money management or multi-timeframe logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Parabolic SAR",
+      "params": {
+        "step": 0.02,
+        "maximum": 0.2
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "SAR value current bar",
+      "formula": "iSAR(_Symbol, _Period, SAR_step, SAR_maximum, 0)",
+      "used_by": "entry_rules, exit_rules"
+    },
+    {
+      "name": "SAR value previous bar",
+      "formula": "iSAR(_Symbol, _Period, SAR_step, SAR_maximum, 1)",
+      "used_by": "entry_rules (reversal detection)"
+    },
+    {
+      "name": "SL adjusted for 5-digit brokers",
+      "formula": "StopLoss * 10 (if _Digits==5 || _Point<0.001)",
+      "used_by": "stop_loss calculation"
+    },
+    {
+      "name": "TP adjusted for 5-digit brokers",
+      "formula": "TakeProfit * 10 (if _Digits==5 || _Point<0.001)",
+      "used_by": "take_profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Close[0]",
+        "right": "Parabolic SAR[0]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Close[0]",
+        "right": "Parabolic SAR[0]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 30,
+      "params": {
+        "adjust_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 60,
+      "params": {
+        "adjust_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite position on SAR reversal signal before opening new position"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "The EA uses Parabolic SAR reversal as both entry and exit signals. When SAR flips from above price to below price, it closes any existing short position and opens a long. When SAR flips from below price to above price, it closes any existing long position and opens a short. SL/TP values in inputs are treated as 'points' and are adjusted by multiplying by 10 when the broker uses 5-digit pricing (_Digits==5) or micro-pip pricing (_Point<0.001). The EA checks for existing positions of the opposite side and closes them before entering a new trade, effectively making it a single-direction-at-a-time reversal system.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Straightforward conversion. Parabolic SAR is available in most Python TA libraries (ta-lib SAR, pandas-ta psar). Key points: (1) SL/TP digit adjustment logic must be replicated - detect if price has 5 digits or point value < 0.001, then multiply SL/TP by 10. (2) The position gate closes opposite-side positions before entering new ones - implement as: check existing positions, close opposite, then open new. (3) Since this is on_tick with no new bar guard, in Python backtesting use per-bar close prices or tick data. For bar-based backtesting, using bar close vs SAR comparison is the standard approximation. (4) No partial closes or complex money management - simple fixed lot sizing throughout.",
+  "extraction_timestamp": "2026-05-14T04:20:13.660875",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 80.66548800468445,
+    "cost": 0
+  }
+}

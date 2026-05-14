@@ -1,0 +1,157 @@
+{
+  "ea_id": "EA-36560",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Heavy pending order management with BuyStop/SellStop each tick, daily expiration, trailing stop with freeze/stop level checks, and position-by-position trailing modification that requires tick-level execution and broker-specific stop/freeze level queries",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Expiration date for pending orders",
+      "formula": "TimeCurrent() + PeriodSeconds(PERIOD_D1)",
+      "used_by": "BuyStop/SellStop order placement"
+    },
+    {
+      "name": "Buy stop entry price",
+      "formula": "CurrentAsk (normalized)",
+      "used_by": "BuyStop order"
+    },
+    {
+      "name": "Sell stop entry price",
+      "formula": "CurrentBid (normalized)",
+      "used_by": "SellStop order"
+    },
+    {
+      "name": "Trailing stop distance in price",
+      "formula": "trailingstoppoint * _Point",
+      "used_by": "TrailingStop function"
+    },
+    {
+      "name": "Minimum SL distance from current price (NewSL)",
+      "formula": "(SYMBOL_TRADE_STOPS_LEVEL + SYMBOL_SPREAD) * _Point",
+      "used_by": "TrailingStop validity check"
+    },
+    {
+      "name": "Minimum TP distance from current price (NewTP)",
+      "formula": "SYMBOL_TRADE_STOPS_LEVEL * _Point",
+      "used_by": "TrailingStop validity check"
+    },
+    {
+      "name": "ValidSell (minimum sell SL distance from ask)",
+      "formula": "ask + NewSL",
+      "used_by": "Sell position trailing stop"
+    },
+    {
+      "name": "ValidBuy (minimum buy SL distance from bid)",
+      "formula": "bid - NewSL",
+      "used_by": "Buy position trailing stop"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "No existing BuyStop pending with comment 'B'+_Symbol",
+        "right": "Volume is valid AND sufficient margin",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "No existing SellStop pending with comment 'S'+_Symbol",
+        "right": "Volume is valid AND sufficient margin",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 300,
+      "params": {
+        "applied_to_long": "BuyPrice - PriceSL*_Point",
+        "applied_to_short": "SellPrice + PriceSL*_Point"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 900,
+      "params": {
+        "applied_to_long": "BuyPrice + PriceTP*_Point",
+        "applied_to_short": "SellPrice - PriceTP*_Point"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 200,
+      "params": {
+        "trail_start_pips": 200,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Pending orders expire at end of next day (ORDER_TIME_SPECIFIED with curdatetime + PeriodSeconds(PERIOD_D1))",
+      "TrailingStop moves SL to breakeven+1 when position profit > 0 and price exceeds open by trailpoint, then continues trailing using broker stop_level and spread constraints",
+      "TP is set to 0 on first trail modification (removes TP), then re-added on subsequent trail steps"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "EA places both a BuyStop at current Ask and a SellStop at current Bid every tick if no matching pending order exists. This is a breakout/straddle strategy: whichever direction price moves, the stop order triggers. TrailingStop is defined but NEVER CALLED from OnTick — this is a critical bug. The trailing logic has calculation errors: for buy positions when CurrentSL > Priceopen, it computes sl = bid - ValidBuy (which doubles the distance) instead of sl = ValidBuy. Similarly for sell positions when CurrentSL < Priceopen, it computes sl = ask + ValidSell (doubling the distance). Duplicate margin checks (lines 60-70) are redundant. The TrailingStop function iterates positions from PositionsTotal() down to 0 inclusive, which is an off-by-one (should be PositionsTotal()-1).",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\OrderInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1) TrailingStop is never called — must decide whether to implement it or note it as dead code. 2) Pending order placement runs every tick — need tick data for accurate backtest. 3) Broker-specific SYMBOL_TRADE_STOPS_LEVEL and SYMBOL_TRADE_FREEZE_LEVEL must be mocked or configured. 4) Pending order expiration uses daily period — need calendar awareness. 5) The trailing stop SL calculation has bugs (doubling distance) — must decide whether to replicate buggy behavior or fix. 6) Off-by-one in position iteration (PositionsTotal() vs PositionsTotal()-1) — replicate or fix. 7) No indicator data needed — pure price-action breakout with stop orders. 8) CheckPendingOrder uses comment matching — comment field must be tracked in Python order management.",
+  "extraction_timestamp": "2026-05-14T09:05:42.738545",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 92.28023266792297,
+    "cost": 0
+  }
+}

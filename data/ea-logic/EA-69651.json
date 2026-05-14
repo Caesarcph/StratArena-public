@@ -1,0 +1,237 @@
+{
+  "ea_id": "EA-69651",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Complex adaptive impulse detection logic with session-based parameter adjustments, Fibonacci decay analysis, multi-condition entry gauntlet, and smart trailing system. Uses CTrade/CHistoryOrderInfo standard library but has intricate state machine logic (SImpulseState) and adaptive thresholds that require careful porting. No custom iCustom indicators, but the multi-layered adaptive logic and commented-out alternative implementations indicate non-trivial conversion effort.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "ATR for SL/TP/Trailing",
+      "params": {
+        "period": 20,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "InpLookbackPeriod"
+    },
+    {
+      "type": "MA",
+      "name": "SMA 50 for Trend Confirmation",
+      "params": {
+        "period": 50,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "Long-term ATR for Session Volatility Check",
+      "params": {
+        "period": 100,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Adaptive Volume Multiplier",
+      "formula": "InpVolumeMultiplier * 0.9 (London/NY) or * 1.3 (Asia/Pacific)",
+      "used_by": "DetectImpulse volume threshold"
+    },
+    {
+      "name": "Adaptive Body Ratio",
+      "formula": "InpMinBodyRatio * 0.8 (high vol ATR%) or * 1.2 (low vol ATR%)",
+      "used_by": "DetectImpulse body ratio check"
+    },
+    {
+      "name": "Adaptive Max Spread",
+      "formula": "MathRound(InpMaxSpread * 1.2 (London/NY) or * 0.8 (Asia/Pacific))",
+      "used_by": "CheckTradingConditions spread filter"
+    },
+    {
+      "name": "Impulse Strength (normalized 0-1+)",
+      "formula": "(volume_ratio / (req_vol_multi * 2.0) * 0.4) + (body_ratio * 0.3) + (close_position * 0.3)",
+      "used_by": "IsImpulseDecayed, expected_bars calculation, entry conditions"
+    },
+    {
+      "name": "Expected Bars (impulse duration)",
+      "formula": "Round(InpMinImpulseBars + (min(strength,1.0) * (InpMaxImpulseBars - InpMinImpulseBars)))",
+      "used_by": "IsImpulseDecayed duration check, ProcessNewBar"
+    },
+    {
+      "name": "Fibonacci 61.8% Decay Level",
+      "formula": "bullish: detection_price - (detection_price - impulse_open) * 0.618; bearish: detection_price + (impulse_open - detection_price) * 0.618",
+      "used_by": "IsImpulseDecayed price reversal check"
+    },
+    {
+      "name": "Range Ratio (candle expansion)",
+      "formula": "current_range / prev_range",
+      "used_by": "DetectImpulse range expansion check (must be >= 1.05)"
+    },
+    {
+      "name": "ATR in Points",
+      "formula": "ATR_raw / SymbolPoint",
+      "used_by": "CheckTradingConditions volatility filter (min/max ATR points)"
+    },
+    {
+      "name": "Volume Ratio (current vs average)",
+      "formula": "tick_volume / avg_volume",
+      "used_by": "DetectImpulse, IsLowVolumeSession, IsImpulseDecayed"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Impulse Detection Gauntlet",
+        "right": "All conditions met",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "above",
+        "left": "Close Price",
+        "right": "MA(50)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "above",
+        "left": "MA(50) current",
+        "right": "MA(50) previous",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Impulse Detection Gauntlet",
+        "right": "All conditions met",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "below",
+        "left": "Close Price",
+        "right": "MA(50)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "below",
+        "left": "MA(50) current",
+        "right": "MA(50) previous",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": 1.2,
+      "params": {
+        "atr_period": 20
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": 1.8,
+      "params": {
+        "atr_period": 20
+      }
+    },
+    "trailing_stop": {
+      "type": "atr_multiple",
+      "value": 1.0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "mode": "TRAIL_ATR_FIXED with HYBRID/BREAKEVEN options",
+        "breakeven_at_tp_percent": 0.5,
+        "trail_activation_tp_percent": 0.3,
+        "volatility_adjust": true
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Impulse decay triggers ResetImpulse() which clears state but does not close existing positions",
+      "Fibonacci 61.8% retracement invalidation of impulse state",
+      "Volume decay below 25% of original impulse volume ratio invalidates impulse state",
+      "Duration exceeded (expected_bars + 2 tolerance) invalidates impulse state"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 0.1,
+    "params": {
+      "risk_per_trade_pct": 0.1,
+      "reduce_after_loss": false,
+      "reduction_factor": 0.2
+    },
+    "max_positions": 1,
+    "conditional_logic": "If InpReduceAfterLoss is true, risk is multiplied by (1 - InpReductionFactor) after a losing trade. Min equity and margin level checks gate all trading."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 40
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 1,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Core logic is an impulse detection state machine (SImpulseState struct). Entry requires ALL of: (1) tick_volume >= avg_volume * adaptive_volume_multiplier, (2) body_ratio >= adaptive_body_ratio, (3) close_position >= InpClosePosition (relaxed if body_ratio > 0.8), (4) range_ratio >= 1.05 (range expansion vs previous bar), (5) trend confirmation via MA50 position + slope. Adaptive parameters adjust based on session (Asian/London/NY/Pacific) and volatility. IsGoodTradingSession uses a '80% rule' comparing short-term ATR(20) vs long-term ATR(100) - session is valid only if current ATR >= 80% of long-term ATR. Asian/Pacific sessions require ATR >= 120% of long-term to allow trading. CheckTradingConditions has redundant spread/session checks at lines 807-810 (checks same conditions already checked earlier in the function). The EA has extensive commented-out alternative implementations (3 versions of ProcessNewBar, 3 versions of IsImpulseDecayed) indicating iterative development. Trailing runs on every tick (not just new bar) for real-time responsiveness. Session classification uses broker server time (TimeCurrent) not local time. Position gate: no explicit check for existing same-direction positions in entry logic - relies on impulse state reset after trade execution to prevent double entry.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\HistoryOrderInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1) The adaptive threshold system (session-based multiplier adjustments for volume, body ratio, spread) must be faithfully replicated. 2) The impulse state machine with SImpulseState struct needs explicit state tracking - not just indicator comparisons. 3) ATR(100) is created inside IsGoodTradingSession() on every call - in Python, cache this handle/buffer to avoid recomputation. 4) The redundant spread/session checks in CheckTradingConditions (lines 807-810) should be preserved or intentionally removed based on user preference. 5) Trailing stop logic runs every tick - in Python backtesting with bar data, trailing will only evaluate at bar close which may underperform vs live. 6) Position gate is implicit via impulse state reset - verify no duplicate entries can occur. 7) Fibonacci 61.8% decay level uses iOpen at Impulse.start_bar index which changes as start_bar increments - ensure bar indexing is correctly mapped in Python. 8) Volume data uses tick_volume not real_volume - ensure data source compatibility. 9) The Session filter hour=0 rollover guard and the adaptive ATR-based session filter are independent - both must pass.",
+  "extraction_timestamp": "2026-05-14T13:33:55.046022",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 277.91454911231995,
+    "cost": 0
+  }
+}

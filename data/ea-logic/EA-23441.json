@@ -1,0 +1,176 @@
+{
+  "ea_id": "EA-23441",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ColorPEMA_Digit indicator (custom non-standard indicator) plus iCustom for TrendByAngle and partial-close/time-filter management via external CTradeManager class, requiring custom indicator replication and external class porting",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorPEMA_Digit",
+      "params": {
+        "period": "Periods",
+        "method": "EMA",
+        "applied_to": "close",
+        "digit_mode": "Digits"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "TrendByAngle",
+      "params": {
+        "period": "Periods"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Digit-adjusted StopLoss",
+      "formula": "StopLoss * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "SL calculation in order placement"
+    },
+    {
+      "name": "Digit-adjusted TakeProfit",
+      "formula": "TakeProfit * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "TP calculation in order placement"
+    },
+    {
+      "name": "Digit-adjusted TrailingStop",
+      "formula": "TrailingStop * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "Trailing stop distance"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorPEMA_Digit buffer 0 (uptrend line)",
+        "right": "ColorPEMA_Digit buffer 1 (downtrend line)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "ColorPEMA_Digit buffer 0",
+        "right": "TrendByAngle",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "ColorPEMA_Digit buffer 0 (uptrend line)",
+        "right": "ColorPEMA_Digit buffer 1 (downtrend line)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "ColorPEMA_Digit buffer 1",
+        "right": "TrendByAngle",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true,
+        "adjustment_formula": "StopLoss * _Point * (10 if 5-digit else 1)"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true,
+        "adjustment_formula": "TakeProfit * _Point * (10 if 5-digit else 1)"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position before opening new one (close-and-reverse logic)",
+      "Time-based partial close via CTradeManager (close percentage of position at specified time)",
+      "Time filter can prevent new trades outside allowed hours"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "negative_means_fixed_lots": true,
+      "positive_means_deposit_fraction": true,
+      "deposit_fraction_denominator": 100
+    },
+    "max_positions": 1,
+    "conditional_logic": "If Lots input is negative, use absolute value as fixed lot size; if positive, calculate as deposit_fraction = Lots/100 * FreeMargin / (ContractSize * Ask)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses ColorPEMA_Digit custom indicator which is a colored EMA with digit-display mode showing trend direction changes with visual dots. The TrendByAngle custom indicator is used as a trend confirmation filter. The CTradeManager class provides time-based partial close functionality and trade management. On opposite signal, existing position is closed first then new position opened (reversal logic). Signal is evaluated on new bar only (previous bar index [1] and [2] used for crossover detection). The EA has a margin check before opening trades and checks for existing positions to prevent stacking. Time filter controls when trades can be opened. The digit adjustment multiplies SL/TP/Trail by 10 for 5-digit brokers.",
+  "external_dependencies": [
+    "ColorPEMA_Digit.ex5 (custom indicator)",
+    "TrendByAngle.ex5 (custom indicator)",
+    "CTradeManager class (trade management with time-based partial close)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must replicate ColorPEMA_Digit indicator logic (colored PEMA with digit mode - likely a point-EMA that draws dots/digits at trend reversal points) and TrendByAngle indicator (angle-based trend filter). CTradeManager time-based partial close logic needs to be reimplemented. The conditional lot sizing (negative=fixed, positive=deposit fraction) is straightforward. Digit adjustment for 5-digit brokers is standard. The crossover detection uses buffers [1] and [2] (previous and prior bars) so new-bar guard is essential. Signal reversal (close-then-open) must be atomic in Python to avoid position conflicts.",
+  "extraction_timestamp": "2026-05-14T05:51:17.005924",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 178.33950972557068,
+    "cost": 0
+  }
+}

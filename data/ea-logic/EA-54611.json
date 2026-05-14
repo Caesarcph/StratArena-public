@@ -1,0 +1,198 @@
+{
+  "ea_id": "EA-54611",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "EA uses iCustom indicators for breakout detection (support/resistance levels via custom library), making indicator replication in Python non-trivial without understanding the custom indicator logic. Otherwise standard entry/exit with built-in MAs.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Support/Resistance Breakout",
+      "params": {
+        "period": 20,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "custom",
+      "library": "Ausbruch Support Resistance.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 8,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 21,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Breakout level upper",
+      "formula": "iCustom(..., \"SupportResistance\", Periods, 0, 1)",
+      "used_by": "Long entry condition"
+    },
+    {
+      "name": "Breakout level lower",
+      "formula": "iCustom(..., \"SupportResistance\", Periods, 1, 1)",
+      "used_by": "Short entry condition"
+    },
+    {
+      "name": "SL adjustment for 5-digit brokers",
+      "formula": "SL_Pips * 10 (when _Digits==5 or _Point<0.001)",
+      "used_by": "Stop loss and take profit calculation"
+    },
+    {
+      "name": "TP adjustment for 5-digit brokers",
+      "formula": "TP_Pips * 10 (when _Digits==5 or _Point<0.001)",
+      "used_by": "Take profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Close[1]",
+        "right": "Breakout level upper (previous bar)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "above",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Close[1]",
+        "right": "Breakout level lower (previous bar)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "below",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "adjusted_for_5digit": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "adjusted_for_5digit": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close long on short breakout signal",
+      "Close short on long breakout signal"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Breakout detection uses custom SupportResistance indicator accessed via iCustom. Entry requires price closing above/below the breakout level on the previous completed bar, confirmed by EMA trend filter (Fast above Slow for longs, Fast below Slow for shorts). Opposite signal closes existing position before opening new one. The EA name 'Ausbruch' is German for 'breakout', confirming the strategy type.",
+  "external_dependencies": [
+    "Ausbruch Support Resistance.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The custom SupportResistance indicator must be replicated in Python. Without its exact algorithm, breakout levels cannot be computed. Consider: (1) reverse-engineering the .mqh logic, (2) replacing with a standard Donchian channel or pivot-point breakout as an approximation, or (3) pre-computing levels from MT5 and feeding them as external data. EMA trend filter and SL/TP are straightforward. The 5-digit adjustment logic (multiply SL/TP by 10 when _Point < 0.001) must be handled for JPY pairs vs non-JPY pairs. New bar detection uses static datetime comparison, standard pattern to replicate.",
+  "extraction_timestamp": "2026-05-14T11:45:58.336072",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 217.75470876693726,
+    "cost": 0
+  }
+}

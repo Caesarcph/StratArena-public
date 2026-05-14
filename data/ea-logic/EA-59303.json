@@ -1,0 +1,159 @@
+{
+  "ea_id": "EA-59303",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses partial close / scale-out logic which adds complexity. Also has conditional SL/TP (fixed vs ATR-based dynamic), conditional position sizing (fixed vs risk-based auto), and session time filtering. While indicators are built-in (RSI, ATR), the multi-mode SL/TP/sizing and partial close logic require careful manual conversion.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "RSI",
+      "name": "RSI (Signal)",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR (Volatility)",
+      "params": {
+        "period": 100
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "CurrentSignal - RSI value at bar index 1 (previous completed bar)",
+      "formula": null,
+      "used_by": "Entry and exit condition evaluation"
+    },
+    {
+      "name": "PreviousSignal - RSI value at bar index 2 (two bars ago)",
+      "formula": null,
+      "used_by": "Crossover/crossunder detection for entry and exit"
+    },
+    {
+      "name": "CurrentVolatility - ATR value at bar index 1",
+      "formula": null,
+      "used_by": "Not directly used in current logic (PreviousVolatility is used instead)"
+    },
+    {
+      "name": "PreviousVolatility - ATR value at bar index 0 (current bar ATR)",
+      "formula": null,
+      "used_by": "Dynamic SL/TP calculation and scale-out threshold"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "RSI",
+        "right": "LowerThreshold (20)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "RSI",
+        "right": "UpperThreshold (80)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "atr_multiple": 2,
+        "mode": "conditional: SL_FIXED=0 disables SL; SL_FIXED>0=FixedStopLoss pips; SL_AUTO=ATR*VolatilityFactorSL"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "atr_multiple": 3,
+        "mode": "conditional: TP_FIXED=0 disables TP; TP_FIXED>0=FixedTakeProfit pips; TP_AUTO=ATR*VolatilityFactorTP"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Partial close (scale-out): When price moves in favor by ATR*VolatilityFactorSO, close ScaleOutPercent% of position. Only triggered once per position (checks deal history for prior partial close)."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "risk_percent": 2,
+      "risk_base": "balance|equity|free_margin",
+      "mode": "RISK_DEFAULT_FIXED=fixed lots at FixedLotSize; RISK_DEFAULT_AUTO=risk-based sizing using RiskPercentage of RiskCalculationBase / (SL_pips * tick_value)"
+    },
+    "max_positions": 1,
+    "conditional_logic": "PositionSizeMode=RISK_DEFAULT_FIXED uses FixedLotSize (0.1). PositionSizeMode=RISK_DEFAULT_AUTO calculates volume = (RiskBase * RiskPercentage/100) / (StopLossPoints * TickValue). Falls back to FixedLotSize when SL=0."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 7,
+      "end_hour": 19
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 5,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "RSI data is read from bars [1] and [2] (previous completed bars), not bar [0], so signals are based on confirmed closed-bar values. The new_bar_guard allows first tick of a new bar only (new_bar_ticks<=1). Exit conditions reuse the same RSI crossover logic as entry: RSI crossing above LowerThreshold closes shorts, RSI crossing below UpperThreshold closes longs. Scale-out checks deal history to ensure partial close only happens once per position. MaxSpreadAllowed parameter exists but is never checked in the trading logic - appears to be an unused input. The MagicNumber filter for closing positions has a bug: when IdentificationNumber=0, the filter 'IdentificationNumber!=0 && PositionMagic!=IdentificationNumber' always passes, so it closes ALL positions for the symbol regardless of magic number.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1) The conditional SL/TP modes (fixed pips vs ATR dynamic) need dual implementation paths. 2) Scale-out (partial close) logic requires deal history tracking to prevent double-scaling - in Python backtest, use a per-position flag instead. 3) Position sizing has two modes: fixed lot and risk-based auto sizing - implement both with conditional switching. 4) RSI signal uses bar[1] and bar[2] (previous two completed bars) for crossover detection, not the current forming bar - ensure shift indices are correct. 5) The new_bar_guard implementation in Python should compare current bar timestamp with previous. 6) Session time filter uses server time (TimeCurrent), not local time. 7) Note: MaxSpreadAllowed input exists but is NOT enforced in any trading logic - can be ignored or implemented as enhancement. 8) The LoadIndicatorData retry loop with Sleep() is MT5-specific; in Python backtesting, indicator data is always available from arrays.",
+  "extraction_timestamp": "2026-05-14T12:08:24.648541",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 101.24070358276367,
+    "cost": 0
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "ea_id": "EA-30560",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale position sizing with margin-dependent lot calculation, cumulative loss compensation that adjusts TP/SL dynamically, tick-level breakout detection with intrabar execution, and position tracking via ticket selection make this heavily dependent on MT5's real-time tick stream and position management.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "ATR(20) on D1",
+      "params": {
+        "period": 20,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Range from ATR",
+      "formula": "arrayATR[1] * perATR / 100",
+      "used_by": "pHighStop, pLowStop, Profit, Loss calculations"
+    },
+    {
+      "name": "Range fallback from price",
+      "formula": "pCurAsk * perPrice / 100",
+      "used_by": "pHighStop, pLowStop, Profit, Loss calculations when ATR buffer copy fails"
+    },
+    {
+      "name": "Profit distance",
+      "formula": "Range * perProfit / 100",
+      "used_by": "pHighProfit, pLowProfit"
+    },
+    {
+      "name": "Loss distance",
+      "formula": "Range * perLoss / 100",
+      "used_by": "pHighLoss, pLowLoss"
+    },
+    {
+      "name": "Loss compensation (comLoss)",
+      "formula": "NormalizeDouble(cumLoss * _Point * 10 / (kLot * SYMBOL_TRADE_TICK_VALUE), _Digits)",
+      "used_by": "overrides Profit and augments Loss when in martingale recovery"
+    },
+    {
+      "name": "Center price",
+      "formula": "iClose(_Symbol, PERIOD_H1, 1) at setup hour",
+      "used_by": "pHighStop, pLowStop and all derived price levels"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Current Ask",
+        "right": "pHighStop (pCenter + Range)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Current Bid",
+        "right": "pLowStop (pCenter - Range)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": null,
+      "params": {
+        "atr_pct": "perLoss% of Range (Range = ATR * perATR / 100)",
+        "long_sl_formula": "pHighStop - Loss",
+        "short_sl_formula": "pLowStop + Loss"
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": null,
+      "params": {
+        "atr_pct": "perProfit% of Range (overridden by comLoss when in martingale)",
+        "long_tp_formula": "pHighStop + Profit",
+        "short_tp_formula": "pLowStop - Profit"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Position closed when PositionSelectByTicket returns false (SL/TP hit or manual close), then reinitializes to STANDBY"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "base_lot": "inLot (0.1 default)",
+      "multiplier": "2x on loss (kLot *= 2)",
+      "reset": "kLot=1 on win",
+      "cumLoss_tracking": "cumLoss accumulates negative deal profits",
+      "margin_check": "Free Margin >= 1000 * Lot"
+    },
+    "max_positions": 1,
+    "conditional_logic": "After a losing deal, lot size doubles (kLot*=2) and take profit is overridden to comLoss (cumulative loss recovery amount); after a winning deal, lot and compensation reset to baseline"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": "inHour+1 (setup triggers at specified day+hour)",
+      "end_hour": 0
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 20,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_then_wait"
+  },
+  "custom_logic_notes": "Weekly periodic range breakout: On a specified day-of-week at a specified hour+1, the EA captures the previous H1 bar close as center price and computes a breakout channel (center +/- Range). Range is derived from prior day's ATR value scaled by perATR%. If price breaks above pHighStop, a buy is placed; if below pLowStop, a sell is placed. SL and TP are set as fixed offsets from the breakout level. Martingale recovery: after a loss, lots double and TP is set to comLoss (the amount needed to recover cumulative losses), while SL is widened by comLoss. On a win, martingale resets. The EA uses a 3-phase state machine (STANDBY→SETUP→TRADE) and only trades one position at a time per weekly cycle.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The martingale loss compensation formula (comLoss = cumLoss * _Point * 10 / (kLot * tick_value)) is broker/symbol-specific and requires SYMBOL_TRADE_TICK_VALUE which varies. The ATR fallback to price percentage when buffer copy fails adds conditional logic. The weekly periodic trigger (day_of_week + hour check on tick) and phase state machine must be faithfully replicated. Position tracking via ticket requires position monitoring. The intrabar breakout detection needs tick-level data for accurate backtesting.",
+  "extraction_timestamp": "2026-05-14T07:49:06.160795",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 143.8687105178833,
+    "cost": 0
+  }
+}

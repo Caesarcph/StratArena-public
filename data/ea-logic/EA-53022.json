@@ -1,0 +1,180 @@
+{
+  "ea_id": "EA-53022",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale position sizing with multiplier-based lot escalation and layered grid-style entry (JarakLayer spacing). Margin-dependent lot validation via OrderCalcMargin. Heavy position management with dynamic TP/SL recalculation across multiple layers makes this unsuitable for simple Python conversion.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast SMA",
+      "params": {
+        "period": 14,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow SMA",
+      "params": {
+        "period": 28,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Stochastic",
+      "name": "Stochastic Oscillator",
+      "params": {
+        "k_period": 10,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "SMA",
+        "applied_to": "LOWHIGH"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Break-even price (BEP) per side",
+      "formula": "ttlValue / ttlLot",
+      "used_by": "setTPSL - calculates TP/SL from weighted average entry price"
+    },
+    {
+      "name": "Layered lot size (martingale)",
+      "formula": "initLotSize * MathPow(inMultiply, tPos)",
+      "used_by": "getLotSize - escalates lot size exponentially per layer"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast SMA",
+        "right": "Slow SMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Fast SMA > Slow SMA AND bullish candle AND Stochastic Main <= 30",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast SMA",
+        "right": "Slow SMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Fast SMA < Slow SMA AND bearish candle AND Stochastic Main >= 70",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "note": "SL=0 means disabled; when enabled, pips from BEP price"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "note": "TP in pips from BEP (break-even price), not from individual entry"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "TP/SL is dynamically recalculated every tick based on break-even price of all layered positions - as new layers are added, TP/SL adjusts to maintain fixed pip distance from weighted average entry price"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "multiplier": 2.0,
+      "layer_spacing_pips": 200,
+      "lot_step_rounding": true
+    },
+    "max_positions": 0,
+    "conditional_logic": "Lot = initLotSize * MathPow(multiplier, currentPositionCount). First entry uses initLotSize. Subsequent layers multiply by inMultiply for each additional position. Validated against broker lot min/max/step/limit and free margin."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Two signal modes selectable via input: (1) eTypeCrossMA - simple MA crossover using current bar [0] vs previous bar [1] comparison; (2) eTypeTrend - MA trend + candle direction + Stochastic confirmation, all using previous completed bar [1]. Grid/martingale layer system: additional positions opened only when price moves against existing position by inJarakLayer pips (200). Buy layers triggered when ASK drops below (lowestBuyPrice - JarakLayer*Point); Sell layers triggered when BID rises above (highestSellPrice + JarakLayer*Point). Dynamic BEP-based TP/SL recalculated every tick across all layered positions. Lot validation includes broker lot min/max/step/limit and free margin check via OrderCalcMargin. Bug: In CrossMA signal mode, CopyBuffer uses index [0] (current forming bar) for crossover detection which can repaint; in Trend mode, correctly uses index [1] (completed bar). Another bug: getTotalVolume() line 329 uses PositionGetDouble instead of OrderGetDouble when iterating pending orders.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Martingale lot sizing with exponential escalation is high-risk and broker-dependent (lot step, min, max, margin). Grid layer spacing logic requires position tracking with price-level awareness. Dynamic BEP-based TP/SL recalculation must run on every tick. The margin check via OrderCalcMargin has no direct Python equivalent - would need broker API margin calculation. JarakLayer uses Point() which requires proper pip/digit normalization for 5-digit brokers. Signal mode 1 (CrossMA) reads current bar [0] which causes repainting - Python version should use previous bar [1] for both modes.",
+  "extraction_timestamp": "2026-05-14T11:38:58.824490",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 185.10221576690674,
+    "cost": 0
+  }
+}

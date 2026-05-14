@@ -1,0 +1,154 @@
+{
+  "ea_id": "EA-39060",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses CMoneyFixedMargin from Expert\\Money\\MoneyFixedMargin.mqh for position sizing which requires custom logic replication. Opposite-side profit-gated close-before-entry logic is complex. Transaction confirmation via OnTradeTransaction adds multi-step state management. No SL/TP on orders - exit purely via signal reversal with profit gating.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "DeMarker",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "digits_adjust - multiplier for point value when 3/5 digit symbols",
+      "formula": "10 if Digits==3 or Digits==5, else 1",
+      "used_by": "CMoneyFixedMargin.Init and point-based calculations"
+    },
+    {
+      "name": "m_bar_current - bar index for signal reading",
+      "formula": "1 (hardcoded in OnInit, corresponds to bar_1 enum value)",
+      "used_by": "SearchTradingSignals - DeMarker buffer index"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "below",
+        "left": "DeMarker",
+        "right": "Inp_DeM_LevelDown (0.3)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "DeMarker",
+        "right": "Inp_DeM_LevelUp (0.7)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "DeMarker",
+        "right": "Inp_DeM_LevelUp (0.7)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "DeMarker",
+        "right": "Inp_DeM_LevelDown (0.3)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite-side positions are closed only if profitable (profit>0); if opposite positions are losing, new entry is blocked",
+      "m_need_close_all flag can trigger full position closure",
+      "InpOnlyOne mode closes existing positions before entering opposite direction"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 3.0,
+    "params": {
+      "risk_percent": 3.0,
+      "fixed_lot": 3.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "ENUM_LOT_OR_RISK selects mode: lots_min=0 uses symbol minimum lot, lot=1 uses InpVolumeLotOrRisk as fixed lot, risk=2 uses CMoneyFixedMargin with InpVolumeLotOrRisk as risk percentage (1-100%). Default is risk=2 with 3.0%."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Transaction confirmation system: OnTradeTransaction sets transaction_confirmed flag on SPosition entries, and OnTick blocks new trades while waiting_transaction is true. One deal per bar enforced via m_last_deal_buy_in/m_last_deal_sell_in timestamps. Lot coefficient system in SPosition struct (lot_coefficient) allows scaling position volume. Opposite-side close is profit-gated: only closes opposite positions if they are profitable; if losing, the entry is blocked entirely (return true without opening). Reverse mode (InpReverse) swaps BUY/SELL signals. InpOnlyOne restricts to single position total (flat check: count_buys+count_sells==0).",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh",
+    "Trade\\DealInfo.mqh",
+    "Expert\\Money\\MoneyFixedMargin.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1. CMoneyFixedMargin must be reimplemented: it calculates lot size from risk percentage, symbol point value (with digits_adjust), and account margin. 2. The SPosition struct with waiting_transaction/transaction_confirmed is an asynchronous order management queue - in Python backtesting this becomes sequential so can be simplified. 3. Signal logic is straightforward: DeMarker buffer[1] < 0.3 = BUY, > 0.7 = SELL (with reverse option). 4. Profit-gated opposite close is the key non-standard logic: before entering, check if opposite positions exist; if yes and profitable, close them then enter; if yes and losing, skip entry. 5. No SL/TP on orders means positions stay open until signal reversal or manual close. 6. Digit adjustment (x10 for 5-digit) affects CMoneyFixedMargin point input. 7. The one-deal-per-bar check uses deal entry timestamps - in backtesting, track last entry bar. 8. Margin check (FreeMarginCheck > MarginCheck) before order send needs account equity simulation.",
+  "extraction_timestamp": "2026-05-14T09:32:44.676174",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 196.17013692855835,
+    "cost": 0
+  }
+}

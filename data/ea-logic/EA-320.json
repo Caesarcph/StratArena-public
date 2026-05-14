@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-320",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses external custom signal library ACML_MFI.mqh with custom CML_MFI class that wraps iMFI + iMA indicators. Trading logic is encapsulated in the CExpert/CExpertSignal framework with custom filter, requiring reverse-engineering of the CML_MFI class to extract exact entry/exit rules.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "CML_MFI (MFI + MA combination)",
+      "params": {
+        "period_mfi": 12,
+        "period_ma": 4,
+        "weight": 1.0
+      },
+      "source": "custom",
+      "library": "Expert\\Signal\\MySignals\\ACML_MFI.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MFI indicator value used as input to MA smoothing",
+      "formula": "iMFI(Symbol(),Period(),Signal__PeriodMFI)",
+      "used_by": "CML_MFI filter"
+    },
+    {
+      "name": "MA applied to MFI values for signal generation",
+      "formula": "iMA on MFI buffer with period Signal__PeriodMA",
+      "used_by": "CML_MFI filter"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "CML_MFI signal",
+        "right": "Signal_ThresholdOpen",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "CML_MFI signal",
+        "right": "-Signal_ThresholdOpen",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close when CML_MFI vote exceeds ThresholdClose in opposite direction"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {
+      "percent": 10.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "CMoneyFixedLot uses fixed lot size (0.1 lots) with Percent parameter (10.0) as risk fraction of deposit"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses the MQL5 Standard Library CExpert/CExpertSignal framework. Entry/exit logic is determined by the CML_MFI custom signal filter class (in ACML_MFI.mqh) which votes with a weight of 1.0. The signal threshold system means: open when weighted vote >= 40 (ThresholdOpen), close when weighted vote >= 20 (ThresholdClose) in opposite direction. The CML_MFI class likely computes MFI values, applies an MA smooth, and generates buy/sell votes based on MFI crossing its MA or MFI reaching overbought/oversold levels. Exact logic requires reading ACML_MFI.mqh. Expert_EveryTick=false means processing only on new bar completion, not every tick.",
+  "external_dependencies": [
+    "Expert\\Expert.mqh",
+    "Expert\\Signal\\MySignals\\ACML_MFI.mqh",
+    "Expert\\Trailing\\TrailingNone.mqh",
+    "Expert\\Money\\MoneyFixedLot.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must read ACML_MFI.mqh to extract the exact CML_MFI::LongCondition() and CML_MFI::ShortCondition() methods. These methods contain the actual crossover/threshold logic for MFI vs its MA. The CExpert framework handles position management, so Python conversion needs to replicate: (1) MFI calculation, (2) MA-on-MFI smoothing, (3) voting/threshold system for open/close, (4) bar-on-close execution model. SL/TP are both 0 so exits are purely signal-driven. Pending order expiration of 4 bars is set but no pending orders are created (market execution).",
+  "extraction_timestamp": "2026-05-14T08:24:00.128272",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 101.57649683952332,
+    "cost": 0
+  }
+}

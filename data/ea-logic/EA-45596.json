@@ -1,0 +1,173 @@
+{
+  "ea_id": "EA-45596",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses multiple external .mqh libraries (SymbolMonitor, PositionFilter, DealFilter, MqlTradeSync, TradeState, AutoPtr, TrailingStop, RSquared, CustomOrder, wsclient, DealMonitor, Tuples, toyjson) for trading logic, position management, trailing stops, and WebSocket communication. Three variants analyzed - all share heavy external library dependency.",
+  "symbol": null,
+  "timeframe_hint": "M1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "OsMA",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": 5
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands on OsMA",
+      "params": {
+        "period": 26,
+        "shift": 0,
+        "dev": 2.0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "MA on OsMA",
+      "params": {
+        "period": 10,
+        "shift": 0,
+        "method": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "OsMA applied to Bollinger Bands and MA as custom indicator handle",
+      "formula": null,
+      "used_by": "Bollinger Bands and MA indicators use OsMA handle as applied_to source"
+    },
+    {
+      "name": "TrailingStop step distance",
+      "formula": "StopLoss / 50",
+      "used_by": "TrailingStop and request.deviation"
+    },
+    {
+      "name": "PairOfPeriods fast/slow decoded from shadow optimization parameters",
+      "formula": "Iterate(FastStart, FastStop, FastStep, SlowStart, SlowStop, SlowStep, FastSlowCombo4Optimization)",
+      "used_by": "OnInit OsMA period parameters during optimization"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "OsMA",
+        "right": "Bollinger Lower Band",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "OsMA",
+        "right": "Bollinger Upper Band",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {
+        "trail_start_pips": 1000,
+        "trail_step_pips": 20
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal expiration: Long direction reset when OsMA crosses above MA (OsMA[0] >= MA[0] && OsMA[1] < MA[1]); Short direction reset when OsMA crosses below MA (OsMA[0] <= MA[0] && OsMA[1] > MA[1]). When direction resets to 0 and position still open, position is closed on next bar if signal does not match position type."
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 20,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three EA variants exist in this codebase: (1) BandOsMACustomSignal.mq5 - multi-symbol support via TradingSignal interface with symbol/timeframe members, uses signal symbol for indicator calculation and iTime; (2) BandOsMACustom.mq5 - single-symbol with CustomOrder::setReplacementSymbol for symbol substitution, simpler TradingSignal interface without symbol/timeframe; (3) wstradecopier.mq5 - WebSocket-based trade copier with publisher/subscriber roles, JSON serialization of trade requests/results, symbol substitution on subscriber side, completely different trading logic (copies trades via WebSocket rather than generating own signals). The core BandOsMA logic is shared between variants 1 and 2. Signal direction is persistent state: once a buy/sell signal triggers, direction stays +1/-1 until OsMA crosses the MA line, creating a stateful signal system. The EA includes a sophisticated optimization framework using OnTesterInit/OnTesterDeinit with shadow parameters to avoid invalid fast>=slow period combinations. R-squared custom criterion is conditionally compiled via USE_R2_CRITERION macro. Entry signals use previous bar (index 1) and current bar (index 0) crossover detection to avoid repainting.",
+  "external_dependencies": [
+    "MQL5Book/SymbolMonitor.mqh",
+    "MQL5Book/PositionFilter.mqh",
+    "MQL5Book/DealFilter.mqh",
+    "MQL5Book/MqlTradeSync.mqh",
+    "MQL5Book/TradeState.mqh",
+    "MQL5Book/AutoPtr.mqh",
+    "MQL5Book/TrailingStop.mqh",
+    "MQL5Book/RSquared.mqh",
+    "MQL5Book/CustomOrder.mqh",
+    "MQL5Book/ws/wsclient.mqh",
+    "MQL5Book/TradeUtils.mqh",
+    "MQL5Book/DealMonitor.mqh",
+    "MQL5Book/Tuples.mqh",
+    "MQL5Book/toyjson.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Key challenges: (1) External .mqh libraries must be reimplemented - PositionFilter, DealFilter, MqlTradeSync, TradeState, AutoPtr, TrailingStop, SymbolMonitor all contain significant logic not visible in the EA file; (2) The AutoPtr template smart pointer pattern with [] operator dereferencing has no Python equivalent - convert to simple object references; (3) The signal direction state machine (direction persists until OsMA crosses MA) must be preserved exactly; (4) Bollinger Bands and MA are applied to the OsMA indicator handle output, not to price - this is an MQL5 feature where indicators can chain off other indicator handles, requiring manual implementation in Python (compute OsMA first, then compute BBands/MA on the OsMA series); (5) The optimization shadow parameter system (OnTesterInit with ParameterGetRange/ParameterSetRange) is MT5-specific and should be replaced with standard Python optimization frameworks; (6) The WebSocket trade copier variant requires a full WebSocket client implementation; (7) StopLoss of 1000 points with point_value dependency means SL distance = 1000 * point, no 5-digit adjustment needed as _Point already accounts for digit count; (8) TrailingStop distance = StopLoss (1000 points), step = StopLoss/50 (20 points); (9) Deviation (slippage) = StopLoss/50 = 20 points.",
+  "extraction_timestamp": "2026-05-14T10:37:36.714777",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 135.75948524475098,
+    "cost": 0
+  }
+}

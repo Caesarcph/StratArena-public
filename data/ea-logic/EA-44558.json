@@ -1,0 +1,172 @@
+{
+  "ea_id": "EA-44558",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale strategy with margin-dependent volume scaling, grid-like level-based position stacking, and cumulative profit/loss closing logic that depends on real-time position iteration and dynamic volume multiplication - requires tick-level execution and real-time position management unsuitable for offline Python backtesting",
+  "symbol": "EURUSD",
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Cumulative buy distance level 1",
+      "formula": "MartingaleDis1",
+      "used_by": "MartingaleTrading buy level 1"
+    },
+    {
+      "name": "Cumulative buy distance level 2",
+      "formula": "MartingaleDis1+MartingaleDis2",
+      "used_by": "MartingaleTrading buy level 2"
+    },
+    {
+      "name": "Cumulative buy distance level 3",
+      "formula": "MartingaleDis1+MartingaleDis2+MartingaleDis3",
+      "used_by": "MartingaleTrading buy level 3"
+    },
+    {
+      "name": "Cumulative buy distance level 4",
+      "formula": "MartingaleDis1+MartingaleDis2+MartingaleDis3+MartingaleDis4",
+      "used_by": "MartingaleTrading buy level 4"
+    },
+    {
+      "name": "Cumulative buy distance level 5",
+      "formula": "MartingaleDis1+MartingaleDis2+MartingaleDis3+MartingaleDis4+MartingaleDis5",
+      "used_by": "MartingaleTrading buy level 5"
+    },
+    {
+      "name": "Martingale buy volume at level N",
+      "formula": "VOL * MartingaleVolumeMultiplier^N (normalized to 2 decimals)",
+      "used_by": "MartingaleTrading buy orders"
+    },
+    {
+      "name": "Cumulative sell distance level N",
+      "formula": "Same cumulative pattern as buy side",
+      "used_by": "MartingaleTrading sell levels 1-5"
+    },
+    {
+      "name": "Martingale sell volume at level N",
+      "formula": "VOL * MartingaleVolumeMultiplier^N (normalized to 2 decimals)",
+      "used_by": "MartingaleTrading sell orders"
+    },
+    {
+      "name": "Total buy profit",
+      "formula": "Sum of Profit() for all buy positions matching Symbol_Name",
+      "used_by": "MartingaleClosePos buy close decision"
+    },
+    {
+      "name": "Total sell profit",
+      "formula": "Sum of Profit() for all sell positions matching Symbol_Name",
+      "used_by": "MartingaleClosePos sell close decision"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "PriceOpen - PriceCurrent",
+        "right": "CumulativeDistance * Point()",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "PriceCurrent - PriceOpen",
+        "right": "CumulativeDistance * Point()",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Close all buy positions when cumulative buy profit >= MartingaleTakeProfit ($200) or <= MartingaleStopLoss (-$500)",
+      "Close all sell positions when cumulative sell profit >= MartingaleTakeProfit ($200) or <= MartingaleStopLoss (-$500)",
+      "No individual SL/TP on positions - exit is purely portfolio-level based on aggregate profit/loss"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0,
+    "params": {
+      "volume_multiplier": 2,
+      "max_martingale_levels": 4,
+      "level_distances_pips": [
+        300,
+        400,
+        500,
+        600,
+        700
+      ],
+      "initial_volume_source": "VOL (global variable, uninitialized at declaration)"
+    },
+    "max_positions": 5,
+    "conditional_logic": "Volume doubles (MartingaleVolumeMultiplier=2) at each level. Level 1 uses current position volume as base, subsequent levels multiply previous BMartingaleVol/SMartingaleVol by multiplier. BCount/SCount track levels separately for buy/sell. Max levels capped by MargingaleNum (default 4) and hard-coded limit of 5."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "This is a martingale grid EA with no signal-based entry. It has no initial trade opening logic - it only manages existing losing positions by adding more volume at distance levels. The VOL global variable is never initialized in OnInit(), meaning initial lot size depends on the VOL global variable's default (0.0), which is a critical bug. The EA iterates all positions every tick checking distance from open price to trigger additional martingale levels. BCount and SCount are never reset on position close except inside MartingaleClosePos, but they are global variables that persist across ticks. Position distance checks use Point() without any digit adjustment for 5-digit brokers. The distance inputs are in 'pips' comments but multiplied by Point() directly, meaning they behave as points not pips - on 5-digit brokers the actual pip distance would be 10x smaller than intended.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Martingale with portfolio-level P/L exits requires real-time position iteration and cumulative profit tracking. Volume multiplication chain is stateful (BMartingaleVol/SMartingaleVol carry forward). No initial entry logic exists - EA only adds to existing losing positions. VOL is uninitialized (defaults to 0.0) making the EA non-functional without external initialization. The Point() vs pips confusion must be resolved for correct distance calculations in Python. Position gate logic uses BCount/SCount counters that are per-session, not per-position-set, creating state management complexity for Python backtesting.",
+  "extraction_timestamp": "2026-05-14T10:25:15.639569",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 83.75558471679688,
+    "cost": 0
+  }
+}

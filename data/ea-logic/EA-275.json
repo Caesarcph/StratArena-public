@@ -1,0 +1,165 @@
+{
+  "ea_id": "EA-275",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iStochastic). Simple entry/exit rules with fixed SL/TP. Position sizing is deposit-fraction based but straightforward. Single include (Trade.mqh) is standard MQL5 trade class, not custom logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Moving Average (SMA)",
+      "params": {
+        "period": 76,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Stochastic",
+      "name": "Stochastic Oscillator",
+      "params": {
+        "k_period": 5,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "EMA",
+        "applied_to": "STO_CLOSECLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Dynamic lot size from free margin",
+      "formula": "AccountInfoDouble(ACCOUNT_FREEMARGIN)/100000*50",
+      "used_by": "position_sizing Money_M()"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "MA[0]<MA[1] && MA[1]<MA[2] (MA rising over 3 bars)",
+        "right": "Ask > MA[0] (price above MA)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Stoch[1]>Stoch[2] (Stochastic rising)",
+        "right": "Stoch[0]<30 (below oversold)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "MA[0]>MA[1] && MA[1]>MA[2] (MA falling over 3 bars)",
+        "right": "Bid < MA[0] (price below MA)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Stoch[1]<Stoch[2] (Stochastic falling)",
+        "right": "Stoch[0]>70 (above overbought)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 35,
+      "params": {
+        "raw_input": 0.0035
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 70,
+      "params": {
+        "raw_input": 0.007
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "SL/TP set at order open time only, no dynamic exit logic"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.0005,
+    "params": {
+      "free_margin_divisor": 100000,
+      "multiplier": 50,
+      "min_lots": 0.1,
+      "max_lots": 15
+    },
+    "max_positions": 1,
+    "conditional_logic": "Lots = FreeMargin / 100000 * 50, clamped to [0.1, 15]. Normalization: <0.1→2 decimals, <1→1 decimal, >=1→0 decimals. Note: the Lots<0.1 branch is unreachable due to MathMax(0.1,Lots) clamp."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "SL/TP input values are in absolute price terms (0.0035/0.007) not pips — they are added/subtracted directly from Ask/Bid without _Point multiplication. This assumes a specific symbol (likely EURUSD 5-digit) where 0.0035=35 pips. The buy condition checks Stoch[0]<30 AND Stoch[1]>Stoch[2] which is a rising stochastic exiting oversold. The sell condition checks Stoch[0]>70 AND Stoch[1]<Stoch[2] which is a falling stochastic exiting overbought. MA direction uses 3-bar confirmation (MA[0]<MA[1]<MA[2] for rising). The input Lot=5 is unused — Money_M() calculates dynamic lots instead.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "SL/TP are absolute price offsets (not pip-based), must convert to pip-based or keep as price offsets depending on target framework. Money_M() logic is self-contained and portable. No new-bar guard means signals fire every tick while conditions hold — needs throttling in Python (once-per-bar or cooldown). Stochastic uses main line (buffer 0) only. MA uses main line (buffer 0). CopyBuffer reads 3 values [0..2] for both indicators — Python equivalent needs 3-bar lookback for trend confirmation. Position check uses PositionSelect(_Symbol) — single-symbol single-position model.",
+  "extraction_timestamp": "2026-05-14T07:12:06.823278",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 157.2484836578369,
+    "cost": 0
+  }
+}

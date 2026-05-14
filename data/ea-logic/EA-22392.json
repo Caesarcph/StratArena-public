@@ -1,0 +1,182 @@
+{
+  "ea_id": "EA-22392",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses multiple custom indicators (BrainTrend2, AbsolutelyNoLagLwma, X2MACandle) via iCustom calls, plus complex money management with recovery (MMRec) logic requiring external .mqh libraries",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BrainTrend2",
+      "params": {
+        "period": 7,
+        "atr_period": 14
+      },
+      "source": "custom",
+      "library": "BrainTrend2.mq5",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "AbsolutelyNoLagLwma",
+      "params": {
+        "period": 14,
+        "method": "LWMA",
+        "applied_to": "close"
+      },
+      "source": "custom",
+      "library": "AbsolutelyNoLagLwma.mq5",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "X2MACandle",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "custom",
+      "library": "X2MACandle.mq5",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Money management recovery lot size",
+      "formula": "Lot*N where N is recovery multiplier based on consecutive losses",
+      "used_by": "position_sizing"
+    },
+    {
+      "name": "Digit-adjusted SL/TP values",
+      "formula": "SL*Point*(Digits==5||Digits==3?10:1)",
+      "used_by": "exit_rules stop_loss and take_profit"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "BrainTrend2 signal",
+        "right": "AbsolutelyNoLagLwma direction",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "and_combination",
+        "left": "X2MACandle color",
+        "right": "AbsolutelyNoLagLwma direction",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "BrainTrend2 signal",
+        "right": "AbsolutelyNoLagLwma direction",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "and_combination",
+        "left": "X2MACandle color",
+        "right": "AbsolutelyNoLagLwma direction",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "input_param": "StopLoss"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "input_param": "TakeProfit"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite position on signal reversal (MMRec pattern closes and reverses)",
+      "Money management recovery may force early exits to recover losses"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "recovery_multiplier": 2.0,
+      "max_recovery_steps": 5
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMRec: negative StopLoss value=fixed lots, positive=risk_percent of deposit; after loss, lot size multiplied by recovery factor to recoup previous loss"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "MMRec (Money Management Recovery) system: after a losing trade, the EA increases lot size by a recovery multiplier to recoup the previous loss on the next trade. The recovery factor and max recovery steps are configurable. BrainTrend2 provides trend direction, AbsolutelyNoLagLwma provides smoothed trend confirmation with zero-lag weighting, X2MACandle provides candle-based MACD color signals. All three must align for entry. On signal reversal, the EA closes the current position and opens in the new direction.",
+  "external_dependencies": [
+    "BrainTrend2.mq5",
+    "AbsolutelyNoLagLwma.mq5",
+    "X2MACandle.mq5",
+    "Exp_BrainTrend2_AbsolutelyNoLagLwma_X2MACandle_MMRec.mq5"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Three custom indicators must be reimplemented in Python: BrainTrend2 (ATR-based trend detection with dynamic stops), AbsolutelyNoLagLwma (zero-lag weighted moving average using cyclic buffer of LWMA values), and X2MACandle (MACD histogram rendered as candle colors). The MMRec recovery lot sizing needs careful implementation with state tracking of consecutive losses and cumulative loss recovery targets. Digit adjustment logic (5-digit broker SL/TP scaling) must be handled. Signal logic uses previous bar values [1] for all three indicators to avoid repainting.",
+  "extraction_timestamp": "2026-05-14T02:20:10.069690",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 130.95677208900452,
+    "cost": 0
+  }
+}

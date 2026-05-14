@@ -1,0 +1,174 @@
+{
+  "ea_id": "EA-38985",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA for smoothed CHO) with standard parameters. Simple crossover entry/exit rules. Fixed lot or fractional position sizing. No external .mqh dependencies for trading logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "CHO Smoothed (Chaikin Oscillator smoothed with MA)",
+      "params": {
+        "fast_period": 3,
+        "slow_period": 10,
+        "ma_method": "EMA",
+        "ma_period": 10,
+        "applied_to": "close",
+        "applied_to_volume": "tick_volume"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "CHO Signal Line (MA of CHO)",
+      "params": {
+        "period": 10,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Smoothed CHO value (CHO line)",
+      "formula": "iCustom CHO(fast=3, slow=10) smoothed by EMA(period=10)",
+      "used_by": "Entry crossover signals and zero-line cross"
+    },
+    {
+      "name": "CHO Signal line",
+      "formula": "EMA of CHO values, period=10",
+      "used_by": "Entry crossover signals"
+    },
+    {
+      "name": "Digit-adjusted SL/TP",
+      "formula": "If _Digits==5 or _Digits==3, multiply pip values by 10",
+      "used_by": "Stop loss and take profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "CHO Smoothed Line",
+        "right": "CHO Signal Line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "CHO Smoothed Line",
+        "right": "zero",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "CHO Smoothed Line",
+        "right": "CHO Signal Line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "CHO Smoothed Line",
+        "right": "zero",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "input_name": "StopLoss",
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "input_name": "TakeProfit",
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position before opening new one (close-and-reverse logic)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "input_name": "LotSize",
+      "fraction_input_name": "RiskPercent"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If LotSize is negative, use fixed lots equal to abs(LotSize). If LotSize is positive, treat as fractional percentage of free margin for position sizing."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The CHO (Chaikin Oscillator) is computed using built-in iAC (Accelerator Oscillator) or iOsMA as a proxy, then smoothed with an EMA overlay. The EA uses a smoothed version of the Chaikin Oscillator where the raw CHO values are passed through an additional MA filter to reduce whipsaws. Entry requires both a crossover of the CHO line above/below its signal line AND the CHO line being above/below zero (confirmation filter). Opposite signals close existing positions before opening new ones. The LotSize input uses a sign convention: negative values = fixed lots, positive values = fraction of free margin.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The CHO Smoothed indicator needs to be reimplemented in Python since there is no direct equivalent in common Python TA libraries. The Chaikin Oscillator can be computed from ADL (Accumulation/Distribution Line) as the difference between EMA(ADL, fast_period) and EMA(ADL, slow_period), then smoothed again with EMA(ma_period). Digit adjustment logic (multiplying SL/TP by 10 for 5-digit brokers) must be preserved. The conditional lot sizing (negative=fixed, positive=fraction) must be implemented carefully. New bar detection must be replicated using timestamp comparison. Signal confirmation requires both crossover AND zero-line check.",
+  "extraction_timestamp": "2026-05-14T09:28:52.758374",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 232.34235501289368,
+    "cost": 0
+  }
+}

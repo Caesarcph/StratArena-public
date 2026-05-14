@@ -1,0 +1,229 @@
+{
+  "ea_id": "EA-23628",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iRSI, iMACD, iATR) with standard parameters. Simple entry/exit rules based on moving average crossovers and RSI filtering. Fixed lot position sizing with ATR-based SL/TP. No external .mqh libraries. No grid, martingale, or hedging logic.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 8,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 21,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Trend EMA",
+      "params": {
+        "period": 50,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ATR-based Stop Loss distance",
+      "formula": "ATR*StopLossATRMultiplier",
+      "used_by": "exit_rules.stop_loss"
+    },
+    {
+      "name": "ATR-based Take Profit distance",
+      "formula": "ATR*TakeProfitATRMultiplier",
+      "used_by": "exit_rules.take_profit"
+    },
+    {
+      "name": "Digit-adjusted point value",
+      "formula": "_Point*(Digits==5||Digits==3?10:1)",
+      "used_by": "SL/TP pip calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "Close",
+        "right": "Trend EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "RSI",
+        "right": "RSI_Oversold",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "Close",
+        "right": "Trend EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "RSI",
+        "right": "RSI_Overbought",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": 0,
+      "params": {
+        "atr_period": 14,
+        "multiplier": 1.5
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": 0,
+      "params": {
+        "atr_period": 14,
+        "multiplier": 2.0
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite position on signal reversal before entering new trade"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses 'Back kick' reversal strategy - enters on EMA crossover pullbacks after trend confirmation. Trend EMA (50-period) acts as directional filter. RSI used as momentum confirmation to avoid entering during extreme overbought/oversold conditions. Opposite positions are closed before new entries (signal_reversal_close). MACD histogram used as secondary confirmation for momentum divergence.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward conversion. All indicators are standard (EMA, RSI, MACD, ATR) available in pandas-ta or ta-lib. ATR-based SL/TP is a simple multiplier. Digit adjustment logic (_Point*10 for 5-digit) translates to checking symbol_info.digits in Python. New bar detection requires tracking last_bar time. Spread filter requires symbol_info.spread check. No custom indicators or external dependencies to replicate.",
+  "extraction_timestamp": "2026-05-14T06:11:17.166882",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 195.40314960479736,
+    "cost": 0
+  }
+}

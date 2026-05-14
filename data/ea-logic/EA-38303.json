@@ -1,0 +1,133 @@
+{
+  "ea_id": "EA-38303",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Grid strategy with dynamic pending order management, martingale-like lot increase on loss, and margin-dependent position sizing. Grid EAs require MT5's pending order infrastructure and real-time tick-level grid level management that cannot be reliably backtested or replicated in Python bar-based frameworks.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Moving Average",
+      "params": {
+        "period": 14,
+        "method": "SMA",
+        "applied_to": "CLOSE",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Grid step distance from current price for pending orders",
+      "formula": "GridStep * _Point",
+      "used_by": "pending order placement levels"
+    },
+    {
+      "name": "Lot size increase on consecutive losses",
+      "formula": "Lot * MathPow(LotMultiplier, ConsecutiveLosses)",
+      "used_by": "position_sizing after losing trade"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Price",
+        "right": "Moving Average",
+        "direction": "above",
+        "order_type": "pending",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Price",
+        "right": "Moving Average",
+        "direction": "below",
+        "order_type": "pending",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Grid levels act as take-profit via opposite-side pending orders closing open positions"
+    ]
+  },
+  "position_sizing": {
+    "type": "grid",
+    "value": 0.1,
+    "params": {
+      "lot_multiplier": 1.5,
+      "grid_levels": 5,
+      "grid_step_pips": 50
+    },
+    "max_positions": 10,
+    "conditional_logic": "Initial lot=Lot; after loss, next lot=Lot*MathPow(LotMultiplier,ConsecutiveLosses); grid adds positions at each GridStep interval"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Grid EA places Buy Stop and Sell Stop pending orders at GridStep intervals above and below current price. Uses Moving Average as trend filter to bias grid direction. On losing trade, lot size increases by LotMultiplier factor (martingale component). Margin check prevents over-leveraging. Pending orders are re-etched every bar to adjust grid levels to current price. SL/TP may use 5-digit adjustment depending on broker digits.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Grid strategies with pending orders and martingale lot scaling are fundamentally MT5-only. The pending order grid management, real-time level re-etching, and margin-dependent sizing require tick-level execution simulation. A Python conversion would need a full order book simulator with pending order queue, which is impractical for bar-based backtesting. Recommend keeping in MT5 or converting only the signal logic portion while rebuilding grid management from scratch.",
+  "extraction_timestamp": "2026-05-14T09:19:23.778429",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 135.99154329299927,
+    "cost": 0
+  }
+}

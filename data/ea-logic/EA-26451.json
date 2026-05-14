@@ -1,0 +1,181 @@
+{
+  "ea_id": "EA-26451",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "EA uses custom range breakout logic with dynamic support/resistance levels calculated from bar highs/lows over a lookback period, not a standard built-in indicator. The breakout detection and pending order management require careful manual translation. Multi-step pending order placement with expiration adds complexity beyond simple market entry.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Range High (Resistance)",
+      "params": {
+        "period": "RangePeriods input",
+        "method": null,
+        "applied_to": null
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "RangePeriods (input parameter, number of bars to find highest high)"
+    },
+    {
+      "type": "Custom",
+      "name": "Range Low (Support)",
+      "params": {
+        "period": "RangePeriods input",
+        "method": null,
+        "applied_to": null
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "RangePeriods (input parameter, number of bars to find lowest low)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Range High - highest high over RangePeriods bars",
+      "formula": "iHighest(Symbol, Timeframe, MODE_HIGH, RangePeriods, 1) then iHigh at that bar",
+      "used_by": "Buy stop entry price, Sell SL"
+    },
+    {
+      "name": "Range Low - lowest low over RangePeriods bars",
+      "formula": "iLowest(Symbol, Timeframe, MODE_LOW, RangePeriods, 1) then iLow at that bar",
+      "used_by": "Sell stop entry price, Buy SL"
+    },
+    {
+      "name": "Range width in points",
+      "formula": "(RangeHigh - RangeLow) / _Point",
+      "used_by": "Breakout distance and TP calculation"
+    },
+    {
+      "name": "Buy Stop Entry Price",
+      "formula": "RangeHigh + BreakoutDistance * _Point",
+      "used_by": "Pending buy stop order"
+    },
+    {
+      "name": "Sell Stop Entry Price",
+      "formula": "RangeLow - BreakoutDistance * _Point",
+      "used_by": "Pending sell stop order"
+    },
+    {
+      "name": "Buy Take Profit",
+      "formula": "BuyEntry + TakeProfit * _Point",
+      "used_by": "Buy stop order TP"
+    },
+    {
+      "name": "Sell Take Profit",
+      "formula": "SellEntry - TakeProfit * _Point",
+      "used_by": "Sell stop order TP"
+    },
+    {
+      "name": "Buy Stop Loss",
+      "formula": "BuyEntry - StopLoss * _Point",
+      "used_by": "Buy stop order SL"
+    },
+    {
+      "name": "Sell Stop Loss",
+      "formula": "SellEntry + StopLoss * _Point",
+      "used_by": "Sell stop order SL"
+    },
+    {
+      "name": "Order Expiration Time",
+      "formula": "TimeCurrent() + ExpirationHours * 3600",
+      "used_by": "Pending order expiration"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Current Price",
+        "right": "Range High + BreakoutDistance",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Current Price",
+        "right": "Range Low - BreakoutDistance",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": "StopLoss input parameter",
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": "TakeProfit input parameter",
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Pending orders expire after ExpirationHours if not filled",
+      "Pending orders are deleted and recalculated each new bar if range levels change"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": "Lots input parameter",
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Range Breakout EA identifies a consolidation range using highest high and lowest low over RangePeriods bars (starting from bar [1], excluding current bar). On each new bar, it recalculates the range levels, deletes any existing pending orders, and places fresh Buy Stop and Sell Stop orders at the range boundaries offset by BreakoutDistance points. Each pending order has SL/TP in fixed points from the entry price and an expiration time. The EA only places new pending orders when no market position is currently open. This is a classic breakout strategy that trades the breakout direction after price consolidates in a range.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1. The range detection logic (highest high / lowest low over N bars excluding current) is straightforward to replicate with pandas rolling max/min. 2. Pending order management (place, delete, expire) needs to be modeled carefully - on each new bar, cancel old pending orders and place new ones at updated range levels. 3. Expiration of pending orders must be tracked - unfilled orders after ExpirationHours should be removed. 4. Position gate check (no existing position before placing pending orders) must be implemented. 5. SL/TP values are in points (not pips) - ensure proper conversion based on symbol digits. 6. The BreakoutDistance offset from range boundaries is key - the pending order entry is NOT at the range boundary itself but offset by BreakoutDistance points beyond it. 7. Backtesting must model pending order fills: buy stop fills when ask >= buy stop price, sell stop fills when bid <= sell stop price.",
+  "extraction_timestamp": "2026-05-14T07:02:12.211570",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 144.85427594184875,
+    "cost": 0
+  }
+}

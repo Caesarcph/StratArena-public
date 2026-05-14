@@ -1,0 +1,205 @@
+{
+  "ea_id": "EA-25774",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "EA uses iCustom indicators (GSPC and TrendAid) which are external custom indicators not available as built-in MT5 functions, requiring manual recreation of indicator logic in Python.",
+  "symbol": "GBPCHF",
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "GSPC",
+      "params": {
+        "Periods": 4,
+        "FastMA": 5,
+        "SlowMA": 34
+      },
+      "source": "custom",
+      "library": "GSPC.ex5",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "TrendAid",
+      "params": {
+        "Periods": 4,
+        "FastMA": 5,
+        "SlowMA": 34
+      },
+      "source": "custom",
+      "library": "TrendAid.ex5",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 5,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 34,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Digit-adjusted SL pips",
+      "formula": "SL*10 when _Digits==5 or _Point<0.001",
+      "used_by": "stop_loss calculation"
+    },
+    {
+      "name": "Digit-adjusted TP pips",
+      "formula": "TP*10 when _Digits==5 or _Point<0.001",
+      "used_by": "take_profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA (5)",
+        "right": "Slow EMA (34)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "GSPC indicator buffer 0",
+        "right": "zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "TrendAid indicator",
+        "right": "bullish confirmation",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA (5)",
+        "right": "Slow EMA (34)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "GSPC indicator buffer 0",
+        "right": "zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "TrendAid indicator",
+        "right": "bearish confirmation",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "adjusted_for_5digit": 310
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "adjusted_for_5digit": 690
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite position on signal reversal before opening new position"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Negative Lots value = fixed lot size (absolute value used); Positive Lots value = fraction of free margin (Lots/100 * FreeMargin / ContractSize / Leverage)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Uses two custom indicators (GSPC and TrendAid) loaded via iCustom. GSPC appears to be a signal generator combining momentum and MA crossover logic. TrendAid is a trend filter/confirmation indicator. Both share the same Periods/FastMA/SlowMA input parameters. Entry requires all three conditions aligned: EMA crossover direction, GSPC signal direction, and TrendAid trend confirmation. On reversal signal, the EA closes existing opposite position before opening new one. Position sizing has dual mode: negative input = fixed lots, positive input = margin-based fractional sizing.",
+  "external_dependencies": [
+    "GSPC.ex5",
+    "TrendAid.ex5"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must reverse-engineer or obtain source code for GSPC and TrendAid custom indicators to replicate in Python. Without these, the EA cannot be auto-converted. The dual position-sizing mode (fixed vs margin-fractional) requires careful handling. The 5-digit adjustment logic (multiplying SL/TP by 10) must be adapted for Python where price precision is native. The new-bar guard logic translates to checking bar timestamp changes. EMA crossover is trivial with pandas-ta or ta-lib, but custom indicator buffers need full algorithm replication.",
+  "extraction_timestamp": "2026-05-14T06:48:10.767461",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 133.00347924232483,
+    "cost": 0
+  }
+}

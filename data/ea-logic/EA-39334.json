@@ -1,0 +1,169 @@
+{
+  "ea_id": "EA-39334",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses pending order management with expiration, complex order placement logic with freeze/stops level checks, time-based order control, InpPendingClosePrevious deletes-then-places pattern, and CMoneyFixedMargin money management class. Pending order lifecycle and broker-level checks add significant complexity beyond simple signal-to-trade conversion.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "DeMarker",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "m_stop_loss (price distance)",
+      "formula": "InpStopLoss * _Point",
+      "used_by": "Stop Loss for pending orders and position modification"
+    },
+    {
+      "name": "m_take_profit (price distance)",
+      "formula": "InpTakeProfit * _Point",
+      "used_by": "Take Profit for pending orders"
+    },
+    {
+      "name": "m_trailing_activate (price distance)",
+      "formula": "InpTrailingActivate * _Point",
+      "used_by": "Trailing stop activation threshold"
+    },
+    {
+      "name": "m_trailing_stop (price distance)",
+      "formula": "InpTrailingStop * _Point",
+      "used_by": "Trailing stop distance from current price"
+    },
+    {
+      "name": "m_trailing_step (price distance)",
+      "formula": "InpTrailingStep * _Point",
+      "used_by": "Trailing stop modification step"
+    },
+    {
+      "name": "m_pending_indent (price distance)",
+      "formula": "InpPendingIndent * _Point",
+      "used_by": "Pending order price offset from current price"
+    },
+    {
+      "name": "m_pending_max_spread (price distance)",
+      "formula": "InpPendingMaxSpread * _Point",
+      "used_by": "Maximum allowed spread filter for pending order placement"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "below",
+        "left": "DeMarker[bar_current]",
+        "right": "Inp_DeM_LevelDown (0.3)",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_same_side_pending"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "DeMarker[bar_current]",
+        "right": "Inp_DeM_LevelUp (0.7)",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side_pending"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 150,
+      "params": {
+        "price_basis": "relative_to_pending_order_price"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 460,
+      "params": {
+        "price_basis": "relative_to_pending_order_price"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 250,
+      "params": {
+        "trail_start_pips": 70,
+        "trail_step_pips": 50
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Target Profit close: if InpTargetProfit>0 and cumulative position profit >= InpTakeProfit (likely a bug, compares money profit to pips TP), closes all positions and deletes all pending orders",
+      "InpPendingClosePrevious: when a new signal fires, optionally deletes all existing pending orders before placing new ones",
+      "Pending order expiration: orders expire after InpPendingExpiration minutes (default 600) if >0"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 3.0,
+    "params": {
+      "risk_mode": "CMoneyFixedMargin",
+      "risk_range": "1.0 to 100.0 percent"
+    },
+    "max_positions": 0,
+    "conditional_logic": "InpLotOrRisk selects mode: lots_min=minimum allowed lot, lot=fixed lots at InpVolumeLotOrRisk, risk=CMoneyFixedMargin (risk percent for deal using InpVolumeLotOrRisk as percentage). Risk mode calculates lot via CheckOpenLong/CheckOpenShort with SL distance."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 12
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 10,
+      "end_hour": 15
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 10,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Pending order type controlled by InpTradeMode: stop=BUY_STOP/SELL_STOP, limit=BUY_LIMIT/SELL_LIMIT. One deal per bar per direction enforced via m_last_deal_buy_in/m_last_deal_sell_in timestamps. InpPendingOnlyOne flag prevents new pending if one already exists. InpTrailingBarCurrent controls whether trailing runs at every tick (bar_0) or only on new bar (bar_1). Freeze/Stops level coefficients applied via InpFreezeCoefficient. LotsLimit check sums volumes of all positions and pending orders before placing new order. Account LimitOrders check before placing pending. Bug: Target profit check compares ProfitAllPositions() (money) against InpTakeProfit (pips value).",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh",
+    "Trade\\DealInfo.mqh",
+    "Trade\\OrderInfo.mqh",
+    "Expert\\Money\\MoneyFixedMargin.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Key challenges: (1) Pending order lifecycle management with expiration, freeze/stops level validation, and conditional deletion of previous orders. (2) CMoneyFixedMargin lot sizing requires replication of margin-check logic. (3) The InpTradeMode toggle between stop and limit pending types changes order direction relative to price. (4) One-deal-per-bar guard uses OnTradeTransaction to track deal entry times. (5) Trailing stop has activate threshold + step logic. (6) Spread filter on pending order placement only. (7) Time control supports both intraday and cross-midnight intervals. (8) Note the probable bug where TargetProfit (money) is compared against InpTakeProfit (pips) - may need decision on whether to preserve or fix.",
+  "extraction_timestamp": "2026-05-14T09:42:44.120143",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 195.76913714408875,
+    "cost": 0
+  }
+}

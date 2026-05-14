@@ -1,0 +1,146 @@
+{
+  "ea_id": "EA-2277",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for VolatilityPivot indicator and depends on external TradeAlgorithms.mqh library for position management and money management, requiring manual recreation of both custom indicator and trading functions.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "VolatilityPivot",
+      "params": {
+        "atr_range": 100,
+        "ima_range": 10,
+        "atr_factor": 3,
+        "IndMode": 0,
+        "DeltaPrice": 200
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total when Mode_ATR",
+      "formula": "atr_range+ima_range+1",
+      "used_by": "BarsCalculated check and bar sufficiency check"
+    },
+    {
+      "name": "min_rates_total when Mode_Price",
+      "formula": "3",
+      "used_by": "BarsCalculated check and bar sufficiency check"
+    },
+    {
+      "name": "min_rates_total final",
+      "formula": "min_rates_total+3+SignalBar",
+      "used_by": "BarsCalculated check and bar sufficiency check"
+    },
+    {
+      "name": "TimeShiftSec",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "Signal time calculation for position open"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "VolatilityPivot buffer 2 (UpSignal)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "VolatilityPivot buffer 3 (DnSignal)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when VolatilityPivot buffer 0 (UpTrend) is non-zero and not EMPTY_VALUE in absence of UpSignal",
+      "Short position closed when VolatilityPivot buffer 1 (DnTrend) is non-zero and not EMPTY_VALUE in absence of DnSignal",
+      "Direction reversal: when Direct=FalshDirect (against signal), Up/Dn buffers are swapped so indicator downtrend signals trigger buys and uptrend signals trigger sells"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "margin_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM input is share of deposit (0.1=10%). MMMode selects calculation method: FREEMARGIN uses free margin, BALANCE uses account balance, LOSSFREEMARGIN uses loss share of free margin, LOSSBALANCE uses loss share of balance, LOT uses fixed lot size. Default is LOT mode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The Direct enum flips the interpretation of indicator buffers: TrueDirect uses buffer 0 for UpTrend and buffer 1 for DnTrend (normal), while FalshDirect swaps them (buffers 1->UpTrend, 0->DnTrend) effectively trading against the indicator signal. Signal time is calculated as SERIES_LASTBAR_DATE + TimeShiftSec for expiry-based position opening. The Recount flag ensures signal recalculation on failure. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose boolean inputs act as permission gates for each trade direction and action.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Requires recreation of the VolatilityPivot custom indicator (4 buffers: UpTrend, DnTrend, UpSignal, DnSignal) which internally uses ATR and MA calculations. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and LoadHistory functions - all must be reimplemented. The Direct enum reverses buffer mapping which must be preserved. Signal time tracking (UpSignalTime/DnSignalTime) appears to be used as expiry for pending-style opens within the TradeAlgorithms framework. The CIsNewBar class for new bar detection also comes from TradeAlgorithms.mqh. SL/TP are in points (not pips) so no digit adjustment needed, but pip-to-point conversion may be needed for Python if using pip-based frameworks.",
+  "extraction_timestamp": "2026-05-14T03:22:54.174537",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 128.16465020179749,
+    "cost": 0
+  }
+}

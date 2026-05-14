@@ -1,0 +1,149 @@
+{
+  "ea_id": "EA-2306",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'ColorTSI-Oscillator' custom indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing algorithms. Custom indicator buffers require manual recreation in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorTSI-Oscillator",
+      "params": {
+        "First_Method": 0,
+        "First_Length": 12,
+        "First_Phase": 15,
+        "Second_Method": 0,
+        "Second_Length": 12,
+        "Second_Phase": 15,
+        "IPC": 1,
+        "Shift": 0,
+        "TriggerShift": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "GetStartBars(First_Method,First_Length,First_Phase)+GetStartBars(Second_Method,Second_Length,Second_Phase)+TriggerShift+3+SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required for indicator calculation",
+      "formula": "GetStartBars(First_Method,First_Length,First_Phase)+1+GetStartBars(Second_Method,Second_Length,Second_Phase)+TriggerShift+3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - chart period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade timing"
+    },
+    {
+      "name": "UpSignalTime - timestamp for long entry signal",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "BuyPositionOpen"
+    },
+    {
+      "name": "DnSignalTime - timestamp for short entry signal",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "SellPositionOpen"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorTSI-Oscillator Buffer 0 (Indicator line)",
+        "right": "ColorTSI-Oscillator Buffer 1 (Signal line)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ColorTSI-Oscillator Buffer 0 (Indicator line)",
+        "right": "ColorTSI-Oscillator Buffer 1 (Signal line)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: sell signal closes long (if BuyPosClose=true), buy signal closes short (if SellPosClose=true). Closing is permission-gated by BuyPosClose and SellPosClose input flags."
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM=0.1 is share of deposit. MMMode selects calculation method: FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE, or LOT (fixed lot). Default MMMode=LOT means MM is treated as fixed lot size."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal detection uses two-bar comparison: Ind[1] vs Sign[1] (previous confirmed bar) and Ind[0] vs Sign[0] (current forming bar). Buy triggers when Ind[1]>Sign[1] (indicator was above signal on previous bar) AND Ind[0]<=Sign[0] (crossover just happened on current bar). Sell is the mirror. SignalBar input (default=1) determines which bar index is used for data copy. When SignalBar==0, the new-bar guard is bypassed and signals are recalculated every tick. The Recount flag triggers re-read of indicator buffers on failure. Trade functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) are from TradeAlgorithms.mqh and handle all order execution internally. GlobalVariableDel_ is called on deinit for cleanup.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Must recreate the ColorTSI-Oscillator custom indicator in Python. It is a TSI (True Strength Index) oscillator with dual smoothing (First_Method/Second_Method supporting SMA/EMA/SMMA/LWMA/JJMA/JurX/ParMA/T3/VIDYA/AMA). The smoothing algorithms from SmoothAlgorithms.mqh (JJMA, JurX, ParMA, T3, VIDYA, AMA) are non-standard and require faithful porting. Entry logic is a crossover system on SignalBar-shifted buffers. The TradeAlgorithms.mqh functions handle position opening/closing with SL/TP, deviation, and money management - these must be reimplemented. Note that SL/TP are in points (not pips), and no digit-adjustment is performed, so on 5-digit brokers the user must account for this in input values. The entry crossover logic uses Ind[0]<=Sign[0] (not strictly crossing, but less-than-or-equal on the current bar relative to previous bar's above state), which is a specific pattern to verify carefully.",
+  "extraction_timestamp": "2026-05-14T04:24:38.715547",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 154.23915696144104,
+    "cost": 0
+  }
+}

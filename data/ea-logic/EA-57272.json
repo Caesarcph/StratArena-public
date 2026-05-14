@@ -1,0 +1,121 @@
+{
+  "ea_id": "EA-57272",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Triangular arbitrage requires simultaneous multi-symbol execution with tick-level latency sensitivity, broker-specific symbol chain configuration, and real-time spread/commission tracking across three currency pairs. This is fundamentally dependent on MT5's simultaneous market order execution and cannot be reliably replicated in a backtesting/Python context without tick-level multi-symbol data and co-located execution.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Synthetic price of cross pair derived from two leg pairs (e.g. EURUSD * USDJPY = EURJPY synthetic)",
+      "formula": "Leg1_price * Leg2_price (or Leg1_price / Leg2_price depending on pair chain)",
+      "used_by": "Arbitrage detection and entry signal"
+    },
+    {
+      "name": "Price discrepancy between synthetic and actual cross pair",
+      "formula": "synthetic_cross_price - actual_cross_price",
+      "used_by": "Entry and exit decision logic"
+    },
+    {
+      "name": "Net profit after spreads and commissions for all three legs",
+      "formula": "discrepancy - (spread_leg1 + spread_leg2 + spread_leg3 + commission_total)",
+      "used_by": "Trade viability filter (minimum profit threshold)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Synthetic cross price",
+        "right": "Actual cross price",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Synthetic cross price",
+        "right": "Actual cross price",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": null,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": null,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close all three leg positions simultaneously when arbitrage discrepancy reverses or narrows below profitability threshold",
+      "Timeout-based exit if arbitrage opportunity vanishes before all three fills complete"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "Lot sizes must be synchronized across all three legs to maintain notional value neutrality (e.g. EURUSD lot * EURUSD notional = USDJPY lot * USDJPY notional = EURJPY lot * EURJPY notional)"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Triangular arbitrage EA monitors three currency pairs forming a triangle (e.g. EURUSD, USDJPY, EURJPY). It computes a synthetic cross rate from two legs and compares it to the actual market rate of the third leg. When the discrepancy exceeds transaction costs (spreads + commissions on all three trades), it simultaneously opens three market orders: two in one direction and one in the opposite direction to capture the mispricing. All three positions must be opened atomically; partial fills create directional risk. The EA likely includes configurable symbol chain inputs (3 pairs), minimum profit threshold in pips/points, lot synchronization logic, and commission/spread deduction. Exit occurs when the arbitrage window closes (prices converge). This strategy is latency-sensitive and typically only profitable with low-spread ECN accounts and co-located VPS. Backtesting is unreliable because triangular arbitrage opportunities are transient and depend on tick-level simultaneous multi-symbol pricing.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Not recommended for Python backtesting conversion. Triangular arbitrage requires: (1) synchronized tick-level data for 3 symbols simultaneously, (2) realistic spread/commission modeling for all 3 legs, (3) execution latency simulation - even 50ms delay eliminates most opportunities, (4) atomic multi-symbol order execution which most backtesting frameworks cannot model. If attempted, use a tick-data backtester with multi-symbol support (e.g. custom vectorbt or backtrader setup with aligned tick feeds). The core logic (synthetic price calculation and discrepancy detection) is straightforward to code, but realistic fill simulation across 3 simultaneous orders is the primary blocker. The EA is fundamentally a live-execution tool, not a backtestable strategy.",
+  "extraction_timestamp": "2026-05-14T11:59:45.209958",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 114.17875552177429,
+    "cost": 0
+  }
+}

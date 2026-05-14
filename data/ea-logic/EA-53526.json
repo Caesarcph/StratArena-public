@@ -1,0 +1,167 @@
+{
+  "ea_id": "EA-53526",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses MQL5 Standard Library Expert framework (CExpert, CExpertSignal, CSignalMACD, CSignalMA, CTrailingMA, CMoneyFixedLot) which encapsulates trading logic in .mqh classes with weighted signal voting and internal position management not directly mappable to simple indicator calls",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MACD",
+      "name": "MACD(12,24,9,PRICE_CLOSE)",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 24,
+        "signal_period": 9,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": "Expert/Signal/SignalMACD.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Moving Average(12,0,SMA,CLOSE)",
+      "params": {
+        "period": 12,
+        "shift": 0,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": "Expert/Signal/SignalMA.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Moving Average(26,0,SMA,CLOSE)",
+      "params": {
+        "period": 26,
+        "shift": 0,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": "Expert/Signal/SignalMA.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Trailing MA(12,0,SMA,CLOSE)",
+      "params": {
+        "period": 12,
+        "shift": 0,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": "Expert/Trailing/TrailingMA.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "CSignalMACD weighted vote",
+        "right": "CSignalMA(12) + CSignalMA(26) weighted votes",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "CSignalMACD weighted vote",
+        "right": "CSignalMA(12) + CSignalMA(26) weighted votes",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 5500,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "indicator_based",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "indicator": "MA(12,SMA,CLOSE)"
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal threshold close: closes position when weighted signal sum reaches -10 (close threshold) in opposite direction",
+      "Pending order expiration after 4 bars"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.06,
+    "params": {
+      "percent": 10.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "CMoneyFixedLot uses fixed lot size (0.06); Percent parameter (10.0) is used as free margin percentage check by the CExpert framework"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "CRITICAL BUG: OnInit() returns INIT_SUCCEEDED at line 81 before any signal, filter, trailing, or money objects are created or configured. Lines 83-213 are dead code that never executes. The EA as written will initialize CExpert with no signal logic and will not trade. The intended logic (lines 83-213) would: create CExpertSignal with threshold open=10 and close=10, add three weighted signal filters (MACD weight=1.0, MA12 weight=1.0, MA26 weight=1.0), set SL=1000 points / TP=5500 points, pending order expiration=4 bars, trailing via MA(12), and fixed lot=0.06. The CExpert framework uses weighted voting: each filter returns a signal strength 0-100, multiplied by its weight, and the sum must exceed the threshold to open/close. Signal_PriceLevel=0.0 means market execution. Expert_EveryTick=false means the CExpert framework processes on new bar only.",
+  "external_dependencies": [
+    "Expert/Expert.mqh",
+    "Expert/Signal/SignalMACD.mqh",
+    "Expert/Signal/SignalMA.mqh",
+    "Expert/Trailing/TrailingMA.mqh",
+    "Expert/Money/MoneyFixedLot.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1. CRITICAL: The source has a fatal bug with early return at line 81 - must implement the INTENDED logic from lines 83-213, not the broken code as-is. 2. The CExpertSignal weighted voting system must be reimplemented: each filter (MACD, MA12, MA26) returns a directional strength (0-100), multiplied by weight, summed, and compared against threshold=10. 3. CSignalMACD logic: buy when MACD histogram crosses above signal line with price above MA; sell on opposite. 4. CSignalMA logic: buy when price crosses above MA, sell when price crosses below MA. Two MA filters with different periods provide trend confirmation. 5. CTrailingMA logic: adjusts SL to follow MA(12) value. 6. SL=1000 points and TP=5500 points are in _Point units - need digit-adjustment check for 5-digit brokers (multiply by 10). 7. Pending orders expire after 4 bars but PriceLevel=0.0 so likely market orders only. 8. The Expert_EveryTick=false means new-bar-only processing - implement a bar-change guard. 9. CMoneyFixedLot uses fixed 0.06 lots with 10% margin check.",
+  "extraction_timestamp": "2026-05-14T11:41:25.521523",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 146.69617438316345,
+    "cost": 0
+  }
+}

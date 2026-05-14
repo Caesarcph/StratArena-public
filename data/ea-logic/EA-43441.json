@@ -1,0 +1,150 @@
+{
+  "ea_id": "EA-43441",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses external .mqh library (Base/BaseFrame.mqh) for core trading framework including MA handling, state management, and order execution. Entry/exit logic depends on framework methods (MA_Direction, ResetState, Processing) not visible in this file. Custom class hierarchy with virtual method overrides.",
+  "symbol": "EURUSD",
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "MAS6 (6-period MA array)",
+      "params": {
+        "period": 6,
+        "method": "unknown",
+        "applied_to": "unknown"
+      },
+      "source": "external_library",
+      "library": "Base/BaseFrame.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "MAS6W1 (Weekly MA array)",
+      "params": {
+        "period": 3,
+        "method": "unknown",
+        "applied_to": "unknown"
+      },
+      "source": "external_library",
+      "library": "Base/BaseFrame.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MA direction from MAS6 shifted subset (indices 3-5)",
+      "formula": "MA_Direction(mas[3 sub-arrays from MAS6[3..5] with first element removed], period=6, shift=0)",
+      "used_by": "IsMAEverFit entry signal"
+    },
+    {
+      "name": "MA direction for exit from MAS6",
+      "formula": "MA_Direction(MAS6, period=2, shift=1)",
+      "used_by": "LongClose and ShortClose"
+    },
+    {
+      "name": "Profit threshold for add-position",
+      "formula": "state.lots * 500",
+      "used_by": "CheckAddLong and CheckAddShort"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "IsMAEverFit()",
+        "right": "1",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "IsMAEverFit()",
+        "right": "-1",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Auto close after Auto_Close_After_X_H1 hours (default 4H1 bars)",
+      "Exit when MA_Direction(MAS6, period=2, shift=1) direction differs from entry direction and minimum bar count reached (state.will_close_bars)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {
+      "lot_amplifier": 1.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "Add-position when floating profit > state.lots * 500, add size = Trade_Init_Lots"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 2,
+      "end_hour": 23
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "1. Core trading framework (EABaseFrame) is entirely in external library Base/BaseFrame.mqh - Init/Processing/ResetState/MA_Direction/state management are all opaque. 2. Entry signals (LongOpen/ShortOpen) are currently commented out - EA as written will NOT open new positions. 3. IsMAEverFit uses MAS6[3..5] sub-arrays, strips first element, then checks MA_Direction across 2 iterations with progressive element deletion. 4. Time filter supports two separate time windows: US-session pairs (USTime) and non-US-session pairs (NUSTime) with fractional hour support. 5. IsInDealTime has a bug on line 145: min < us_right_hour should likely be min < us_right_minute. 6. CheckAddLong/CheckAddShort use profit threshold of lots*500 (likely point-based profit check). 7. Exit logic checks iBars >= state.will_close_bars (minimum holding period) AND MA direction reversal. 8. Deal_Direction_Allow enum (DIPP_RectION_DEAL with BOTH/UP/DOWN) gates long/short entry. 9. Magic number hardcoded as 50000.",
+  "external_dependencies": [
+    "Base/BaseFrame.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1. BaseFrame.mqh must be fully reverse-engineered before conversion - it contains MA_Direction, state struct, Processing loop, order management, and all indicator setup. 2. MAS6 is an array of CArrayDouble arrays populated by the framework - the exact MA calculations and periods are unknown without the library. 3. The state object (state.profit, state.lots, state.direction, state.will_close_bars, state.addlots, state.dealprice, state.takeprofit_mode, state.stoploss_mode) must be reconstructed from the library. 4. IsInDealTime time filter logic has a likely bug (us_right_hour vs us_right_minute) - decide whether to replicate bug or fix. 5. Entry signals are currently disabled (commented out) - conversion would produce an EA that only manages existing positions. 6. The CArrayDouble operations (AssignArray, DeleteRange, Delete) need Python list equivalents. 7. lot_amplifier scaling logic is in the framework. 8. Auto_Close_After_X_H1 uses H1 bar counting not actual elapsed time.",
+  "extraction_timestamp": "2026-05-14T10:23:51.882720",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 149.68166661262512,
+    "cost": 0
+  }
+}

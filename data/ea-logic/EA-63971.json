@@ -1,0 +1,170 @@
+{
+  "ea_id": "EA-63971",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators and standard trading operations. Simple pin bar pattern detection with fixed/ATR-based SL/TP. No external libraries or custom indicators.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "Average True Range",
+      "params": {
+        "period": 14,
+        "shift": 0,
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Pin bar body size",
+      "formula": "MathAbs(Open[1] - Close[1])",
+      "used_by": "Pin bar detection"
+    },
+    {
+      "name": "Bullish pin bar lower wick",
+      "formula": "MathMin(Open[1], Close[1]) - Low[1]",
+      "used_by": "Bullish entry rule"
+    },
+    {
+      "name": "Bearish pin bar upper wick",
+      "formula": "High[1] - MathMax(Open[1], Close[1])",
+      "used_by": "Bearish entry rule"
+    },
+    {
+      "name": "Adjusted Stop Loss for 5-digit brokers",
+      "formula": "StopLoss * 10 when _Digits==5 || _Point<0.001",
+      "used_by": "Stop loss calculation"
+    },
+    {
+      "name": "Adjusted Take Profit for 5-digit brokers",
+      "formula": "TakeProfit * 10 when _Digits==5 || _Point<0.001",
+      "used_by": "Take profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Previous bar lower wick",
+        "right": "Body size * PinBarCoef",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Previous bar Close",
+        "right": "Previous bar Open",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Previous bar upper wick",
+        "right": "Body size * PinBarCoef",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Previous bar Close",
+        "right": "Previous bar Open",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 40,
+      "params": {
+        "atr_mode": "optional",
+        "atr_multiplier": 2,
+        "note": "SL mode selectable via StopLossMode: fixed pips or ATR multiple"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 80,
+      "params": {
+        "atr_mode": "optional",
+        "atr_multiplier": 3,
+        "note": "TP mode selectable via TakeProfitMode: fixed pips or ATR multiple"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite pin bar signal closes existing position before opening new one"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "risk_percent": 2,
+      "fixed_lots": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "When Lots<=0: risk-based sizing using RiskPercent of free margin; when Lots>0: fixed lot size"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Pin bar detection on previous completed bar [1]. Bullish pin bar: Close[1]>Open[1] (bullish candle) AND (MathMin(Open[1],Close[1])-Low[1]) > MathAbs(Open[1]-Close[1])*PinBarCoef. Bearish pin bar: Close[1]<Open[1] (bearish candle) AND (High[1]-MathMax(Open[1],Close[1])) > MathAbs(Open[1]-Close[1])*PinBarCoef. PinBarCoef input controls minimum wick-to-body ratio. SL/TP pip values auto-adjusted by factor of 10 for 5-digit brokers. Opposite signal closes existing position first (acts as reversal). ATR-based SL/TP available as alternative mode via input switches.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Pin bar pattern is pure OHLC comparison - trivially replicable. Digit adjustment logic (5-digit multiplier) translates to checking price_decimals >= 5 and scaling pip values by 10. ATR available via ta-lib or pandas_ta. Position gate (close opposite first) maps to checking existing positions before entry. Risk-based lot sizing uses account free margin * risk_pct / (SL_pips * pip_value). New bar guard uses timestamp comparison of current vs stored bar time.",
+  "extraction_timestamp": "2026-05-14T13:02:49.925232",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 153.69084477424622,
+    "cost": 0
+  }
+}

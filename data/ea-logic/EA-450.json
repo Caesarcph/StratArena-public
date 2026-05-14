@@ -1,0 +1,129 @@
+{
+  "ea_id": "EA-450",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iTEMA indicator. Simple entry/exit rules based on TEMA slope reversal. Fixed lot sizing. No external .mqh libraries for trading logic. All indicators and trade operations are standard MT5 API calls.",
+  "symbol": "EURUSD",
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "TEMA (Triple Exponential Moving Average)",
+      "params": {
+        "period": 15,
+        "shift": 0,
+        "method": "EMA",
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "dtema2 - TEMA slope on previous bar (bar[2] - bar[3])",
+      "formula": "TEMA[2] - TEMA[3]",
+      "used_by": "entry signal detection"
+    },
+    {
+      "name": "dtema1 - TEMA slope on current bar (bar[1] - bar[2])",
+      "formula": "TEMA[1] - TEMA[2]",
+      "used_by": "entry and exit signal detection"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "dtema2 (previous TEMA slope)",
+        "right": "zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "dtema2 (previous TEMA slope)",
+        "right": "zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close long when TEMA slope dtema1 becomes positive (slope turns upward), close short when TEMA slope dtema1 becomes negative (slope turns downward) - this is a momentum-based stop, not a reversal entry"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Multi-currency EA supporting up to 12 symbols simultaneously (0-11). Each symbol has independent parameters (symbol, trade enable flag, TEMA period, applied price, SL, TP, lots, slippage). Entry logic: long when previous-bar TEMA slope was positive and current-bar slope turns negative (slope reversal from up to down is actually a SELL signal - wait, re-reading: dtema2>0 && dtema1<0 means slope was positive 2 bars ago and turned negative 1 bar ago = DnSignal (sell). Conversely dtema2<0 && dtema1>0 = UpSignal (buy). This is a TEMA slope reversal strategy. Exit logic: UpStop fires when dtema1>0 (slope positive, close long since momentum may be turning), DnStop fires when dtema1<0 (slope negative, close short). SL/TP values are in points (not pips): StLoss=1000 points = 100 pips for 5-digit, TkProfit=2000 points = 200 pips for 5-digit. The digit adjustment uses SYMBOL_DIGITS+4 for NormalizeDouble rounding but does NOT multiply SL/TP by 10 for 5-digit brokers - SL/TP are already in point units via SymbolInfoDouble(SYMBOL_POINT) multiplication.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward conversion. TEMA is available in most Python TA libraries (e.g., ta.trend.EMAIndicator applied 3 times, or pandas_ta.tema). The slope reversal logic (dtema2 vs dtema1) is simple: compare consecutive TEMA differences to detect sign changes. SL/TP are point-based using symbol point value - convert to price distances in Python. Multi-symbol support can be handled by iterating over a list of symbol configs. Position gate checks for existing position before entry. The IsNewBar() function ensures signals are evaluated once per bar - implement equivalent bar-change detection. Note: NormalizeDouble with Digits_+4 is used for floating-point comparison precision, not for SL/TP calculation - use np.round or similar in Python.",
+  "extraction_timestamp": "2026-05-14T10:29:14.625000",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 171.5536630153656,
+    "cost": 0
+  }
+}

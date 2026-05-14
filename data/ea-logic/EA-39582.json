@@ -1,0 +1,174 @@
+{
+  "ea_id": "EA-39582",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "AMA (Adaptive Moving Average) is a custom indicator requiring iCustom or custom calculation from ER/SSC/FSC values - not a simple built-in iMA call. The AMA calculation involves Efficiency Ratio, Fast/Slow Scaling Constants, and adaptive smoothing, which must be reimplemented manually in Python.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Kaufman Adaptive Moving Average (AMA)",
+      "params": {
+        "period": 10,
+        "fast_sc": 0.6667,
+        "slow_sc": 0.0645,
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "ER = abs(direction/volatility) where direction=close-close[n], volatility=sum(abs(close-close[1])) over n periods"
+    },
+    {
+      "type": "MA",
+      "name": "AMA Signal Line / Filter MA",
+      "params": {
+        "period": 50,
+        "method": "SMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Efficiency Ratio (ER)",
+      "formula": "abs(close[0] - close[Periods]) / sum(abs(close[i] - close[i+1]), i=0..Periods-1)",
+      "used_by": "AMA indicator"
+    },
+    {
+      "name": "Fast Scaling Constant (fast_SC)",
+      "formula": "2/(2+1) = 0.6667",
+      "used_by": "AMA indicator"
+    },
+    {
+      "name": "Slow Scaling Constant (slow_SC)",
+      "formula": "2/(30+1) = 0.0645",
+      "used_by": "AMA indicator"
+    },
+    {
+      "name": "Smoothed Scaling Constant (SSC)",
+      "formula": "(ER*(fast_SC - slow_SC) + slow_SC)^2",
+      "used_by": "AMA indicator"
+    },
+    {
+      "name": "AMA value",
+      "formula": "AMA_prev + SSC * (close - AMA_prev)",
+      "used_by": "entry_rules and exit_rules"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "AMA",
+        "right": "AMA_prev",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "AMA",
+        "right": "Filter MA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "AMA",
+        "right": "AMA_prev",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "AMA",
+        "right": "Filter MA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite AMA signal closes current position"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Kaufman AMA adapts its smoothing based on market efficiency. ER close to 1 = trending (AMA tracks price closely). ER close to 0 = ranging (AMA flattens). The EA likely uses AMA slope/direction changes for entries - buy when AMA turns up, sell when AMA turns down. A filter MA may be used to confirm trend direction. Standard AMA parameters: Period=10, fast_SC=2/(2+1), slow_SC=2/(30+1). WARNING: Source file could not be read (binary encoding error) - values are estimated from typical AMA Trader EA patterns and may differ from actual code.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "AMA must be computed manually - no pandas-ta or ta-lib equivalent with matching default params. Implement ER, SSC, then AMA recursively. Use previous AMA value for current calculation (warmup period required of at least Periods+1 bars). Digit adjustment: if _Digits==5 or _Point<0.001, SL/TP in pips must be multiplied by 10 for correct pip-to-price conversion. Verify signal logic uses completed bar (shift=1) not current forming bar (shift=0) to avoid repainting in backtest.",
+  "extraction_timestamp": "2026-05-14T09:48:19.138779",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 118.41936182975769,
+    "cost": 0
+  }
+}

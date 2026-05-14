@@ -1,0 +1,136 @@
+{
+  "ea_id": "EA-39638",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale position sizing with margin-dependent lot calculation and N Bars Borders recovery logic makes this inherently MT5-only; martingale with margin-dependent sizing and grid-like recovery is classified as mt5_only per rules",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "VIDYA (Variable Index Dynamic Average)",
+      "params": {
+        "period": 9,
+        "method": "EMA",
+        "applied_to": "CLOSE"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "VIDYA trend direction derived from current vs previous VIDYA values",
+      "formula": "VIDYA[0] vs VIDYA[1]",
+      "used_by": "entry_rules long and short signal detection"
+    },
+    {
+      "name": "N Bars border count for martingale recovery cycle",
+      "formula": "input N_Bars parameter",
+      "used_by": "position_sizing martingale multiplier and recovery logic"
+    },
+    {
+      "name": "Digit-adjusted SL/TP in points",
+      "formula": "SL_TP_pips * 10 if _Digits==5 or _Point<0.001",
+      "used_by": "exit_rules stop_loss and take_profit"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "VIDYA",
+        "right": "Previous VIDYA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "VIDYA",
+        "right": "Previous VIDYA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "N Bars border timeout exit: closes position after N bars if neither SL nor TP hit, triggering martingale lot increase on next entry"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "multiplier": 2.0,
+      "max_multiplier_rounds": 0
+    },
+    "max_positions": 1,
+    "conditional_logic": "After a loss (SL hit or N-bars border close), lot size is multiplied by martingale factor; after a win (TP hit), lot resets to base value. Lot size also checked against available margin."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "N Bars Borders logic: EA tracks number of bars since entry. If position is open for N bars without hitting SL or TP, it is closed at market (border exit). This loss triggers martingale lot multiplication on the next VIDYA signal entry. After a TP hit, the martingale resets to base lot. VIDYA direction change can also close and reverse positions. Digit adjustment applied to SL/TP pip values when _Digits==5 or _Point<0.001.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Martingale sizing with margin checks requires accurate margin simulation; N-bars border exit requires bar counting from entry; VIDYA is available as ta library variable index dynamic average or can be computed from CMO + EMA; digit adjustment logic must be replicated for multi-decimal symbols; margin-dependent lot sizing is broker-specific and hard to replicate accurately in Python backtesting; recommend using vectorized bar-level backtest with tick data for realistic fill simulation",
+  "extraction_timestamp": "2026-05-14T09:51:47.501540",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 117.33582830429077,
+    "cost": 0
+  }
+}

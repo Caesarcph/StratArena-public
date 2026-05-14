@@ -1,0 +1,179 @@
+{
+  "ea_id": "EA-69712",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Grid/martingale strategy with margin-dependent position sizing, grid level management, and hard-capped grid depth. Grid strategies require tick-level execution and real-time position tracking that is tightly coupled to MT5's position management API.",
+  "symbol": "XAUUSD",
+  "timeframe_hint": "M15",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Trend EMA",
+      "params": {
+        "period": 50,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Dynamic lot based on balance",
+      "formula": "(ACCOUNT_BALANCE / 1000.0) * LotPer1000",
+      "used_by": "Initial entry position sizing"
+    },
+    {
+      "name": "Grid gap in price",
+      "formula": "GridStep * SYMBOL_POINT",
+      "used_by": "Buy grid and sell grid expansion rules"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Bid",
+        "right": "EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "RSI",
+        "right": "RSILower (55)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "(minBuy - Ask)",
+        "right": "GridGap",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Bid",
+        "right": "EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "RSI",
+        "right": "RSIUpper (45)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "(Bid - maxSell)",
+        "right": "GridGap",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Close all positions when total portfolio profit >= TargetProfit (3.0)",
+      "Close all positions when total portfolio loss <= -MaxRisk (1000.0)"
+    ]
+  },
+  "position_sizing": {
+    "type": "grid",
+    "value": 0.01,
+    "params": {
+      "lot_per_1000": 0.01,
+      "multiplier": 1.2,
+      "max_grid_levels": 3
+    },
+    "max_positions": 6,
+    "conditional_logic": "Initial lot = (balance/1000)*LotPer1000; grid levels multiply previous lot by Multiplier (1.2), capped at 3 levels per side (buy and sell independent)"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 22
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Grid/martingale EA: opens initial trade based on EMA+RSI trend filter, then adds up to 2 more grid levels (max 3 per side) when price moves against position by GridStep pips, each with Multiplier-sized lot. Exits entire grid when net profit across all positions hits TargetProfit or loss hits MaxRisk. News pause filters trades during a specific UTC hour. Market close hour blocks new trades. Buy and sell grids operate independently - can have up to 3 buys AND 3 sells simultaneously. RSI thresholds are inverted (RSILower=55 for buy, RSIUpper=45 for sell) acting as trend confirmation rather than oversold/overbought. No individual SL/TP per position - exits are portfolio-level only.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Grid/martingale strategy requires real-time position tracking across multiple levels per side. Portfolio-level P&L exit (TargetProfit/MaxRisk) is straightforward. Grid expansion logic needs careful state management for min buy price / max sell price tracking. Multiplier lot sizing with GetSafeLot normalization (minLot, maxLot, lotStep) needs broker-specific parameter injection. News/market-close time filters need timezone handling. No individual SL/TP simplifies per-order logic but the grid state machine (tracking open levels, prices, volumes) is complex. Margin check via OrderCalcMargin has no direct Python equivalent - would need broker API margin calculation or approximation.",
+  "extraction_timestamp": "2026-05-14T13:37:01.417519",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 186.37022042274475,
+    "cost": 0
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "ea_id": "EA-38914",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Multi-timeframe logic (uses iCustom or manual MTF data retrieval via CopyBuffer from a different timeframe's MA handles). Crossover logic references previous bar values ([1]/[2]) which requires careful bar synchronization across timeframes. Otherwise uses only built-in iMA indicators with standard params.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast MA (Other TimeFrame)",
+      "params": {
+        "period": "FastMA_period (input, default 8)",
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA (Other TimeFrame)",
+      "params": {
+        "period": "SlowMA_period (input, default 21)",
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Fast MA value on bar [1] of higher timeframe",
+      "formula": "CopyBuffer(fastMA_handle, 0, 1, 1, fastMA_buffer)",
+      "used_by": "Crossover detection (previous bar comparison)"
+    },
+    {
+      "name": "Fast MA value on bar [2] of higher timeframe",
+      "formula": "CopyBuffer(fastMA_handle, 0, 2, 1, fastMA_buffer)",
+      "used_by": "Crossover detection (two-bars-ago comparison)"
+    },
+    {
+      "name": "Slow MA value on bar [1] of higher timeframe",
+      "formula": "CopyBuffer(slowMA_handle, 0, 1, 1, slowMA_buffer)",
+      "used_by": "Crossover detection (previous bar comparison)"
+    },
+    {
+      "name": "Slow MA value on bar [2] of higher timeframe",
+      "formula": "CopyBuffer(slowMA_handle, 0, 2, 1, slowMA_buffer)",
+      "used_by": "Crossover detection (two-bars-ago comparison)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA",
+        "right": "Slow MA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA",
+        "right": "Slow MA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": "StopLoss (input, default 31)",
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": "TakeProfit (input, default 69)",
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close opposite position on crossover reversal before opening new position"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": "Lots (input, default 0.1)",
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": "Deviation (input, default 1)",
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The key feature of this EA is that it computes MA crossover signals from a DIFFERENT timeframe (user-selectable via 'TimeFrame' input) than the chart it runs on. The 'Correct Intersection' aspect means it uses bars [1] and [2] from the higher timeframe to detect the crossover on the COMPLETED bar (bar [1]), avoiding repainting. It uses CopyBuffer to pull MA values at specific bar indices from the higher timeframe handle. When a reversal signal occurs, the EA closes any existing opposite-direction position before opening a new one. SL/TP values are adjusted for 5-digit brokers (multiplied by 10 when _Digits==5 or _Point<0.001). New bar detection is performed on the current chart timeframe to limit signal checks to once per bar.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Multi-timeframe MA lookup requires careful bar alignment. In Python, you must resample OHLC data to the target timeframe, compute the MAs on that resampled data, then align signals back to the execution timeframe. The 'correct intersection' logic (using bar[1] vs bar[2] of the higher TF to detect crossover on completed bars) must be preserved to avoid lookahead bias. SL/TP digit adjustment logic (multiply by 10 for 5-digit brokers) must be replicated. Position gate logic: close opposite position before entering new one. New-bar guard must be implemented on the chart (execution) timeframe.",
+  "extraction_timestamp": "2026-05-14T09:25:00.415140",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 109.25760388374329,
+    "cost": 0
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-22971",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call 'WPR Custom' custom indicator which is a custom implementation of Williams Percent Range with configurable levels. Trading logic itself is simple but depends on external .mqh includes (Trade library, MoneyFixedMargin) and a custom indicator that must be replicated.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "WPR Custom (Williams Percent Range with custom levels)",
+      "params": {
+        "period": 14,
+        "method": null,
+        "applied_to": null,
+        "level1": -25,
+        "level2": -75
+      },
+      "source": "custom",
+      "library": "WPR Custom.mq5",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "WPR buffer value at bar InpBarCurrent",
+      "formula": "-((HighestHigh(close_in_period) - close[i]) * 100) / (HighestHigh - LowestLow) over Inp_WPR_Period bars",
+      "used_by": "CheckForSignals entry logic"
+    },
+    {
+      "name": "digits_adjust (multiplier for 3/5 digit brokers)",
+      "formula": "(m_symbol.Digits()==3 || m_symbol.Digits()==5) ? 10 : 1",
+      "used_by": "CMoneyFixedMargin initialization and SL/TP point adjustment"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "below",
+        "left": "WPR[InpBarCurrent]",
+        "right": "Inp_WPR_Level2 (-75)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "WPR[InpBarCurrent]",
+        "right": "Inp_WPR_Level1 (-25)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "When no position exists and opposite signal fires, closes opposite-side positions before opening new one via ClosePositions() then resetting PrevBars to force next-bar re-entry"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 1.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "IntLotOrRisk==lot: use fixed lot InpVolumeLorOrRisk (default 1.0). IntLotOrRisk==risk: use CMoneyFixedMargin with Percent=InpVolumeLorOrRisk (default 1.0) to calculate lot from free margin and risk percent. Risk default input is 5 but InpVolumeLorOrRisk (1.0) is the actual value passed to money manager."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "auto_by_symbol"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses OnTradeTransaction to track last closed position type (m_last_position_type) but this value is never used in trading decisions. The PrevBars=0 reset after closing opposite positions forces immediate re-evaluation on next tick. WPR custom indicator is a standard WPR calculation with configurable level lines and visual customization - functionally equivalent to built-in iWPR but loaded via iCustom. Entry checks WPR value at bar index InpBarCurrent (default=1, i.e. last completed bar). No SL or TP are set (both passed as 0.0). Reversal logic: if a position exists and opposite signal fires, it closes the existing position but does NOT open a new one on same bar (PrevBars=0 forces wait for next bar).",
+  "external_dependencies": [
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\SymbolInfo.mqh",
+    "Trade\\AccountInfo.mqh",
+    "Expert\\Money\\MoneyFixedMargin.mqh",
+    "WPR Custom.mq5 (custom indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The WPR Custom indicator is functionally identical to standard WPR (ta.momentum.WilliamsR in pandas_ta, or manual calculation from High/Low/Close over period). The entry logic is simple level-based: BUY when WPR < -75 (oversold), SELL when WPR > -25 (overbought). No SL/TP means positions are held until signal reversal. The conditional lot sizing needs two paths: fixed lot or margin-based percentage sizing. The CMoneyFixedMargin class calculates lot size as: lot = (FreeMargin * Percent / 100) / (Margin_per_lot). The new-bar guard and position check are straightforward. Key detail: InpBarCurrent=1 means signal is evaluated on the last completed bar (index 1), not the forming bar (index 0). The digit adjustment (multiply by 10 for 3/5 digit brokers) only affects the money manager init, not SL/TP since those are 0.",
+  "extraction_timestamp": "2026-05-14T04:14:37.655563",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 194.2349727153778,
+    "cost": 0
+  }
+}

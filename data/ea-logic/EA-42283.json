@@ -1,0 +1,215 @@
+{
+  "ea_id": "EA-42283",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses partial close logic (PositionClosePartial), timer-based trade cooldown, and complex trailing stop with partial profit taking. Position sizing involves tick value/size calculations with floor normalization. These features require careful manual conversion to Python.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "EMA 34",
+      "params": {
+        "period": 34,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI 50",
+      "params": {
+        "period": 50,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD 12/26/9",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Recent Low (5 bars)",
+      "formula": "iLowest(5,1) then iLow",
+      "used_by": "Long stop loss"
+    },
+    {
+      "name": "Recent High (5 bars)",
+      "formula": "iHighest(5,1) then iHigh",
+      "used_by": "Short stop loss"
+    },
+    {
+      "name": "MACD oversold crossover",
+      "formula": "MACD[2]<0 && Signal[2]<0 && MACD[1]<0 && Signal[1]<0 && Signal[2]<MACD[2] && Signal[1]>MACD[1]",
+      "used_by": "Long entry"
+    },
+    {
+      "name": "MACD overbought crossover",
+      "formula": "MACD[2]>0 && Signal[2]>0 && MACD[1]>0 && Signal[1]>0 && Signal[2]>MACD[2] && Signal[1]<MACD[1]",
+      "used_by": "Short entry"
+    },
+    {
+      "name": "Trailing stop unit",
+      "formula": "tslPoints * _Point",
+      "used_by": "Trailing stop logic"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "CCI",
+        "right": "zero_line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Ask",
+        "right": "EMA34[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "MACD_Signal",
+        "right": "MACD_Main",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "CCI",
+        "right": "zero_line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Bid",
+        "right": "EMA34[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossunder",
+        "left": "MACD_Signal",
+        "right": "MACD_Main",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": null,
+      "params": {
+        "long_sl": "recent_5bar_low",
+        "short_sl": "recent_5bar_high",
+        "min_sl_points": 100
+      }
+    },
+    "take_profit": {
+      "type": "percent",
+      "value": null,
+      "params": {
+        "risk_reward_ratio": 1.5,
+        "tp_formula": "entry + riskReward * (entry - SL)"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "trail_start_pips": 100,
+        "trail_step_pips": 100,
+        "partial_close_on_first_trail": true,
+        "partial_close_ratio": 0.5
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Timer-based cooldown prevents re-entry for 5 bar periods after a trade"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 2.0,
+    "params": {
+      "risk_percent": 2.0,
+      "sizing_formula": "floor((accountRisk/100) / (slPoints/tickSize*tickValue*lotStep)) * lotStep",
+      "lot_normalization": "floor_to_lotStep",
+      "max_volume_check": true
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_then_wait"
+  },
+  "custom_logic_notes": "1) MACD crossover requires both MACD and Signal to be below/above zero (filter zone). 2) CCI zero-line crossover uses bar[2] to bar[1] (confirmed on closed bar). 3) Timer cooldown of 5*PeriodSeconds prevents rapid re-entry after a trade. 4) Trailing stop closes 50% of position on first trail move. 5) Minimal stop loss filter (100 points) blocks trades with SL too close. 6) Position tracked via single tradeTicket variable - only one position at a time.",
+  "external_dependencies": [
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1) CTrade wrapper from Trade.mqh needs to be replaced with direct API calls (mt5.order_send). 2) Timer-based cooldown (EventSetTimer/OnTimer) must be implemented as a timestamp comparison in Python loop. 3) Partial close (PositionClosePartial) requires calculating half volume and sending a close order for that amount. 4) NormalizeDouble(sl, SYMBOL_TRADE_TICK_SIZE) in trailing stop is incorrect - second param should be _Digits not tick size, which is a bug in original code. 5) The CalcLots function uses floor division which must be replicated exactly. 6) iLowest/iHighest with lookback of 5 bars from bar[1] needs careful indexing. 7) MACD zero-zone filter must be preserved as it prevents signals in the wrong zone.",
+  "extraction_timestamp": "2026-05-14T10:11:11.400708",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 140.6310019493103,
+    "cost": 0
+  }
+}

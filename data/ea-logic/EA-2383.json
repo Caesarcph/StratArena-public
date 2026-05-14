@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-2383",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'CronexMFI' custom indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trading logic and smoothing algorithms",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "CronexMFI",
+      "params": {
+        "period": 25,
+        "method": 0,
+        "fast_period": 14,
+        "slow_period": 25,
+        "phase": 15,
+        "applied_volume": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before EA trades",
+      "formula": "MFIPeriod + GetStartBars(XMA_Method, FastPeriod, XPhase) + GetStartBars(XMA_Method, SlowPeriod, XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - seconds per indicator timeframe bar",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "CronexMFI Main Line (buffer 0, bar 0)",
+        "right": "CronexMFI Signal Line (buffer 1, bar 0)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "CronexMFI Main Line (buffer 0, bar 0)",
+        "right": "CronexMFI Signal Line (buffer 1, bar 0)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Sell positions closed when Main Line was above Signal Line on previous bar (Ind[1]>Sign[1]) and BuyPosClose is enabled",
+      "Buy positions closed when Main Line was below Signal Line on previous bar (Ind[1]<Sign[1]) and SellPosClose is enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot size, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses. MM parameter (0.1) serves as either lot size or fraction depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry crossover logic uses a two-bar comparison: Ind[1]>Sign[1] (previous bar: main above signal) AND Ind[0]<=Sign[0] (current signal bar: main crossed to below or equal) triggers BUY_Open. This is inverted logic - a bullish crossover is detected when the main line was above signal on the prior bar and has now crossed down on the signal bar, which may indicate a mean-reversion or oversold bounce entry. Conversely, SELL_Open triggers when Ind[1]<Sign[1] AND Ind[0]>=Sign[0]. SignalBar=1 means the crossover is evaluated on the previous completed bar (bar 1) vs the bar before it (bar 0 relative to SignalBar offset). BuyPosOpen/SellPosOpen and BuyPosClose/SellPosClose are toggle inputs that can independently enable/disable long/short entries and exits. Recount flag ensures signal recalculation on data issues.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "The CronexMFI custom indicator must be reimplemented in Python. It is a smoothed MFI with fast and slow moving averages applied to the raw MFI values. The smoothing method is configurable (SMA/EMA/SMMA/LWMA/JJMA/JurX/ParMA/T3/VIDYA/AMA) via SmoothAlgorithms.mqh - only standard MA types (SMA/EMA/SMMA/LWMA) can be directly translated; exotic smoothers (JJMA, JurX, ParMA, T3, VIDYA, AMA) require separate implementations. The TradeAlgorithms.mqh library handles position open/close with money management - must reimplement BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions with equivalent logic. The GetStartBars function from SmoothAlgorithms.mqh calculates warmup periods for each smoother type. MarginMode-based position sizing requires mapping all 5 modes. Signal detection uses CopyBuffer with 2-element arrays comparing bar[1] vs bar[0] at the SignalBar offset - ensure indexing is correctly mapped from MT5's offset-based CopyBuffer to Python's array indexing.",
+  "extraction_timestamp": "2026-05-14T06:14:10.410158",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 82.52413129806519,
+    "cost": 0
+  }
+}

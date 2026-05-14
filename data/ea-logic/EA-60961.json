@@ -1,0 +1,201 @@
+{
+  "ea_id": "EA-60961",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for ZigZag indicator which requires the custom indicator file to be available. Fibonacci retracement logic is custom and non-trivial. Pending order lifecycle management with timed deletion adds complexity.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 9,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 21,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ZigZag",
+      "params": {
+        "depth": 12,
+        "deviation": 5,
+        "backstep": 3
+      },
+      "source": "custom",
+      "library": "Examples\\ZigZag",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Fibonacci 57% retracement price (uptrend)",
+      "formula": "lastZigZagLow + (lastZigZagHigh - lastZigZagLow) * 0.57",
+      "used_by": "Buy Limit entry price"
+    },
+    {
+      "name": "Fibonacci 57% retracement price (downtrend)",
+      "formula": "lastZigZagHigh - (lastZigZagHigh - lastZigZagLow) * 0.57",
+      "used_by": "Sell Limit entry price"
+    },
+    {
+      "name": "SL distance for Sell Limit",
+      "formula": "abs(lastZigZagHigh - fibPrice)",
+      "used_by": "Sell Limit stop loss and take profit calculation"
+    },
+    {
+      "name": "SL distance for Buy Limit",
+      "formula": "abs(fibPrice - lastZigZagLow)",
+      "used_by": "Buy Limit stop loss and take profit calculation"
+    },
+    {
+      "name": "Take Profit (Sell Limit)",
+      "formula": "fibPrice - (sl_distance * TPFromSLMultiplier)",
+      "used_by": "Sell Limit take profit"
+    },
+    {
+      "name": "Take Profit (Buy Limit)",
+      "formula": "fibPrice + (sl_distance * TPFromSLMultiplier)",
+      "used_by": "Buy Limit take profit"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Fast EMA (previous bar)",
+        "right": "Slow EMA (previous bar)",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "new ZigZag Low detected",
+        "right": "lastZigZagHigh > lastZigZagLow",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Fast EMA (previous bar)",
+        "right": "Slow EMA (previous bar)",
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "new ZigZag High detected",
+        "right": "lastZigZagHigh > lastZigZagLow",
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": null,
+      "params": {
+        "buy_sl": "lastZigZagLow",
+        "sell_sl": "lastZigZagHigh"
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": null,
+      "params": {
+        "multiplier": "TPFromSLMultiplier (default 1.2)",
+        "basis": "SL distance"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Pending orders are deleted after WaitNewSignalZigZagBarCount bars if not filled"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.03,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24,
+      "day_filter": true,
+      "allowed_days": "Mon-Fri configurable per day"
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 10,
+    "filling": "RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry requires BOTH a new ZigZag point AND EMA trend alignment on the previous bar. The ZigZag buffer reading skips the 5 most recent bars to avoid unfixed/repointing ZigZag values. Fibonacci 57% retracement level is used as the pending order entry price (non-standard Fib level). Pending orders have a lifecycle: placed once per signal, then deleted after WaitNewSignalZigZagBarCount bars if unfilled, then the EA resets to accept new signals. The position_gate check uses PositionSelect(_Symbol) which only allows one position per symbol regardless of magic number. Order placement also blocked by orderSudahDipasang flag until lifecycle resets.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Examples\\ZigZag (custom indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The ZigZag indicator must be reimplemented in Python or sourced from a library (e.g., zigzag pip package). The Fibonacci 57% level is non-standard and must be hardcoded. Pending order lifecycle with timed deletion needs explicit state management in Python. The EMA crossover uses previous bar values (index [1]) not current, which is important for backtest alignment. The ZigZag 'skip 5 bars' heuristic to avoid repainting must be preserved. Stops level validation against broker SYMBOL_TRADE_STOPS_LEVEL must be handled. Lot size normalization (lotStep rounding) must be replicated.",
+  "extraction_timestamp": "2026-05-14T12:20:21.238492",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 176.03147077560425,
+    "cost": 0
+  }
+}

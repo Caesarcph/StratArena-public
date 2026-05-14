@@ -1,0 +1,218 @@
+{
+  "ea_id": "EA-62857",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "The EA uses only built-in MT5 indicators (iMA, iMACD, iRSI, iATR) with standard parameters, simple crossover entry/exit rules, and fixed lot or risk-percent position sizing. No external .mqh libraries for trading logic, no custom indicators, no grid/martingale, no multi-timeframe logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 8,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 21,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Point adjustment multiplier",
+      "formula": "_Digits==5 || _Digits==3 ? 10 : 1",
+      "used_by": "SL and TP pip-to-point conversion"
+    },
+    {
+      "name": "Adjusted SL points",
+      "formula": "StopLoss * Poin",
+      "used_by": "exit_rules stop_loss"
+    },
+    {
+      "name": "Adjusted TP points",
+      "formula": "TakeProfit * Poin",
+      "used_by": "exit_rules take_profit"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "MACD main",
+        "right": "MACD signal",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "RSI",
+        "right": "50",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "MACD main",
+        "right": "MACD signal",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "RSI",
+        "right": "50",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "adjusted_for_digits": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "adjusted_for_digits": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close long on short EMA crossover signal",
+      "Close short on long EMA crossover signal"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "negative Lots input = fixed lots (abs value); positive Lots input = risk as fraction of margin (e.g. 1.0 = 1% risk); sizing uses ATR for stop distance in risk-percent mode"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA uses previous bar indicator values (shift 1 and 2) for crossover detection to avoid repainting. When Lots input is positive, position size is calculated as (margin * Lots/100) / (ATR * pip_value), making it a risk-fraction model. When Lots is negative, absolute value is used as fixed lot size. Signal reversal closes existing position before opening opposite direction.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward conversion. All indicators are standard (EMA, MACD, RSI, ATR) available in pandas-ta or ta-lib. The digit-adjustment logic (multiply SL/TP by 10 for 5/3-digit brokers) must be handled. Entry uses previous-bar crossover (shift=1 vs shift=2), which maps directly to pandas shift(). Conditional position sizing logic needs explicit branching: negative lots = fixed, positive = risk fraction with ATR-based stop distance. New-bar detection via bar time comparison is simple to implement.",
+  "extraction_timestamp": "2026-05-14T12:42:59.049637",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 128.27977871894836,
+    "cost": 0
+  }
+}

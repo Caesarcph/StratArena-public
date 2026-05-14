@@ -1,0 +1,259 @@
+{
+  "ea_id": "EA-63569",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale position sizing with margin-dependent lot calculation, pending order management with trailing updates, tick-level HFT momentum strategy, session-based order cancellation, and complex OnTradeTransaction handling make this unsuitable for straightforward Python backtesting conversion.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "EMA Crossover",
+      "params": {
+        "period": 15,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI Reversal",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Risk-based initial lot size",
+      "formula": "(account_balance * risk_percentage / 100) / (stop_loss_points * tick_value * (_Point / tick_size))",
+      "used_by": "position_sizing when InpLotSizeMode=PERCENT_OF_BALANCE"
+    },
+    {
+      "name": "Max affordable lot from margin",
+      "formula": "free_margin / one_lot_margin, rounded down to volume_step",
+      "used_by": "ExecuteTrade lot capping"
+    },
+    {
+      "name": "Tick momentum direction",
+      "formula": "consecutive monotonic bid/ask over InpTickMomentumCount ticks",
+      "used_by": "HFT_TICK_MOMENTUM entry signal"
+    },
+    {
+      "name": "Trailing stop offset in money mode",
+      "formula": "InpTrailingStopMoney / (tick_value * (_Point / tick_size) * position_volume) * _Point",
+      "used_by": "TRAILING_IN_MONEY trailing stop"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Close[1]",
+        "right": "EMA[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "Close[1]",
+        "right": "EMA[1]",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "Close[1]",
+        "right": "EMA[1]",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "RSI[0]",
+        "right": "Oversold level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Engulfing pattern (bearish prev, bullish curr, curr close > prev open, curr open < prev close)",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "HFT Tick Momentum (N consecutive rising bids)",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Close[1]",
+        "right": "EMA[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "Close[1]",
+        "right": "EMA[1]",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "Close[1]",
+        "right": "EMA[1]",
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "RSI[0]",
+        "right": "Overbought level",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Engulfing pattern (bullish prev, bearish curr, curr close < prev open, curr open > prev close)",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "HFT Tick Momentum (N consecutive falling asks)",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {
+        "points": 1000
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {
+        "formula": "stop_loss_points * risk_reward_ratio",
+        "risk_reward_ratio": 2.0
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "trail_start_pips": 200,
+        "trail_step_pips": 0,
+        "trail_type": "points_or_money",
+        "trail_start_money": 50,
+        "trail_stop_money": 10
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close all positions at session end when InpCloseAtSessionEnd=true",
+      "Close all positions when daily profit limit reached",
+      "Close all positions when daily drawdown limit reached",
+      "Pending orders cancelled at session end and when risk limits hit"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "initial_lot_fixed": 0.01,
+      "risk_percentage": 1.0,
+      "martingale_type": "CLASSIC_MULTIPLIER",
+      "martingale_multiplier": 2.0,
+      "max_orders_per_round": 5,
+      "max_lot_size": 5.0,
+      "classic_multiplier_formula": "closed_volume * multiplier",
+      "multiplier_with_sum_formula": "(closed_volume * multiplier) + initial_lot",
+      "sum_with_initial_formula": "closed_volume + initial_lot",
+      "reset_on_profit": true,
+      "reset_on_max_orders": true,
+      "margin_capping": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "FIXED_LOT uses InpFixedInitialLot; PERCENT_OF_BALANCE calculates from risk%; martingale applies on loss, resets on profit or max orders reached"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 1,
+      "end_hour": 23,
+      "per_day_sessions": true,
+      "custom_per_day": "Monday-Friday 01:00-23:00, Saturday-Sunday closed",
+      "close_at_session_end": true
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market_or_pending",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar_for_candlestick_rsi_ema_repeat_while_true_for_hft_tick"
+  },
+  "custom_logic_notes": "Four selectable entry strategies: HFT Tick Momentum (tick-level, no bar guard), Candlestick Engulfing (bar guard), RSI Reversal (bar guard, crosses back from OB/OS zones), EMA Crossover (bar guard). Three selectable martingale types: Classic Multiplier, Multiplier with Sum, Sum with Initial. On trade close via OnTradeTransaction: martingale adjusts lot size. On reversal signal: closes opposite position first, then opens new position on next tick. Pending orders are trailed (updated) every InpPendingUpdateInterval seconds. Daily profit limit and drawdown protection with server-time or custom UTC time window. Trade cooldown between consecutive trades. Stops level safety check for SL/TP placement.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Martingale with margin-dependent lot capping requires margin simulation. HFT Tick Momentum strategy requires tick data. Pending order trailing updates every N seconds need timer simulation. OnTradeTransaction equivalent must be implemented for martingale lot adjustment on deal close. Session management with per-day time ranges and close-at-session-end adds complexity. Risk management reset logic depends on server vs UTC time mode. Multiple entry strategies are user-selectable, so conversion must handle all four. RSI reversal uses cross-back (previous bar in zone, current bar out of zone), not simple level breach.",
+  "extraction_timestamp": "2026-05-14T12:52:46.550215",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 256.8159520626068,
+    "cost": 0
+  }
+}

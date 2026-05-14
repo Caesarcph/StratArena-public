@@ -1,0 +1,145 @@
+{
+  "ea_id": "EA-52043",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Multi-symbol correlation logic requires simultaneous data from two symbols, which needs custom Python handling for cross-symbol price synchronization and correlation calculation; no single iCustom but the dual-symbol architecture goes beyond simple built-in indicator patterns",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Pearson Correlation Coefficient",
+      "params": {
+        "period": 20,
+        "symbol1": null,
+        "symbol2": null
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Correlation MA",
+      "params": {
+        "period": 14,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Rolling Pearson correlation between two symbol close series",
+      "formula": "corr(Symbol1_close, Symbol2_close, Periods)",
+      "used_by": "Entry signal threshold comparison"
+    },
+    {
+      "name": "Correlation threshold for signal",
+      "formula": "CorrLevel input parameter",
+      "used_by": "Entry rules long/short"
+    },
+    {
+      "name": "Spread-adjusted price or normalized price differential",
+      "formula": "Close1 - (Close2 * ratio)",
+      "used_by": "Mean reversion entry trigger"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Correlation",
+        "right": "CorrLevel threshold",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Correlation",
+        "right": "Negative CorrLevel threshold",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Correlation breakdown exit when correlation drops below threshold while in position"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 2,
+    "conditional_logic": "One position per symbol in the pair; max 2 positions total (one per symbol)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "2-pair correlation EA: calculates rolling Pearson correlation between two user-specified symbols. Trades divergence/convergence when correlation exceeds threshold. Typically opens paired positions (long one symbol, short the other) or trades the primary symbol based on correlation regime. Multi-symbol data access via SymbolInfoDouble and iClose requires cross-symbol price alignment in Python conversion. Correlation period, threshold level, and both symbol names are configurable inputs.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Key challenge: multi-symbol architecture. Must synchronize tick/bar data from two symbols (different timestamps, missing bars). Use pandas DataFrame merge with forward-fill on both symbol series before computing rolling correlation. Replace iClose(symbol, tf, i) calls with dataframe column lookups. The correlation calculation itself is straightforward with pandas.DataFrame.corr() or numpy.corrcoef rolling window. Position management must handle two simultaneous positions on different symbols - consider using a paired-order execution wrapper. Ensure both orders fill before counting the pair as open. No built-in MT5 indicator handles cross-symbol correlation, so all indicator logic must be reimplemented.",
+  "extraction_timestamp": "2026-05-14T11:23:06.075667",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 87.78067278862,
+    "cost": 0
+  }
+}

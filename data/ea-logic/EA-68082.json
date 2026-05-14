@@ -1,0 +1,133 @@
+{
+  "ea_id": "EA-68082",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 price functions (iClose, iHigh, iLow) and standard CTrade class. No custom indicators or external trading logic libraries. Simple breakout entry/exit with fixed lot sizing. Time conversion logic is pure math, no MT5-specific API dependency.",
+  "symbol": null,
+  "timeframe_hint": "M5",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "RangeBottom - support level from NY 4H window lowest low",
+      "formula": "min(iLow(M5, i)) for i in range candles during NY 00:00-04:00",
+      "used_by": "long entry breakout condition, long SL"
+    },
+    {
+      "name": "RangeTop - resistance level from NY 4H window highest high",
+      "formula": "max(iHigh(M5, i)) for i in range candles during NY 00:00-04:00",
+      "used_by": "short entry breakout condition, short SL"
+    },
+    {
+      "name": "Server UTC offset (hours)",
+      "formula": "ServerGMTOffsetWinter or ServerGMTOffsetSummer based on date vs switch dates",
+      "used_by": "ServerToUTC conversion"
+    },
+    {
+      "name": "NY GMT offset (hours)",
+      "formula": "-4 if UTC between DST start and end, else -5",
+      "used_by": "UTCToNewYork conversion"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "iClose(M5, bar[1])",
+        "right": "RangeBottom",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "iClose(M5, bar[1])",
+        "right": "RangeTop",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": null,
+      "params": {
+        "long_sl": "lowest low of M5 bars[2..15] while below RangeBottom",
+        "short_sl": "highest high of M5 bars[2..15] while above RangeTop"
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": null,
+      "params": {
+        "formula": "TP = entry +/- 2.0 * abs(entry - SL)",
+        "risk_reward_ratio": 2.0
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "SL and TP only - no other exit logic; range reset at next NY session can invalidate range but does not close positions"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 4
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Breakout strategy based on NY session first 4 hours (00:00-04:00 NY time). Range high/low formed during this window. Entry on M5 close breaking above range bottom (buy) or below range top (sell). SL searched backward up to 15 bars for extreme low/high within the range zone. TP = 2x SL distance. Stops-level check: SL and TP must exceed 4x SYMBOL_TRADE_STOPS_LEVEL. DST-aware time conversion: server time -> UTC -> NY time, with separate US DST rules (2nd Sunday March, 1st Sunday November) and configurable server DST switch dates. Range resets each NY day when the 4H window begins again.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Key challenge: DST-aware time conversion from server timezone to NY local time. Must implement ServerToUTC and UTCToNewYork functions with proper DST boundary handling (US 2nd Sunday March / 1st Sunday November rules). The range-forming window is defined in NY local time (00:00-04:00), so accurate timezone conversion is critical. Entry signals use previous 2 M5 bar closes to detect crossover of range boundaries. SL is dynamically searched by scanning backward up to 15 M5 bars for the extreme within the range zone. No indicators used - purely price-based breakout. CTrade wrapper maps to simple market orders. The Stops_Level check (4x broker minimum) must be preserved.",
+  "extraction_timestamp": "2026-05-14T13:09:04.977522",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 95.7357337474823,
+    "cost": 0
+  }
+}

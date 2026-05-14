@@ -1,0 +1,203 @@
+{
+  "ea_id": "EA-49272",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iHigh, iLow, iHighest, iLowest, iATR). Simple breakout entry/exit with channel-based trailing stop. Risk-percent position sizing. No external .mqh libraries for trading logic (Trade.mqh is standard). Single-timeframe logic with pending stop orders.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Highest High Channel",
+      "params": {
+        "period": 20,
+        "shift": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "ENTRY_PERIOD, ENTRY_SHIFT"
+    },
+    {
+      "type": "Custom",
+      "name": "Lowest Low Channel",
+      "params": {
+        "period": 20,
+        "shift": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "ENTRY_PERIOD, ENTRY_SHIFT"
+    },
+    {
+      "type": "Custom",
+      "name": "Middle Line",
+      "params": {
+        "period": 20,
+        "shift": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "EXIT_PERIOD, EXIT_SHIFT"
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 20,
+        "shift": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "trigger_long - Buy stop trigger price",
+      "formula": "HighestHigh(ENTRY_PERIOD, ENTRY_SHIFT) + SYMBOL_TRADE_TICK_SIZE",
+      "used_by": "Long entry order placement"
+    },
+    {
+      "name": "trigger_short - Sell stop trigger price",
+      "formula": "LowestLow(ENTRY_PERIOD, ENTRY_SHIFT) - SYMBOL_TRADE_TICK_SIZE",
+      "used_by": "Short entry order placement"
+    },
+    {
+      "name": "exit_long - Long SL price level",
+      "formula": "EXIT_MIDDLE_LINE ? max(Middle(EXIT_PERIOD, EXIT_SHIFT), LowestLow(EXIT_PERIOD, EXIT_SHIFT)) : LowestLow(EXIT_PERIOD, EXIT_SHIFT)",
+      "used_by": "Long position SL / trailing stop"
+    },
+    {
+      "name": "exit_short - Short SL price level",
+      "formula": "EXIT_MIDDLE_LINE ? min(Middle(EXIT_PERIOD, EXIT_SHIFT), HighestHigh(EXIT_PERIOD, EXIT_SHIFT)) : HighestHigh(EXIT_PERIOD, EXIT_SHIFT)",
+      "used_by": "Short position SL / trailing stop"
+    },
+    {
+      "name": "sl (long) - SL distance in price",
+      "formula": "trigger_long - exit_long",
+      "used_by": "CalculateLotSize for risk-based sizing"
+    },
+    {
+      "name": "sl (short) - SL distance in price",
+      "formula": "exit_short - trigger_short",
+      "used_by": "CalculateLotSize for risk-based sizing"
+    },
+    {
+      "name": "trail_long - Long trailing stop level",
+      "formula": "EXIT_MIDDLE_LINE ? Middle(EXIT_PERIOD, EXIT_SHIFT) : LowestLow(EXIT_PERIOD, EXIT_SHIFT)",
+      "used_by": "PositionManaging trailing stop for buys"
+    },
+    {
+      "name": "trail_short - Short trailing stop level",
+      "formula": "EXIT_MIDDLE_LINE ? Middle(EXIT_PERIOD, EXIT_SHIFT) : HighestHigh(EXIT_PERIOD, EXIT_SHIFT)",
+      "used_by": "PositionManaging trailing stop for sells"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Ask",
+        "right": "trigger_long - SYMBOL_TRADE_STOPS_LEVEL",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "above",
+        "left": "Bid - trigger_short",
+        "right": "SYMBOL_TRADE_STOPS_LEVEL",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": 0,
+      "params": {
+        "long_sl": "exit_long (channel low or middle, whichever is higher)",
+        "short_sl": "exit_short (channel high or middle, whichever is lower)"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "indicator_based",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "trail_method": "channel_based - trails SL to LowestLow/Middle for longs, HighestHigh/Middle for shorts",
+        "trail_minimum_move": "0.1 * ATR(20) above current SL to ratchet",
+        "stops_level_check": "true - ensures trail - current_price >= SYMBOL_TRADE_STOPS_LEVEL before modifying"
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Position close (not just SL move) when price crosses trailing stop level: BUY closed when current_price < trail_long, SELL closed when current_price > trail_short",
+      "All pending orders deleted every bar via OrderManaging()"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 0.01,
+    "params": {
+      "risk_per_trade": "RISK_PER_TRADE (default 1% of equity)",
+      "calculation_method": "OrderCalcProfit to determine loss per 1 lot at SL distance, then lots = risk_money / |loss|, floored to lot_step",
+      "margin_check": "OrderCalcMargin to verify free margin; reduces lot size if insufficient free margin"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If free_margin < 0, lots = 0 (no trade). If free_margin < required_margin, lots scaled down by free_margin/margin ratio, then floored."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "This is a Donchian-style breakout strategy. Entry uses HighestHigh/LowestLow channel breakout with BuyStop/SellStop pending orders placed one tick beyond the channel. Exit uses the opposite channel boundary (or middle line if EXIT_MIDDLE_LINE=true) as a trailing stop. Every new bar: (1) all old pending orders are deleted, (2) existing positions are trailed or closed, (3) new pending stop orders are placed if no same-side position exists. The stops_level check ensures pending orders are placed far enough from current price. Lot splitting logic handles cases where calculated lot size exceeds SYMBOL_VOLUME_MAX by splitting into multiple orders. ATR(20) is used only for the trailing stop minimum ratchet threshold (0.1*ATR) - not for entry/exit distance calculation. The CalculateLotSize function assumes a BUY direction for profit calculation even when sizing SELL orders (uses ORDER_TYPE_BUY in OrderCalcProfit/OrderCalcMargin).",
+  "external_dependencies": [
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "1) Entry logic: place BuyStop above HighestHigh channel and SellStop below LowestLow channel - straightforward to replicate with conditional stop orders. 2) Trailing stop is indicator-based (channel midpoint or boundary), not a fixed-pip trail - must track channel values each bar and update SL accordingly. 3) Position close occurs when price breaches trail level (current_price < trail_long for longs), separate from SL modification. 4) CalculateLotSize uses broker-specific functions (OrderCalcProfit, OrderCalcMargin) - in Python, replicate by computing pip_value * sl_distance to get per-lot loss, then lots = risk_money / per_lot_loss. 5) Pending order deletion every bar must be replicated to avoid stale orders. 6) Lot splitting for max_volume constraint needs to be handled. 7) ATR handle is created fresh each call in PositionManaging - should cache the handle in Python. 8) The ENTRY_SHIFT=1 and EXIT_SHIFT=1 mean the EA uses the previous completed bar's channel values, not the current forming bar - this is correct for backtesting. 9) No _Digits/_Point adjustment needed as the EA works in absolute price levels, not pip offsets.",
+  "extraction_timestamp": "2026-05-14T11:10:24.771714",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 205.95858192443848,
+    "cost": 0
+  }
+}

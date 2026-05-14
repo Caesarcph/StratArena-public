@@ -1,0 +1,144 @@
+{
+  "ea_id": "EA-27938",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iATR indicator and standard MQL5 Trade library. Simple pending order entry/exit rules. Fixed lot sizing. No custom indicators or external trading logic libraries.",
+  "symbol": null,
+  "timeframe_hint": "D1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 14,
+        "method": null,
+        "applied_to": null
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ATR-based SL distance for buy",
+      "formula": "rates[1].low - SL_ATR_FACTOR * atr[1]",
+      "used_by": "IsPendingBuySignal"
+    },
+    {
+      "name": "ATR-based SL distance for sell",
+      "formula": "rates[1].high + SL_ATR_FACTOR * atr[1]",
+      "used_by": "IsPendingSellSignal"
+    },
+    {
+      "name": "Doji detection (body <= 3% of bar range)",
+      "formula": "MathAbs(open-close) <= 0.03 * (high-low)",
+      "used_by": "IsPendingBuySignal, IsPendingSellSignal"
+    },
+    {
+      "name": "Fixed trailing stop distance in price",
+      "formula": "AR_FIXED_TRAILING_PTS * g_pointSize",
+      "used_by": "FixedTrailingStop"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "IsDoji(rates[1])",
+        "right": "true",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "IsDoji(rates[1])",
+        "right": "true",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": 1.75,
+      "params": {
+        "atr_period": 14,
+        "basis": "rates[1].low for buy, rates[1].high for sell"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 2700,
+      "params": {
+        "trail_start_pips": 2700,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "OnTradeTransaction deletes remaining pending order when one side fills (OCO-like behavior via DEAL_ENTRY_IN detection)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Dual pending stop orders placed around Doji bar (buy stop at high, sell stop at low). OCO behavior: when one pending order fills, the other is deleted via OnTradeTransaction detecting DEAL_ENTRY_IN. Trailing stop only moves SL when position is profitable (plDPts >= spread). Trailing SL set relative to rates[1].close +/- fixed distance. Doji defined as body <= 3% of total bar range.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "D1",
+  "python_conversion_notes": "Strategy is bar-based on D1, making Python conversion straightforward. Doji detection is trivial (body <= 3% of range). ATR is standard. Pending order logic requires OCO implementation: place both buy-stop and sell-stop after a Doji, cancel the unfilled one when the other triggers. Trailing stop uses fixed point distance (2700 points) and only trails when profitable. No tick-level logic needed. Entry uses previous bar (index 1) values, not current bar.",
+  "extraction_timestamp": "2026-05-14T07:13:44.659652",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 97.83558368682861,
+    "cost": 0
+  }
+}

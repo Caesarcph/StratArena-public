@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-60347",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses pending stop orders with dynamic price levels from High/Low lookback, session-based flag logic, pending order management with delete/recreate cycle, and margin check via OrderCalcMargin. While no custom indicators are used, the pending order lifecycle management (place on Friday night, delete on Monday reset) and the price-adjustment logic for stop levels require careful manual conversion.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "highest_high from LookbackBars (excluding current bar index 0)",
+      "formula": "max(high_prices[1..LookbackBars-1])",
+      "used_by": "Buy Stop price calculation"
+    },
+    {
+      "name": "lowest_low from LookbackBars (excluding current bar index 0)",
+      "formula": "min(low_prices[1..LookbackBars-1])",
+      "used_by": "Sell Stop price calculation"
+    },
+    {
+      "name": "Buy Stop price",
+      "formula": "highest_high + _Point",
+      "used_by": "PendingOrders ORDER_TYPE_BUY_STOP"
+    },
+    {
+      "name": "Sell Stop price",
+      "formula": "lowest_low - _Point",
+      "used_by": "PendingOrders ORDER_TYPE_SELL_STOP"
+    },
+    {
+      "name": "Stop Loss for Buy Stop",
+      "formula": "price - StopLoss * _Point",
+      "used_by": "SL field in trade request for buy-side orders"
+    },
+    {
+      "name": "lot size normalization",
+      "formula": "MathRound(lotSize/lotStep)*lotStep clamped to [minLot, maxLot]",
+      "used_by": "PendingOrders volume parameter"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "priceBuyStop = highest_high + _Point",
+        "right": "currentAsk + minDistPrice",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "priceSellStop = lowest_low - _Point",
+        "right": "currentBid - minDistPrice",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 60,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Close position when POSITION_PROFIT >= SecureProfitTarget (5.0 USD)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 23,
+      "end_hour": 23
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 10,
+    "filling": "RETURN"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_high_low",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_then_wait"
+  },
+  "custom_logic_notes": "Gap trading strategy: places Buy Stop above highest high and Sell Stop below lowest low of last LookbackBars on Friday at 23:00-23:15 (configurable DayOfWeek/Hours/Minutes). Uses a session flag (ordersPlacedForThisSession) to prevent duplicate orders within the same session. Flag resets on Monday (day_of_week==1), and all pending orders are deleted on Monday reset. Stop Loss is set for buy-side orders only (price - StopLoss*_Point); sell-side orders have SL=0 implicitly. Take Profit is 0 for all pending orders; instead, open positions are closed when unrealized profit reaches SecureProfitTarget in USD. Pending order prices are adjusted to comply with SYMBOL_TRADE_STOPS_LEVEL minimum distance from current market price.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The session flag logic (ordersPlacedForThisSession) must be replicated as state that persists across ticks but resets weekly. The CopyHigh/CopyLow lookback logic maps directly to pandas/numpy rolling max/min on OHLC data. Pending order management (place Buy Stop/Sell Stop, delete on Monday) requires an order state tracker. The margin check (OrderCalcMargin) has no direct Python equivalent — approximate with broker margin requirements or skip. The SYMBOL_TRADE_STOPS_LEVEL adjustment must be fetched from broker specs. No TP on orders means exit logic is purely the SecureProfitTarget check on open position PnL — implement as a monitoring loop. Note: SL is only calculated for buy-side order types (BUY_LIMIT, BUY_STOP); sell-side orders (SELL_STOP) have SL=0 which is a likely bug or intentional omission.",
+  "extraction_timestamp": "2026-05-14T12:14:23.323800",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 107.15241122245789,
+    "cost": 0
+  }
+}

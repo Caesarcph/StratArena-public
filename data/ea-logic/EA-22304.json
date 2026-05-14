@@ -1,0 +1,184 @@
+{
+  "ea_id": "EA-22304",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses custom resistance-level detection logic via iterative price histogram scanning (not a standard indicator), includes external .mqh libraries (Normal.mqh for MathVariance), and has symbol-specific hardcoded behavior (XAUUSD). The resistance detection loop is unconventional and would require careful manual translation.",
+  "symbol": "XAUUSD",
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast SMA",
+      "params": {
+        "period": 25,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow SMA",
+      "params": {
+        "period": 30,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Resistance price level near ask (Closest1)",
+      "formula": "Iterative scan from Close[min] to Close[max] in 0.001 steps; price level where count of matching closes > resistance input AND |ask - level| < 0.0005",
+      "used_by": "Buy_Condition_2"
+    },
+    {
+      "name": "Resistance price level near bid (Closest)",
+      "formula": "Iterative scan from Close[min] to Close[max] in 0.001 steps; price level where count of matching closes > resistance input AND |level - bid| < 0.0005",
+      "used_by": "Sell_Condition_2"
+    },
+    {
+      "name": "Volatility (variance of last 10 closes)",
+      "formula": "MathVariance(x) where x is last 10 close prices",
+      "used_by": "Not actively used in trading logic (commented-out polynomial formula exists)"
+    },
+    {
+      "name": "STP (adjusted Stop Loss in points)",
+      "formula": "StopLoss * 10 if _Digits==5 or _Digits==3, else StopLoss",
+      "used_by": "Stop Loss calculation in order requests"
+    },
+    {
+      "name": "TKP (adjusted Take Profit in points)",
+      "formula": "TakeProfit * 10 if _Digits==5 or _Digits==3, else TakeProfit",
+      "used_by": "Take Profit calculation in order requests"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Fast SMA (MA_Val1[0])",
+        "right": "Slow SMA (MA_Val2[0])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "custom",
+        "left": "ask price",
+        "right": "Closest1 (resistance level)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Fast SMA (MA_Val1[0])",
+        "right": "Slow SMA (MA_Val2[0])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      },
+      {
+        "condition": "custom",
+        "left": "Closest (resistance level)",
+        "right": "bid price",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 30,
+      "params": {
+        "adjustment": "multiply by 10 if 5-digit or 3-digit broker"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "adjustment": "multiply by 10 if 5-digit or 3-digit broker"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "No explicit exit/close logic for existing positions; EA only opens new positions, does not close or modify existing ones on signal reversal"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0,
+    "params": {
+      "lot_source": "SYMBOL_VOLUME_MIN (broker minimum lot)"
+    },
+    "max_positions": 1,
+    "conditional_logic": "Volume is always set to broker minimum lot size via SymbolInfoDouble(SYMBOL_VOLUME_MIN)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 100,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA implements a custom support/resistance detector by scanning price levels in 0.001 increments from the bar low to high over a configurable period (default 500 bars, 100 for XAUUSD), counting how many bar closes match each level. If a level has more hits than the 'resistance' input (default 15) and is within 0.0005 of current ask/bid, it is considered a resistance/support zone. Buy enters when ask is above this resistance zone; Sell enters when bid is below this support zone. The 0.001 step size and 0.0005 proximity threshold are hardcoded and may not suit all instruments (especially JPY pairs or XAUUSD). Volatility calculation via MathVariance exists but is unused (a polynomial resistance formula is commented out). The Buy order uses magic number 15489 (hardcoded, ignoring EA_Magic input), while Sell uses the EA_Magic input — this is likely a bug. Margin check is present but the margin variable is never populated by OrderCalcMargin, so the check margin<free_margin is unreliable.",
+  "external_dependencies": [
+    "Math\\Stat\\Normal.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\Trade.mqh",
+    "Expert\\Expert.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1. The custom resistance detection loop iterates from min to max close in 0.001 steps — this is extremely slow and must be replaced with a proper histogram/bin approach in Python. 2. MathVariance from Normal.mqh is equivalent to numpy.var(ddof=0). 3. The hardcoded 0.0005 proximity threshold is instrument-specific and won't work for XAUUSD or JPY pairs — needs to be parameterized using _Point or ATR. 4. The 0.001 step in the resistance scan loop is also instrument-specific. 5. Magic number inconsistency (Buy=15489, Sell=EA_Magic) should be flagged or fixed. 6. Margin check is broken (margin variable uninitialized) — must implement proper margin calculation or remove. 7. The PositionSelect check only works for single-position per symbol (netting accounts) — hedging accounts would need PositionSelectByTicket or iteration. 8. The period variable (500/100 for XAUUSD) should be an input parameter. 9. Current bar [0] MA values are used for entry signals — in Python backtesting this means same-bar lookahead unless shifted to [1].",
+  "extraction_timestamp": "2026-05-14T02:06:08.860757",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 86.47452640533447,
+    "cost": 0
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-2288",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'AFIRMA' custom indicator, and includes TradeAlgorithms.mqh for position management, money management, and trade execution which contains complex logic for lot calculation and position close/open routines",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AFIRMA (Adaptive FIR Moving Average)",
+      "params": {
+        "period": 4,
+        "taps": 21,
+        "window": 3,
+        "applied_to": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TimeShiftSec - chart period in seconds for signal timestamp",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "BuyPositionOpen/SellPositionOpen signal time parameter"
+    },
+    {
+      "name": "min_rates_total - minimum bars required before trading",
+      "formula": "Taps + 3 + SignalBar",
+      "used_by": "BarsCalculated check before signal processing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "AFIRMA buffer[0] (current signal bar)",
+        "right": "AFIRMA buffer[1] (previous bar)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "AFIRMA buffer[0] (current signal bar)",
+        "right": "AFIRMA buffer[1] (previous bar)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long closed when AFIRMA[1]>AFIRMA[2] (downtrend detected) and BuyPosClose is enabled",
+      "Short closed when AFIRMA[1]<AFIRMA[2] (uptrend detected) and SellPosClose is enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: FREEMARGIN=deposit fraction from free margin, BALANCE=deposit fraction from balance, LOSSFREEMARGIN=loss share from free margin, LOSSBALANCE=loss share from balance, LOT=fixed lot; default input is LOT with MM=0.1"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic: AFIRMA buffer 1 is read at bars [SignalBar, SignalBar+1, SignalBar+2]. Downtrend is detected when Value[1]<Value[2] (AFIRMA declining). In downtrend, if Value[0]>Value[1] (AFIRMA turning up), a BUY signal fires. Uptrend detected when Value[1]>Value[2] (AFIRMA rising). In uptrend, if Value[0]<Value[1] (AFIRMA turning down), a SELL signal fires. This is a mean-reversion strategy on the AFIRMA filter: buy when the adaptive filter turns up during a decline, sell when it turns down during a rise. When SignalBar=0, the EA evaluates every tick without waiting for a new bar. The Recount flag ensures signals are recalculated on data copy failure. GlobalVariableDel_ is called on deinit for cleanup. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean gates that can individually disable long entry, short entry, long exit, and short exit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "AFIRMA custom indicator (iCustom)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The AFIRMA custom indicator must be reimplemented in Python - it is an adaptive FIR moving average with configurable window functions (Rectangular, Hanning1, Hanning2, Blackman, Blackman-Harris) and tap count. The TradeAlgorithms.mqh library must be fully analyzed to replicate BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions, CIsNewBar class, LoadHistory, and GlobalVariableDel_. Position sizing has 5 modes controlled by MarginMode enum; default input uses LOT (fixed lot). SL/TP are in points (not pips) so digit adjustment depends on symbol. Signal timestamp (UpSignalTime/DnSignalTime) is passed to open functions - need to verify if this is used for pending order logic or just logging. The entry is a mean-reversion pattern on AFIRMA: trend-down + filter-turning-up = buy; trend-up + filter-turning-down = sell.",
+  "extraction_timestamp": "2026-05-14T03:48:09.418720",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 115.44340395927429,
+    "cost": 0
+  }
+}

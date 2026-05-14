@@ -1,0 +1,168 @@
+{
+  "ea_id": "EA-726",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "D'Alembert betting system with partial close/scale-in, margin-dependent position sizing, exposure-based currency value tracking across multiple symbols, hedging logic, tick-level execution with NoWorkTime throttling, and broker-specific margin checks. Heavy pending order management is not used, but the multi-symbol exposure system, partial close mechanics, and margin-dependent risk controls make it MT5 platform-dependent.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Currency exposure V[] - net EUR-denominated exposure per currency (EUR,USD,JPY,CHF,GBP,CAD,AUD)",
+      "formula": "sum of (position_volume / EUR+Val1_ask) for each open position, signed by buy/sell and base/quote",
+      "used_by": "Exposure limits, entry gates, position sizing"
+    },
+    {
+      "name": "LotV - total absolute exposure across all currencies",
+      "formula": "sum of MathAbs(V[EI]) for EI=0..Vmax-1",
+      "used_by": "Risk display, exposure monitoring"
+    },
+    {
+      "name": "LotP - total position volume in EUR-lots",
+      "formula": "(sum of all position volumes in EUR) / 2.0",
+      "used_by": "Risk display"
+    },
+    {
+      "name": "FreeBalance - available money for loss absorption",
+      "formula": "AccountBalance - BestBalance",
+      "used_by": "AcceptedLOSS check, loss management"
+    },
+    {
+      "name": "TP - TakeProfit delta in price for each order",
+      "formula": "MathMax(KTP*Take_or_bid, 2.0*SStop, (ask-bid)+Point)",
+      "used_by": "BUY, SELL order construction, D'Alembert ladder"
+    },
+    {
+      "name": "BestBalance - highest balance achieved (loss protection)",
+      "formula": "max(BestBalance, AccountBalance) updated after each CleanBad close",
+      "used_by": "FreeBalance calculation, DrawDown detection"
+    },
+    {
+      "name": "FreeTrade - high margin flag allowing exposure limit bypass",
+      "formula": "ACCOUNT_MARGIN_LEVEL > 2.0 * max(MinMargin, 400.0)",
+      "used_by": "Entry gates for new positions and scale-in"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "V[Val1Index] < Limit_Exposure_Lot OR FreeTrade",
+        "right": "V[-Val2Index] < Limit_Exposure_Lot OR FreeTrade",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "T.ask",
+        "right": "Take - (NLots/LotMin + 1.0) * TP",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "V[Val2Index] < Limit_Exposure_Lot OR FreeTrade",
+        "right": "V[-Val1Index] < Limit_Exposure_Lot OR FreeTrade",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "T.bid",
+        "right": "Take + (NLots/LotMin + 1.0) * TP",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "percent",
+      "value": 0.25,
+      "params": {
+        "percent_of_price": "KTP (0.0025 in eq3-06, 0.0095 in e04lc07-v4)",
+        "tp_trailing": "ORDER_TP_BUY/SELL moves TP closer by KTP% when profit exceeds loss"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Partial close (SELL against BUY position / BUY against SELL position) when price reaches Take - (NLots/LotMin - 1)*TP for longs or Take + (NLots/LotMin - 1)*TP for shorts",
+      "CleanBad: close losing position by LotMin when AcceptedLOSS is true or CloseOne flag is set (drawdown mode)",
+      "TP trailing: ORDER_TP_BUY/SELL moves TP closer by KTP*TP when max profit position exceeds max loss position",
+      "Low margin exit: close positions when ACCOUNT_MARGIN_LEVEL < MinMargin with high exposure, or < 123.4 unconditional"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.01,
+    "params": {
+      "base_lot_min": "SymbolInfoDouble(SYMBOL_VOLUME_MIN)",
+      "lot_mx_multiplier": "LotMX (e.g. 3 or 10) applied when base_lot < 0.1",
+      "kstart_multiplier": "KStart (e.g. 7) for new position opening volume in eq3-06",
+      "scale_in_volume": "LotMin per D'Alembert step",
+      "max_position_lot": "Limit_Position_Lot (2.5)",
+      "max_exposure_lot": "Limit_Exposure_Lot per currency (1.25 or 0.55)",
+      "lot_at_risk": "LotAtSend = LotAtRisk (1.75 or 0.75) before LastRiskDate, else LotMin"
+    },
+    "max_positions": 3,
+    "conditional_logic": "New position: KStart*LotMin. Scale-in: LotMin per step. Partial close: LotMin. D'Alembert: volume increases by LotMin when price moves against position (TP-ladder spacing), decreases by LotMin when price moves toward TP. Total position capped at Limit_Position_Lot per symbol, exposure capped at Limit_Exposure_Lot per currency value."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 99,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "D'Alembert betting system: position volume increases when price moves against the position (adding LotMin at each TP-ladder step) and decreases when price moves toward take-profit (partial close by LotMin). The TakeProfit level is set as a price ladder where each step is TP = max(KTP*price, 2*stops_level, spread). Multi-symbol currency exposure is tracked via V[] array - net EUR-normalized exposure per currency. Entry is gated by exposure limits (Limit_Exposure_Lot per currency) and a FreeTrade flag (margin level > 2x max(MinMargin,400)). Loss management (CleanBad) partially closes the worst losing position when FreeBalance can absorb the loss. TP trailing (ORDER_TP_BUY/SELL) moves take-profit closer by KTP% when the best profitable position exceeds the worst losing one. CloseOne flag triggers aggressive loss-closing when equity drops below 90% of balance. NoWorkTime parameter throttles execution frequency. Inverse input flips all action directions. Hamilton cycle constraint noted for SPos[] array. LastRiskDate disables aggressive sizing after competition deadline.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The multi-symbol currency exposure system (V[] array with EUR-normalized lot conversion) requires a portfolio-level state manager, not a single-symbol approach. The D'Alembert ladder logic (scale-in on adverse moves, partial close on favorable moves) needs precise position tracking with per-symbol NLots/LotMin step counts. CleanBad loss management depends on real-time margin level and balance/equity ratios. The FreeTrade flag bypasses all exposure limits, requiring careful margin simulation. TP trailing logic (ORDER_TP_BUY/SELL modifying SLTP) requires position modification support. The NoWorkTime throttle and Sleep(5555) in OnTrade affect execution timing in backtests. Must simulate: PositionSelect, SymbolInfoTick, AccountInfoDouble(ACCOUNT_MARGIN_LEVEL), and the global state variables (BestBalance, CloseOne, FreeBalance) across all symbols simultaneously.",
+  "extraction_timestamp": "2026-05-14T13:41:50.010001",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 165.57285523414612,
+    "cost": 0
+  }
+}

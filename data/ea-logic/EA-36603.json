@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-36603",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Heavy pending order management with BuyStop/SellStop orders placed around economic calendar news events. Uses MQL5 Calendar API (CalendarValueHistory, CalendarEventByCurrency, CalendarEventById) which has no Python equivalent. Pending order expiry and stop-level broker checks are MT5-specific. News-driven straddle strategy requires tick-level execution with broker stop-level awareness.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "stopprice (broker minimum stop distance in price)",
+      "formula": "(SYMBOL_TRADE_STOPS_LEVEL + SYMBOL_SPREAD) * _Point",
+      "used_by": "Used to determine minimum distance for pending orders, though not directly enforced in order placement"
+    },
+    {
+      "name": "OrderVolume (lot size with conditional money management)",
+      "formula": "UseMoneyManagement ? LotSize() : PriceVolume",
+      "used_by": "Both BuyStop and SellStop order placement"
+    },
+    {
+      "name": "LotSize (risk-based lot calculation)",
+      "formula": "(Balance * 0.03) / PriceSL, normalized and clamped to SYMBOL_VOLUME_MIN/SYMBOL_VOLUME_MAX",
+      "used_by": "OrderVolume when UseMoneyManagement=true"
+    },
+    {
+      "name": "BeforeReleaseTime",
+      "formula": "eanewsdata[i].ReleaseTime - PeriodSeconds(PERIOD_M5)",
+      "used_by": "Gate condition for placing pending orders 5 minutes before news release"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "TimeTradeServer()",
+        "right": "BeforeReleaseTime (ReleaseTime - 5min)",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "TimeTradeServer()",
+        "right": "BeforeReleaseTime (ReleaseTime - 5min)",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 300,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 900,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 200,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Pending orders expire at ORDER_TIME_SPECIFIED with expdate = curdatetime + PeriodSeconds(Expirydate)",
+      "CTrailingFixedPips trailing stop object declared but never attached or activated in the code"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.01,
+    "params": {
+      "risk_percent": 3,
+      "risk_divisor": "PriceSL in points"
+    },
+    "max_positions": 1,
+    "conditional_logic": "UseMoneyManagement=false uses fixed PriceVolume lots; UseMoneyManagement=true calculates 3% of balance divided by PriceSL points, normalized and clamped to broker min/max volume steps"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "News straddle strategy: EA queries MQL5 Economic Calendar for HIGH importance events for the base currency (must be USD). Places BuyStop at Ask + Buydistance*Point and SellStop at Bid - Selldistance*Point within 5 minutes before news release. Each pending order is prefixed with 'B' or 'S' and suffixed with 'N' in the comment to identify news orders. CheckPendingOrder prevents duplicate orders by matching comment strings. CalendarValueHistory filters events between (now - H4) and (now + D1). Only trades when currency base is USD. The FuncTradeNews() function is never called from OnTick() - this is a bug/incomplete implementation. Trailing stop object (eatrail) is declared but never used. CheckVolumeValue function exists but is never called.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\OrderInfo.mqh",
+    "Trade\\HistoryOrderInfo.mqh",
+    "Expert\\Trailing\\TrailingFixedPips.mqh",
+    "Tools\\Datetime.mqh",
+    "Trade\\SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Critical issue: FuncTradeNews() is never called from OnTick() - the EA as written will never trade. The MQL5 Calendar API (CalendarValueHistory, CalendarEventById, etc.) has no Python broker API equivalent - would need ForexFactory or similar RSS/API scraping. Pending order straddle logic is broker-dependent (stop levels, spread at news time). The trailing stop (CTrailingFixedPips) is imported but never activated. CheckVolumeValue and CheckMoneyForTrade provide good validation patterns to preserve. Money management formula (3% balance / SL points) is straightforward to replicate. The duplicate order check via comment string matching is fragile and should use magic numbers instead in Python conversion.",
+  "extraction_timestamp": "2026-05-14T09:10:18.286674",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 160.7148792743683,
+    "cost": 0
+  }
+}

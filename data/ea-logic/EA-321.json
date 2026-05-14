@@ -1,0 +1,180 @@
+{
+  "ea_id": "EA-321",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iMA, iRSI) with simple crossover entry logic and fixed/percentage position sizing. No external .mqh libraries or custom indicators required for trading logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast MA (AML)",
+      "params": {
+        "period": 3,
+        "method": 0,
+        "applied_to": 2,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow MA (AML)",
+      "params": {
+        "period": 3,
+        "method": 0,
+        "applied_to": 3,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Digit-adjusted StopLoss",
+      "formula": "StopLoss * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "exit_rules.stop_loss"
+    },
+    {
+      "name": "Digit-adjusted TakeProfit",
+      "formula": "TakeProfit * 10 when _Digits==5 or _Point<0.001",
+      "used_by": "exit_rules.take_profit"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA (AML) [1]",
+        "right": "Slow MA (AML) [1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "RSI [1]",
+        "right": "RSI_Level_Buy (default 50)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast MA (AML) [1]",
+        "right": "Slow MA (AML) [1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "RSI [1]",
+        "right": "RSI_Level_Sell (default 50)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "input_name": "StopLoss",
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "input_name": "TakeProfit",
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close long on short signal (AML crossover below + RSI below sell level)",
+      "Close short on long signal (AML crossover above + RSI above buy level)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "fixed_lots_input": "Lots (default 0.1)",
+      "risk_percent_input": "Risk (default 0)"
+    },
+    "max_positions": 1,
+    "conditional_logic": "When Risk <= 0, use fixed Lots; when Risk > 0, calculate lot size as (AccountFreeMargin * Risk/100) / (StopLoss_pips * MarketInfo_tickvalue), clamped by SymbolInfoDouble min/max volume and volume step"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "AML (Adaptive Market Level) is implemented as two iMA calls on HIGH (applied_to=2) and LOW (applied_to=3) with same short period (default 3, SMA method). The crossover of these two MAs acts as the primary signal. RSI acts as a confirmation filter — long requires RSI > RSI_Level_Buy, short requires RSI < RSI_Level_Sell. Signal reversal closes opposite positions before opening new ones. The new bar guard ensures signals are evaluated only once per completed bar using previous bar values ([1]). Margin check via OrderCalcMargin prevents trades with insufficient margin.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward conversion. Two SMA indicators on High and Low with period 3, plus RSI(14). Entry is AND logic: AML crossover + RSI filter. Use previous completed bar values for signal generation. Digit adjustment for SL/TP: multiply by 10 for 5-digit brokers. Position sizing: if Risk<=0 use fixed lots; else compute via free_margin * risk% / (SL_pips * pip_value). New bar detection needed to limit signal evaluation to once per bar.",
+  "extraction_timestamp": "2026-05-14T08:26:11.239230",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 131.11005449295044,
+    "cost": 0
+  }
+}

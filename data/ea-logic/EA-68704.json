@@ -1,0 +1,187 @@
+{
+  "ea_id": "EA-68704",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iMA indicators. Entry logic is pure price action (pin bar, engulfing, inside bar) with MA trend filter. Fixed pip-based SL/TP and risk-percent position sizing. No external .mqh dependencies, no custom indicators, no grid/martingale, no multi-timeframe logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 20,
+        "shift": 0,
+        "method": 1,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 50,
+        "shift": 0,
+        "method": 1,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "pipValue - adjusted pip multiplier for 3/5 digit brokers",
+      "formula": "(digits==3||digits==5) ? 10*_Point : _Point",
+      "used_by": "All SL/TP/pip calculations throughout the EA"
+    },
+    {
+      "name": "lotSize normalized to volume step",
+      "formula": "MathFloor((riskAmount*tickSize)/(slDistance*tickValue) / lotStep) * lotStep, clamped [minLot, maxLot]",
+      "used_by": "ExecuteBuy, ExecuteSell"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "PinBar bullish",
+        "right": "trend>=0 OR IsAtSupport",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bullish engulfing",
+        "right": "trend>=0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Inside bar bullish breakout",
+        "right": "close[0] > mother_bar_high AND trend>=0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "PinBar bearish",
+        "right": "trend<=0 OR IsAtResistance",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bearish engulfing",
+        "right": "trend<=0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Inside bar bearish breakout",
+        "right": "close[0] < mother_bar_low AND trend<=0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 40,
+      "params": {
+        "pip_adjustment_for_5digit": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 80,
+      "params": {
+        "calculated_as": "StopLossPips * TakeProfitRatio",
+        "ratio": 2.0,
+        "pip_adjustment_for_5digit": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 30,
+      "params": {
+        "trail_start_pips": 30,
+        "trail_step_pips": 10,
+        "pip_adjustment_for_5digit": true
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Breakeven move: when price moves BreakEvenPips (20) in favor, SL moved to open price",
+      "End-of-day close: if CloseAtEndOfDay=true, all positions closed when outside trading hours",
+      "Daily loss limit: if daily loss >= MaxDailyLoss% (3.0%), no new trades and existing positions remain open"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 1.5,
+    "params": {
+      "risk_percent": 1.5,
+      "calculation": "lotSize = (balance * riskPercent/100 * tickSize) / (slDistance * tickValue), floored to lotStep, clamped [minLot, maxLot]",
+      "fallback_on_error": "SYMBOL_VOLUME_MIN"
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 2,
+      "end_hour": 20
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three price action patterns evaluated in priority order: (1) Pin bar - requires wick>PinBarPipSize*pipValue AND wick>body*PinBarRatio AND opposite_wick<body. Bullish=long lower wick, Bearish=long upper wick. Signal requires wick ratio >2x opposite AND (trend alignment OR at S/R level). (2) Engulfing - requires body>EngulfingMinPips*pipValue. Bullish=prev bearish candle fully engulfed by current bullish, Bearish=vice versa. Signal requires trend alignment. (3) Inside bar breakout - current bar high<mother high AND current low>mother low. Signal on breakout of mother bar range with trend alignment. S/R levels identified by scanning iLow/iHigh over SRLookback(20) bars with SRTolerance(10 pips). Filling mode auto-detected from broker with fallback retry across FOK/IOC/RETURN.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Three price action patterns need manual OHLC-based implementations. Pin bar detection uses index[1] bars (previous completed bar) for pattern, but index[0] current bar close for inside bar breakout. The pipValue digit adjustment (10x for 5/3 digit) must be replicated. S/R detection is a simple loop over past lows/highs within tolerance - easy to port. Trend filter uses two EMAs on consecutive bars (both [0] and [1] must agree). Position gate is strict: only trades when PositionsTotal()==0. Breakeven and trailing stop modify positions on every tick (not just new bar). The filling mode retry logic should be replaced with broker-specific configuration in Python. Note: inside bar breakout uses close[0] (current forming bar) which means intrabar signals could trigger before bar close - in backtesting with M1 data this is acceptable but tick data would be more accurate for live-like behavior.",
+  "extraction_timestamp": "2026-05-14T13:27:55.209695",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 107.44615578651428,
+    "cost": 0
+  }
+}

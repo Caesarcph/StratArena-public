@@ -1,0 +1,249 @@
+{
+  "ea_id": "EA-68535",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses ONNX neural network model for signal generation (non-standard external dependency), pending limit orders with Fibonacci-based entry, and multi-step AI-driven logic that requires careful conversion of the ONNX inference pipeline to Python equivalent.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "ATR 14",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "MA Trend 50 SMA Close",
+      "params": {
+        "period": 50,
+        "method": "SMA",
+        "shift": 0,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ONNX Market Structure Classifier",
+      "params": {
+        "model_file": "market_structure.onnx",
+        "input_features": 6,
+        "output_labels": 4,
+        "threshold": 0.65
+      },
+      "source": "external_library",
+      "library": "market_structure.onnx",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Feature 0: 5-bar momentum normalized by ATR",
+      "formula": "(close[0] - close[5]) / ATR",
+      "used_by": "ONNX model input"
+    },
+    {
+      "name": "Feature 1: Distance from 50-bar high normalized by ATR",
+      "formula": "(High(50) - close[0]) / ATR",
+      "used_by": "ONNX model input"
+    },
+    {
+      "name": "Feature 2: Distance from 50-bar low normalized by ATR",
+      "formula": "(close[0] - Low(50)) / ATR",
+      "used_by": "ONNX model input"
+    },
+    {
+      "name": "Feature 3: Volume ratio (current tick_volume / 20-bar avg volume)",
+      "formula": "tick_volume[0] / AvgVolume(20)",
+      "used_by": "ONNX model input"
+    },
+    {
+      "name": "Feature 4: Candle body normalized by ATR",
+      "formula": "(close[0] - open[0]) / ATR",
+      "used_by": "ONNX model input"
+    },
+    {
+      "name": "Feature 5: Hour of day",
+      "formula": "hour(rates[0].time)",
+      "used_by": "ONNX model input"
+    },
+    {
+      "name": "Pivot High: highest bar in +/- 5 bar window",
+      "formula": "iHigh where bar is highest among i-5 to i+5",
+      "used_by": "ExecutePendingFibo entry calculation"
+    },
+    {
+      "name": "Pivot Low: lowest bar in +/- 5 bar window",
+      "formula": "iLow where bar is lowest among i-5 to i+5",
+      "used_by": "ExecutePendingFibo entry calculation"
+    },
+    {
+      "name": "Fibonacci entry level",
+      "formula": "p_high - (p_high - p_low) * FibLevel for buy; p_low + (p_high - p_low) * FibLevel for sell",
+      "used_by": "Pending order entry price"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "ONNX predicted_label",
+        "right": "signal == 3 or signal == 2",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "BID",
+        "right": "MA 50 SMA",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "ONNX confidence",
+        "right": "Threshold (0.65)",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Fibonacci entry price",
+        "right": "ASK",
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "ONNX predicted_label",
+        "right": "signal == 1 or signal == 0",
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "BID",
+        "right": "MA 50 SMA",
+        "direction": "below",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "ONNX confidence",
+        "right": "Threshold (0.65)",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Fibonacci entry price",
+        "right": "BID",
+        "direction": "above",
+        "order_type": "limit",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 15,
+      "params": {
+        "note": "15 points below pivot low for buy, 15 points above pivot high for sell; actual pip distance varies with pivot distance"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "note": "TP = entry + (entry - SL) * RR_ratio; effective pips = SL_distance * InpRR (default 2.0)"
+      }
+    },
+    "trailing_stop": {
+      "type": "atr_multiple",
+      "value": 0,
+      "params": {
+        "trail_start_rr": 0.8,
+        "trail_lock_percent": 30,
+        "trail_buffer_points": 30,
+        "note": "Trailing activates when profit distance >= full_RR_dist * InpTrailingStepRR; then moves SL to open +/- 30% of current_profit_dist"
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Pending orders expire after InpExpireHours (default 4 hours) via ORDER_TIME_SPECIFIED",
+      "Fibonacci drawing deleted when no positions and no pending orders remain"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {
+      "min_lot_check": true,
+      "max_lot_check": true,
+      "lot_step_check": true
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 0,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Neural network (ONNX) classifier with 4 output labels drives direction: labels 2-3 = bullish bias, labels 0-1 = bearish bias. Confidence must exceed threshold (0.65). Entry uses Fibonacci retracement of pivot high-low range at 61.8% level as pending limit order price. MA 50 acts as trend filter. Trailing stop is RR-based: activates at 0.8x of full RR distance, then locks 30% of unrealized profit. Pivot detection uses 5-bar window on each side (bars i-5 to i+5). Pending orders have time-based expiration (4 hours default).",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "market_structure.onnx"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Must replicate ONNX inference pipeline using onnxruntime or equivalent Python ML framework. The 6-feature engineering (momentum, distance from extremes, volume ratio, candle body, hour) must be exactly matched. Pivot detection algorithm (5-bar window, scanning bars 5-100) must be ported precisely. Fibonacci-based pending order placement requires careful price-level calculation matching MT5 NormalizeDouble behavior. Trailing stop is RR-based (not pip-based) which requires tracking original SL distance. The confidence threshold and label-to-signal mapping (0-1=bearish, 2-3=bullish) must be preserved. Pending order expiration handling needs broker-specific consideration.",
+  "extraction_timestamp": "2026-05-14T13:22:03.383022",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 185.75093007087708,
+    "cost": 0
+  }
+}

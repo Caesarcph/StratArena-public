@@ -1,0 +1,150 @@
+{
+  "ea_id": "EA-39234",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale position sizing with margin-dependent lot calculation and progressive multiplier on losses. This is a high-risk grid-adjacent strategy that relies on MT5 account/margin functions and broker-specific execution for recovery trades, making it unsafe and impractical to auto-convert to Python backtesting.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MACD",
+      "name": "MACD Four Colors",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "method": "EMA",
+        "applied_to": "close"
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MACD histogram color state (4-color coding: bullish rising, bullish falling, bearish rising, bearish falling)",
+      "formula": "MACD_line - Signal_line comparison with prior bar direction",
+      "used_by": "entry_rules and exit signal determination"
+    },
+    {
+      "name": "Martingale lot size after loss",
+      "formula": "previous_lot * LotMultiplier",
+      "used_by": "position_sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "MACD histogram",
+        "right": "zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "MACD histogram",
+        "right": "prior bar histogram",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "MACD histogram",
+        "right": "zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "MACD histogram",
+        "right": "prior bar histogram",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite MACD signal closes existing position before opening new one in reverse direction"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "lot_multiplier": 2.0,
+      "max_lot": 100.0,
+      "reset_on_win": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "On losing trade, next lot = previous_lot * LotMultiplier. On winning trade, lot resets to base LotSize. Lot size is also capped by free margin check via OrderCalcMargin or equivalent."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Four-color MACD histogram provides visual and logical distinction between momentum phases: (1) bullish + rising histogram = strong long, (2) bullish + falling histogram = weakening long/exit, (3) bearish + falling histogram = strong short, (4) bearish + rising histogram = weakening short/exit. The martingale lot multiplier compounds risk on consecutive losses. Margin check prevents over-leveraging but does not prevent account drawdown from martingale sequence. SL/TP pip values require digit adjustment (multiply by 10) when _Digits==5 or _Point<0.001.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The martingale position sizing is the primary blocker for auto-conversion. Must implement: (1) trade result tracking to determine win/loss for lot sizing, (2) margin calculation equivalent to OrderCalcMargin for lot validation, (3) four-color MACD histogram state machine for entry/exit signals, (4) digit adjustment logic for SL/TP pip-to-price conversion. The MACD indicator itself is standard and can use ta-lib or pandas-ta. The 4-color logic is a derived state from standard MACD histogram direction changes. Backtesting must use tick data or M1 with realistic slippage since martingale recovery depends on fill quality.",
+  "extraction_timestamp": "2026-05-14T09:37:43.654791",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 182.9486403465271,
+    "cost": 0
+  }
+}

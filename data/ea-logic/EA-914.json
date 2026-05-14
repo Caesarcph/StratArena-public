@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-914",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iMA indicator. Simple crossover entry/exit with signal-reversal close. Percentage-based position sizing with loss-decrease logic. No external .mqh libraries for trading logic (FrameGenerator.mqh is only for backtest optimization visualization, not trading). No custom indicators, no grid, no hedging.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Moving Average (SMA)",
+      "params": {
+        "period": 12,
+        "shift": 6,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Optimized lot size based on free margin and risk percentage",
+      "formula": "AccountFreeMargin * MaximumRisk / margin_per_lot",
+      "used_by": "position_sizing"
+    },
+    {
+      "name": "Loss-decreased lot size",
+      "formula": "lot - lot * consecutive_losses / DecreaseFactor",
+      "used_by": "position_sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Bar Close (rt[0].close)",
+        "right": "MA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Bar Close (rt[0].close)",
+        "right": "MA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Position closed via trade.PositionClose(_Symbol,3) when opposite crossover signal occurs on the same bar the existing position is checked"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 0.02,
+    "params": {
+      "decrease_factor": 3,
+      "margin_per_lot_used": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "Base lot = FreeMargin * MaximumRisk / margin_per_1_lot. If DecreaseFactor>0 and consecutive losing deals exist, lot is reduced by lot*losses/DecreaseFactor. Lot is then normalized to SYMBOL_VOLUME_STEP and clamped to SYMBOL_VOLUME_MIN..SYMBOL_VOLUME_MAX."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry signal uses bar[0] open vs close relative to MA: SELL when open > MA and close < MA (price crossed below MA within the bar); BUY when open < MA and close > MA (price crossed above MA within the bar). New-bar guard uses rt[1].tick_volume > 1 check (only trades on first tick of new bar). No SL/TP set on PositionOpen (0,0 passed). Close uses deviation=3. Bars(_Symbol,_Period)>100 required as minimum bar count before trading allowed. TERMINAL_TRADE_ALLOWED check before both open and close. The FrameGenerator.mqh include and CFrameGenerator are purely for strategy tester optimization visualization and do not affect live trading logic.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "FrameGenerator.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Straightforward conversion. iMA maps directly to pandas TA or ta-lib SMA. Entry logic: compare bar open/close against MA value on completed bar. New-bar guard translates to checking for new candle formation. Position sizing: calculate lot from account free margin * risk_pct / margin_per_lot, then apply loss-decrease factor by iterating trade history for consecutive losses. No SL/TP simplifies conversion. The loss-decrease lot logic requires trade history access. FrameGenerator functionality can be ignored for Python conversion as it is backtest-visualization only. Note the entry uses rt[0] (current forming bar) open and close vs MA, which in backtesting acts as next-bar-open fill since new-bar guard ensures execution only on first tick.",
+  "extraction_timestamp": "2026-05-14T13:47:41.218634",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 169.67071437835693,
+    "cost": 0
+  }
+}

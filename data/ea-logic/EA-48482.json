@@ -1,0 +1,158 @@
+{
+  "ea_id": "EA-48482",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses ONNX neural network models embedded in external .mqh files for signal generation. The core trading logic depends on two ONNX models (ExtModel, ExtModel2) loaded from buffers defined in external include files, making it impossible to auto-convert without the model inference logic. The .mqh includes contain model data arrays and feature engineering (fill_arays, fill_arays_m functions) that are not available without manual extraction.",
+  "symbol": "EURUSD",
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ONNX Main Model (Cluster/Propensity)",
+      "params": {
+        "input_size": "ArraySize(Periods)",
+        "output_type": "tensor_probabilities"
+      },
+      "source": "external_library",
+      "library": "EURUSD ONNX include clusters.mqh / EURUSD ONNX include propensity matching original IPW.mqh",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ONNX Meta Model",
+      "params": {
+        "input_size": "ArraySize(Periods_m)",
+        "output_type": "tensor_probabilities"
+      },
+      "source": "external_library",
+      "library": "EURUSD ONNX include clusters.mqh / EURUSD ONNX include propensity matching original IPW.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "sig - main model sell probability (tensor index 1)",
+      "formula": "out2[0].tensor[1]",
+      "used_by": "entry and exit signal logic"
+    },
+    {
+      "name": "meta_sig - meta model confidence probability (tensor index 1)",
+      "formula": "out2_meta[0].tensor[1]",
+      "used_by": "position gate for both entry and exit"
+    },
+    {
+      "name": "features array from fill_arays()",
+      "formula": null,
+      "used_by": "main ONNX model input"
+    },
+    {
+      "name": "features_m array from fill_arays_m()",
+      "formula": null,
+      "used_by": "meta ONNX model input"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "sig (main model probability)",
+        "right": "1 - main_threshold (default 0.5)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "sig (main model probability)",
+        "right": "main_threshold (default 0.5)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close BUY when meta_sig > meta_threshold AND sig > main_threshold (model predicts sell direction with confidence)",
+      "Close SELL when meta_sig > meta_threshold AND sig < 1-main_threshold (model predicts buy direction with confidence)",
+      "Freeze level check before closing: SYMBOL_TRADE_FREEZE_LEVEL < MathAbs(Bid - PriceOpen)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.001,
+    "params": {
+      "maximum_risk": 0.001,
+      "manual_lot_override": 0
+    },
+    "max_positions": 1,
+    "conditional_logic": "If ManualLot != 0, use fixed lot size (ManualLot). Otherwise, calculate as FreeMargin * MaximumRisk / 1000.0, rounded to volume_step, clamped to SYMBOL_VOLUME_MIN..SYMBOL_VOLUME_MAX. During optimization, always use SYMBOL_VOLUME_MIN."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Dual ONNX model architecture: a main model generates a buy/sell probability signal (sig), and a meta model generates a confidence filter (meta_sig). Trades only execute when meta_sig exceeds meta_threshold (gating mechanism). BUY signal: sig < 1-main_threshold (low sell probability = buy). SELL signal: sig > main_threshold (high sell probability = sell). Position close logic mirrors entry: close BUY when sig > main_threshold with meta confidence; close SELL when sig < 1-main_threshold with meta confidence. Retry loops with Sleep(50) on both PositionOpen and PositionClose until successful. The cluster version adds Allow_Buy/Allow_Sell toggles and separate main_threshold/meta_threshold inputs vs the propensity version which uses a single proba=0.5 variable. Feature engineering is entirely encapsulated in external .mqh includes (fill_arays, fill_arays_m, Periods, Periods_m arrays).",
+  "external_dependencies": [
+    "EURUSD ONNX include clusters.mqh",
+    "EURUSD ONNX include propensity matching original IPW.mqh",
+    "Trade\\Trade.mqh",
+    "Trade\\AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Two ONNX models must be exported/saved as .onnx files from the .mqh byte arrays (ExtModel, ExtModel2). The fill_arays() and fill_arays_m() functions in the .mqh includes must be reverse-engineered to replicate feature engineering in Python. The Periods[] and Periods_m[] arrays define input feature dimensions and must be extracted. Python ONNX runtime (onnxruntime) can replace MQL5 OnnxRun calls. The meta-model gating logic (meta_sig > threshold) must be preserved as a confidence filter. Retry loops with Sleep(50) are MQL5-specific and should be replaced with proper error handling in Python. The SL/TP of 2000 pips on 5-digit EURUSD = 2000 * 0.00001 = 0.02 (200 pips in traditional terms) — no digit adjustment needed as _Point already accounts for 5-digit pricing. PositionOpen with both SL and TP is a single API call in MQL5 but may need separate order management in Python backtesting frameworks.",
+  "extraction_timestamp": "2026-05-14T11:05:00.571517",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 72.7305235862732,
+    "cost": 0
+  }
+}

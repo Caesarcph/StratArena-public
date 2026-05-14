@@ -1,0 +1,236 @@
+{
+  "ea_id": "EA-39931",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses external .mqh libraries (Trade.mqh, SymbolInfo.mqh, PositionInfo.mqh, AccountInfo.mqh) for trading logic and position management. Also implements a custom ParabolicSAR trailing stop algorithm inline rather than using the built-in iSAR indicator, requiring careful manual translation of the stateful trailing logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MACD",
+      "name": "MACD(12,26,9)",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA Trend",
+      "params": {
+        "period": 26,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "m_adjusted_point - point adjusted for 3/5 digit brokers",
+      "formula": "_Point * 10 when _Digits==3 or _Digits==5, else _Point * 1",
+      "used_by": "SL, TP, trailing stop, MACD open/close levels"
+    },
+    {
+      "name": "m_macd_open_level - MACD threshold for entry",
+      "formula": "InpMACDOpenLevel * m_adjusted_point",
+      "used_by": "LongOpened, ShortOpened entry filters"
+    },
+    {
+      "name": "m_macd_close_level - MACD threshold for exit",
+      "formula": "InpMACDCloseLevel * m_adjusted_point",
+      "used_by": "LongClosed, ShortClosed exit filters"
+    },
+    {
+      "name": "m_take_profit - TP in price units",
+      "formula": "InpTakeProfit * m_adjusted_point",
+      "used_by": "LongOpened, ShortOpened order placement"
+    },
+    {
+      "name": "m_stop_loss - SL in price units",
+      "formula": "InpStopLoss * m_adjusted_point",
+      "used_by": "LongOpened, ShortOpened order placement"
+    },
+    {
+      "name": "m_trailing_stop - trailing stop distance in price units",
+      "formula": "InpTrailingStop * m_adjusted_point",
+      "used_by": "LongModified, ShortModified fixed trailing stop"
+    },
+    {
+      "name": "ParabolicSAR trailing stop (inline calculation)",
+      "formula": "long: sl + (highest_high - sl) * min(InpPSAR_Maximum, m_trailing_step + InpPSAR_Step); short: sl - (sl - lowest_low) * min(InpPSAR_Maximum, m_trailing_step + InpPSAR_Step)",
+      "used_by": "LongModifiedEx, ShortModifiedEx"
+    },
+    {
+      "name": "m_trailing_step - PSAR acceleration factor",
+      "formula": "fmin(InpPSAR_Maximum, m_trailing_step + InpPSAR_Step) on new extreme",
+      "used_by": "LongModifiedEx, ShortModifiedEx"
+    },
+    {
+      "name": "m_trailing_max - PSAR extreme price",
+      "formula": "long: max of previous extreme and last bar high; short: min of previous extreme and last bar low",
+      "used_by": "LongModifiedEx, ShortModifiedEx"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "MACD main",
+        "right": "MACD signal",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "MACD main",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "MathAbs(MACD main)",
+        "right": "m_macd_open_level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "EMA current",
+        "right": "EMA previous",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "MACD main",
+        "right": "MACD signal",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "MACD main",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "MACD main",
+        "right": "m_macd_open_level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "EMA current",
+        "right": "EMA previous",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 200,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "indicator_based",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 30,
+        "trail_step_pips": 0,
+        "psar_step": 0.02,
+        "psar_maximum": 0.2,
+        "modes": "None, Fixed (30 pips), FixedPSAR (inline PSAR calculation)"
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long close: MACD main > 0 AND MACD main crosses below signal AND MACD main > m_macd_close_level",
+      "Short close: MACD main < 0 AND MACD main crosses above signal AND MathAbs(MACD main) > m_macd_close_level",
+      "Fixed trailing stop: moves SL to Bid-trailing_stop (long) or Ask+trailing_stop (short) when position is in profit by InpTrailingStop pips",
+      "FixedPSAR trailing: inline ParabolicSAR calculation tracking extremes and accelerating step factor, only modifies SL when new extreme is reached and SAR stop is on correct side of price"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 1.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "same_bar_close",
+    "intrabar_signal_behavior": "once_then_wait"
+  },
+  "custom_logic_notes": "The FixedPSAR trailing stop is a manual inline implementation of ParabolicSAR, NOT using the built-in iSAR indicator. It maintains stateful m_trailing_max and m_trailing_step variables that reset on position open and update only when a new price extreme is reached. The step accelerates by InpPSAR_Step each time a new extreme is hit, capped at InpPSAR_Maximum. There is a 10-second timeout (ExtTimeOut) between trade operations via limit_time mechanism. The lot validation code in InitCheckParameters is commented out. MACD indicator uses hardcoded periods (12,26,9) not from inputs. Entry uses previous bar values ([1]) for crossover detection while current bar ([0]) for level/threshold checks. The position_gate is no_position because m_position.Select(Symbol()) must fail (no existing position) before entry logic runs.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/PositionInfo.mqh",
+    "Trade/AccountInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Key challenges: (1) The inline PSAR trailing logic is stateful - m_trailing_max and m_trailing_step reset on position open and evolve with each bar, must be maintained as position-level state in Python. (2) The 10-second timeout between trades uses TimeCurrent() which approximates to last tick time - in Python backtesting this needs bar timestamp tracking. (3) Digit adjustment logic (5-digit vs 4-digit) must be handled - SL/TP/levels are multiplied by 10 for 5-digit brokers. (4) The CTrade/CSymbolInfo/CPositionInfo/CAccountInfo wrapper classes provide RefreshRates(), PositionSelect, FreeMarginCheck etc. that must be replicated with broker API calls or backtesting framework equivalents. (5) ArraySetAsSeries(true) means index [0] = most recent bar, [1] = previous bar - ensure consistent indexing in Python. (6) NormalizeDouble must be replicated to proper decimal rounding. (7) The MACD open/close level filters compare absolute MACD values against price-distance thresholds converted to indicator units - verify unit consistency in Python.",
+  "extraction_timestamp": "2026-05-14T10:01:51.128215",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 177.26432013511658,
+    "cost": 0
+  }
+}

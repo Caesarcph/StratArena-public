@@ -1,0 +1,170 @@
+{
+  "ea_id": "EA-955",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses two external .mqh libraries (MyMQL_v2.1.mqh, PrintLog.mqh) that provide critical trading functions (GetInfoPosition, LotControl, ContrType, PrCur) not defined in the EA source. Also implements multi-symbol hedging/pairs trading logic with global variable persistence and time-based protection code that obfuscates behavior.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Price Deviation (Pairs Spread)",
+      "params": {
+        "compaction": "dynamic",
+        "high_win": "dynamic",
+        "low_win": "dynamic",
+        "L": "dynamic",
+        "correlation": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "Compaction = (High_Win - Low_Win) / (H - L) over Range bars"
+    },
+    {
+      "type": "Custom",
+      "name": "MaxDeviation (Signal Border)",
+      "params": {
+        "range": 640,
+        "correct_limit": 0.7,
+        "correct_dist": 1.2
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": "MaxDeviation = max(|Deviation(i)| for i=1..CorrectDist*Range) * CorrectLimit"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Compaction coefficient",
+      "formula": "(High_Win - Low_Win) / (H - L) where H,L are high/low of Symbol2 over Range bars",
+      "used_by": "Deviation calculation and lot2 sizing"
+    },
+    {
+      "name": "MaxDeviation (signal border)",
+      "formula": "max(|Deviation(i)|, i=1..CorrectDist*Range) * CorrectLimit",
+      "used_by": "SignalOpen and SignalClose thresholds"
+    },
+    {
+      "name": "CurrentDeviation",
+      "formula": "(iClose(Symbol,Period,Candle) - Compaction*(iClose(Symbol2,Period,Candle) - L) - Low_Win) / Point(), negated if Correlation<0",
+      "used_by": "SignalOpen entry, SignalClose exit"
+    },
+    {
+      "name": "lot2 (indirect instrument lot)",
+      "formula": "NormalizeLot(lot1 * Compaction * TV, Symbol2) where TV = Symbol1_tick_value / Symbol2_tick_value",
+      "used_by": "Position sizing for hedged pair"
+    },
+    {
+      "name": "NeedLot (signal strength lot)",
+      "formula": "n * (SPS.sLot / SPS.sCount) if positions exist, else n * Calculate_Lot()",
+      "used_by": "lot1 calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "CurrentDeviation",
+        "right": "MaxDeviation",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "CurrentDeviation",
+        "right": "MaxDeviation",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "percent",
+      "value": 3,
+      "params": {
+        "percent_of_balance": 3
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close when deviation crosses zero (spread convergence - positions oppose deviation direction)",
+      "Close when |CurrentDeviation| < CloseCorr * MaxDeviation AND PointProfit > 0 (partial mean-reversion with profit lock)",
+      "Correlation-aware close: for Correlation>0, close BUY base/SELL indirect when CurrentDeviation>0 (convergence), and vice versa",
+      "For Correlation<0, close BUY both / SELL both when deviation reverses sign"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.02,
+    "params": {
+      "lot_type_fixed": 0,
+      "lot_type_fraction": 1,
+      "closecorr_ratio": 0.618034
+    },
+    "max_positions": 3,
+    "conditional_logic": "LOT_TYPE=0: fixed lot reduced to 90% of free margin if insufficient; LOT_TYPE=1: lot = equity * LOT / margin_per_lot. For pairs: lot2 = lot1 * Compaction * tick_value_ratio. Signal strength n = round(|CurrentDeviation|/MaxDeviation), capped at MaxDeals. NeedLot = n * base_lot_per_position. lot1 = NeedLot - existing_lot."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "This is a statistical arbitrage / pairs trading EA. It trades the deviation between two correlated instruments (e.g. EURUSD vs GBPUSD). The Compaction coefficient normalizes the price ranges of both instruments so deviations are comparable. Entry: when |CurrentDeviation| exceeds MaxDeviation (signal border) and deviation is increasing (|LastDeviation| < |CurrentDeviation|). For Correlation>0: buy base/sell indirect on negative deviation, sell base/buy indirect on positive deviation. For Correlation<0: buy both on negative deviation, sell both on positive deviation. If Cross parameter is set, trades only the cross pair instead of both legs. Includes obfuscated time-based protection (lines 119-128) that modifies Signal based on last digit of Bid price when not testing and after Sep 2011. Global variables persist optimization state across restarts. Retraining occurs every Optimum bars.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "MyMQL_v2.1.mqh",
+    "PrintLog.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "This EA requires two-symbol data simultaneously for deviation calculation. Must implement: (1) Compaction normalization between two instruments, (2) Deviation = normalized spread in points, (3) Signal border from historical max deviation * CorrectLimit, (4) Correlation-aware direction mapping for hedged positions, (5) Tick value ratio for cross-instrument lot sizing, (6) The external MyMQL_v2.1.mqh functions (GetInfoPosition, LotControl, ContrType, PrCur) must be reverse-engineered or reimplemented. The time-based protection code (lines 119-128) should be excluded as it appears to be demo-limitation code. GlobalVariableGet/Set usage needs replacement with persistent state mechanism. Signal strength n scales position size proportionally to deviation magnitude (grid-like scaling up to MaxDeals).",
+  "extraction_timestamp": "2026-05-14T13:52:10.495974",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 115.22873520851135,
+    "cost": 0
+  }
+}

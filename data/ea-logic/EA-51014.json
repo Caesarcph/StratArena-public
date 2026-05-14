@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-51014",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Triangular arbitrage strategy requiring tick-level execution speed, simultaneous multi-symbol position management, and real-time price ratio comparisons across three symbols - impractical to replicate in Python backtesting with bar data",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "EURUSDask/GBPUSDbid - synthetic EURGBP ask equivalent",
+      "formula": "SymbolInfoDouble('EURUSD',SYMBOL_ASK) / SymbolInfoDouble('GBPUSD',SYMBOL_BID)",
+      "used_by": "sell EURGBP arbitrage entry condition"
+    },
+    {
+      "name": "EURUSDbid/GBPUSDask - synthetic EURGBP bid equivalent",
+      "formula": "SymbolInfoDouble('EURUSD',SYMBOL_BID) / SymbolInfoDouble('GBPUSD',SYMBOL_ASK)",
+      "used_by": "buy EURGBP arbitrage entry condition"
+    },
+    {
+      "name": "Threshold for sell-side arbitrage",
+      "formula": "_Point + Round(3*Total_Commission_for_Lot_Traded*_Point + EURUSD_SPREAD*_Point + GBPUSD_SPREAD*_Point + EURGBP_SPREAD*_Point, _Digits)",
+      "used_by": "sell EURGBP entry rule"
+    },
+    {
+      "name": "Threshold for buy-side arbitrage",
+      "formula": "-_Point + Round(-3*Total_Commission_for_Lot_Traded*_Point - EURUSD_SPREAD*_Point - GBPUSD_SPREAD*_Point - EURGBP_SPREAD*_Point, _Digits)",
+      "used_by": "buy EURGBP entry rule"
+    },
+    {
+      "name": "Volume per balance scaling",
+      "formula": "RoundtoLots(AccountInfoDouble(ACCOUNT_BALANCE) / 1000 * Lot_Size_Per_Thousand)",
+      "used_by": "position sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "EURUSDbid/GBPUSDask",
+        "right": "EURGBPbid + buy_threshold",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "EURUSDask/GBPUSDbid",
+        "right": "EURGBPask + sell_threshold",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "ClosePosSide: closes EURGBP Buy, GBPUSD Buy, EURUSD Sell when buy-side arbitrage signal detected (reversal exit)",
+      "CloseNegSide: closes EURGBP Sell, GBPUSD Sell, EURUSD Buy when sell-side arbitrage signal detected (reversal exit)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.01,
+    "params": {
+      "per_thousand": 0.01
+    },
+    "max_positions": 1,
+    "conditional_logic": "Vol = min(RoundtoLots(Balance/1000 * Lot_Size_Per_Thousand), EURGBP SYMBOL_VOLUME_MAX)"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Triangular arbitrage across EURUSD, GBPUSD, EURGBP. When EURUSDask/GBPUSDbid > EURGBPask + threshold (commission+spread cost), opens: Sell EURUSD, Buy GBPUSD, Buy EURGBP (3-leg hedge). When EURUSDbid/GBPUSDask < EURGBPbid - threshold, opens: Buy EURUSD, Sell GBPUSD, Sell EURGBP. Opposite-side positions are closed before new leg entry. All 3 legs use same volume. Volume capped by EURGBP max volume. Has a typo: 'GPBUSD' instead of 'GBPUSD' in CheckVolumeValue calls on lines 51 and 67.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Requires tick-level multi-symbol data for EURUSD, GBPUSD, EURGBP simultaneously. Entry signals are tick-level price ratio comparisons. Commission and spread costs are dynamically incorporated into the threshold. The three-leg simultaneous execution is critical - slippage on any leg invalidates the arbitrage. A Python implementation would need high-frequency tick data and realistic multi-symbol fill modeling. The 'GPBUSD' typo in CheckVolumeValue calls means volume validation for GBPUSD is silently skipped in the original code. Signal reversal closes opposite-side legs before entering new arbitrage positions.",
+  "extraction_timestamp": "2026-05-14T11:21:38.294104",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 92.70839977264404,
+    "cost": 0
+  }
+}

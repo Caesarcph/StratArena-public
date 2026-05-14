@@ -1,0 +1,169 @@
+{
+  "ea_id": "EA-2423",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load external 'BlauHLM' indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) for smoothing algorithms and trade execution logic",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BlauHLM",
+      "params": {
+        "XMA_Method": "MODE_EMA",
+        "XLength": 2,
+        "XLength1": 20,
+        "XLength2": 5,
+        "XLength3": 3,
+        "XLength4": 3,
+        "XPhase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": "min_rates_total = XLength + GetStartBars(XLength1) + GetStartBars(XLength2) + GetStartBars(XLength3) + GetStartBars(XLength4) + 3 + SignalBar"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars needed for indicator warmup",
+      "formula": "XLength + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + GetStartBars(XMA_Method,XLength4,XPhase) + 3 + SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime and DnSignalTime calculation for trade execution timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "BlauHLM histogram (buffer 2, bar [1])",
+        "right": "zero level",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "BlauHLM histogram (buffer 2, bar [1])",
+        "right": "BlauHLM histogram (buffer 2, bar [2])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "BlauHLM up line (buffer 0, bar [1])",
+        "right": "BlauHLM down line (buffer 1, bar [1])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "BlauHLM histogram (buffer 2, bar [1])",
+        "right": "zero level",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "BlauHLM histogram (buffer 2, bar [1])",
+        "right": "BlauHLM histogram (buffer 2, bar [2])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "BlauHLM up line (buffer 0, bar [1])",
+        "right": "BlauHLM down line (buffer 1, bar [1])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: BuyPosClose/SellPosClose triggered by opposite signal in breakdown and cloudtwist modes; in twist mode, close is always triggered on signal reversal regardless of BuyPosClose/SellPosClose input"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT means MM is fixed lot size; other MarginMode values treat MM as fraction of deposit/margin"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA has 3 operating modes (AlgMode enum): 'breakdown' - trades on histogram crossing zero; 'twist' - trades on histogram direction change (twist of smoothed line); 'cloudtwist' - trades on up/down cloud crossover. Signal is read from bar index SignalBar (default=1, previous completed bar). BUY_Open/SELL_Open gated by BuyPosOpen/SellPosOpen inputs. BUY_Close/SELL_Close gated by BuyPosClose/SellPosClose inputs except in twist mode where close always triggers. Recount flag causes re-evaluation on next tick if CopyBuffer fails. GlobalVariableDel_ called on deinit for cleanup.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "Three distinct signal modes must be implemented separately. The BlauHLM custom indicator logic must be ported from SmoothAlgorithms.mqh - requires implementing the full multi-stage smoothing chain (XMA with configurable method, 4 nested smoothing lengths). TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose and GlobalVariableDel_ - these must be reimplemented with proper position checking, lot sizing from MM/MMMode, and SL/TP application. The SignalBar parameter shifts signal reading back by N bars, critical for avoiding repainting. No digit adjustment needed for SL/TP as they are in points already.",
+  "extraction_timestamp": "2026-05-14T06:33:44.535681",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 129.0155484676361,
+    "cost": 0
+  }
+}

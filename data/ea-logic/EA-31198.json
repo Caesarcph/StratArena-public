@@ -1,0 +1,184 @@
+{
+  "ea_id": "EA-31198",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale lot management with margin-dependent sizing, periodic range breakout with pending-order-style entry at range boundaries, tick-level intrabar signal behavior (repeat_while_true), and deal transaction monitoring via OnTradeTransaction for lot progression. The combination of martingale/conditional lot sizing, range multiplier on losses, and tick-level breakout detection makes this heavily dependent on MT5's real-time execution and deal tracking.",
+  "symbol": null,
+  "timeframe_hint": "D1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "Daily ATR(20)",
+      "params": {
+        "period": 20,
+        "method": null,
+        "applied_to": null
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ATR-based range",
+      "formula": "ATR[1] * perATR / 100",
+      "used_by": "SETUP.Range in CalculateRange (ATR mode)"
+    },
+    {
+      "name": "Percent-based range",
+      "formula": "TICK.Ask * perPrice / 100",
+      "used_by": "SETUP.Range in CalculateRange (Percent mode)"
+    },
+    {
+      "name": "Fixed range in price units",
+      "formula": "rangeFixed * _Point",
+      "used_by": "SETUP.Range in CalculateRange (Fixed mode)"
+    },
+    {
+      "name": "Setup High level",
+      "formula": "SETUP.Center + SETUP.Range * perRange / 100",
+      "used_by": "Entry breakout level for buy (Stop) / sell (Limit)"
+    },
+    {
+      "name": "Setup Low level",
+      "formula": "SETUP.Center - SETUP.Range * perRange / 100",
+      "used_by": "Entry breakout level for sell (Stop) / buy (Limit)"
+    },
+    {
+      "name": "Fibonacci lot progression",
+      "formula": "varLot = fibL1 + fibL2; then fibL1=fibL2, fibL2=varLot",
+      "used_by": "SetVarLot (Fibonacci mode on consecutive losses)"
+    },
+    {
+      "name": "Adjusted range on loss",
+      "formula": "SETUP.Range * rangeMultiplier (when DEAL.Result < 0 and rangeMultiplier != 1)",
+      "used_by": "TP calculation in OpenTrade on loss streak"
+    },
+    {
+      "name": "Setup hour offset",
+      "formula": "(Hour + 1), wrapping 23→0",
+      "used_by": "SetupCondition time check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "TICK.Ask",
+        "right": "SETUP.High",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "TICK.Bid",
+        "right": "SETUP.Low",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "TICK.Bid",
+        "right": "SETUP.Low",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "TICK.Ask",
+        "right": "SETUP.High",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "percent",
+      "value": null,
+      "params": {
+        "description": "SETUP.Range * perLoss / 100 from entry price"
+      }
+    },
+    "take_profit": {
+      "type": "percent",
+      "value": null,
+      "params": {
+        "description": "range * perProfit / 100 from entry price; range = SETUP.Range * rangeMultiplier if previous deal was a loss"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Phase-based single-trade model: after deal closes (OnTradeTransaction detects DEAL_PROFIT != 0), EA resets to StandBy and waits for next setup window"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": null,
+    "params": {
+      "base_lot_calculation": "reserveMargin / min(buyMargin, sellMargin) where reserveMargin = freeMargin * perMargin / 100, rounded to stepLot",
+      "constant_mode": "varLot = baseLot every trade",
+      "linear_mode": "on win: varLot = baseLot, c=1; on loss: c++, varLot = baseLot * c",
+      "martingale_mode": "on win: varLot = baseLot; on loss: varLot = varLot * lotMultiplier",
+      "fibonacci_mode": "on win: varLot = baseLot, fibL1=fibL2=baseLot; on loss: varLot = fibL1+fibL2, then fibL1=fibL2, fibL2=varLot"
+    },
+    "max_positions": 1,
+    "conditional_logic": "Four modes: Constant (always baseLot), Linear (increment by baseLot on each loss), Martingale (multiply by lotMultiplier on loss, reset on win), Fibonacci (Fibonacci sequence on consecutive losses, reset on win). Lot is clamped to [minLot, maxLot] after calculation."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": null,
+      "end_hour": null
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 5,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Four-phase state machine (StandBy→Setup→Trade→Deal→StandBy). In StandBy phase, waits for time condition (Weekly: specific day+hour; Daily: specific hour; NonStop: always). At setup hour, calculates range breakout levels centered on current Ask price with High/Low boundaries. In Setup phase, monitors tick prices: if Ask>High and tradeMode=Stop→buy, if Ask>High and tradeMode=Limit→sell; if Bid<Low and tradeMode=Stop→sell, if Bid<Low and tradeMode=Limit→buy. Random tradeMode randomly picks Stop or Limit at breakout. Only one position at a time (phase-gated). On deal close (detected via OnTradeTransaction), stores result for lot progression and resets to StandBy. On loss, rangeMultiplier > 1 expands the TP range while SL stays based on original SETUP.Range. The Trade phase body is empty (EA just waits for deal to close). The Setup phase has no timeout/expiration—levels persist until price breaks out or EA is removed.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "State machine must be explicitly modeled with 4 phases. Time-based setup trigger requires session/day-of-week awareness. ATR indicator needs daily bar data (D1 ATR period 20). Martingale/Fibonacci/Linear lot progression requires persistent state tracking of last deal result and lot history. Range multiplier on losses affects TP but not SL. Random mode needs seeded RNG. OnTradeTransaction equivalent requires monitoring position closures. Margin check requires account info. The tick-level breakout detection means M1 data is insufficient for accurate backtesting—tick data is required. Phase gating ensures max 1 position, so position check is implicit. No digit adjustment is performed—SL/TP are in price units directly.",
+  "extraction_timestamp": "2026-05-14T08:03:22.525683",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 188.93177890777588,
+    "cost": 0
+  }
+}

@@ -1,0 +1,170 @@
+{
+  "ea_id": "EA-63698",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in iRSI indicator. Entry/exit rules are straightforward (divergence, overbought/oversold reversal, centerline confirmation). Fixed or risk-percent position sizing. No external .mqh libraries for trading logic—only standard Trade.mqh helpers for order execution. No multi-timeframe, no hedging, no grid, no martingale.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Recent low price index for bullish divergence",
+      "formula": "iLowest(MODE_LOW, LookbackBars/2, shift=1)",
+      "used_by": "CheckBullishDivergence"
+    },
+    {
+      "name": "Previous low price index for bullish divergence",
+      "formula": "iLowest(MODE_LOW, LookbackBars/2, shift=1+LookbackBars/2)",
+      "used_by": "CheckBullishDivergence"
+    },
+    {
+      "name": "Recent high price index for bearish divergence",
+      "formula": "iHighest(MODE_HIGH, LookbackBars/2, shift=1)",
+      "used_by": "CheckBearishDivergence"
+    },
+    {
+      "name": "Previous high price index for bearish divergence",
+      "formula": "iHighest(MODE_HIGH, LookbackBars/2, shift=1+LookbackBars/2)",
+      "used_by": "CheckBearishDivergence"
+    },
+    {
+      "name": "Profit points for trailing stop (BUY)",
+      "formula": "(current_price - open_price) / _Point",
+      "used_by": "ManageTrailingStop"
+    },
+    {
+      "name": "Profit points for trailing stop (SELL)",
+      "formula": "(open_price - current_price) / _Point",
+      "used_by": "ManageTrailingStop"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "or_combination",
+        "left": "Bullish Divergence (price lower low + RSI higher low, with previous RSI below Oversold+5)",
+        "right": "Overbought/Oversold Reversal (RSI[2] < Oversold && RSI[1] > Oversold)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "RSI[2]",
+        "right": "Centerline (50)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "or_combination",
+        "left": "Bearish Divergence (price higher high + RSI lower high, with previous RSI above Overbought-5)",
+        "right": "Overbought/Oversold Reversal (RSI[2] > Overbought && RSI[1] < Overbought)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossunder",
+        "left": "RSI[2]",
+        "right": "Centerline (50)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 300,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 300,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "trail_start_pips": 3000,
+        "trail_step_pips": 50
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "RSI Level Exit: close BUY when RSI[0] >= Overbought level, close SELL when RSI[0] <= Oversold level (if InpUse_RSI_Level_Exit=true)",
+      "Session End Exit: close all positions when trading session ends (if CloseAtEndTime=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "If InpUseRiskManagement=true, use risk_percent method (InpRiskPercent of equity divided by stop_loss_money_per_lot); otherwise use fixed_lots (InpLots=0.1)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses RSI[1] and RSI[2] (previous two completed bars), never RSI[0] (forming bar). Divergence detection splits lookback into two halves and finds lowest/highest in each half. Bullish divergence requires previous low RSI below Oversold+5; bearish divergence requires previous high RSI above Overbought-5. Centerline confirmation is an AND gate on top of divergence/reversal signals. Daily profit/loss limits are calculated from closed deals + floating PnL of open positions. News filter is a simple time window around a single daily event. Time filter supports multiple sessions per day separated by semicolons.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\AccountInfo.mqh",
+    "Trade\\HistoryOrderInfo.mqh",
+    "Trade\\DealInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Divergence detection requires careful porting—iLowest/iHighest logic needs equivalent pandas/numpy rolling min/max with two separate lookback windows. The RSI crossover checks use shift(1) and shift(2) on the RSI series. Trailing stop runs on every tick; in Python backtesting this must be evaluated at each bar or tick. Position gate is no_position (flat only)—only one trade at a time. The daily limit PnL calculation iterates deal history which maps to vectorized trade log analysis. Time filter parsing of semicolon-delimited HH:MM-HH:MM strings needs a parser. No digit adjustment is needed—SL/TP are specified in points and multiplied by _Point directly.",
+  "extraction_timestamp": "2026-05-14T12:54:16.095702",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 89.54021716117859,
+    "cost": 0
+  }
+}

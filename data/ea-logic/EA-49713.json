@@ -1,0 +1,189 @@
+{
+  "ea_id": "EA-49713",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iHigh/iLow/iHighest/iLowest, iATR). Simple breakout entry/exit with stop orders. Risk-percent position sizing. Only external include is Trade.mqh for order execution which has standard Python equivalents. No custom indicators or complex multi-timeframe hedging logic.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "HighestHigh",
+      "params": {
+        "period": 20,
+        "shift": 1,
+        "applied_to": "HIGH"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "LowestLow",
+      "params": {
+        "period": 20,
+        "shift": 1,
+        "applied_to": "LOW"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 20,
+        "shift": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "trigger_long (HighestHigh + 1 tick)",
+      "formula": "HighestHigh(ENTRY_PERIOD, ENTRY_SHIFT) + SYMBOL_TRADE_TICK_SIZE",
+      "used_by": "Long entry BuyStop order price and SL calculation"
+    },
+    {
+      "name": "trigger_short (LowestLow - 1 tick)",
+      "formula": "LowestLow(ENTRY_PERIOD, ENTRY_SHIFT) - SYMBOL_TRADE_TICK_SIZE",
+      "used_by": "Short entry SellStop order price and SL calculation"
+    },
+    {
+      "name": "exit_long (LowestLow for exit/trail)",
+      "formula": "LowestLow(EXIT_PERIOD, EXIT_SHIFT)",
+      "used_by": "Long position SL and trailing stop"
+    },
+    {
+      "name": "exit_short (HighestHigh for exit/trail)",
+      "formula": "HighestHigh(EXIT_PERIOD, EXIT_SHIFT)",
+      "used_by": "Short position SL and trailing stop"
+    },
+    {
+      "name": "long_sl_distance (trigger_long - exit_long)",
+      "formula": "trigger_long - LowestLow(EXIT_PERIOD, EXIT_SHIFT)",
+      "used_by": "Long position lot size calculation"
+    },
+    {
+      "name": "short_sl_distance (exit_short - trigger_short)",
+      "formula": "HighestHigh(EXIT_PERIOD, EXIT_SHIFT) - trigger_short",
+      "used_by": "Short position lot size calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Ask",
+        "right": "trigger_long - SYMBOL_TRADE_STOPS_LEVEL",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Bid",
+        "right": "trigger_short + SYMBOL_TRADE_STOPS_LEVEL",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "indicator_level",
+      "value": 0,
+      "params": {
+        "long_sl": "LowestLow(EXIT_PERIOD, EXIT_SHIFT)",
+        "short_sl": "HighestHigh(EXIT_PERIOD, EXIT_SHIFT)"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "indicator_based",
+      "value": 0,
+      "params": {
+        "trail_indicator_long": "LowestLow(EXIT_PERIOD, EXIT_SHIFT)",
+        "trail_indicator_short": "HighestHigh(EXIT_PERIOD, EXIT_SHIFT)",
+        "trail_min_move_atr_fraction": "0.1",
+        "trail_atr_period": 20
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed if current price falls below trail_long (LowestLow EXIT_PERIOD)",
+      "Short position closed if current price rises above trail_short (HighestHigh EXIT_PERIOD)",
+      "Prop firm: all positions and orders closed if equity > PASS_CRITERIA (challenge passed)",
+      "Prop firm: all positions and orders closed if equity < starting_balance - DAILY_LOSS_LIMIT"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 1.0,
+    "params": {
+      "risk_per_trade_pct": 1.0,
+      "calc_method": "OrderCalcProfit based",
+      "lot_step_floor": true,
+      "min_lot_enforced": true,
+      "max_lot_enforced": true,
+      "margin_check": true,
+      "margin_reduction": "lots * free_margin / margin if insufficient margin"
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 10,
+    "filling": "DAY"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_high_low",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Breakout channel strategy: buy stop above HighestHigh of lookback period, sell stop below LowestLow of lookback period. All pending orders deleted and recreated each new bar. Orders split across multiple orders if lot_size exceeds SYMBOL_VOLUME_MAX. Prop firm challenge helper disables trading when daily loss limit breached or profit target reached. SL for long = exit_long (LowestLow of EXIT_PERIOD), SL for short = exit_short (HighestHigh of EXIT_PERIOD). Trailing stop only moves SL if new trail level is at least 0.1*ATR better than current SL and respects SYMBOL_TRADE_STOPS_LEVEL distance from current price. Position close (not just trail) triggered when price crosses trail level unfavorably.",
+  "external_dependencies": [
+    "Trade/Trade.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Breakout channel is straightforward: highest high / lowest low over N bars. ATR for trailing threshold is standard. Position sizing uses OrderCalcProfit equivalent which in Python requires knowing tick_value and tick_size for the symbol. Pending order management (delete-all then recreate each bar) is a simple pattern. Prop firm daily loss check requires parsing trade history by day - implement with pandas grouping on deal timestamps. Multiple order splitting for volume > max_volume is an edge case to handle. SYMBOL_TRADE_STOPS_LEVEL check before placing stop orders must be preserved. No custom indicator handles to manage.",
+  "extraction_timestamp": "2026-05-14T11:13:57.556444",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 130.21208882331848,
+    "cost": 0
+  }
+}

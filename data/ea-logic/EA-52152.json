@@ -1,0 +1,222 @@
+{
+  "ea_id": "EA-52152",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Multi-timeframe logic, adaptive parameter optimization loop, partial close logic declared, ATR-based dynamic trailing stop with multiple tiers, performance-based risk adjustment, and the backtest optimization framework makes automated conversion unreliable without manual review",
+  "symbol": null,
+  "timeframe_hint": "M5",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "RSI",
+      "name": "RSI (optimized period)",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "Optimized between RSI_Min_Period(8) and RSI_Max_Period(14)"
+    },
+    {
+      "type": "ATR",
+      "name": "ATR (base period)",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Trend MA (M5)",
+      "params": {
+        "period": 20,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "TrendPeriod input (default 20)"
+    },
+    {
+      "type": "MA",
+      "name": "Higher Timeframe Trend MA (H1)",
+      "params": {
+        "period": 50,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": "HigherTimeframeTrendPeriod input (default 50)"
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Optimized ATR multiplier for SL",
+      "formula": "currentBestSet.atrMultiplier (range ATR_Min_Multiplier to ATR_Max_Multiplier, step 0.5)",
+      "used_by": "stop_loss calculation and lot sizing"
+    },
+    {
+      "name": "Optimized trailing stop multiplier",
+      "formula": "currentBestSet.trailingStopMultiplier (range TrailingStop_Min_Multiplier to TrailingStop_Max_Multiplier, step 0.5)",
+      "used_by": "trailing stop tiers in ApplyTrailingStop"
+    },
+    {
+      "name": "Optimized trailing TP multiplier",
+      "formula": "currentBestSet.trailingTakeProfitMultiplier (range TrailingTP_Min_Multiplier to TrailingTP_Max_Multiplier, step 0.5)",
+      "used_by": "take_profit calculation in CheckTradeSignals"
+    },
+    {
+      "name": "Adjusted risk percent",
+      "formula": "currentRiskPercent (starts at MaxRiskPercent, adjusted by ±0.05 based on win rate)",
+      "used_by": "CalculateLotSize"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "RSI",
+        "right": "30",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Price (BID)",
+        "right": "Trend MA (M5)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "above",
+        "left": "Price (BID)",
+        "right": "Higher Timeframe Trend MA (H1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "RSI",
+        "right": "70",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Price (BID)",
+        "right": "Trend MA (M5)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "Price (BID)",
+        "right": "Higher Timeframe Trend MA (H1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": 0,
+      "params": {
+        "atr_multiplier": "currentBestSet.atrMultiplier (default range 1.0-2.0)"
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": 0,
+      "params": {
+        "atr_multiplier": "currentBestSet.trailingTakeProfitMultiplier (default range 1.0-2.0)"
+      }
+    },
+    "trailing_stop": {
+      "type": "atr_multiple",
+      "value": 0,
+      "params": {
+        "trail_atr_tier1_multiplier": 0.5,
+        "trail_atr_tier2_multiplier": 1.0,
+        "trail_atr_tier3_multiplier": 1.5,
+        "trail_start_tier1_profit_atr": 1.0,
+        "trail_start_tier2_profit_atr": 1.0,
+        "trail_start_tier3_profit_atr": 2.0,
+        "break_even_multiplier": 1.5,
+        "partial_tp_percent": 0.5
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Break-even logic declared via BreakEvenMultiplier input but not explicitly implemented in OnTick; PartialTakeProfitPercent (50%) declared but partial close logic not implemented in visible code",
+      "ApplyTrailingStop uses hardcoded tiers: profit > 2*ATR → trail at 1.5*ATR; profit > 1*ATR → trail at 1.0*ATR; else → trail at 0.5*ATR"
+    ]
+  },
+  "position_sizing": {
+    "type": "risk_percent",
+    "value": 0.2,
+    "params": {
+      "risk_percent_variable": "currentRiskPercent (adaptive, starts at MaxRiskPercent=0.2)",
+      "sl_basis": "ATR * currentBestSet.atrMultiplier",
+      "volume_normalization": "floor to volume_step, clamp to min/max volume"
+    },
+    "max_positions": 1,
+    "conditional_logic": "Risk percent adapts: winRate < 0.4 → risk -0.05 (min 0.05); winRate > 0.6 → risk +0.05 (max MaxRiskPercent)"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 20
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "1) Adaptive parameter optimization: brute-force grid search over RSI period (8-14), ATR multiplier (1.0-2.0 step 0.5), trailing stop multiplier (1.0-2.0 step 0.5), trailing TP multiplier (1.0-2.0 step 0.5) - but BacktestWithParameters() is a placeholder returning 0.0, so optimization is non-functional. 2) Performance-based risk adjustment modifies currentRiskPercent based on win/loss counts, but win/loss counters are never updated in visible code. 3) Multi-symbol support via SymbolTradeState array (up to 100 symbols) but only _Symbol is added in OnInit. 4) News avoidance filter is placeholder (always returns false). 5) tradeActive flag per symbol prevents stacking but is never reset to false when position closes. 6) ApplyTrailingStop reads PositionGetInteger/PositionGetDouble without first selecting a position via PositionSelect or PositionSelectByTicket, which is a bug - it will operate on whatever position was last selected. 7) RSI handle created with hardcoded period 14 in AddSymbolState, ignoring the optimized currentBestSet.periodRSI.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "M5",
+  "python_conversion_notes": "1) The adaptive optimization framework (OptimizeParameters) is non-functional as BacktestWithParameters is a stub - needs full implementation or removal. 2) Multi-timeframe MA (H1 trend) requires bar data alignment with M5 - use resampling or dual timeframe data feed. 3) Trailing stop has 3 ATR-based tiers - must replicate exactly. 4) The per-symbol state tracking (tradeActive, winCount, lossCount) has bugs: tradeActive never resets on close, win/loss never updated - must fix in Python version. 5) Position selection bug in ApplyTrailingStop must be corrected - need to iterate positions by symbol and ticket. 6) Lot sizing uses risk_percent / (ATR*multiplier*_Point) - careful with _Point equivalent in Python (pip/tick size). 7) CTrade.PositionModify call in trailing stop passes 0 for take_profit (removes TP) - this is intentional to let trailing manage exits. 8) Spread filter uses raw point difference / _Point - convert to pip equivalent in Python.",
+  "extraction_timestamp": "2026-05-14T11:35:53.721281",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 245.0064549446106,
+    "cost": 0
+  }
+}

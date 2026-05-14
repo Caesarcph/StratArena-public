@@ -1,0 +1,153 @@
+{
+  "ea_id": "EA-47584",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale/grid position sizing with margin-dependent lot scaling, interactive tester panel with chart button controls, tick-level UI polling for button state, and broker-specific stop level checks make this inherently MT5-dependent",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Weighted average buy price (factb)",
+      "formula": "sum((open_price - swap_per_lot * tickSize) * lot) / sum(lots)",
+      "used_by": "AveragingOrders TP modification"
+    },
+    {
+      "name": "Weighted average sell price (facts)",
+      "formula": "sum((open_price - swap_per_lot * tickSize) * lot) / sum(lots)",
+      "used_by": "AveragingOrders TP modification"
+    },
+    {
+      "name": "Next martingale buy lot",
+      "formula": "BuyPriceMinLot * MathPow(nextLot, buys)",
+      "used_by": "AveragingOrders buy entry sizing"
+    },
+    {
+      "name": "Next martingale sell lot",
+      "formula": "SelPriceMaxLot * MathPow(nextLot, sells)",
+      "used_by": "AveragingOrders sell entry sizing"
+    },
+    {
+      "name": "CORR (TP average offset)",
+      "formula": "(TPAverage + stopLevel) * point",
+      "used_by": "AveragingOrders TP target calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "User clicks Buy button on tester panel",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "BuyPriceMin - ask >= StepPips * point",
+        "right": null,
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "User clicks Sell button on tester panel",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "bid - SelPriceMax >= StepPips * point",
+        "right": null,
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 50,
+      "params": {
+        "trail_start_pips": 70,
+        "trail_step_pips": 20
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "When 2+ buy positions exist, all buy TPs are modified to factb + CORR (weighted average price plus TPPlus offset including stopLevel)",
+      "When 2+ sell positions exist, all sell TPs are modified to facts - CORR (weighted average price minus TPPlus offset including stopLevel)",
+      "Trailing stop only operates when exactly 1 position of that side exists"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "lot_multiplier": 1.2,
+      "initial_lots": 0.01
+    },
+    "max_positions": 0,
+    "conditional_logic": "Initial trade uses input Lots. Martingale layers multiply the smallest (buy) or largest (sell) existing position lot by nextLot^count, creating exponential lot increase on each averaging layer."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "This is a manual/semi-automated Strategy Tester EA. Entry is triggered by clicking Buy/Sell buttons on a chart panel. The 'Martingale' button toggles automatic averaging: when price moves StepPips against the best (lowest buy / highest sell) position, a new martingale-scaled position is opened with SL=0 and TP=0. All positions of the same direction then have their TP modified to the volume-weighted average entry price +/- (TPPlus + stopLevel) * point. The 'Trail' button toggles trailing stop logic that only applies when exactly one position of that direction exists. The trailing logic has two phases: initial trail activation (price must exceed open by TrailingStop + TrailingStep - 1*point) and subsequent step moves (price must exceed current SL by TrailingStep + 5*point). Swap and commission are factored into the weighted average price calculation. The EA exclusively runs in Strategy Tester visual mode and refuses to run on live/demo charts. Magic number is hardcoded to 0.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The core martingale averaging logic (weighted average price, exponential lot scaling, TP modification to breakeven+TPPlus) is convertible. However, the interactive button-based entry system has no Python equivalent - entries would need to be replaced with automated signal logic or a different trigger mechanism. The trailing stop's two-phase logic and the swap-inclusive average price calculation are complex. The tester-only restriction (MQLInfoInteger(MQL_TESTER)) and OnTick button polling pattern would need removal. Margin check and lot validation functions are straightforward to replicate. The stopLevel inclusion in CORR calculation is broker-dependent and needs careful handling in Python backtests.",
+  "extraction_timestamp": "2026-05-14T10:47:33.243523",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 161.91899466514587,
+    "cost": 0
+  }
+}

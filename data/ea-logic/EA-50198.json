@@ -1,0 +1,157 @@
+{
+  "ea_id": "EA-50198",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses external .mqh library (ImportantFunctions.mqh) for critical trading logic functions (MarketOpen, IsNewCandle, HistoryLastProfit, CheckVolumeValue, RoundtoLots, Round). Martingale position sizing adds complexity. Cannot auto-convert without resolving external dependencies.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Simple Moving Average",
+      "params": {
+        "period": 50,
+        "shift": 0,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "PrevClose - Close price of bar [2]",
+      "formula": "iClose(_Symbol, PERIOD_CURRENT, 2)",
+      "used_by": "crossover entry signal"
+    },
+    {
+      "name": "CurrentClose - Close price of bar [1]",
+      "formula": "iClose(_Symbol, PERIOD_CURRENT, 1)",
+      "used_by": "crossover entry signal"
+    },
+    {
+      "name": "Current lot size (Vol) - martingale-adjusted",
+      "formula": "StartingLot * LotMultiplier^n (capped at MaxLot)",
+      "used_by": "position sizing on entry"
+    },
+    {
+      "name": "Current TP in price units",
+      "formula": "TPPoints * _Point * TPMultiplier^n",
+      "used_by": "take profit on entry"
+    },
+    {
+      "name": "Current SL in price units",
+      "formula": "SLPoints * _Point * TPMultiplier^n",
+      "used_by": "stop loss on entry"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "MA[1]",
+        "right": "Price Close[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "MA[1]",
+        "right": "Price Close[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 300,
+      "params": {
+        "multiplier_on_loss": 2,
+        "multiplier_source": "TPMultiplier input"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {
+        "multiplier_on_loss": 2,
+        "multiplier_source": "TPMultiplier input"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "SL/TP only; no signal-based close logic"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "starting_lot": 0.01,
+      "lot_multiplier": 2,
+      "max_lot": 0.5,
+      "reset_on_profit": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "On loss: Vol *= LotMultiplier (capped at MaxLot), TP *= TPMultiplier, SL *= TPMultiplier. On profit: reset Vol/TP/SL to starting values."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 0,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Martingale system: after a losing trade, lot size is multiplied by LotMultiplier and TP/SL are multiplied by TPMultiplier. After a winning trade, all values reset to defaults. The crossover logic compares MA values from bar[1] and bar[2] against price closes from bar[1] and bar[2], checking if MA crossed above or below price between the two previous bars. The crossover condition at line 57 is evaluated first (to adjust Vol/TP/SL), then separate if-blocks at lines 77 and 85 execute the actual trades with the updated sizing. The lot size adjustment only occurs on crossover bars, not on every loss. MarketOpen() and IsNewCandle() are from external .mqh library.",
+  "external_dependencies": [
+    "ImportantFunctions.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must reimplement or port functions from ImportantFunctions.mqh: MarketOpen(), IsNewCandle(), HistoryLastProfit(), CheckVolumeValue(), RoundtoLots(), Round(). Martingale state (Vol, TP, SL) persists across bars as static variables - must be tracked as persistent state in Python. The crossover uses shifted MA buffer (CopyBuffer starting at index 1, 2 elements) compared against iClose at shift 1 and 2 - ensure correct bar indexing in Python. SL/TP use _Point multiplication and are placed as absolute price levels from bid/ask. No digit adjustment detected (raw _Point used directly).",
+  "extraction_timestamp": "2026-05-14T11:18:14.079660",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 198.31320524215698,
+    "cost": 0
+  }
+}

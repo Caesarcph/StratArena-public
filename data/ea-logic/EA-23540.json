@@ -1,0 +1,158 @@
+{
+  "ea_id": "EA-23540",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Classic Ilan grid/martingale EA: uses recursive lot multiplication on losses, opens a series of averaging orders with increasing distances, and calculates total breakeven profit across all grid positions. Margin-dependent grid sizing and tick-level averaging logic make it MT5-only.",
+  "symbol": null,
+  "timeframe_hint": "M15",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Ilan iMA Signal",
+      "params": {
+        "period": 2,
+        "method": "SMA",
+        "applied_to": "close",
+        "shift": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Grid level distance in points",
+      "formula": "Delta * Point (adjusted for 5-digit by *10 if Digits==5 or Point<0.001)",
+      "used_by": "grid order spacing"
+    },
+    {
+      "name": "Lot size for grid level N",
+      "formula": "Lots * MathPow(Klot, N)",
+      "used_by": "position_sizing martingale grid"
+    },
+    {
+      "name": "Breakeven close price for grid",
+      "formula": "weighted average price of all open grid orders (total cost / total lots)",
+      "used_by": "TakeProfit exit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "iMA(2, SMA, close)[1]",
+        "right": "Ask",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Ask",
+        "right": "LastGridOrderOpenPrice - DeltaPoints",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "iMA(2, SMA, close)[1]",
+        "right": "Bid",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Bid",
+        "right": "LastGridOrderOpenPrice + DeltaPoints",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 10,
+      "params": {
+        "basis": "breakeven_price + TakeProfit_points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Closes ALL grid positions simultaneously when total floating profit of the grid exceeds TakeProfit threshold in account currency",
+      "No individual position SL/TP - all exits are portfolio-level breakeven+profit closes"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "multiplier": 2.0,
+      "max_grid_levels": 12,
+      "grid_spacing_pips": 30,
+      "grid_spacing_multiplier": 1.0
+    },
+    "max_positions": 12,
+    "conditional_logic": "Initial order uses Lots param. Each subsequent grid level multiplies previous lot by Klot (default 2.0). Grid expands by Delta pips (adjusted for 5-digit) per level."
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Ilan-type grid/martingale EA: 1) Opens initial order based on iMA(2) vs price direction. 2) If price moves against position by Delta pips, opens another same-direction position with lot size = previous lot * Klot. 3) Calculates weighted average entry price across all grid positions. 4) When total portfolio profit (all grid positions combined) reaches TakeProfit in currency, closes ALL positions at once. 5) Has magic number filtering for its own orders. 6) Adjusts Delta and TakeProfit by 10x for 5-digit brokers. 7) Has MaxTrades limit to cap grid depth. 8) Uses account free margin check before opening new grid levels. Extremely high risk strategy - no stop loss means unlimited downside exposure with exponential lot growth.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Grid/martingale logic requires maintaining a list of open grid positions with their individual open prices and lot sizes. Breakeven price must be recalculated on every tick as weighted average. Lot progression is geometric (Lots * Klot^level). No individual SL/TP - exit is purely portfolio-level when cumulative profit hits target. The 5-digit adjustment (multiply Delta/TP by 10 when Digits==5 or Point<0.001) must be replicated. Margin check before each grid expansion is critical. Strategy is inherently dangerous - Python version should include a max drawdown circuit breaker not present in the original.",
+  "extraction_timestamp": "2026-05-14T06:01:26.391756",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 130.30373978614807,
+    "cost": 0
+  }
+}

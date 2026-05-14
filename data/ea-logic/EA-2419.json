@@ -1,0 +1,134 @@
+{
+  "ea_id": "EA-2419",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'XPVT' which is a non-standard custom indicator. Also includes two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for trade execution and smoothing algorithms. Money management uses MarginMode enum from external library with multiple modes.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": false
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "XPVT",
+      "params": {
+        "VolumeType": "VOLUME_TICK",
+        "XMA_Method": "EMA",
+        "XLength": 5,
+        "XPhase": 15,
+        "IPC": "PRICE_CLOSE",
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total - minimum bars required before indicator is valid",
+      "formula": "GetStartBars(XMA_Method,XLength,XPhase)+1+XLength+3+SignalBar",
+      "used_by": "BarsCalculated check in OnTick"
+    },
+    {
+      "name": "TimeShiftSec - timeframe duration in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "UpSignalTime/DnSignalTime calculation for position open timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "XPVT Buffer 0 (Indicator line)",
+        "right": "XPVT Buffer 1 (Signal line)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "XPVT Buffer 0 (Indicator line)",
+        "right": "XPVT Buffer 1 (Signal line)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position: when indicator crosses above signal, existing short is closed; when indicator crosses below signal, existing long is closed. Close is gated by BuyPosClose/SellPosClose input booleans."
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot size (MM=0.1 lots), FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss. The MM input (0.1) serves as either lot size or percentage depending on MMMode."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "next_bar_open",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal is evaluated on bar [SignalBar=1] (previous bar by default). Entry requires two-bar crossover: on bar[1] indicator must be above signal line AND on bar[0] indicator must be <= signal line (for buy), meaning the crossover just happened. UpSignalTime/DnSignalTime is set to current bar time + TimeShiftSec, used by BuyPositionOpen/SellPositionOpen for timing. The BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans act as feature toggles allowing selective enable/disable of each trade direction and close action. History loading via LoadHistory() ensures sufficient bar data. Recount flag triggers re-evaluation when CopyBuffer fails.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The XPVT custom indicator must be reverse-engineered or reimplemented in Python. It appears to be a volume-weighted price indicator smoothed by XMA (configurable smoothing method from SmoothAlgorithms.mqh). The indicator has 2 buffers: main line and signal line. The crossover logic is straightforward but the custom indicator implementation is the main blocker. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose wrappers that handle margin calculation, order placement, and global variable management - these must be reimplemented. The MarginMode conditional sizing logic needs careful porting. No digit adjustment is performed on SL/TP values, so they are used as-is in points.",
+  "extraction_timestamp": "2026-05-14T06:31:35.519219",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 160.9280228614807,
+    "cost": 0
+  }
+}

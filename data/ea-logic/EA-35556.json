@@ -1,0 +1,218 @@
+{
+  "ea_id": "EA-35556",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iWPR, iADX, iMFI, iStochastic). Simple entry/exit rules with fixed lot sizing. No external .mqh libraries or custom indicators. No grid, martingale, or hedging logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Williams' Percent Range",
+      "params": {
+        "period": 42,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Average Directional Index",
+      "params": {
+        "period": 20,
+        "shift": 0,
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Money Flow Index",
+      "params": {
+        "period": 19,
+        "applied_volume": "VOLUME_TICK"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Stochastic",
+      "name": "Stochastic Oscillator",
+      "params": {
+        "k_period": 22,
+        "d_period": 16,
+        "slowing": 21,
+        "method": "SMA",
+        "applied_to": "close"
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ADX directional difference (DI+ - DI-)",
+      "formula": "ind1buffer0 - ind1buffer1 (iADX buffer1 minus buffer2)",
+      "used_by": "entry_rules (long/short crossover detection)"
+    },
+    {
+      "name": "MFI level threshold for overbought",
+      "formula": "Ind2Param1 (input, default 79)",
+      "used_by": "exit_rules long close condition"
+    },
+    {
+      "name": "MFI level threshold for oversold",
+      "formula": "100 - Ind2Param1 (100 - 79 = 21)",
+      "used_by": "exit_rules short close condition"
+    },
+    {
+      "name": "pip value derived from digits",
+      "formula": "digits==4||5 -> 0.0001; digits==2||3 -> 0.01; digits==1 -> 0.1; else 1.0",
+      "used_by": "GetStopLossPrice, GetTakeProfitPrice, GetTrailingStop"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "WPR[2]",
+        "right": "WPR[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "ADX DI+ - DI- [2]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "WPR rising (val1 > val2)",
+        "right": "ADX directional difference crosses above zero",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "WPR[2]",
+        "right": "WPR[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "ADX DI+ - DI- [2]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "WPR falling (val1 < val2)",
+        "right": "ADX directional difference crosses below zero",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "input_param": "Stop_Loss",
+        "default": 0
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "input_param": "Take_Profit",
+        "default": 0
+      }
+    },
+    "trailing_stop": {
+      "type": "indicator_based",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "method": "High[1]-StopLossPoints for long, Low[1]+StopLossPoints for short; closes position when trailing stop reaches current price"
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "MFI exit: close long when MFI[2] > level (79), close short when MFI[2] < 100 - level (21)",
+      "Stochastic exit: close long when Stoch[2] > Stoch[1] AND Stoch[1] < Stoch[0] (Stoch rising then reversing down pattern)",
+      "Stochastic exit: close short when Stoch[2] < Stoch[1] AND Stoch[1] > Stoch[0] (Stoch falling then reversing up pattern)",
+      "Force session close on Friday close or session end if configured"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {
+      "input_param": "Entry_Amount"
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry uses WPR momentum direction (bar[2] vs bar[1] comparison) AND ADX DI+/DI- crossover across zero. Exit uses two independent OR conditions: MFI level breach OR Stochastic 3-bar reversal pattern. WPR entry does NOT use the -20 level input parameter (Ind0Param1) — it only checks rising/falling direction, not absolute levels. Similarly the Stochastic level input (Ind3Param3=20) is declared but never used in the code. Trailing stop logic: for long, trails using High[1]-SL_distance; for short, Low[1]+SL_distance; if trailing stop price reaches current bid/ask, closes the position instead of modifying. isTrailingStop is hardcoded to false and can never be true (line 58+77: isTrailingStop=false then isTrailingStop=isTrailingStop&&Stop_Loss>0 always false). Entry signal uses bars [2] and [1] (previous and current completed bars) for indicators, not bar [0]. Conflicting long+short signals cancel each other (both true = no trade). Order filling type auto-fallback: FOK->IOC->RETURN->FOK on INVALID_FILL error.",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "1. WPR (iWPR) returns negative values (0 to -100); the EA compares relative direction between bars, not absolute levels — ensure Python WPR implementation returns same scale. 2. ADX entry uses buffer1(DI+)/buffer2(DI-) difference crossing zero, not ADX main line — must extract DI+ and DI- separately. 3. MFI exit uses VOLUME_TICK — ensure Python MFI uses tick volume equivalent. 4. Stochastic exit uses a 3-bar reversal pattern (MAIN_LINE buffer indices [2],[1],[0]) — not a simple level cross. 5. The isTrailingStop flag is dead code (always false) — trailing stop logic can be omitted in Python conversion unless user enables it. 6. Pip value calculation: digits 4/5 -> 0.0001, digits 2/3 -> 0.01 — this is NOT the standard 5-digit adjustment (0.0001 for both 4 and 5 digit). Note this differs from typical pip=10*point for 5-digit brokers. 7. Session filter defaults to 24/7 (no restriction) — implement as passthrough. 8. Order filling fallback logic (FOK->IOC->RETURN) should be replicated or handled per broker config.",
+  "extraction_timestamp": "2026-05-14T08:58:15.433600",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 236.50610518455505,
+    "cost": 0
+  }
+}

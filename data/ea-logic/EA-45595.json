@@ -1,0 +1,188 @@
+{
+  "ea_id": "EA-45595",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Martingale position sizing with margin-dependent lot calculation, custom Unity indicator (iCustom) with event-driven initialization via CHARTEVENT_CUSTOM, multi-symbol hedging support, tick-level execution for bar/tick-wise mode, heavy external .mqh dependencies for trading logic, and optimization frame management with HTML report generation",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "UnityPercentEvent",
+      "params": {
+        "symbol_list": "EURUSD,GBPUSD,USDCHF,USDJPY,AUDUSD,USDCAD,NZDUSD",
+        "limit": 10,
+        "applied_to": 1,
+        "method": 1,
+        "period": 1
+      },
+      "source": "custom",
+      "library": "Indicators/MQL5Book/p6/UnityPercentEvent.ex5",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "lotsLimit - maximum lot after N multiplications",
+      "formula": "MathFloor((lotsLimit * factor) / lotsStep) * lotsStep, repeated limit times",
+      "used_by": "Martingale position sizing cap check"
+    },
+    {
+      "name": "stopLoss price distance",
+      "formula": "settings.stopLoss * _Point",
+      "used_by": "openBuy/openSell SL price calculation"
+    },
+    {
+      "name": "takeProfit price distance",
+      "formula": "settings.takeProfit * _Point",
+      "used_by": "openBuy/openSell TP price calculation"
+    },
+    {
+      "name": "Unity outer indices (max and min currency buffer indices)",
+      "formula": "ArrayMaximum(data) and ArrayMinimum(data) across Unity indicator buffers",
+      "used_by": "UnitySignal.signal() entry logic"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "base_currency_buffer_index",
+        "right": "quote_currency_buffer_index",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "base_currency_buffer_index == max AND quote_currency_buffer_index == min",
+        "right": "Unity indicator overbought condition",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "quote_currency_buffer_index",
+        "right": "base_currency_buffer_index",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "quote_currency_buffer_index == max AND base_currency_buffer_index == min",
+        "right": "Unity indicator oversold condition",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "pips_in_points": 500,
+        "price_distance_formula": "price - stopLoss for buy, price + stopLoss for sell"
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "pips_in_points": 500,
+        "price_distance_formula": "price + takeProfit for buy, price - takeProfit for sell"
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "trail_start_pips": 500,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close position when outside scheduled trading hours (if UseTime enabled)",
+      "Opposite signal closes existing position before martingale re-entry in reversed direction",
+      "If previous position was profitable and no signal, re-enter same direction with initial lots",
+      "If previous position was losing and no signal, re-enter opposite direction with multiplied lots (martingale reversal)"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.01,
+    "params": {
+      "initial_lots": 0.01,
+      "multiplication_factor": 2.0,
+      "max_multiplications": 5,
+      "lot_step_normalization": "MathFloor((volume * factor) / lotsStep) * lotsStep",
+      "margin_fallback": "revert to initial lots if insufficient margin for multiplied size",
+      "max_lot_cap": "lotsLimit calculated from initial_lots * factor^limit, capped at SYMBOL_VOLUME_MAX"
+    },
+    "max_positions": 1,
+    "conditional_logic": "After profitable trade: reset to initial lots, keep same direction. After losing trade: multiply previous lots by factor, reverse direction. If multiplied lots exceed lotsLimit: reset to initial lots."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 2,
+      "end_hour": 22
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 2,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Multi-currency EA using Unity indicator to rank currency strength across 7 pairs. Signal is generated when one currency is at maximum and its pair's other currency is at minimum (overbought/oversold). BREAKOUT mode trades in signal direction; PULLBACK mode reverses signal. Martingale: after a loss, lot size is multiplied by Factor (default 2.0) up to Limit multiplications, then resets. Direction reverses after a loss. Multi-symbol support via WorkSymbols string parsing (name±lots*factor^limit(sl,tp)[start,stop]). Each subsystem gets unique magic number (Magic + index). Indicator initialization is asynchronous via CHARTEVENT_CUSTOM events - trading doesn't start until the Unity indicator reports all currency buffers. Optimization uses R-squared of volume-normalized balance curve as custom criterion. Generates HTML optimization reports with mini-charts per pass. Tick model guard requires OHLC M1 or better. Equity drawdown is tracked on-the-fly in tester via PositionStateWithEquity.",
+  "external_dependencies": [
+    "MQL5Book/DateTime.mqh",
+    "MQL5Book/SymbolMonitor.mqh",
+    "MQL5Book/PositionFilter.mqh",
+    "MQL5Book/DealFilter.mqh",
+    "MQL5Book/MqlTradeSync.mqh",
+    "MQL5Book/TradeState.mqh",
+    "MQL5Book/AutoPtr.mqh",
+    "MQL5Book/TrailingStop.mqh",
+    "MQL5Book/MultiSymbolMonitor.mqh",
+    "MQL5Book/Tuples.mqh",
+    "MQL5Book/RSquared.mqh",
+    "MQL5Book/TradeReport.mqh",
+    "MQL5Book/TradeReportWriter.mqh",
+    "MQL5Book/TickModel.mqh",
+    "MQL5Book/Periods.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The Unity indicator is custom and has no Python equivalent - it must be reverse-engineered or reimplemented. The multi-symbol architecture with async indicator initialization via custom events is MT5-specific and requires a fundamentally different approach in Python (synchronous data loading). The martingale logic with lot-step normalization and margin fallback is complex. The optimization report generation with HTML frames is MT5 tester-specific and not portable. The PULLBACK vs BREAKOUT signal inversion must be preserved. Time scheduling with wrap-around midnight handling (hourStart > hourEnd) must be reimplemented. Position state caching after close (reading POSITION_PROFIT and POSITION_VOLUME from a closed position object) is MT5-specific behavior that needs explicit trade history queries in Python. The TrailingStop class from the external library must be reimplemented. RSquaredTest for optimization criterion needs implementation. The CHARTEVENT_CUSTOM-based initialization handshake between EA and indicator must be replaced with direct indicator calculation calls.",
+  "extraction_timestamp": "2026-05-14T10:35:20.952911",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 198.61815285682678,
+    "cost": 0
+  }
+}

@@ -1,0 +1,173 @@
+{
+  "ea_id": "EA-52105",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in MT5 indicators (iRSI, iMA, iATR) with standard parameters. Entry based on candlestick patterns + RSI levels. No external .mqh libraries for trading logic. Simple position sizing. No custom indicators.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 6,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Trend MA (SMA)",
+      "params": {
+        "period": 2,
+        "shift": 0,
+        "method": 0,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR(14)",
+      "params": {
+        "period": 14
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "dynamicStopLoss",
+      "formula": "ATR-based (computed but not assigned in visible code)",
+      "used_by": "exit_rules.stop_loss"
+    },
+    {
+      "name": "dynamicTakeProfit",
+      "formula": "ATR-based (computed but not assigned in visible code)",
+      "used_by": "exit_rules.take_profit"
+    },
+    {
+      "name": "dynamicTrailingStop",
+      "formula": "ATR-based (computed but not assigned in visible code)",
+      "used_by": "exit_rules.trailing_stop"
+    },
+    {
+      "name": "marketVolatility",
+      "formula": "ATR-based (computed but not assigned in visible code)",
+      "used_by": "position sizing or signal filtering"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Bullish Engulfing (Close[1] > Open[1] AND Open[1] < Close[2])",
+        "right": "RSI < 30",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Bearish Engulfing (Close[1] < Open[1] AND Open[1] > Close[2])",
+        "right": "RSI > 70",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_multiple",
+      "value": null,
+      "params": {
+        "atr_period": 14,
+        "multiplier": null
+      }
+    },
+    "take_profit": {
+      "type": "atr_multiple",
+      "value": null,
+      "params": {
+        "atr_period": 14,
+        "multiplier": null
+      }
+    },
+    "trailing_stop": {
+      "type": "atr_multiple",
+      "value": null,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "atr_period": 14,
+        "multiplier": null
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Trailing stop declared via UseTrailingStop input but implementation not visible in OnTick code"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.05,
+    "params": {
+      "risk_percent": 1.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "InpLot provides fixed lot size; MaxRiskPercent=1.0 declared but risk-based sizing logic not implemented in visible code"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 20.0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": null,
+    "filling": null
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "EA declares ATR-based dynamic SL/TP/trailing variables and a MaxRiskPercent input, but the OnTick body only calls CheckTradeSignals() with a comment 'Other EA logic remains unchanged', meaning the actual trade execution, SL/TP assignment, trailing stop, and spread filter logic are incomplete/missing. The RSI value is fetched incorrectly using iRSI() as a direct return instead of CopyBuffer from the handle. The Bullish Engulfing check has a logical inconsistency: it checks Close[1]>Open[1] (bar[1] bullish) and Open[1]<Close[2] (gap condition), but does not verify bar[2] is bearish (Close[2]<Open[2]). Same issue for Bearish Engulfing. Signal fires every tick since there is no new-bar guard.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "1) The EA uses iRSI() directly in CheckTradeSignals (line 86) instead of using the ExtIndicatorHandle with CopyBuffer - this is a bug in the source; Python conversion should use the handle-based approach (copy buffer from indicator handle). 2) Trade execution, SL/TP calculation from ATR, trailing stop, and spread filter are declared as inputs/variables but NOT implemented - Python version needs to implement these: dynamicStopLoss=ATR*multiplier, dynamicTakeProfit=ATR*multiplier, trailing stop logic when UseTrailingStop=true, and spread check against MaxSpread=20. 3) Engulfing pattern detection uses bar[1] and bar[2] (previous and prior bars) - ensure shift indexing is correct in Python (shift=1 for previous completed bar). 4) No position gate exists - add no_position check to prevent stacking. 5) Add new-bar guard to prevent repeated signals on every tick. 6) CSymbolInfo is included but never used in visible code - may be intended for spread/digit info.",
+  "extraction_timestamp": "2026-05-14T11:25:48.639032",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 162.56231951713562,
+    "cost": 0
+  }
+}

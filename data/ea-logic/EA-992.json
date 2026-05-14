@@ -1,0 +1,168 @@
+{
+  "ea_id": "EA-992",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load two custom indicators (CCIT3_Simple_v_2-01 and CCIT3_noReCalc_v_3-01) for signal generation. The T3 smoothing logic inside these custom indicators must be reimplemented in Python since there is no built-in MT5 T3-CCI indicator.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "CCI",
+      "name": "CCI T3 Simple",
+      "params": {
+        "period": 285,
+        "applied_to": 5
+      },
+      "source": "custom",
+      "library": "CCIT3_Simple_v_2-01",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "T3 Smoothing (Simple)",
+      "params": {
+        "period": 60,
+        "koeff_b": 0.618
+      },
+      "source": "custom",
+      "library": "CCIT3_Simple_v_2-01",
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI T3 noReCalc",
+      "params": {
+        "period": 250,
+        "applied_to": 5
+      },
+      "source": "custom",
+      "library": "CCIT3_noReCalc_v_3-01",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "T3 Smoothing (noReCalc)",
+      "params": {
+        "period": 170,
+        "koeff_b": 0.618
+      },
+      "source": "custom",
+      "library": "CCIT3_noReCalc_v_3-01",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "T3 smoothing coefficients",
+      "formula": "b2=Koeff_B^2, b3=b2*Koeff_B, c1=-b3, c2=3*(b2+b3), c3=-3*(2*b2+Koeff_B+b3), c4=1+3*Koeff_B+b3+3*b2",
+      "used_by": "CCIT3_Simple and CCIT3_noReCalc indicators"
+    },
+    {
+      "name": "T3 EMA smoothing factor w1",
+      "formula": "n=(T3_Period+1)/2, w1=2/(n+1), w2=1-w1",
+      "used_by": "CCIT3_Simple and CCIT3_noReCalc indicators"
+    },
+    {
+      "name": "T3 six-stage EMA cascade (e1..e6)",
+      "formula": "e1=w1*CCI+w2*e1_prev, e2=w1*e1+w2*e2_prev, ..., e6=w1*e5+w2*e6_prev",
+      "used_by": "CCIT3 output = c1*e6+c2*e5+c3*e4+c4*e3"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "CCIT3[0] (current bar)",
+        "right": "zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "CCIT3[0] (current bar)",
+        "right": "zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 1750,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "When Trade_overturn=true: closes current position and opens opposite on CCIT3 zero-line crossover; SL/TP modification retried up to N_modify_sltp times with 1s delay between attempts"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 1.0,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": "If Max_drawdown<=0, use fixed Lots. If Max_drawdown>0, compute size=NormalizeDouble(Lots*AccountBalance/Max_drawdown, 2), capped at SYMBOL_VOLUME_MAX."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 65,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses two variants of a custom CCIT3 indicator (Simple vs noReCalc), selectable via input flags but mutually exclusive. The noReCalc variant recalculates from bar 0 each tick (forward loop i=0..start), while the Simple variant processes from oldest to newest (reverse loop i=start..0). The T3 smoothing is a 6-stage EMA cascade applied to raw CCI values; values above 1000 are clamped to 0. The CCIT3 crossover uses bars [0] and [1] (CopyBuffer offset 1, count 2). Trailing stop only activates when position is profitable and updates Trail_stop variable to prevent backward movement. SL/TP are set after position open via separate TRADE_ACTION_SLTP request with retry logic (N_modify_sltp attempts).",
+  "external_dependencies": [
+    "CCIT3_Simple_v_2-01.ex5",
+    "CCIT3_noReCalc_v_3-01.ex5"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "Must reimplement the full T3-CCI calculation in Python: (1) compute raw CCI using standard formula, (2) apply 6-stage EMA cascade with T3 coefficients, (3) compute final output as c1*e6+c2*e5+c3*e4+c4*e3. Key difference between Simple and noReCalc: Simple iterates from oldest-to-newest (preserving EMA state across bars naturally), noReCalc resets e1-e6 to 0 at each bar (forward loop from i=0). The crossover signal checks CCIT3[0]<=0 && CCIT3[1]>0 (bearish crossover = sell) and CCIT3[0]>=0 && CCIT3[1]<0 (bullish crossover = buy). Note the entry logic uses CopyBuffer with shift=1 so bars [0] and [1] refer to the previous completed bar and the one before it — this is a 'confirmed bar' check, not a current-bar repaint. SL/TP are in points (not pips), and the 1750 TP with default 0 SL suggests a wide target. The trailing stop uses Point() directly so no digit adjustment is needed. The SL/TP modify-after-open pattern must be replicated or replaced with order-level SL/TP in Python.",
+  "extraction_timestamp": "2026-05-14T13:56:20.267636",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 249.77031803131104,
+    "cost": 0
+  }
+}

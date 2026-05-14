@@ -1,0 +1,140 @@
+{
+  "ea_id": "EA-452",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load a custom indicator 'MultiStochastic_Exp' which is not a built-in MT5 indicator. Multi-symbol resonance logic across 3 currency pairs per slot adds complexity. The custom indicator's buffer values (300 sentinel) must be understood to replicate in Python.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Stochastic",
+      "name": "MultiStochastic_Exp (Custom Resonance Stochastic)",
+      "params": {
+        "k_period": 5,
+        "d_period": 3,
+        "slowing": 3,
+        "method": "SMA",
+        "applied_to": "STO_LOWHIGH"
+      },
+      "source": "custom",
+      "library": "MultiStochastic_Exp",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MinBars minimum bar count for data sufficiency",
+      "formula": "Kperiod + Dperiod + slowing",
+      "used_by": "TradeSignalCounter bar availability guard"
+    },
+    {
+      "name": "dStopLoss price distance",
+      "formula": "StopLoss * point",
+      "used_by": "BuyPositionOpen/SellPositionOpen SL calculation"
+    },
+    {
+      "name": "dTakeprofit price distance",
+      "formula": "Takeprofit * point",
+      "used_by": "BuyPositionOpen/SellPositionOpen TP calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "equal",
+        "left": "MultiStochastic_Exp Buffer 2 (UpSignal)",
+        "right": "300",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "equal",
+        "left": "MultiStochastic_Exp Buffer 1 (DnSignal)",
+        "right": "300",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 500,
+      "params": {
+        "adjusted_for_stoplevel": true
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "UpStop buffer==300 triggers BuyPositionClose (closes long when custom indicator signals stop)",
+      "DnStop buffer==300 triggers SellPositionClose (closes short when custom indicator signals stop)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Multi-symbol resonance strategy: each slot monitors 3 correlated pairs (SymbolA, SymbolB, SymbolC) via a custom MultiStochastic_Exp indicator that synthesizes stochastic signals across all 3 symbols. Entry signals use sentinel value 300 from indicator buffers. SynchroCheck ensures all 3 symbols' bar timestamps align before signal evaluation. 3 independent trade slots (0/1/2) each with their own symbol triad and parameters. SL is clamped to broker's stoplevel if below it. PositionSelect prevents duplicate positions per symbol. Previous bar [1] values are read for signal detection (completed bar logic).",
+  "external_dependencies": [
+    "MultiStochastic_Exp (custom indicator loaded via iCustom)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "The MultiStochastic_Exp custom indicator must be reverse-engineered or reimplemented in Python - it is the core signal generator. The resonance logic across 3 symbols per slot is non-trivial and requires synchronized bar data. The sentinel value 300 check (buffer==300) is unusual and must be faithfully replicated. SynchroCheck (bar time alignment across 3 symbols) must be preserved. Each slot's indicator handle is created on SymbolA with SymbolB/SymbolC passed as parameters. The 3-slot architecture allows parallel independent trading on EURUSD, GBPUSD, AUDUSD. FOK filling may cause frequent rejections in backtesting - consider IOC fallback. StopLoss=500 with no TakeProfit means exits are purely indicator-driven via UpStop/DnStop signals.",
+  "extraction_timestamp": "2026-05-14T10:32:02.332234",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 167.70639991760254,
+    "cost": 0
+  }
+}

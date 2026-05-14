@@ -1,0 +1,238 @@
+{
+  "ea_id": "EA-35374",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "The MACD divergence detection logic is a custom algorithm (not a simple indicator crossover) that scans historical bars to find divergence between MACD dips/peaks and price dips/peaks. This custom pattern recognition requires careful porting as it involves iterative bar scanning, dip/peak detection with variable depth, and divergence classification. While indicators used (iMACD, iRSI) are built-in, the divergence detection algorithm itself is complex custom logic that cannot be auto-converted from simple indicator rules.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "RSI",
+      "name": "RSI (Long entry)",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI (Short entry)",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD (Bullish Divergence)",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD (Bearish Divergence)",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "MACD Bullish Divergence Detector",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "macd_threshold": 0.0003,
+        "max_depth": 18
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "MACD Bearish Divergence Detector",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "macd_threshold": 0.0003,
+        "max_depth": 18
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "PipValue - custom point conversion",
+      "formula": "CustomPoint(symbol) / SymbolInfoDouble(symbol, SYMBOL_POINT)",
+      "used_by": "SL/TP pip calculation, toPips, toDigits"
+    },
+    {
+      "name": "CustomPoint - digit-adjusted point value",
+      "formula": "Deserialized from POINT_FORMAT_RULES: 0.001=0.01,0.00001=0.0001,0.000001=0.0001",
+      "used_by": "PipValue, all pip-based calculations"
+    },
+    {
+      "name": "Price dip detection (bullish)",
+      "formula": "iLow[bar] < iLow[bar+1] and iLow[bar] < iLow[bar+2..4] (5-bar fractal low)",
+      "used_by": "MACD Bullish Divergence Detector"
+    },
+    {
+      "name": "Price peak detection (bearish)",
+      "formula": "iHigh[bar] > iHigh[bar+1] and iHigh[bar] > iHigh[bar+2..4] (5-bar fractal high)",
+      "used_by": "MACD Bearish Divergence Detector"
+    },
+    {
+      "name": "MACD dip detection (bullish)",
+      "formula": "macd[1..4] < -macdThreshold AND macd[1]>macd[2] AND macd[3]>macd[2] AND macd[4]>macd[2] (current dip below threshold)",
+      "used_by": "MACD Bullish Divergence Detector"
+    },
+    {
+      "name": "MACD peak detection (bearish)",
+      "formula": "macd[1..4] > macdThreshold AND macd[1]<macd[2] AND macd[3]<macd[2] AND macd[4]<macd[2] (current peak above threshold)",
+      "used_by": "MACD Bearish Divergence Detector"
+    },
+    {
+      "name": "Bullish divergence confirmation",
+      "formula": "(prevMACDdip > currentMACDdip AND prevPriceDip < currentPriceDip) OR (prevMACDdip < currentMACDdip AND prevPriceDip > currentPriceDip)",
+      "used_by": "MACD Bullish Divergence Detector"
+    },
+    {
+      "name": "Bearish divergence confirmation",
+      "formula": "(prevMACDpeak > currentMACDpeak AND prevPricePeak < currentPricePeak) OR (prevMACDpeak < currentMACDpeak AND prevPricePeak > currentPricePeak)",
+      "used_by": "MACD Bearish Divergence Detector"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "RSI[1]",
+        "right": "inp1_Ro_Value (30.0)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "MACD Bullish Divergence",
+        "right": "true",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "RSI[1]",
+        "right": "inp4_Ro_Value (70.0)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "MACD Bearish Divergence",
+        "right": "true",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 50.0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 50.0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes existing position via netting position gate - when 'No position' block passes, it means no position exists; in netting mode, opening opposite direction closes existing position. ExpirationWorker can close positions by time if expiration is set (default GTC so not active)."
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 4,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "This EA was generated by fxDreema (visual EA builder). The block execution flow is: Block6 (Once per bar) → Block8 (Draw watermark text) → Block7 (No position check) → [Block0 (RSI<30) AND Block3 (RSI>70) in parallel]. Long: RSI[1]<30 passes → Block1 checks MACD bullish divergence (custom algorithm scanning up to iBars for MACD dips below -macdThreshold, finds price fractal dips, compares with previous MACD/price dips to detect divergence within depth<=18) → Block2 (Buy). Short: RSI[1]>70 passes → Block4 checks MACD bearish divergence (mirrors bullish logic using MACD peaks above macdThreshold and price fractal highs) → Block5 (Sell). SL/TP use PipValue() for digit adjustment (POINT_FORMAT_RULES: 0.001→0.01, 0.00001→0.0001, 0.000001→0.0001). The 'No position' block (Block7) allows both buy and sell conditions to be checked simultaneously - if no position exists, both paths run; only the one whose full condition chain succeeds will open a trade. Divergence detection only runs on new bars (BarTime check) and draws trend lines on chart when divergence is found.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The MACD divergence detection is the most complex part - it requires implementing: (1) scanning MACD histogram values bar-by-bar to find dips below negative threshold (bullish) or peaks above positive threshold (bearish), (2) detecting 5-bar fractal price lows/highs at those MACD extrema, (3) comparing consecutive MACD extrema with corresponding price extrema to identify divergence (MACD making higher low while price makes lower low for bullish, or MACD making lower high while price makes higher high for bearish). The scanning depth goes up to iBars with a max depth of 18 divergences. Pip conversion must account for the POINT_FORMAT_RULES digit adjustment. The Once-per-bar guard must be implemented using bar time comparison. Position gate checks that no position exists before entry. Both long and short conditions are evaluated in parallel from the same 'No position' gate. RSI shift=1 means previous completed bar's RSI value (not current bar). The fxDreema framework's BlockCalls class hierarchy and callback system can be simplified to sequential if-then logic in Python.",
+  "extraction_timestamp": "2026-05-14T08:47:06.595869",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 174.27824759483337,
+    "cost": 0
+  }
+}

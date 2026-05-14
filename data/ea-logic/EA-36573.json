@@ -1,0 +1,144 @@
+{
+  "ea_id": "EA-36573",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Heavy pending order management with BuyStop/SellStop, order expiration logic, and pending order existence checks by comment matching. The strategy places stop orders at current price levels every tick, requiring tick-level pending order management and broker-specific order comment tracking that doesn't translate cleanly to Python backtesting frameworks.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Expiration date for pending orders",
+      "formula": "TimeCurrent() + PeriodSeconds(PERIOD_D1)",
+      "used_by": "BuyStop and SellStop order placement"
+    },
+    {
+      "name": "Buy stop price",
+      "formula": "NormalizeDouble(CurrentAsk, _Digits)",
+      "used_by": "Long entry order"
+    },
+    {
+      "name": "Sell stop price",
+      "formula": "NormalizeDouble(CurrentBid, _Digits)",
+      "used_by": "Short entry order"
+    },
+    {
+      "name": "Buy SL",
+      "formula": "BuyPrice - (PriceSL * _Point)",
+      "used_by": "Long stop loss"
+    },
+    {
+      "name": "Buy TP",
+      "formula": "BuyPrice + (PriceTP * _Point)",
+      "used_by": "Long take profit"
+    },
+    {
+      "name": "Sell SL",
+      "formula": "SellPrice + (PriceSL * _Point)",
+      "used_by": "Short stop loss"
+    },
+    {
+      "name": "Sell TP",
+      "formula": "SellPrice - (PriceTP * _Point)",
+      "used_by": "Short take profit"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "CheckBuyPending",
+        "right": "false",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "CheckSellPending",
+        "right": "false",
+        "direction": "below",
+        "order_type": "stop",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 300,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 900,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Pending orders expire after 1 day (ORDER_TIME_SPECIFIED with expdate = current time + D1 seconds)"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.01,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "pending",
+    "deviation": 1,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "Strategy places a BuyStop at CurrentAsk and a SellStop at CurrentBid every tick if no matching pending order already exists (checked by order comment 'B'+Symbol or 'S'+Symbol). Pending orders expire after 1 day. No market orders are used - only stop orders that trigger when price moves to the current Ask/Bid level, which means orders activate immediately or nearly immediately upon placement since stop price equals current price. The CheckPendingOrder function iterates from OrdersTotal() down to 0 inclusive (off-by-one: should be OrdersTotal()-1 to 0), checking order comments to identify existing pending orders for the same symbol and direction. Margin check is duplicated (lines 59-62 and 65-68 are identical). Volume validation checks min/max/step compliance.",
+  "external_dependencies": [
+    "Trade\\Trade.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\OrderInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Pending order management with comment-based tracking is not natively supported in most Python backtest frameworks. The BuyStop/SellStop placement at current Ask/Bid essentially acts as market orders in backtesting. Order expiration logic (1-day) needs custom implementation. The off-by-one bug in CheckPendingOrder (iterating to index OrdersTotal() instead of OrdersTotal()-1) should be noted but preserved or fixed depending on conversion intent. Margin check duplication (lines 59-68) should be deduplicated. SL/TP are specified in point units (PriceSL=300 means 300 points = 30 pips on 5-digit), so Python conversion must apply _Point multiplication correctly for the symbol.",
+  "extraction_timestamp": "2026-05-14T09:07:37.571028",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 114.83176565170288,
+    "cost": 0
+  }
+}

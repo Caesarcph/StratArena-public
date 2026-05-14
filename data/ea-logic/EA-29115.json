@@ -1,0 +1,146 @@
+{
+  "ea_id": "EA-29115",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Multi-currency couple hedging strategy with grid/martingale lot progression, basket-based profit/loss closing across symbol pairs, tick-level delay counters for close execution, and complex multi-symbol position management requiring MT5's PositionSelect/OrderSend infrastructure",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "MultiplierPoint - digit adjustment factor",
+      "formula": "10 when SYMBOL_DIGITS==3 or 5, else 1",
+      "used_by": "spread calculation, step levels, profit levels"
+    },
+    {
+      "name": "MultiplierStepPlus - step progression multiplier for Plus side",
+      "formula": "Statical: GroupsPlus[cnt]; Geometrical: sum(0..GroupsPlus[cnt]); Exponential: sum(MathPow(2,i-1))",
+      "used_by": "LevelOpenNextPlus, next order grid step"
+    },
+    {
+      "name": "MultiplierStepMinus - step progression multiplier for Minus side",
+      "formula": "Statical: GroupsMinus[cnt]; Geometrical: sum(0..GroupsMinus[cnt]); Exponential: sum(MathPow(2,i-1))",
+      "used_by": "LevelOpenNextMinus, next order grid step"
+    },
+    {
+      "name": "SuitePlus/SuiteMinus - order direction suite per group",
+      "formula": "If pair1 and pair2 share base or quote currency: Plus=BUY/SELL, Minus=SELL/BUY; else: Plus=BUY/BUY, Minus=SELL/SELL",
+      "used_by": "order opening direction logic"
+    },
+    {
+      "name": "MagicNo - auto-generated magic number",
+      "formula": "sum(StringGetCharacter(CurrenciesTrade,i)*(i+1)) + MagicSet + AccountLogin",
+      "used_by": "order identification per group"
+    },
+    {
+      "name": "NumberGroupsTrade - number of active couple groups",
+      "formula": "3 for 3 currencies, 12 for 4, 30 for 5; filtered by symbol availability",
+      "used_by": "main loop iteration count"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Profit level",
+        "right": "LevelOpenNextPlus",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Profit level",
+        "right": "LevelOpenNextMinus",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_same_side"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Basket close in profit: SumProfitPlus >= LevelProfitClosePlus (Side_By_Side mode closes Plus side, Both_Sides closes both, Hybrid modes combine)",
+      "Basket close in loss: SumProfitPlus <= LevelLossClosePlus (Whole_Side, Partial_Side, or Not_Close_In_Loss modes)",
+      "Close_Immediately_All_Orders operation mode closes all positions regardless of P&L",
+      "Close_In_Profit_And_Stop operation mode closes profitable positions then stops",
+      "Delay counters (DelayCloseProfit, DelayCloseLoss ticks) before executing close to confirm"
+    ]
+  },
+  "position_sizing": {
+    "type": "grid",
+    "value": 0.01,
+    "params": {
+      "auto_lot": "RiskFactor * account_free_margin_based",
+      "manual_lot": "ManualLotSize input",
+      "lot_progression": "Geometrical_Lot|Exponential_Lot|Statical_Lot|Decreases_Lot",
+      "max_lot": "MaximumLotSize input or broker SYMBOL_VOLUME_MAX",
+      "min_lot": "broker SYMBOL_VOLUME_MIN",
+      "fair_lot_size": "UseFairLotSize adjusts level calculations to equalize per-pair exposure"
+    },
+    "max_positions": 0,
+    "conditional_logic": "AutoLotSize=true uses RiskFactor*margin calculation; false uses ManualLotSize. Lot progression multiplies each subsequent grid level: Statical=constant, Geometrical=increasing sum, Exponential=doubling, Decreases=shrinking"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "IOC"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick",
+    "intrabar_signal_behavior": "repeat_while_true"
+  },
+  "custom_logic_notes": "This is a multi-currency couple hedging EA. It takes 3-5 currencies (e.g. EUR/GBP/USD) and generates all possible pair combinations (3→3 groups, 4→12 groups, 5→30 groups). Each group is a 'couple' of 2 pairs sharing a common currency. The hedge logic: Plus side opens correlated directions (both BUY or BUY/SELL if pairs share base currency), Minus side opens opposite. Grid/martingale progression: when floating loss exceeds LevelOpenNext threshold, new orders open with increased lot size (geometrical/exponential progression). Close logic is basket-based: entire side or both sides close when combined profit reaches target. Delay counters in ticks prevent premature closes. MinutesForNextOrder enforces time gap between grid entries. Session control blocks trading Monday open (WaitAfterOpen minutes) and Friday close (StopBeforeClose minutes). Groups can be skipped by user via NoOfGroupToSkip parameter. Operation modes: Stand_by, Normal, Close_In_Profit_And_Stop, Close_Immediately_All_Orders.",
+  "external_dependencies": [],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "tick",
+  "python_conversion_notes": "Requires multi-symbol tick data for all generated pairs simultaneously. Must implement PositionSelect-by-symbol logic across multiple symbols. Grid/martingale progression with geometrical/exponential multipliers is complex. Basket P&L calculation across 2 pairs per group with commission tracking needed. Delay-tick close confirmation requires tick-level simulation. Session time filtering with SymbolInfoSessionTrade is MT5-specific. Magic number grouping for position identification is essential. Symbol prefix/suffix auto-detection is broker-specific. Not recommended for simple Python conversion - would need a full multi-symbol backtesting framework with position management, margin checking, and cross-symbol hedging logic.",
+  "extraction_timestamp": "2026-05-14T07:26:46.373596",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 147.99675273895264,
+    "cost": 0
+  }
+}

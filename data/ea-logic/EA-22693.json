@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-22693",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses a simple perceptron neural network with built-in price data (no external indicators), straightforward entry/exit with fixed SL/TP, fixed lot sizing, no external .mqh dependencies for trading logic",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Perceptron weighted sum (w0 + w1*x1 + w2*x2 + w3*x3 + w4*x4)",
+      "formula": "w0 + w1*x1 + w2*x2 + w3*x3 + w4*x4",
+      "used_by": "Entry signal decision (positive=long, negative=short)"
+    },
+    {
+      "name": "x1: normalized price difference (Close[1]-Open[1]) scaled by Point",
+      "formula": "(Close[1]-Open[1])/Point",
+      "used_by": "Perceptron input feature 1"
+    },
+    {
+      "name": "x2: normalized price difference (Open[1]-Close[2]) scaled by Point",
+      "formula": "(Open[1]-Close[2])/Point",
+      "used_by": "Perceptron input feature 2"
+    },
+    {
+      "name": "x3: normalized 2-bar momentum (Close[1]-Close[3]) scaled by Point",
+      "formula": "(Close[1]-Close[3])/Point",
+      "used_by": "Perceptron input feature 3"
+    },
+    {
+      "name": "x4: normalized 3-bar momentum (Close[1]-Open[4]) scaled by Point",
+      "formula": "(Close[1]-Open[4])/Point",
+      "used_by": "Perceptron input feature 4"
+    },
+    {
+      "name": "Weight optimization via delta-bar-heuristic",
+      "formula": "w[i] = w[i] + delta*error*x[i] (Hebbian-style learning rule)",
+      "used_by": "On-line perceptron weight update after trade close"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "above",
+        "left": "Perceptron output",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "below",
+        "left": "Perceptron output",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 100,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "SL/TP hit closes position; no other explicit exit logic"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed_lots",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "This EA uses a single-layer perceptron (neural network) with 4 inputs derived from normalized price differences over recent bars. The perceptron computes a weighted sum and enters long if output > 0, short if output < 0. Weights are updated online using a delta-bar-heuristic (Hebbian learning rule) when a trade closes: w[i] += delta * error * x[i], where error is the realized profit/loss normalized by Point, and delta is a learning rate parameter. This makes it an adaptive/learning EA rather than a fixed-rule system. The default SL and TP are both 100 pips; the StopLevel and TakeLevel inputs control these. The perceptron inputs use previous bar values ([1],[2],[3],[4]) not current bar, and the signal is evaluated once per new bar. Weight initialization is from input parameters w0-w4 (default 0.2, 0, 0, 0, 0).",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "H1",
+  "python_conversion_notes": "The perceptron is straightforward to implement in Python. Key considerations: (1) The 4 input features are simple normalized price differences using Close/Open values at lagged bar indices - easy to compute from OHLC data. (2) The online weight update (delta-bar-heuristic) must be applied after each trade close, using the trade's realized P/L as the error signal. (3) Since the EA only trades on new bars, bar-level data suffices for backtesting - tick data not required. (4) The weight persistence across trades means the EA state (w0-w4) must be carried forward between trade evaluations - this is sequential state that cannot be parallelized. (5) SL/TP are fixed pip values, easily modeled. (6) No external indicators needed - all inputs are raw OHLC. (7) The position gate ensures max 1 position at a time, simplifying position tracking.",
+  "extraction_timestamp": "2026-05-14T03:15:47.500493",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 143.93409729003906,
+    "cost": 0
+  }
+}
