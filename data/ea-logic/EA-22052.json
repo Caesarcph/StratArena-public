@@ -1,0 +1,226 @@
+{
+  "ea_id": "EA-22052",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "The EA uses only built-in MT5 indicators (iMA, iRSI, iMACD, iATR, iBands) with simple crossover entry rules and fixed/percentage-based position sizing. No external .mqh libraries or custom indicators are required for trading logic. Standard SL/TP and trailing stop mechanisms are used.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": null,
+    "point_value": null,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "Fast EMA",
+      "params": {
+        "period": 8,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "Slow EMA",
+      "params": {
+        "period": 21,
+        "method": "EMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 14,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Bollinger",
+      "name": "Bollinger Bands",
+      "params": {
+        "period": 20,
+        "dev": 2.0,
+        "method": "SMA",
+        "applied_to": "close",
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Point adjustment factor for 5-digit brokers",
+      "formula": "(_Digits==5 || _Point<0.001) ? SL*10 : SL",
+      "used_by": "stop_loss and take_profit calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "above",
+        "left": "RSI",
+        "right": "50",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "MACD main",
+        "right": "MACD signal",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Fast EMA",
+        "right": "Slow EMA",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_opposite_side"
+      },
+      {
+        "condition": "below",
+        "left": "RSI",
+        "right": "50",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "MACD main",
+        "right": "MACD signal",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed_pips",
+      "value": 31,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed_pips",
+      "value": 69,
+      "params": {
+        "digit_adjusted": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed_pips",
+      "value": 15,
+      "params": {
+        "trail_start_pips": 15,
+        "trail_step_pips": 5
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close position on opposite EMA crossover signal"
+    ]
+  },
+  "position_sizing": {
+    "type": "conditional",
+    "value": 0.1,
+    "params": {
+      "risk_percent": 2.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "If Lots input is negative, use fixed lot size (absolute value). If Lots input is positive, use as risk percentage of account balance for position sizing."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": true,
+      "max_spread_pips": 30
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 8,
+      "end_hour": 20
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Multi-indicator confirmation required: EMA crossover as primary signal, RSI above/below 50 as trend filter, MACD crossover as momentum confirmation. All three conditions must align for entry. Opposite signal closes existing position before opening new one. Digit adjustment applied to SL/TP values when broker uses 5-digit pricing (multiplying pip values by 10).",
+  "external_dependencies": [],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "M1",
+  "python_conversion_notes": "All indicators are standard TA-Lib equivalents. The multi-condition entry filter (EMA crossover AND RSI filter AND MACD confirmation) must be evaluated as an AND combination on completed bars (use previous bar [1] values). The digit adjustment logic for SL/TP must be preserved - detect if price has 5 decimal places and multiply pip-based values by 10. The conditional position sizing (negative=fixed lots, positive=risk percent) requires account balance access. New bar detection is essential to prevent multiple entries per bar. Trailing stop implementation needs per-tick monitoring with step-based adjustment.",
+  "extraction_timestamp": "2026-05-14T01:17:30.741725",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 240.11000299453735,
+    "cost": 0
+  }
+}

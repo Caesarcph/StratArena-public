@@ -496,7 +496,7 @@ function bindEADetail(route) {
     .then(r => r.json())
     .then(data => {
       if (data.equity_curve && data.equity_curve.length > 0) {
-        drawEquityCurve(data.equity_curve, data.start_value);
+        requestAnimationFrame(() => drawEquityCurve(data.equity_curve, data.start_value));
       }
     })
     .catch(() => {});
@@ -506,8 +506,7 @@ function drawEquityCurve(curve, startValue) {
   const canvas = document.getElementById("equity-curve-chart");
   if (!canvas || !curve.length) return;
   const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.parentElement.getBoundingClientRect();
-  const W = rect.width;
+  const W = canvas.parentElement.getBoundingClientRect().width || canvas.parentElement.offsetWidth || 800;
   const H = 260;
   canvas.width = W * dpr;
   canvas.height = H * dpr;
