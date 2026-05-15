@@ -2,43 +2,43 @@ const CONTENT_PAGES = {
   about: {
     title: { en: "About QuantArenas", zh: "关于 QuantArenas" },
     subtitle: {
-      en: "A research platform that compares systematic strategies under one shared rulebook.",
-      zh: "一个在统一评估框架下比较系统化策略的研究平台。"
+      en: "A bilingual research platform for systematic stock strategies and MQL5 Expert Advisor analysis with backtesting.",
+      zh: "一个面向系统化股票策略与 MQL5 EA 分析的双语研究平台，配备回测功能。"
     },
-    updated: "2026-01-13",
+    updated: "2026-05-14",
     sections: [
       {
-        heading: { en: "A research arena, not a signal service", zh: "研究竞技场，而非信号服务" },
+        heading: { en: "Two arenas, one platform", zh: "两个竞技场，一个平台" },
         paragraphs: [
           {
-            en: "QuantArenas is a research platform for comparing systematic strategies in a consistent, repeatable way. It exists to make strategy behavior visible without the noise of opinionated trade calls. Every strategy is described, scored, and ranked using the same data sources, the same evaluation windows, and the same reporting format. That consistency lets readers compare ideas that normally live in separate notebooks, papers, or blog posts. The site is designed for reading and analysis, not for execution, and it favors clarity over complexity.",
-            zh: "QuantArenas 是一个以一致、可复现方式比较系统化策略的研究平台。它的存在，是为了在不受主观交易观点干扰的情况下，让策略行为更加清晰可见。每个策略都使用相同的数据来源、相同的评估窗口和相同的报告格式进行说明、评分与排名。这种一致性让读者能够比较那些原本散落在不同笔记本、论文或博客文章中的想法。本站面向阅读与分析，而非实际执行，并且更重视清晰性而非复杂性。"
+            en: "QuantArenas operates two complementary research modules. The Strategy Arena covers systematic stock strategies scored and ranked across multiple instruments and time windows using a consistent methodology. The EA Arena provides AI-analyzed MQL5 Expert Advisors sourced from the MQL5 CodeBase, each with bilingual descriptions, parameter documentation, and category classification (trading vs. utility).",
+            zh: "QuantArenas 运营两个互补的研究模块。策略竞技场覆盖在多种标的与时间窗口下评分排名的系统化股票策略。EA 竞技场提供源自 MQL5 CodeBase 的 AI 分析 MQL5 Expert Advisor，每个 EA 均配备双语描述、参数文档与类别分类（交易型 vs. 工具型）。"
           },
           {
-            en: "QuantArenas is not a signal service, brokerage, or automated trading system. It does not issue buy or sell alerts, provide personalized investment recommendations, or promise results. Strategies here are simplified research models meant to be inspected and stress tested by the reader. The goal is to show how an idea behaves across time and instruments, not to offer a turnkey product or a performance guarantee.",
-            zh: "QuantArenas 不是信号服务、券商平台，也不是自动化交易系统。它不会发布买卖提醒、提供个性化投资建议，或承诺任何结果。这里展示的策略是经过简化的研究模型，旨在供读者审视、复核并进行压力测试。平台的目标，是展示一个想法在不同时间与不同标的上的表现方式，而不是提供开箱即用的产品或业绩保证。"
+            en: "QuantArenas is not a signal service, brokerage, or automated trading system. It does not issue buy or sell alerts, provide personalized investment recommendations, or promise results. Strategies and EAs here are research models meant to be inspected and stress tested by the reader. The goal is to make strategy behavior visible, not to offer a turnkey product or a performance guarantee.",
+            zh: "QuantArenas 不是信号服务、券商平台，也不是自动化交易系统。它不会发布买卖提醒、提供个性化投资建议，或承诺任何结果。这里展示的策略与 EA 均为研究模型，旨在供读者审视、复核并进行压力测试。平台的目标，是让策略行为更加清晰可见，而不是提供开箱即用的产品或业绩保证。"
           }
         ]
       },
       {
-        heading: { en: "Data sources and transparency", zh: "数据来源与透明度" },
+        heading: { en: "EA Arena: MQL5 analysis pipeline", zh: "EA 竞技场：MQL5 分析流水线" },
         paragraphs: [
           {
-            en: "All price series are historical daily bars from public sources, collected through the yfinance interface. The input uses adjusted closes for splits and dividends where available, which keeps long horizon comparisons consistent. Instruments are chosen to cover common index, commodity, and FX proxies that are widely referenced and easy to reproduce. The same instrument list is applied to every strategy so the ranking reflects strategy differences, not data inconsistencies.",
-            zh: "所有价格序列均来自公共来源的历史日线数据，并通过 yfinance 接口采集。输入数据在可用时采用已对拆股与分红进行调整的收盘价，以保持长期区间比较的一致性。标的的选择覆盖常见的指数、商品与外汇代理品种，这些品种被广泛引用且易于复现。每个策略都使用相同的标的清单，因此排名反映的是策略差异，而不是数据不一致。"
+            en: "The EA Arena analyzes MQL5 Expert Advisors using an automated pipeline powered by NVIDIA GLM-5.1. Each EA is extracted from the MQL5 CodeBase, parsed for strategy logic, and documented with bilingual (CN/EN) descriptions, parameter explanations, and category tags. Trading EAs are separated from utility indicators, scripts, and panel tools so researchers can focus on actionable strategies.",
+            zh: "EA 竞技场使用由 NVIDIA GLM-5.1 驱动的自动化流水线分析 MQL5 Expert Advisor。每个 EA 从 MQL5 CodeBase 提取后，经过策略逻辑解析，并生成双语（中/英）描述、参数说明与类别标签。交易型 EA 与工具型指标、脚本和面板程序分开归类，方便研究者聚焦可执行的策略。"
           },
           {
-            en: "Because the project is static and reproducible, the data pipeline prioritizes determinism. Missing sessions are left as gaps, and strategies that require intraday data are intentionally excluded. The data is not a substitute for institutional feeds, and it may include survivorship or proxy biases. These limitations are documented so readers can interpret results as research signals rather than trading grade performance.",
-            zh: "由于该项目强调静态可复现，数据流水线优先保证确定性。缺失交易日将保留为空缺，而需要日内数据的策略会被有意排除。这里的数据不能替代机构级行情源，并且可能包含生存者偏差或代理偏差。我们明确记录这些限制，以便读者将结果理解为研究参考信号，而非可直接用于实盘的业绩表现。"
+            en: "For auto-convertible EAs, the platform generates Python backtrader code from the extracted logic, runs backtests on historical EURUSD H1 data, and publishes the results directly to each EA's detail page. Backtest metrics include total trades, win rate, net P&L, maximum drawdown, and an equity curve chart. This LLM-assisted MQ5→Python pipeline makes it possible to evaluate EAs at scale without a live MetaTrader environment.",
+            zh: "对于可自动转换的 EA，平台会从提取的逻辑生成 Python backtrader 代码，在历史 EURUSD H1 数据上运行回测，并将结果直接发布到每个 EA 的详情页。回测指标包括总交易次数、胜率、净盈亏、最大回撤和净值曲线图。这种 LLM 辅助的 MQ5→Python 流水线使得无需 MetaTrader 环境即可大规模评估 EA。"
           }
         ]
       },
       {
-        heading: { en: "How strategies are scored", zh: "策略如何评分" },
+        heading: { en: "Strategy Arena: stock strategy scoring", zh: "策略竞技场：股票策略评分" },
         paragraphs: [
           {
-            en: "Strategies are scored with a blended Arena Score that balances return and risk. The score combines CAGR, Sharpe, Sortino, and Calmar ratios, and it penalizes large drawdowns. Each metric is normalized so that a single extreme value cannot dominate the rank. This creates a leaderboard that rewards consistent performance over a single lucky run and discourages brittle, high volatility outcomes.",
-            zh: "策略采用综合性的 Arena Score 评分，以平衡收益与风险。该评分结合了 CAGR、夏普比率、Sortino 比率与 Calmar 比率，并对大幅回撤进行惩罚。每项指标都会先标准化，避免单一极端值主导整体排名。由此形成的排行榜，更奖励稳定持续的表现，而不是一次幸运行情带来的偶发高收益，也能抑制脆弱且高波动的结果。"
+            en: "Stock strategies are scored with a blended Arena Score that balances return and risk. The score combines CAGR, Sharpe, Sortino, and Calmar ratios, and it penalizes large drawdowns. Each metric is normalized so that a single extreme value cannot dominate the rank. This creates a leaderboard that rewards consistent performance over a single lucky run and discourages brittle, high volatility outcomes.",
+            zh: "股票策略采用综合性的 Arena Score 评分，以平衡收益与风险。该评分结合了 CAGR、夏普比率、Sortino 比率与 Calmar 比率，并对大幅回撤进行惩罚。每项指标都会先标准化，避免单一极端值主导整体排名。由此形成的排行榜，更奖励稳定持续的表现，而不是一次幸运行情带来的偶发高收益，也能抑制脆弱且高波动的结果。"
           },
           {
             en: "The system also compares strategy behavior across multiple time windows. A model that only looks strong in the last few months but collapses on longer windows will rank lower than a steadier approach. Walk forward optimization is available to select parameters from prior windows, but if that walk forward output is weaker than the default configuration, the default result is retained. This keeps the score anchored to a realistic baseline.",
@@ -47,15 +47,28 @@ const CONTENT_PAGES = {
         ]
       },
       {
-        heading: { en: "Research goals and engineering background", zh: "研究目标与工程背景" },
+        heading: { en: "Data sources and transparency", zh: "数据来源与透明度" },
         paragraphs: [
           {
-            en: "QuantArenas is built to support structured research. Every strategy includes readable pseudocode, tags, and suggested comparisons. This makes it easier to examine the intuition behind the rules and to place an idea inside a wider strategy family. The platform is meant to complement academic papers and practitioner notes by giving a standardized output for exploration.",
-            zh: "QuantArenas 的构建目标是支持结构化研究。每个策略都附带可读性强的伪代码、标签以及建议比较对象，这使得研究者更容易理解规则背后的逻辑直觉，并将某个想法放入更广泛的策略谱系中进行考察。平台希望通过提供标准化输出，补充学术论文与实务研究笔记的探索价值。"
+            en: "Stock strategy data uses historical daily bars from public sources, collected through the yfinance interface with adjusted closes for splits and dividends. EA backtest data uses hourly (H1) EURUSD bars from yfinance spanning 730 days. All data sources are documented, and the same instrument set is applied consistently within each module so that rankings reflect strategy differences, not data inconsistencies.",
+            zh: "股票策略数据使用来自公共来源的历史日线数据，通过 yfinance 接口采集，并采用已对拆股与分红进行调整的收盘价。EA 回测数据使用来自 yfinance 的 EURUSD H1 小时线，覆盖 730 天。所有数据来源均有记录，且每个模块内使用一致的标的集合，确保排名反映策略差异，而非数据不一致。"
           },
           {
-            en: "From an engineering perspective, the platform emphasizes a single deterministic pipeline, limited external dependencies, and open inspection of assumptions. The aim is to keep experiments reproducible for students and independent researchers who cannot access proprietary data or black box tools. The site also serves as a log of iterations, showing how a strategy evolves as new evidence is added.",
-            zh: "从工程角度看，平台强调单一且确定性的流水线、尽量有限的外部依赖，以及对各项假设的开放式检视。其目标，是让无法接触专有数据或黑箱工具的学生与独立研究者也能复现实验。本站同时也是一个迭代记录，展示策略如何随着新增证据而不断演化。"
+            en: "Because the project is static and reproducible, both pipelines prioritize determinism. Missing sessions are left as gaps, and strategies that require data not available in public feeds are excluded. The data is not a substitute for institutional feeds and may include survivorship or proxy biases. These limitations are documented so readers can interpret results as research signals rather than trading grade performance.",
+            zh: "由于该项目强调静态可复现，两条流水线均优先保证确定性。缺失交易日将保留为空缺，而需要公共数据源不支持的数据的策略会被排除。这里的数据不能替代机构级行情源，并且可能包含生存者偏差或代理偏差。我们明确记录这些限制，以便读者将结果理解为研究参考信号，而非可直接用于实盘的业绩表现。"
+          }
+        ]
+      },
+      {
+        heading: { en: "Research goals and engineering", zh: "研究目标与工程" },
+        paragraphs: [
+          {
+            en: "QuantArenas is built to support structured research. Stock strategies include readable pseudocode, tags, and suggested comparisons. EA analyses include signal logic breakdowns, parameter descriptions, and backtest performance with equity curves. The platform complements academic papers and practitioner notes by giving a standardized output for exploration and comparison.",
+            zh: "QuantArenas 的构建目标是支持结构化研究。股票策略附带可读性强的伪代码、标签以及建议比较对象。EA 分析包含信号逻辑拆解、参数说明以及带有净值曲线的回测表现。平台希望通过提供标准化输出，补充学术论文与实务研究笔记的探索与比较价值。"
+          },
+          {
+            en: "From an engineering perspective, the platform emphasizes deterministic pipelines, limited external dependencies, and open inspection of assumptions. The EA analysis pipeline uses GLM-5.1 for MQL5 parsing and backtrader for execution, both running in a reproducible, script-driven workflow. The site also serves as a log of iterations, showing how strategies and EA analyses evolve as new evidence is added.",
+            zh: "从工程角度看，平台强调确定性流水线、尽量有限的外部依赖，以及对各项假设的开放式检视。EA 分析流水线使用 GLM-5.1 进行 MQL5 解析，使用 backtrader 执行回测，两者均在可复现的脚本驱动工作流中运行。本站同时也是一个迭代记录，展示策略与 EA 分析如何随着新增证据而不断演化。"
           }
         ]
       },
@@ -63,16 +76,16 @@ const CONTENT_PAGES = {
         heading: { en: "How to use the platform responsibly", zh: "如何负责任地使用本平台" },
         paragraphs: [
           {
-            en: "Treat the rankings as a research index, not a buy list. Use the results to narrow down ideas, then read the strategy description, inspect the chart behavior, and understand what the signal is actually doing. A strong rank does not replace independent validation, and a weak rank does not mean the idea is useless. The point is to reveal trade offs and to surface questions worth testing.",
-            zh: "请将排名视为研究索引，而不是买入清单。你可以先借助结果缩小研究范围，再阅读策略说明、观察图表行为，并理解信号本身究竟在捕捉什么。高排名不能替代独立验证，低排名也不意味着想法毫无价值。平台的意义在于揭示权衡关系，并提出值得进一步检验的问题。"
+            en: "Treat the rankings and backtest results as a research index, not a buy list. Use the results to narrow down ideas, then read the strategy description, inspect the chart behavior, and understand what the signal is actually doing. A strong rank or profitable backtest does not replace independent validation, and a weak rank does not mean the idea is useless. The point is to reveal trade offs and to surface questions worth testing.",
+            zh: "请将排名与回测结果视为研究索引，而不是买入清单。你可以先借助结果缩小研究范围，再阅读策略说明、观察图表行为，并理解信号本身究竟在捕捉什么。高排名或盈利回测不能替代独立验证，低排名也不意味着想法毫无价值。平台的意义在于揭示权衡关系，并提出值得进一步检验的问题。"
           },
           {
-            en: "If you decide to explore a strategy further, rebuild it with your own data, add realistic costs, and stress test across multiple regimes. Consider position sizing, liquidity, and risk controls that are not modeled here. QuantArenas gives a clean baseline, but responsible use requires additional work and a clear understanding of the risks.",
-            zh: "如果你决定进一步研究某个策略，请使用自己的数据进行重建，加入更真实的交易成本，并在多种市场环境下进行压力测试。同时也应考虑这里尚未建模的仓位规模、流动性与风险控制因素。QuantArenas 提供的是一个干净的基准起点，但负责任的使用仍然需要额外工作，以及对风险有清晰的理解。"
+            en: "If you decide to explore a strategy or EA further, rebuild it with your own data, add realistic costs, and stress test across multiple regimes. Consider position sizing, liquidity, and risk controls that are not modeled here. QuantArenas gives a clean baseline, but responsible use requires additional work and a clear understanding of the risks.",
+            zh: "如果你决定进一步研究某个策略或 EA，请使用自己的数据进行重建，加入更真实的交易成本，并在多种市场环境下进行压力测试。同时也应考虑这里尚未建模的仓位规模、流动性与风险控制因素。QuantArenas 提供的是一个干净的基准起点，但负责任的使用仍然需要额外工作，以及对风险有清晰的理解。"
           },
           {
-            en: "Keep notes on why a strategy ranks well and test whether that reason is still plausible today. A simple checklist such as data assumptions, regime fit, and failure mode helps avoid copying strategies blindly. The site is designed to be a starting point for that checklist, not the final answer, and it rewards careful reading over fast decisions.",
-            zh: "请记录某个策略之所以排名较高的原因，并检验这些原因在当下是否仍然成立。一份简单的检查清单——例如数据假设、市场环境适配性与失效模式——有助于避免盲目照搬策略。本站的定位，是为这份清单提供一个起点，而不是给出最终答案；它鼓励的是审慎阅读，而非仓促决策。"
+            en: "Keep notes on why a strategy ranks well or an EA backtest shows profit, and test whether that reason is still plausible today. A simple checklist such as data assumptions, regime fit, and failure mode helps avoid copying strategies blindly. The site is designed to be a starting point for that checklist, not the final answer, and it rewards careful reading over fast decisions.",
+            zh: "请记录某个策略之所以排名较高或某个 EA 回测盈利的原因，并检验这些原因在当下是否仍然成立。一份简单的检查清单——例如数据假设、市场环境适配性与失效模式——有助于避免盲目照搬策略。本站的定位，是为这份清单提供一个起点，而不是给出最终答案；它鼓励的是审慎阅读，而非仓促决策。"
           }
         ]
       },
@@ -80,8 +93,8 @@ const CONTENT_PAGES = {
         heading: { en: "Risk and usage disclaimer", zh: "风险与使用免责声明" },
         paragraphs: [
           {
-            en: "All information on this site is for educational and research purposes only. It is not financial advice, and it should not be construed as an offer to buy or sell any security, derivative, or cryptocurrency. Past performance does not guarantee future results, and every strategy can experience prolonged losses or underperformance.",
-            zh: "本站所有信息仅用于教育与研究目的。其内容不构成金融建议，也不应被解读为对任何证券、衍生品或加密资产的买卖要约。过往表现并不保证未来结果，任何策略都可能经历长期亏损或表现不及预期。"
+            en: "All information on this site is for educational and research purposes only. It is not financial advice, and it should not be construed as an offer to buy or sell any security, derivative, or cryptocurrency. Past performance does not guarantee future results, and every strategy can experience prolonged losses or underperformance. EA backtests are conducted on limited historical data and do not account for slippage, spread, or commission costs.",
+            zh: "本站所有信息仅用于教育与研究目的。其内容不构成金融建议，也不应被解读为对任何证券、衍生品或加密资产的买卖要约。过往表现并不保证未来结果，任何策略都可能经历长期亏损或表现不及预期。EA 回测基于有限的历史数据，且未计入滑点、点差与佣金成本。"
           },
           {
             en: "Use this material at your own risk. If you act on any idea presented here, you are responsible for evaluating whether it is appropriate for your risk tolerance, time horizon, and regulatory environment. QuantArenas makes no warranties about the accuracy or completeness of the data, and it does not provide tax, legal, or investment guidance.",
@@ -94,21 +107,30 @@ const CONTENT_PAGES = {
   methodology: {
     title: { en: "Methodology", zh: "方法论" },
     subtitle: {
-      en: "How QuantArenas builds comparable strategy results across assets and time windows.",
-      zh: "QuantArenas 如何在不同资产与时间窗口之间构建可比的策略结果。"
+      en: "How QuantArenas evaluates stock strategies and MQL5 Expert Advisors using consistent, reproducible methods.",
+      zh: "QuantArenas 如何使用一致、可复现的方法评估股票策略与 MQL5 Expert Advisor。"
     },
-    updated: "2026-01-13",
+    updated: "2026-05-14",
     sections: [
       {
-        heading: { en: "Data coverage and inputs", zh: "数据覆盖范围与输入" },
+        heading: { en: "Strategy Arena methodology", zh: "策略竞技场方法论" },
         paragraphs: [
           {
-            en: "The methodology starts with a shared data universe. Daily adjusted close series are pulled for each instrument, aligned to a common start date, and normalized to a base value for comparison across assets. The instruments cover index, commodity, and FX proxies that are widely traded and have long public histories.",
-            zh: "方法论始于一个共享的数据池。我们为每个标的提取日度复权收盘价序列，将其对齐到统一起始日期，并归一化至同一基准值，以便进行跨资产比较。所选标的覆盖交易活跃、公开历史较长的指数、商品与外汇代理品种。"
+            en: "The stock strategy pipeline starts with a shared data universe. Daily adjusted close series are pulled for each instrument, aligned to a common start date, and normalized to a base value for comparison across assets. The instruments cover index, commodity, and FX proxies that are widely traded and have long public histories. Only daily frequency is used in the core pipeline to reduce noise and to keep the same sampling for every strategy.",
+            zh: "股票策略流水线始于一个共享的数据池。我们为每个标的提取日度复权收盘价序列，将其对齐到统一起始日期，并归一化至同一基准值，以便进行跨资产比较。所选标的覆盖交易活跃、公开历史较长的指数、商品与外汇代理品种。核心流水线仅使用日频数据，以减少噪声，并确保所有策略采用一致的采样频率。"
+          }
+        ]
+      },
+      {
+        heading: { en: "EA Arena methodology", zh: "EA 竞技场方法论" },
+        paragraphs: [
+          {
+            en: "The EA Arena uses an LLM-assisted pipeline to analyze MQL5 Expert Advisors. First, the MQ5 source code is parsed by GLM-5.1 into a structured JSON representation capturing indicators, entry/exit rules, parameters, and strategy type. Second, auto-convertible EAs are translated into Python backtrader strategies using a template-based code generator that maps MQL5 indicator calls to backtrader equivalents. Third, generated strategies are backtested on historical H1 EURUSD data (730 days) with standardized position sizing and execution logic.",
+            zh: "EA 竞技场使用 LLM 辅助流水线分析 MQL5 Expert Advisor。首先，MQ5 源代码由 GLM-5.1 解析为结构化 JSON，捕获指标、入场/出场规则、参数与策略类型。其次，可自动转换的 EA 通过基于模板的代码生成器翻译为 Python backtrader 策略，将 MQL5 指标调用映射为 backtrader 等价物。第三，生成的策略在历史 H1 EURUSD 数据（730 天）上进行回测，采用标准化的仓位管理与执行逻辑。"
           },
           {
-            en: "Only daily frequency is used in the core pipeline to reduce noise and to keep the same sampling for every strategy. Intraday signals, event driven models, and microstructure effects are intentionally excluded. The focus is on rules that can be evaluated with end of day data and interpreted consistently across markets.",
-            zh: "核心流水线仅使用日频数据，以减少噪声，并确保所有策略采用一致的采样频率。日内信号、事件驱动模型以及微观结构效应均被有意排除。我们的重点是那些能够用日终数据评估，并可在不同市场中保持一致解释的规则。"
+            en: "EAs that rely on MT5-specific features (custom indicators, DLL calls, or MQL5-only objects) are classified as manual-convert or mt5-only and are documented without backtesting. The convertibility classification ensures that only strategies with a reliable Python translation enter the backtest pipeline, keeping results comparable and interpretable.",
+            zh: "依赖 MT5 专有特性的 EA（自定义指标、DLL 调用或 MQL5 专属对象）被分类为手动转换或仅限 MT5，仅进行文档化而不执行回测。可转换性分类确保只有具备可靠 Python 翻译的策略进入回测流水线，从而保持结果的可比性与可解释性。"
           }
         ]
       },
@@ -116,77 +138,34 @@ const CONTENT_PAGES = {
         heading: { en: "Signal generation and execution", zh: "信号生成与执行" },
         paragraphs: [
           {
-            en: "Signals are generated at the close of each session and applied on the next session. This avoids look ahead bias and aligns with a realistic end of day workflow. Positions are either fully invested or in cash for single asset strategies, while portfolio strategies output target weights that are applied at the next rebalance.",
-            zh: "信号在每个交易日收盘后生成，并在下一个交易日执行。这种设定可避免前视偏差，也更符合现实中的日终决策流程。对于单资产策略，仓位要么满仓持有，要么为空仓；对于组合策略，则输出目标权重，并在下一次再平衡时应用。"
+            en: "For stock strategies, signals are generated at the close of each session and applied on the next session. This avoids look ahead bias and aligns with a realistic end of day workflow. For EA backtests, signals are generated on each H1 bar and executed at the next bar's open. Both approaches avoid look ahead bias while maintaining realistic execution assumptions.",
+            zh: "股票策略的信号在每个交易日收盘后生成，并在下一个交易日执行，以避免前视偏差并符合现实中的日终决策流程。EA 回测的信号在每个 H1 柱生成，并在下一柱开盘时执行。两种方式均避免前视偏差，同时保持现实的执行假设。"
           },
           {
-            en: "Transaction costs, slippage, and financing are not modeled in the baseline score. The purpose of the Arena Score is relative comparison across strategies, not a broker ready profit and loss statement. Readers should assume that high turnover models will perform worse in live conditions, and that liquidity constraints may invalidate some signals.",
-            zh: "基准评分并未纳入交易成本、滑点与融资成本。Arena Score 的目的，是进行策略之间的相对比较，而不是生成可直接用于券商层面的损益报表。读者应假设，高换手模型在实盘中的表现很可能更差，而流动性约束也可能使部分信号失效。"
+            en: "Transaction costs, slippage, and financing are not modeled in the baseline scores. The purpose is relative comparison across strategies, not a broker ready profit and loss statement. Readers should assume that high turnover models will perform worse in live conditions, and that liquidity constraints may invalidate some signals.",
+            zh: "基准评分并未纳入交易成本、滑点与融资成本。评分的目的是进行策略之间的相对比较，而不是生成可直接用于券商层面的损益报表。读者应假设，高换手模型在实盘中的表现很可能更差，而流动性约束也可能使部分信号失效。"
           }
         ]
       },
       {
-        heading: { en: "Evaluation windows", zh: "评估窗口" },
+        heading: { en: "Metrics and scoring", zh: "指标与评分" },
         paragraphs: [
           {
-            en: "Each strategy is evaluated across multiple windows, from one month to the full history. The same windows are used for every strategy, which prevents cherry picking. Short windows reveal responsiveness, while long windows highlight regime dependence and drawdown behavior.",
-            zh: "每个策略都会在多个窗口中进行评估，范围从一个月至完整历史区间。所有策略使用相同的窗口集合，以防止选择性展示结果。短窗口有助于观察响应速度，长窗口则更能体现对市场环境的依赖性以及回撤特征。"
-          },
-          {
-            en: "Walk forward optimization is enabled to pick parameter sets that worked best in the prior training window, then applied to the next test window. However, if the walk forward result underperforms the default configuration, the default result is kept. This provides a conservative comparison while still capturing the benefit of rolling calibration.",
-            zh: "平台启用滚动前瞻优化，以选取在前一个训练窗口中表现最佳的参数组合，并将其应用于下一测试窗口。但如果前瞻优化结果不如默认配置，则保留默认结果。这样既能保留滚动校准的潜在优势，又能维持更保守的比较标准。"
+            en: "Stock strategies are scored with a blended Arena Score that combines CAGR, Sharpe, Sortino, and Calmar ratios, with each component normalized before aggregation. EA backtests report total trades, win rate, net P&L, maximum drawdown (both percentage and dollar), and an equity curve. The different scoring approaches reflect the different data frequencies and evaluation goals of each module.",
+            zh: "股票策略采用综合性的 Arena Score 评分，结合 CAGR、夏普比率、Sortino 比率与 Calmar 比率，各项指标在汇总前均进行标准化。EA 回测报告总交易次数、胜率、净盈亏、最大回撤（百分比与金额）以及净值曲线。不同的评分方式反映了两个模块在数据频率与评估目标上的差异。"
           }
         ]
       },
       {
-        heading: { en: "Benchmarks and comparability", zh: "基准与可比性" },
+        heading: { en: "Limitations and simplifications", zh: "局限性与简化" },
         paragraphs: [
           {
-            en: "Benchmark options include buy and hold, a simple 60/40 proxy, and a risk parity proxy. Benchmarks are normalized to the same starting value as the strategy series, and all reporting uses the same date alignment. This helps readers contextualize how much of the return comes from the strategy rules versus market drift.",
-            zh: "基准选项包括买入并持有、简化版 60/40 组合代理，以及风险平价代理。所有基准都会归一化到与策略序列相同的起始值，且全部报告都采用一致的日期对齐方式。这有助于读者区分收益究竟更多来自策略规则，还是来自市场自身漂移。"
+            en: "The stock strategy pipeline assumes full allocation with no leverage and no short borrow constraints unless the strategy explicitly defines them. The EA backtest pipeline uses a single instrument (EURUSD H1) and standardized position sizing, which may not reflect the original EA's intended instrument or risk management. Both pipelines use public data sources that can differ from institutional feeds.",
+            zh: "股票策略流水线默认假设满仓配置，不使用杠杆，也不存在融券约束，除非策略本身有明确规定。EA 回测流水线使用单一品种（EURUSD H1）和标准化仓位管理，可能无法反映原始 EA 设定的交易品种或风控逻辑。两条流水线均使用可能与机构级行情存在差异的公共数据源。"
           },
           {
-            en: "Cross asset comparisons use the same scoring logic and the same window set. A strategy that behaves well only on one symbol will show that dependency in the summary metrics, while a robust rule will score more consistently across instruments.",
-            zh: "跨资产比较使用相同的评分逻辑与相同的窗口集合。若某个策略仅在单一标的上表现良好，这种依赖性会在汇总指标中体现出来；而更稳健的规则，则会在不同标的之间取得更一致的得分。"
-          }
-        ]
-      },
-      {
-        heading: { en: "Metrics and Arena Score", zh: "指标与 Arena Score" },
-        paragraphs: [
-          {
-            en: "The Arena Score blends return and risk metrics instead of relying on a single ratio. CAGR measures compounding, Sharpe captures volatility adjusted return, Sortino focuses on downside risk, and Calmar ties performance to maximum drawdown. Each component is standardized before aggregation, and extreme values are clipped to prevent a single metric from dominating the score.",
-            zh: "Arena Score 通过综合收益与风险指标进行评分，而不是依赖单一比率。CAGR 衡量复利增长，夏普比率反映经波动率调整后的收益，Sortino 比率关注下行风险，Calmar 比率则将收益与最大回撤联系起来。各项指标在汇总前都会先进行标准化，并对极端值加以截尾，以防止单一指标主导总分。"
-          },
-          {
-            en: "Drawdown, volatility, and trade count are reported separately to provide a sense of stability and activity. The score is not a prediction of future returns. It is a comparative statistic that highlights how a strategy behaved under this dataset and these rules.",
-            zh: "回撤、波动率与交易次数会单独报告，以帮助读者判断策略的稳定性与活跃程度。该评分并不是对未来收益的预测，而是在当前数据集与规则设定下，对策略历史行为进行比较的统计量。"
-          }
-        ]
-      },
-      {
-        heading: { en: "Assumptions and simplifications", zh: "假设与简化" },
-        paragraphs: [
-          {
-            en: "The research pipeline assumes full allocation to the active signal with no leverage and no short borrow constraints unless the strategy explicitly defines them. Returns are computed from adjusted closes, which capture splits and dividends but do not model intraday liquidity or execution timing. These assumptions keep results consistent across strategies even if they understate real world frictions.",
-            zh: "研究流水线默认假设：活跃信号对应满仓配置，不使用杠杆，也不存在融券约束，除非策略本身有明确规定。收益基于复权收盘价计算，因此能够反映拆股与分红，但不会建模日内流动性或具体成交时点。这些假设即便低估了现实交易摩擦，也能保持不同策略之间结果的一致性。"
-          },
-          {
-            en: "Portfolio strategies rebalance on a consistent cadence, and trades are applied on the next available session. This standardization makes the comparison fair, but it can also reduce the apparent advantage of faster signals. The intent is to preserve comparability, not to optimize any single strategy's execution.",
-            zh: "组合策略按照一致的频率进行再平衡，交易在下一个可用交易日执行。这种标准化有助于保证比较公平，但也可能削弱更快信号在执行层面的表观优势。我们的目标是维护可比性，而不是优化任何单一策略的执行表现。"
-          }
-        ]
-      },
-      {
-        heading: { en: "Limitations and planned refinements", zh: "局限性与计划中的改进" },
-        paragraphs: [
-          {
-            en: "The methodology is intentionally simple so that results remain comparable, but that simplicity has limits. The pipeline does not model intraday fills, execution slippage, or market impact. It also uses public data sources that can differ from institutional feeds. These constraints are part of the design and should be considered when translating results into real portfolios.",
-            zh: "该方法论刻意保持简洁，以确保结果具备可比性，但这种简洁性本身也存在边界。流水线并未建模日内成交、执行滑点或市场冲击成本，同时使用的也是可能与机构级行情存在差异的公共数据源。这些限制本就是设计的一部分，在将结果映射到真实投资组合时应充分考虑。"
-          },
-          {
-            en: "Future refinements focus on transparency rather than complexity. Planned upgrades include clearer parameter sensitivity views, richer attribution, and expanded documentation around data quality. The goal is to keep the platform readable while still giving researchers enough detail to judge whether a strategy is robust or fragile.",
-            zh: "未来的改进重点将放在提升透明度，而非堆叠复杂度。计划中的升级包括更清晰的参数敏感性视图、更丰富的归因分析，以及更完整的数据质量说明文档。目标是在保持平台可读性的同时，为研究者提供足够细节，以判断某个策略究竟稳健还是脆弱。"
+            en: "The MQ5→Python translation may simplify or approximate some indicator calculations. Custom indicators, multi-timeframe logic, and DLL-dependent features are intentionally excluded from auto-conversion. These constraints are part of the design and should be considered when interpreting backtest results.",
+            zh: "MQ5→Python 翻译可能会简化或近似某些指标计算。自定义指标、多时间周期逻辑和依赖 DLL 的特性被有意排除在自动转换之外。这些限制本就是设计的一部分，在解读回测结果时应充分考虑。"
           }
         ]
       },
@@ -194,16 +173,12 @@ const CONTENT_PAGES = {
         heading: { en: "Interpreting results", zh: "如何解读结果" },
         paragraphs: [
           {
-            en: "The methodology is intentionally transparent, but it is still a model. A high score does not guarantee live performance, and a low score does not prove an idea is worthless. The output should be read as a research summary and combined with other due diligence such as liquidity analysis, execution modeling, and stress testing.",
-            zh: "该方法论虽刻意保持透明，但它本质上仍是一个模型。高分并不保证实盘表现，低分也不意味着一个想法毫无价值。输出结果应被视为研究摘要，并与流动性分析、执行建模和压力测试等其他尽职调查工作结合使用。"
+            en: "The methodology is intentionally transparent, but it is still a model. A high score or profitable backtest does not guarantee live performance, and a low score does not prove an idea is worthless. The output should be read as a research summary and combined with other due diligence such as liquidity analysis, execution modeling, and stress testing.",
+            zh: "该方法论虽刻意保持透明，但它本质上仍是一个模型。高分或盈利回测并不保证实盘表现，低分也不意味着一个想法毫无价值。输出结果应被视为研究摘要，并与流动性分析、执行建模和压力测试等其他尽职调查工作结合使用。"
           },
           {
-            en: "QuantArenas is updated with new strategies and updated data over time. Changes are logged in the changelog so readers can track when rankings shift and why a strategy may behave differently across releases.",
-            zh: "QuantArenas 会随着新策略加入与数据更新而持续演进。所有变更都会记录在更新日志中，方便读者追踪排名何时发生变化，以及为何同一策略会在不同版本之间呈现不同表现。"
-          },
-          {
-            en: "When comparing strategies, focus on relative differences rather than absolute precision. Small score gaps may not be meaningful, especially when two strategies share similar risk profiles. Use the charts, drawdown history, and trade count to understand whether a strategy fits your research goals.",
-            zh: "在比较策略时，应关注相对差异，而不是绝对精度。尤其当两个策略具有相近的风险特征时，微小的评分差距未必具备实际意义。请结合图表、回撤历史与交易次数，判断某个策略是否符合你的研究目标。"
+            en: "QuantArenas is updated with new strategies, new EA analyses, and new backtest results over time. Changes are logged in the changelog so readers can track when rankings shift and why a strategy may behave differently across releases.",
+            zh: "QuantArenas 会随着新策略加入、新 EA 分析与新回测结果而持续演进。所有变更都会记录在更新日志中，方便读者追踪排名何时发生变化，以及为何同一策略会在不同版本之间呈现不同表现。"
           },
           {
             en: "All results are for research and education only. They are not financial advice and should not be treated as a recommendation to trade. Always validate a strategy in your own environment before taking any real market risk.",
