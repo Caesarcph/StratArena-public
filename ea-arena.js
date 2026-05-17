@@ -401,66 +401,88 @@ function renderEADetail(route) {
     ${paramsHtml}`;
   }
 
-  let backtestHtml = "";
-  const bt = store.eaBacktestIndex[id];
-  if (bt && bt.status !== "pending") {
-    const isZh = getLang() === "zh";
-    const pnlClass = bt.pnl_pct > 0 ? "ea-bt-profit" : bt.pnl_pct < 0 ? "ea-bt-loss" : "";
-    const hasTrades = bt.total_trades > 0;
-    const wrClass = bt.win_rate >= 50 ? "ea-bt-profit" : "ea-bt-loss";
-    const sharpeClass = bt.sharpe_ratio > 0 ? "ea-bt-profit" : bt.sharpe_ratio < 0 ? "ea-bt-loss" : "";
-    backtestHtml = `
-      <div class="ea-section ea-backtest-section">
-        <h2>${isZh ? "回测结果" : "Backtest Results"}</h2>
-        <div class="ea-bt-summary">
-          <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
-            <span class="ea-bt-label">${isZh ? "总盈亏" : "Total P&L"}</span>
-            <span class="ea-bt-value">${bt.pnl_pct > 0 ? "+" : ""}${bt.pnl_pct.toFixed(2)}%</span>
-            <span class="ea-bt-sub">$${bt.start_value ? bt.pnl.toFixed(2) : "—"}</span>
-          </div>
-          <div class="ea-bt-metric">
-            <span class="ea-bt-label">${isZh ? "初始资金" : "Start Value"}</span>
-            <span class="ea-bt-value">$${bt.start_value ? bt.start_value.toLocaleString() : "10,000"}</span>
-          </div>
-          <div class="ea-bt-metric">
-            <span class="ea-bt-label">${isZh ? "最终资金" : "End Value"}</span>
-            <span class="ea-bt-value">$${bt.end_value ? bt.end_value.toLocaleString() : "—"}</span>
-          </div>
-        </div>
-        <div class="ea-bt-grid">
-          <div class="ea-bt-metric">
-            <span class="ea-bt-label">${isZh ? "总交易数" : "Total Trades"}</span>
-            <span class="ea-bt-value">${bt.total_trades}</span>
-          </div>
-          <div class="ea-bt-metric">
-            <span class="ea-bt-label">${isZh ? "胜 / 负" : "Won / Lost"}</span>
-            <span class="ea-bt-value">${bt.won} / ${bt.lost}</span>
-          </div>
-          <div class="ea-bt-metric ${hasTrades ? wrClass : ""}">
-            <span class="ea-bt-label">${isZh ? "胜率" : "Win Rate"}</span>
-            <span class="ea-bt-value">${bt.win_rate.toFixed(1)}%</span>
-          </div>
-          <div class="ea-bt-metric ${sharpeClass}">
-            <span class="ea-bt-label">${isZh ? "夏普比率" : "Sharpe Ratio"}</span>
-            <span class="ea-bt-value">${bt.sharpe_ratio !== undefined ? bt.sharpe_ratio.toFixed(3) : "—"}</span>
-          </div>
-          <div class="ea-bt-metric">
-            <span class="ea-bt-label">${isZh ? "最大回撤" : "Max Drawdown"}</span>
-            <span class="ea-bt-value ea-bt-loss">${bt.max_drawdown_pct !== undefined ? bt.max_drawdown_pct.toFixed(2) : "—"}%</span>
-          </div>
-          <div class="ea-bt-metric">
-            <span class="ea-bt-label">${isZh ? "年化收益" : "Annual Return"}</span>
-            <span class="ea-bt-value ${bt.annual_return > 0 ? "ea-bt-profit" : bt.annual_return < 0 ? "ea-bt-loss" : ""}">${bt.annual_return !== undefined ? bt.annual_return.toFixed(2) : "—"}%</span>
-          </div>
-          <div class="ea-bt-metric">
-            <span class="ea-bt-label">${isZh ? "数据源" : "Data Source"}</span>
-            <span class="ea-bt-value ea-bt-small">${bt.data_file || "—"}</span>
-          </div>
-          ${bt.timestamp ? `<div class="ea-bt-metric"><span class="ea-bt-label">${isZh ? "回测时间" : "Backtest Time"}</span><span class="ea-bt-value ea-bt-small">${new Date(bt.timestamp).toLocaleDateString()}</span></div>` : ""}
-        </div>
-${!hasTrades ? `<p class="ea-bt-note">${isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment."}</p>` : `<div class="ea-bt-chart-wrap"><canvas id="equity-curve-chart" class="ea-bt-chart"></canvas></div>`}
-</div>`;
+ let backtestHtml = "";
+ const btRaw = store.eaBacktestIndex[id];
+ if (btRaw) {
+  const isNested = btRaw && typeof btRaw === "object" && !btRaw.status && !btRaw.total_trades;
+  const isZh = getLang() === "zh";
+  let symbols, activeBt, defaultSymbol;
+  if (isNested) {
+   symbols = Object.keys(btRaw).filter(s => btRaw[s] && btRaw[s].status === "completed");
+   defaultSymbol = symbols.includes("EURUSD") ? "EURUSD" : symbols[0];
+   activeBt = btRaw[defaultSymbol];
+  } else {
+   symbols = [];
+   defaultSymbol = "";
+   activeBt = btRaw.status === "completed" ? btRaw : null;
   }
+  if (activeBt) {
+   const pnlClass = activeBt.pnl_pct > 0 ? "ea-bt-profit" : activeBt.pnl_pct < 0 ? "ea-bt-loss" : "";
+   const hasTrades = activeBt.total_trades > 0;
+   const wrClass = activeBt.win_rate >= 50 ? "ea-bt-profit" : "ea-bt-loss";
+   const sharpeClass = activeBt.sharpe_ratio > 0 ? "ea-bt-profit" : activeBt.sharpe_ratio < 0 ? "ea-bt-loss" : "";
+   let tabsHtml = "";
+   if (symbols.length > 1) {
+    tabsHtml = `<div class="ea-bt-symbols">${symbols.map(s => {
+     const sd = btRaw[s];
+     const profit = sd && sd.pnl_pct > 0;
+     return `<button class="ea-bt-symbol-btn${s === defaultSymbol ? " active" : ""}" data-bt-symbol="${s}" data-profit="${profit}">${s}</button>`;
+    }).join("")}</div>`;
+   }
+   backtestHtml = `
+  <div class="ea-section ea-backtest-section" data-bt-default="${defaultSymbol}">
+   <h2>${isZh ? "回测结果" : "Backtest Results"}</h2>
+   ${tabsHtml}
+   <div class="ea-bt-summary" id="ea-bt-summary">
+    <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
+     <span class="ea-bt-label">${isZh ? "总盈亏" : "Total P&L"}</span>
+     <span class="ea-bt-value">${activeBt.pnl_pct > 0 ? "+" : ""}${activeBt.pnl_pct.toFixed(2)}%</span>
+     <span class="ea-bt-sub">$${activeBt.start_value ? activeBt.pnl.toFixed(2) : "—"}</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "初始资金" : "Start Value"}</span>
+     <span class="ea-bt-value">$${activeBt.start_value ? activeBt.start_value.toLocaleString() : "10,000"}</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "最终资金" : "End Value"}</span>
+     <span class="ea-bt-value">$${activeBt.end_value ? activeBt.end_value.toLocaleString() : "—"}</span>
+    </div>
+   </div>
+   <div class="ea-bt-grid" id="ea-bt-grid">
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "总交易数" : "Total Trades"}</span>
+     <span class="ea-bt-value">${activeBt.total_trades}</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "胜 / 负" : "Won / Lost"}</span>
+     <span class="ea-bt-value">${activeBt.won} / ${activeBt.lost}</span>
+    </div>
+    <div class="ea-bt-metric ${hasTrades ? wrClass : ""}">
+     <span class="ea-bt-label">${isZh ? "胜率" : "Win Rate"}</span>
+     <span class="ea-bt-value">${activeBt.win_rate.toFixed(1)}%</span>
+    </div>
+    <div class="ea-bt-metric ${sharpeClass}">
+     <span class="ea-bt-label">${isZh ? "夏普比率" : "Sharpe Ratio"}</span>
+     <span class="ea-bt-value">${activeBt.sharpe_ratio !== undefined ? activeBt.sharpe_ratio.toFixed(3) : "—"}</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "最大回撤" : "Max Drawdown"}</span>
+     <span class="ea-bt-value ea-bt-loss">${activeBt.max_drawdown_pct !== undefined ? activeBt.max_drawdown_pct.toFixed(2) : "—"}%</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "年化收益" : "Annual Return"}</span>
+     <span class="ea-bt-value ${activeBt.annual_return > 0 ? "ea-bt-profit" : activeBt.annual_return < 0 ? "ea-bt-loss" : ""}">${activeBt.annual_return !== undefined ? activeBt.annual_return.toFixed(2) : "—"}%</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "数据源" : "Data Source"}</span>
+     <span class="ea-bt-value ea-bt-small">${activeBt.data_file || "—"}</span>
+    </div>
+    ${activeBt.timestamp ? `<div class="ea-bt-metric"><span class="ea-bt-label">${isZh ? "回测时间" : "Backtest Time"}</span><span class="ea-bt-value ea-bt-small">${new Date(activeBt.timestamp).toLocaleDateString()}</span></div>` : ""}
+   </div>
+   ${!hasTrades ? `<p class="ea-bt-note">${isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment."}</p>` : `<div class="ea-bt-chart-wrap"><canvas id="equity-curve-chart" class="ea-bt-chart"></canvas></div>`}
+  </div>`;
+  }
+ }
 
   return `
     <section class="ea-detail-page section">
@@ -489,17 +511,124 @@ ${!hasTrades ? `<p class="ea-bt-note">${isZh ? "该策略在当前数据集上�
 }
 
 function bindEADetail(route) {
-  const id = route.params.get("id");
-  const bt = store.eaBacktestIndex[id];
-  if (!bt || bt.total_trades <= 0) return;
-  fetch(`data/backtest-results/${id}.json`)
-    .then(r => r.json())
-    .then(data => {
-      if (data.equity_curve && data.equity_curve.length > 0) {
-        setTimeout(() => drawEquityCurve(data.equity_curve, data.start_value), 100);
-      }
-    })
-    .catch(() => {});
+ const id = route.params.get("id");
+ const btRaw = store.eaBacktestIndex[id];
+ if (!btRaw) return;
+ const isNested = typeof btRaw === "object" && !btRaw.status && !btRaw.total_trades;
+ const section = document.querySelector(".ea-backtest-section");
+ if (!section) return;
+ const defaultSymbol = section.dataset.btDefault || "";
+ function loadSymbol(symbol) {
+  const path = symbol
+   ? `data/backtest-results/${symbol}/${id}.json`
+   : `data/backtest-results/${id}.json`;
+  fetch(path)
+   .then(r => r.json())
+   .then(data => {
+    if (data.equity_curve && data.equity_curve.length > 0) {
+     setTimeout(() => drawEquityCurve(data.equity_curve, data.start_value), 100);
+    } else {
+     const canvas = document.getElementById("equity-curve-chart");
+     if (canvas) { const ctx = canvas.getContext("2d"); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+    }
+   })
+   .catch(() => {});
+ }
+ function updateMetrics(symbol) {
+  if (!isNested) return;
+  const bt = btRaw[symbol];
+  if (!bt) return;
+  const isZh = getLang() === "zh";
+  const pnlClass = bt.pnl_pct > 0 ? "ea-bt-profit" : bt.pnl_pct < 0 ? "ea-bt-loss" : "";
+  const hasTrades = bt.total_trades > 0;
+  const wrClass = hasTrades && bt.win_rate >= 50 ? "ea-bt-profit" : hasTrades ? "ea-bt-loss" : "";
+  const sharpeClass = bt.sharpe_ratio > 0 ? "ea-bt-profit" : bt.sharpe_ratio < 0 ? "ea-bt-loss" : "";
+  const summary = document.getElementById("ea-bt-summary");
+  if (summary) {
+   summary.innerHTML = `
+    <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
+     <span class="ea-bt-label">${isZh ? "总盈亏" : "Total P&L"}</span>
+     <span class="ea-bt-value">${bt.pnl_pct > 0 ? "+" : ""}${bt.pnl_pct.toFixed(2)}%</span>
+     <span class="ea-bt-sub">$${bt.start_value ? bt.pnl.toFixed(2) : "—"}</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "初始资金" : "Start Value"}</span>
+     <span class="ea-bt-value">$${bt.start_value ? bt.start_value.toLocaleString() : "10,000"}</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "最终资金" : "End Value"}</span>
+     <span class="ea-bt-value">$${bt.end_value ? bt.end_value.toLocaleString() : "—"}</span>
+    </div>`;
+  }
+  const grid = document.getElementById("ea-bt-grid");
+  if (grid) {
+   grid.innerHTML = `
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "总交易数" : "Total Trades"}</span>
+     <span class="ea-bt-value">${bt.total_trades}</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "胜 / 负" : "Won / Lost"}</span>
+     <span class="ea-bt-value">${bt.won} / ${bt.lost}</span>
+    </div>
+    <div class="ea-bt-metric ${wrClass}">
+     <span class="ea-bt-label">${isZh ? "胜率" : "Win Rate"}</span>
+     <span class="ea-bt-value">${bt.win_rate.toFixed(1)}%</span>
+    </div>
+    <div class="ea-bt-metric ${sharpeClass}">
+     <span class="ea-bt-label">${isZh ? "夏普比率" : "Sharpe Ratio"}</span>
+     <span class="ea-bt-value">${bt.sharpe_ratio !== undefined ? bt.sharpe_ratio.toFixed(3) : "—"}</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "最大回撤" : "Max Drawdown"}</span>
+     <span class="ea-bt-value ea-bt-loss">${bt.max_drawdown_pct !== undefined ? bt.max_drawdown_pct.toFixed(2) : "—"}%</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "年化收益" : "Annual Return"}</span>
+     <span class="ea-bt-value ${bt.annual_return > 0 ? "ea-bt-profit" : bt.annual_return < 0 ? "ea-bt-loss" : ""}">${bt.annual_return !== undefined ? bt.annual_return.toFixed(2) : "—"}%</span>
+    </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "数据源" : "Data Source"}</span>
+     <span class="ea-bt-value ea-bt-small">${bt.data_file || "—"}</span>
+    </div>
+    ${bt.timestamp ? `<div class="ea-bt-metric"><span class="ea-bt-label">${isZh ? "回测时间" : "Backtest Time"}</span><span class="ea-bt-value ea-bt-small">${new Date(bt.timestamp).toLocaleDateString()}</span></div>` : ""}`;
+  }
+  const noteEl = section.querySelector(".ea-bt-note");
+  const chartWrap = section.querySelector(".ea-bt-chart-wrap");
+  if (!hasTrades) {
+   if (chartWrap) chartWrap.remove();
+   if (!noteEl) {
+    const note = document.createElement("p");
+    note.className = "ea-bt-note";
+    note.textContent = isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment.";
+    section.appendChild(note);
+   }
+  } else {
+   if (noteEl) noteEl.remove();
+   if (!chartWrap) {
+    const wrap = document.createElement("div");
+    wrap.className = "ea-bt-chart-wrap";
+    wrap.innerHTML = '<canvas id="equity-curve-chart" class="ea-bt-chart"></canvas>';
+    section.appendChild(wrap);
+   }
+  }
+ }
+ if (isNested) {
+  const symbols = Object.keys(btRaw).filter(s => btRaw[s] && btRaw[s].status === "completed");
+  section.querySelectorAll(".ea-bt-symbol-btn").forEach(btn => {
+   btn.addEventListener("click", () => {
+    const sym = btn.dataset.btSymbol;
+    section.querySelectorAll(".ea-bt-symbol-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    updateMetrics(sym);
+    loadSymbol(sym);
+   });
+  });
+  const defaultBt = btRaw[defaultSymbol];
+  if (defaultBt && defaultBt.total_trades > 0) loadSymbol(defaultSymbol);
+ } else {
+  if (btRaw.total_trades > 0) loadSymbol("");
+ }
 }
 
 function drawEquityCurve(curve, startValue) {
