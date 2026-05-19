@@ -631,6 +631,202 @@ function bindEADetail(route) {
  }
 }
 
+function renderEARanking(route) {
+  const isZh = getLang() === "zh";
+  const symbols = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD"];
+  const activeSymbol = route.params.get("symbol") || "EURUSD";
+  const metric = route.params.get("metric") || "pnl_pct";
+  const dir = route.params.get("dir") || "desc";
+  const page = parseInt(route.params.get("pg") || "1", 10);
+  const perPage = 50;
+
+  const METRICS = [
+    { key: "pnl_pct", labelEn: "P&L %", labelZh: "盈亏%" },
+    { key: "sharpe_ratio", labelEn: "Sharpe", labelZh: "夏普" },
+    { key: "win_rate", labelEn: "Win Rate", labelZh: "胜率" },
+    { key: "annual_return", labelEn: "Annual Ret", labelZh: "年化" },
+    { key: "max_drawdown_pct", labelEn: "Max DD%", labelZh: "最大回撤" },
+    { key: "total_trades", labelEn: "Trades", labelZh: "交易数" }
+  ];
+
+  const btIndex = store.eaBacktestIndex || {};
+  const catalog = store.eaCatalog || [];
+  const catalogMap = {};
+  catalog.forEach(ea => { catalogMap[ea.id] = ea; });
+
+  const rows = [];
+  Object.entries(btIndex).forEach(([eaId, data]) => {
+    const symData = data[activeSymbol];
+    if (!symData || symData.status !== "completed" || (symData.total_trades || 0) === 0) return;
+    const ea = catalogMap[eaId] || {};
+    rows.push({
+      id: eaId,
+      name: ea.name || eaId,
+      category: ea.category || "",
+      risk: ea.overall_risk || "",
+      rating: ea.rating || 0,
+      pnl_pct: symData.pnl_pct || 0,
+      sharpe_ratio: symData.sharpe_ratio || 0,
+      win_rate: symData.win_rate || 0,
+      annual_return: symData.annual_return || 0,
+      max_drawdown_pct: symData.max_drawdown_pct || 0,
+      total_trades: symData.total_trades || 0,
+      won: symData.won || 0,
+      lost: symData.lost || 0
+    });
+  });
+
+  rows.sort((a, b) => {
+    const av = a[metric] || 0;
+    const bv = b[metric] || 0;
+    if (metric === "max_drawdown_pct") return dir === "asc" ? bv - av : av - bv;
+    return dir === "desc" ? bv - av : av - bv;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / perPage));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = rows.slice((safePage - 1) * perPage, safePage * perPage);
+
+  const symbolTabs = symbols.map(s =>
+    `<button class="ea-bt-symbol-btn${s === activeSymbol ? " active" : ""}" data-rank-symbol="${s}">${s}</button>`
+  ).join("");
+
+  const metricOptions = METRICS.map(m =>
+    `<option value="${m.key}"${m.key === metric ? " selected" : ""}>${isZh ? m.labelZh : m.labelEn}</option>`
+  ).join("");
+
+  const th = (key, label) => {
+    const arrow = metric === key ? (dir === "desc" ? " ↓" : " ↑") : "";
+    return `<th class="ea-rank-th" data-rank-sort="${key}">${label}${arrow}</th>`;
+  };
+
+  const tableRows = pageRows.map((r, i) => {
+    const rank = (safePage - 1) * perPage + i + 1;
+    const pnlClass = r.pnl_pct > 0 ? "ea-bt-profit" : r.pnl_pct < 0 ? "ea-bt-loss" : "";
+    const wrClass = r.win_rate >= 50 ? "ea-bt-profit" : "ea-bt-loss";
+    const srClass = r.sharpe_ratio > 0 ? "ea-bt-profit" : r.sharpe_ratio < 0 ? "ea-bt-loss" : "";
+    const ddClass = r.max_drawdown_pct > 20 ? "ea-bt-loss" : "";
+    const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
+    return `<tr class="ea-rank-row">
+      <td class="ea-rank-num">${medal}</td>
+      <td class="ea-rank-id"><a href="?page=ea-detail&id=${r.id}">${r.id}</a></td>
+      <td class="ea-rank-name"><a href="?page=ea-detail&id=${r.id}">${escapeHtml(r.name)}</a></td>
+      <td>${eaCategoryBadge(r.category)}</td>
+      <td class="ea-rank-metric ${pnlClass}">${r.pnl_pct > 0 ? "+" : ""}${r.pnl_pct.toFixed(2)}%</td>
+      <td class="ea-rank-metric ${srClass}">${r.sharpe_ratio.toFixed(2)}</td>
+      <td class="ea-rank-metric ${wrClass}">${r.win_rate.toFixed(1)}%</td>
+      <td class="ea-rank-metric">${r.annual_return.toFixed(2)}%</td>
+      <td class="ea-rank-metric ${ddClass}">${r.max_drawdown_pct.toFixed(2)}%</td>
+      <td class="ea-rank-metric">${r.total_trades}</td>
+    </tr>`;
+  }).join("");
+
+  const pageInfo = isZh
+    ? `第 ${safePage} / ${totalPages} 页，共 ${rows.length} 个策略`
+    : `Page ${safePage} of ${totalPages}, ${rows.length} strategies`;
+
+  const pagination = totalPages > 1 ? `<div class="ea-rank-pagination">
+    ${safePage > 1 ? `<button class="ea-rank-page-btn" data-rank-pg="${safePage - 1}">‹ ${isZh ? "上一页" : "Prev"}</button>` : ""}
+    <span class="ea-rank-page-info">${pageInfo}</span>
+    ${safePage < totalPages ? `<button class="ea-rank-page-btn" data-rank-pg="${safePage + 1}">${isZh ? "下一页" : "Next"} ›</button>` : ""}
+  </div>` : "";
+
+  return `<section class="ea-arena-page section">
+    <div class="section-header">
+      <div>
+        <div class="eyebrow">${isZh ? "MQL5 EA 回测排名" : "MQL5 EA Backtest Rankings"}</div>
+        <h1>${isZh ? "EA 排行榜" : "EA Leaderboard"}</h1>
+        <p>${isZh
+          ? `基于 H1 回测数据的 EA 性能排名。选择品种和指标，发现最佳策略。`
+          : `Rank EA performance by backtest metrics on H1 data. Select symbol and metric to find top strategies.`}</p>
+      </div>
+    </div>
+
+    <div class="ea-rank-controls">
+      <div class="ea-bt-symbols">${symbolTabs}</div>
+      <div class="ea-rank-metric-select">
+        <label>${isZh ? "排序指标" : "Sort by"}</label>
+        <select data-rank-metric>${metricOptions}</select>
+        <button class="ea-rank-dir-btn" data-rank-dir="${dir === "desc" ? "asc" : "desc"}" title="${isZh ? "切换排序方向" : "Toggle sort direction"}">
+          ${dir === "desc" ? "↓" : "↑"}
+        </button>
+      </div>
+    </div>
+
+    <div class="ea-rank-table-wrap">
+      <table class="ea-rank-table">
+        <thead><tr>
+          ${th("rank", isZh ? "#" : "#")}
+          ${th("id", "ID")}
+          ${th("name", isZh ? "名称" : "Name")}
+          ${th("category", isZh ? "分类" : "Category")}
+          ${th("pnl_pct", isZh ? "盈亏%" : "P&L%")}
+          ${th("sharpe_ratio", isZh ? "夏普" : "Sharpe")}
+          ${th("win_rate", isZh ? "胜率" : "Win%")}
+          ${th("annual_return", isZh ? "年化" : "Annual%")}
+          ${th("max_drawdown_pct", isZh ? "回撤%" : "DD%")}
+          ${th("total_trades", isZh ? "交易数" : "Trades")}
+        </tr></thead>
+        <tbody>${tableRows || `<tr><td colspan="10" class="ea-rank-empty">${isZh ? "暂无交易策略数据" : "No trading strategies found"}</td></tr>`}</tbody>
+      </table>
+    </div>
+
+    ${pagination}
+  </section>`;
+}
+
+function bindEARanking(route) {
+  const isZh = getLang() === "zh";
+  const navigate = (updates) => {
+    const params = new URLSearchParams(window.location.search);
+    Object.entries(updates).forEach(([k, v]) => {
+      if (v === "" || v === undefined || v === null) params.delete(k);
+      else params.set(k, v);
+    });
+    params.set("page", "ea-ranking");
+    window.history.pushState({}, "", "?" + params.toString());
+    render();
+  };
+
+  document.querySelectorAll("[data-rank-symbol]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      navigate({ symbol: btn.dataset.rankSymbol, pg: "1" });
+    });
+  });
+
+  const metricSelect = document.querySelector("[data-rank-metric]");
+  if (metricSelect) {
+    metricSelect.addEventListener("change", () => {
+      navigate({ metric: metricSelect.value, pg: "1" });
+    });
+  }
+
+  const dirBtn = document.querySelector("[data-rank-dir]");
+  if (dirBtn) {
+    dirBtn.addEventListener("click", () => {
+      const cur = route.params.get("dir") || "desc";
+      navigate({ dir: cur === "desc" ? "asc" : "desc" });
+    });
+  }
+
+  document.querySelectorAll("[data-rank-sort]").forEach(th => {
+    th.addEventListener("click", () => {
+      const key = th.dataset.rankSort;
+      if (key === "rank" || key === "id" || key === "name" || key === "category") return;
+      const curMetric = route.params.get("metric") || "pnl_pct";
+      const curDir = route.params.get("dir") || "desc";
+      const newDir = key === curMetric && curDir === "desc" ? "asc" : "desc";
+      navigate({ metric: key, dir: newDir, pg: "1" });
+    });
+  });
+
+  document.querySelectorAll("[data-rank-pg]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      navigate({ pg: btn.dataset.rankPg });
+    });
+  });
+}
+
 function drawEquityCurve(curve, startValue) {
   const canvas = document.getElementById("equity-curve-chart");
   if (!canvas || !curve.length) return;

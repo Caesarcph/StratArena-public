@@ -107,6 +107,10 @@ const PAGE_META = {
   "ea-detail": {
     titleKey: "meta.ea_detail_title",
     descriptionKey: "meta.ea_detail_desc"
+  },
+  "ea-ranking": {
+    titleKey: "meta.ea_ranking_title",
+    descriptionKey: "meta.ea_ranking_desc"
   }
 };
 
@@ -492,11 +496,15 @@ function render() {
       app.innerHTML = renderEAArena(route);
       bindEAArena(route);
       break;
-    case "ea-detail":
-      app.innerHTML = renderEADetail(route);
-      bindEADetail(route);
-      break;
-    case "about":
+  case "ea-detail":
+    app.innerHTML = renderEADetail(route);
+    bindEADetail(route);
+    break;
+  case "ea-ranking":
+    app.innerHTML = renderEARanking(route);
+    bindEARanking(route);
+    break;
+  case "about":
       app.innerHTML = renderAbout();
       break;
     case "privacy-policy":
