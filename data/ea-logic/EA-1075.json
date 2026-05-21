@@ -1,0 +1,200 @@
+{
+  "ea_id": "EA-1075",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses only built-in indicators (iSAR, iADX) and simple market orders, but includes MQL5 Trade Standard Library .mqh includes (Trade.mqh, SymbolInfo.mqh, DealInfo.mqh, PositionInfo.mqh) and MT5-specific position/deal history logic (CheckAllowedDir) that requires manual Python reimplementation. No grid/martingale, but deal-history-based direction filter is non-trivial.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "SAR",
+      "name": "ParabolicSAR",
+      "params": {
+        "step": 0.02,
+        "maximum": 0.2,
+        "applied_to": 0,
+        "shift": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ADX",
+      "params": {
+        "period": 14,
+        "applied_to": 0,
+        "shift": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ADir - last deal direction bias",
+      "formula": "Scans deal history for most recent closing deal on symbol; if profitable sell → aDir=1 (favor buys), if profitable buy → aDir=-1 (favor sells); if losing, reverses the bias",
+      "used_by": "entry rule - gates trade direction based on last closed deal outcome"
+    },
+    {
+      "name": "s0 - SAR value at Shift bar",
+      "formula": "iSAR(_Symbol, PERIOD_CURRENT, SARStep, SARMax) buffer 0 at bar Shift",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "a0 - ADX main value at Shift bar",
+      "formula": "iADX(_Symbol, PERIOD_CURRENT, ADXPeriod) buffer 0 at bar Shift",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "cl0 - Close price at Shift bar",
+      "formula": "CopyClose(_Symbol, PERIOD_CURRENT, Shift, 1)",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Close[Shift]",
+        "right": "SAR[Shift]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "ADX[Shift]",
+        "right": "ADXLevel (20)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "ADir",
+        "right": "!= 1",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Close[Shift]",
+        "right": "SAR[Shift]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "below",
+        "left": "ADX[Shift]",
+        "right": "ADXLevel (20)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "ADir",
+        "right": "!= -1",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1800,
+      "params": {
+        "unit": "points",
+        "long_sl_formula": "Ask - Point * 1800",
+        "short_sl_formula": "Bid + Point * 1800"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 500,
+      "params": {
+        "unit": "points",
+        "long_tp_formula": "Ask + Point * 500",
+        "short_tp_formula": "Bid - Point * 500"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "BreakEven: when position profit >= BreakEven points (50), SL is moved to entry price (breakeven level). For BUY: if current SL < open price and Bid - Point*BreakEven >= open price, move SL to open price. For SELL: if current SL > open price and Ask + Point*BreakEven <= open price, move SL to open price. Respects broker StopsLevel minimum distance."
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "fixed_lots": 0.1,
+      "risk_fraction": 0.05,
+      "formula_when_lots_zero": "FreeMargin * MaximumRisk / 1000.0, then normalized to volume step/min/max"
+    },
+    "max_positions": 1,
+    "conditional_logic": "if Lots input == 0, use deposit_fraction sizing; otherwise use fixed Lots value"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "CheckAllowedDir implements a deal-history-based direction filter: scans all historical closing deals for the symbol, finds the most recent, and sets aDir based on whether it was profitable. Profitable sell → favor buys (aDir=1), profitable buy → favor sells (aDir=-1). Losing deals reverse the bias. This acts as a rudimentary 'last trade outcome' bias filter. The BreakEven function only moves SL to entry price (not a full trailing stop). The ADX buffer 0 (main ADX line) is used, not the +DI/-DI buffers, so the condition checks overall trend strength being below the threshold (ranging market filter).",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "EURUSD H1 730 days",
+  "python_conversion_notes": "Entry logic is straightforward: Close > SAR AND ADX < 20 for longs; Close < SAR AND ADX < 20 for shorts. The CheckAllowedDir function requires maintaining a trade history log in the Python backtest to replicate the last-deal-outcome direction bias. BreakEven logic is simple SL-to-entry move once profit threshold reached. Position sizing has two modes: fixed lots or free-margin-based calculation. The SAR and ADX indicators are available in pandas-ta/ta-lib. Key nuance: ADX buffer 0 is the main ADX line (not +DI/-DI), so use adx() not adx_pos/adx_neg. The deviation/spread logic for order execution can be simplified in backtest.",
+  "extraction_timestamp": "2026-05-20T21:49:10.877216",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 110.0,
+    "cost": 0
+  }
+}

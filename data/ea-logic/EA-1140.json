@@ -1,0 +1,164 @@
+{
+  "ea_id": "EA-1140",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call 'CenterOfGravity' indicator (unknown custom indicator) and includes external TradeAlgorithms.mqh library for position management. The custom indicator buffers and signal logic require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "CenterOfGravity",
+      "params": {
+        "period": 10,
+        "smooth_period": 3,
+        "ma_method": 0,
+        "applied_price": 1,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 10
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "SigValue buffer 0 (signal line / fast COG)",
+      "formula": "CopyBuffer(handle, 1, SignalBar, 2, SigValue) - buffer index 1 of CenterOfGravity indicator, reading 2 values starting at SignalBar",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Buy signal condition: SigValue[1]==1 && SigValue[0]==2",
+      "formula": "Buffer1[SignalBar+1]==1 (trend up) AND Buffer1[SignalBar]==2 (crossover confirmation)",
+      "used_by": "entry rule long"
+    },
+    {
+      "name": "Sell signal condition: SigValue[1]==2 && SigValue[0]==1",
+      "formula": "Buffer1[SignalBar+1]==2 (trend down) AND Buffer1[SignalBar]==1 (crossover confirmation)",
+      "used_by": "entry rule short"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "CenterOfGravity buffer 1 at (SignalBar+1)",
+        "right": "1",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "CenterOfGravity buffer 1 at SignalBar",
+        "right": "2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "CenterOfGravity buffer 1 at (SignalBar+1)",
+        "right": "2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "CenterOfGravity buffer 1 at SignalBar",
+        "right": "1",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "points": 1000,
+        "pips_5digit": 100
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "points": 2000,
+        "pips_5digit": 200
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when sell signal detected (SigValue[1]==2) and BuyPosClose input is true",
+      "Short position closed when buy signal detected (SigValue[1]==1) and SellPosClose input is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_meansLotSize": true,
+      "lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values treated as fixed lot size (0.1), positive values as deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "CenterOfGravity is a custom indicator with 2 buffers. Buffer index 1 is used for signals. The indicator returns discrete signal values: 1=uptrend, 2=downtrend. Entry requires a transition (1→2 for buy, 2→1 for sell) read from 2 consecutive bars starting at SignalBar offset. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, and LoadHistory functions. SignalBar=0 forces every-tick evaluation instead of new-bar-only. The Applied_price_ enum includes custom price types (SIMPL, QUARTER, TRENDFOLLOW0, TRENDFOLLOW1) beyond standard MT5 applied prices, which also need reimplementation.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "CenterOfGravity.ex5 (custom indicator binary/source required)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement CenterOfGravity indicator in Python. The COG formula is: COG = -Sum(i*Price[i], i=1..N) / Sum(Price[i], i=1..N), then smoothed by SMA/EMA/etc for signal line. Buffer 1 appears to return discrete signal codes (1=buy zone, 2=sell zone) based on COG vs signal line crossover. The TradeAlgorithms.mqh functions (position open/close with SL/TP, new bar detection, lot sizing) must be reimplemented or replaced with standard backtrader/vectorbt equivalents. The custom applied price types (SIMPL, QUARTER, TRENDFOLLOW0, TRENDFOLLOW1) also need Python implementation if used.",
+  "extraction_timestamp": "2026-05-20T22:16:04.996574",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 132.05,
+    "cost": 0
+  }
+}

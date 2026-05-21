@@ -1,0 +1,142 @@
+{
+  "ea_id": "EA-11345",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with 'MaByMa' custom indicator and depends on two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) containing trade helpers and smoothing algorithms not available in Python natively. Logic must be manually reimplemented.",
+  "symbol": null,
+  "timeframe_hint": "H12",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "MaByMa",
+      "params": {
+        "MA_Method1": 0,
+        "Length1": 7,
+        "Phase1": 15,
+        "MA_Method2": 4,
+        "Length2": 7,
+        "Phase2": 15,
+        "Applied_price": 1,
+        "shift_1": 0,
+        "shift_2": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Ind - buffer 0 of MaByMa (smoothed MA of price by MA1 method)",
+      "formula": "MaByMa[0] = Smooth_Method1(Length1, Phase1) applied to IPC price",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Sign - buffer 1 of MaByMa (double-smoothed: MA1 result smoothed by MA2 method)",
+      "formula": "MaByMa[1] = Smooth_Method2(Length2, Phase2) applied to MaByMa[0]",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Ind (buffer 0)",
+        "right": "Sign (buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Ind (buffer 0)",
+        "right": "Sign (buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": []
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT",
+      "description": "LOT mode = fixed lot; other modes use margin/balance fraction of 0.1"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects between FreeMargin, Balance, LossFreeMargin, LossBalance, and LOT sizing"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The MaByMa indicator is a dual-smoothing system: price is first smoothed by MA_Method1 (SMA period 7), then that result is smoothed again by MA_Method2 (JJMA period 7, phase 15). Buffer 0 is the first smooth (Ind), buffer 1 is the second smooth (Sign). Entry on crossover of these two lines. The Phase parameter applies differently per method: for JJMA it ranges -100 to +100 controlling smoothness/power, for VIDYA it controls CMO period, for AMA it controls slow EMA period. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose helpers that encapsulate order sending, position checking, and margin calculation. SignalBar=1 means signals are evaluated on the previous completed bar (shift 1), with crossover detected between bar[1] and bar[2] (relative to SignalBar). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans act as feature toggles for each direction's entry and exit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H12 730 days",
+  "python_conversion_notes": "Must reimplement the MaByMa dual-smoothing indicator in Python. The first smoothing is SMA(7) on selected price. The second smoothing is JJMA (JMA) period 7 phase 15 — this is a Jurik-style adaptive smoothing requiring full algorithm port from SmoothAlgorithms.mqh. JJMA is not available in standard Python libraries (ta-lib, pandas-ta). After reimplementing the indicator, the crossover logic is straightforward: Ind crosses above Sign = long entry, Ind crosses below Sign = short entry. SL=1000 points, TP=2000 points. Position sizing with LOT mode = fixed lot size 0.1. The new-bar guard and once-per-bar signal evaluation map cleanly to bar-based backtesting. The TradeAlgorithms.mqh functions (BuyPositionOpen etc.) can be replaced with standard market order logic with SL/TP.",
+  "extraction_timestamp": "2026-05-20T22:10:56.173629",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 94.99,
+    "cost": 0
+  }
+}

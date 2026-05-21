@@ -1,0 +1,158 @@
+{
+  "ea_id": "EA-1253",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator name 'GG-RSI-CCI' and includes external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh). The custom indicator and smoothing algorithms require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "GG-RSI-CCI",
+      "params": {
+        "period": 8,
+        "applied_price": 0,
+        "smooth_method": 2,
+        "period1": 14,
+        "period2": 20,
+        "smooth_phase": 100
+      },
+      "source": "custom",
+      "library": "GG-RSI-CCI",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value[1] - signal state on SignalBar",
+      "formula": "iCustom buffer 1, shift SignalBar, index 1 of 2-element copy",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Value[0] - signal state on SignalBar-1",
+      "formula": "iCustom buffer 1, shift SignalBar, index 0 of 2-element copy",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Signal state 2 = buy signal",
+      "formula": "Value[1]==2 indicates bullish, Value[0]!=2 confirms state change",
+      "used_by": "entry rule long"
+    },
+    {
+      "name": "Signal state 0 = sell signal",
+      "formula": "Value[1]==0 indicates bearish, Value[0]!=0 confirms state change",
+      "used_by": "entry rule short"
+    },
+    {
+      "name": "Signal state 1 = flat/neutral",
+      "formula": "Value[1]==1, only used for exit in MODE_FLAT",
+      "used_by": "exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "GG-RSI-CCI buffer1[SignalBar]",
+        "right": "2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "GG-RSI-CCI buffer1[SignalBar]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "MODE_FLAT: when signal state becomes 1 (neutral), both long and short positions are closed",
+      "MODE_TREND: signal state 1 does not trigger any exit, only opposing signal closes position"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "fixed_lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM=-0.1 means negative value = fixed lot size of 0.1; positive value = deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "GG-RSI-CCI is a custom composite indicator combining RSI and CCI with multi-stage smoothing (SmoothAlgorithms.mqh). The indicator outputs discrete states: 0=sell, 1=neutral, 2=buy via buffer 1. Entry requires state change (Value[0] must differ from Value[1] to confirm transition). SignalMode enum controls exit behavior: MODE_FLAT closes on neutral signal, MODE_TREND only closes on opposing signal. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose wrappers. The UpSignalTime/DnSignalTime uses bar open time + timeframe seconds for position identification via GlobalVariable.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "GG-RSI-CCI indicator (.ex5 or .mq5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement GG-RSI-CCI indicator logic in Python. The indicator combines RSI and CCI into a composite signal with configurable smoothing (SMMA default, but supports JJMA, JurX, ParMA, T3, VIDYA, AMA via SmoothAlgorithms). Key steps: (1) Implement RSI(period=8) and CCI(period=8) using applied price; (2) Apply two-stage smoothing with Period1=14 and Period2=20 using SMMA method; (3) Derive 3-state signal (0/1/2) from smoothed composite; (4) Implement state-change detection for entry; (5) Implement SignalMode-dependent exit logic. The TradeAlgorithms.mqh wrappers handle order execution with deviation, SL/TP in points, and position gating—these map to standard backtester order calls.",
+  "extraction_timestamp": "2026-05-20T22:49:47.935699",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 187.76,
+    "cost": 0
+  }
+}

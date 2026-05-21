@@ -1,0 +1,156 @@
+{
+  "ea_id": "EA-1152",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'ColorBBCandles' indicator which is not a built-in MT5 indicator. Also includes TradeAlgorithms.mqh external library for position management (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose). Custom indicator buffer logic (Value[1]>5, Value[0]<6 etc.) requires manual Python reimplementation of the ColorBBCandles indicator and its signal encoding.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "BB",
+      "name": "Custom-ColorBBCandles",
+      "params": {
+        "period": 100,
+        "method": 1,
+        "applied_to": 1,
+        "shift": 0,
+        "deviation1": 1.0,
+        "deviation2": 1.5,
+        "deviation3": 2.0,
+        "deviation4": 2.5,
+        "deviation5": 3.0
+      },
+      "source": "custom",
+      "library": "ColorBBCandles",
+      "derived_period": 100
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ColorBBCandles buffer 4 value at SignalBar",
+      "formula": "CopyBuffer(handle, 4, SignalBar, 2, Value) → Value[0]=current bar, Value[1]=previous bar; encoded integer: <5=bearish zone, =5=flat zone, >5=bullish zone",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ColorBBCandles buffer4[1]",
+        "right": "5",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "ColorBBCandles buffer4[0]",
+        "right": "6",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ColorBBCandles buffer4[1]",
+        "right": "5",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "ColorBBCandles buffer4[0]",
+        "right": "4",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Flat zone exit: when ColorBBCandles buffer4[1]==5, both long and short positions are closed (if BuyPosClose/SellPosClose enabled)",
+      "Opposite signal exit: sell signal triggers BUY_Close, buy signal triggers SELL_Close"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "description": "MM=-0.1 means 0.1 lot fixed; positive values would mean deposit fraction"
+    },
+    "max_positions": 1,
+    "conditional_logic": "if MM<0 then lot=abs(MM), else lot=deposit_fraction*MM"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The ColorBBCandles custom indicator uses buffer index 4 which returns an integer-encoded color zone value. Values >5 indicate bullish zone (candle above middle BB), values <5 indicate bearish zone (candle below middle BB), value==5 indicates flat/neutral zone. Entry logic: long when previous bar >5 (bullish) AND current bar <6 (transitioning/confirming); short when previous bar <5 (bearish) AND current bar >4 (transitioning/confirming). The EA uses LoadHistory() and CIsNewBar from TradeAlgorithms.mqh for bar synchronization. GlobalVariableDel_ is also from the external library. SignalBar=1 means signals are read from the previous completed bar (index 1), not the current forming bar, which is proper for backtesting.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "ColorBBCandles.ex5 (custom indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement ColorBBCandles indicator: it draws colored candles based on which BB deviation band the price resides in. Buffer 4 encodes zone as integer (likely 1-10 range with 5=middle). BB parameters: period=100, deviations=[1.0, 1.5, 2.0, 2.5, 3.0], MA method=EMA, applied to Close price. Entry logic is straightforward once indicator is replicated: long if prev_bar_zone>5 and curr_bar_zone<6; short if prev_bar_zone<5 and curr_bar_zone>4; flat close if zone==5. TradeAlgorithms.mqh functions (BuyPositionOpen etc.) handle standard market orders with SL/TP, so they map directly to simple order placement in Python. The MM parameter with negative=lot size convention must be handled. SignalBar=1 ensures no lookahead bias.",
+  "extraction_timestamp": "2026-05-20T22:24:16.451415",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 216.69,
+    "cost": 0
+  }
+}

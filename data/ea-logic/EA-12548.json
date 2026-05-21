@@ -1,0 +1,140 @@
+{
+  "ea_id": "EA-12548",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call 'ElderImpulseSystem' custom indicator with 4 buffers, plus #include <TradeAlgorithms.mqh> external library for position management. The core signal logic depends on the custom indicator's buffer values, requiring manual reimplementation of the Elder Impulse System logic in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ElderImpulseSystem",
+      "params": {
+        "ma_period": 13,
+        "fast_ema_period": 12,
+        "slow_ema_period": 26,
+        "signal_period": 9
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ElderImpulseSystem buffer value",
+      "formula": "iCustom('ElderImpulseSystem', ma_period=13, fast_ema=12, slow_ema=26, signal=9) buffer 4, reading 2 bars at SignalBar offset. Value==2 means bullish impulse, Value==1 means bearish impulse, Value==0 means neutral",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Impulse State Transition",
+      "formula": "Value[1]==2 (current bar bullish) AND (Value[0]==1 OR Value[0]==0) (previous bar was bearish or neutral) => long entry signal. Value[1]==1 (current bar bearish) AND (Value[0]==0 OR Value[0]==2) (previous bar was neutral or bullish) => short entry signal",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "ElderImpulseSystem[1]",
+        "right": "2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "ElderImpulseSystem[1]",
+        "right": "1",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when ElderImpulseSystem buffer==1 (bearish impulse detected)",
+      "Short position closed when ElderImpulseSystem buffer==2 (bullish impulse detected)",
+      "BuyPosClose and SellPosClose input flags can disable signal-based closing"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The Elder Impulse System is a well-known indicator by Alexander Elder combining EMA(13) slope with MACD histogram direction. When both are bullish, bar is green (Value=2); both bearish, bar is red (Value=1); mixed, bar is blue/neutral (Value=0). Entry requires a STATE TRANSITION: long only when transitioning from non-bullish (0 or 1) to bullish (2); short only when transitioning from non-bearish (0 or 2) to bearish (1). The iCustom call reads buffer index 4. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and CIsNewBar helper functions. SignalBar=1 means signals are evaluated on the most recently completed bar (not the forming bar).",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "ElderImpulseSystem custom indicator (.ex5 or .mq5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Reimplement Elder Impulse System directly: EMA(13) slope direction (up=1, down=-1) combined with MACD(12,26,9) histogram direction (up=1, down=-1). When both +1, impulse=2 (bullish); both -1, impulse=1 (bearish); mixed, impulse=0 (neutral). Entry on state transitions: long when impulse transitions from 0 or 1 to 2; short when impulse transitions from 0 or 2 to 1. Signal-based closes are the reverse. SL=1000 points, TP=2000 points. Position sizing: 0.1 lots (LOT mode). Only trade on new bar formation. No external library needed — all logic can be expressed with standard EMA and MACD calculations.",
+  "extraction_timestamp": "2026-05-20T22:49:00.723765",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 104.58,
+    "cost": 0
+  }
+}

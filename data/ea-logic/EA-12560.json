@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-12560",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load a custom 'Leading' indicator with two alpha parameters, plus includes external TradeAlgorithms.mqh library for position management. The custom indicator must be manually reimplemented in Python, and the trade management functions require manual translation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Leading",
+      "params": {
+        "alpha1": 0.25,
+        "alpha2": 0.33,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Ma1 - Leading buffer 0 (fast line)",
+      "formula": "CopyBuffer(handle, 0, SignalBar, 2) => first alpha-smoothed leading line",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Ma2 - Leading buffer 1 (slow line)",
+      "formula": "CopyBuffer(handle, 1, SignalBar, 2) => second alpha-smoothed leading line",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Ma1 (Leading buffer 0)",
+        "right": "Ma2 (Leading buffer 1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Ma1 (Leading buffer 0)",
+        "right": "Ma2 (Leading buffer 1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose enabled when Ma1[1] < Ma2[1] (fast crosses below slow on previous bar)",
+      "SellPosClose enabled when Ma1[1] > Ma2[1] (fast crosses above slow on previous bar)",
+      "Close signals are gated by BuyPosClose/SellPosClose input booleans"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT or FREEMARGIN percentage based on MMMode input"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT uses fixed lot sizing; MMMode=FREEMARGIN uses deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a custom 'Leading' indicator loaded via iCustom with two smoothing alpha parameters (0.25 and 0.33). The crossover logic checks 2 consecutive bars: Ma1[1] vs Ma2[1] for prior state and Ma1[0] vs Ma2[0] for current state. Entry requires a crossover (Ma1 crosses Ma2), while exit/close is triggered on the opposite crossover state without requiring the crossover itself (just Ma1[1] > Ma2[1] or Ma1[1] < Ma2[1]). SignalBar=1 means signals are read from bar 1 (last completed bar), not bar 0. The Recount flag forces recalculation on first tick or after CopyBuffer failure. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean gates allowing selective enable/disable of each direction's entry and exit. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and LoadHistory helper functions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "Leading (custom indicator - not a built-in MT5 indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement the 'Leading' custom indicator in Python. The indicator takes two alpha parameters and produces two buffers (likely exponential moving average variants with different smoothing factors). The crossover logic is straightforward: fast line crosses above slow line = long entry + short close; fast line crosses below slow line = short entry + long close. The TradeAlgorithms.mqh functions for position management need manual Python equivalents for backtesting. StopLoss=1000 points and TakeProfit=2000 points must be converted to price distance based on symbol digits. SignalBar=1 means use previous completed bar's values for signal generation, consistent with realistic backtesting.",
+  "extraction_timestamp": "2026-05-20T22:53:44.754842",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 111.98,
+    "cost": 0
+  }
+}

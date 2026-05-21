@@ -1,0 +1,162 @@
+{
+  "ea_id": "EA-1062",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom('X2MA') which is an unknown custom indicator requiring manual Python reimplementation, plus two external .mqh includes (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) with custom logic (CXMA class, TradeAlgorithms trading functions) that must be manually translated.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "X2MA",
+      "params": {
+        "MA_Method1": "MODE_SMA",
+        "Length1": 12,
+        "Phase1": 15,
+        "MA_Method2": "MODE_JJMA",
+        "Length2": 5,
+        "Phase2": 15,
+        "IPC": 1,
+        "shift1": 0,
+        "shift2": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": 17
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value[0..2] - X2MA buffer 0 values at SignalBar, SignalBar+1, SignalBar+2",
+      "formula": "CopyBuffer(X2MA_handle, 0, SignalBar, 3) → Value[0]=current, Value[1]=prev, Value[2]=prev_prev",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "X2MA double-smoothed moving average",
+      "formula": "X2MA = MA_Method2(MA_Method1(price, Length1, Phase1), Length2, Phase2)",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1]",
+        "right": "Value[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "Value[0]",
+        "right": "Value[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1]",
+        "right": "Value[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Value[0]",
+        "right": "Value[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed on sell signal (Value[1]>Value[2]) when BuyPosClose=true",
+      "Short position closed on buy signal (Value[1]<Value[2]) when SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_size_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 → fixed lot size = abs(MM), MM>0 → deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The X2MA indicator is a double-smoothed moving average: first smoothing with MA_Method1 (SMA, period 12, phase 15) applied to selected price, then second smoothing with MA_Method2 (JJMA, period 5, phase 15) applied to the first result. Entry logic: BUY when X2MA values show uptrend (Value[1]<Value[2] confirms prior decline) AND current bar rising (Value[0]>Value[1] confirms turnaround). SELL is the mirror. Signal is evaluated on bar[1] by default (SignalBar=1). The CXMA class from SmoothAlgorithms.mqh is used only for calculating min_rates_total (warmup period). TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions which wrap order sending with the MM money management parameter. GlobalVariableDel_ suggests global variable cleanup on deinit for trade state tracking.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "X2MA.ex5 (custom indicator binary)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement X2MA double-smoothing in Python. The JJMA (JMA) smoothing algorithm is non-trivial and requires careful porting from SmoothAlgorithms.mqh. The two-phase smoothing chain must be implemented: first apply SMA(12) to price, then apply JJMA(5) with phase=15 to the SMA result. Entry logic is straightforward once X2MA values are computed: compare current vs prior vs prior-prior values for crossover/turnaround detection. The TradeAlgorithms functions are simple market order wrappers with SL/TP and money management. Position sizing logic: if MM<0 use abs(MM) as fixed lot, if MM>0 use as deposit fraction.",
+  "extraction_timestamp": "2026-05-20T21:44:20.275383",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 244.42,
+    "cost": 0
+  }
+}

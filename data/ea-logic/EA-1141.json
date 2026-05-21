@@ -1,0 +1,135 @@
+{
+  "ea_id": "EA-1141",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load a custom 'CMO' indicator, and depends on external TradeAlgorithms.mqh library for position management. The CMO indicator logic is not available from built-in MT5 indicators, requiring manual Python reimplementation of both the CMO calculation and the trade execution wrappers.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "CMO",
+      "params": {
+        "period": 14,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 14
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "CMO buffer value at SignalBar and SignalBar+1",
+      "formula": "CopyBuffer(CMO_handle, 0, SignalBar, 2) → Value[0]=bar[SignalBar], Value[1]=bar[SignalBar+1]",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "CMO[SignalBar+1]",
+        "right": "0.0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "CMO[SignalBar+1]",
+        "right": "0.0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when CMO crosses below zero (Value[1]<0 and BuyPosClose=true)",
+      "Short position closed when CMO crosses above zero (Value[1]>0 and SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_size_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 → fixed lot=abs(MM); MM>0 → deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The entry logic checks two consecutive CMO bars: Value[1] (older bar, SignalBar+1) and Value[0] (newer bar, SignalBar). A buy signal fires when Value[1]>0 (older bar above zero) AND Value[0]<0 (newer bar below zero) — this is actually a crossunder from above, suggesting the signal naming in the code may be inverted or the intent is to enter on the first bar after a zero-line crossover. The SignalBar input (default=1) allows signal confirmation offset. The BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans act as gates controlled by input parameters. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose wrapper functions that handle order sending, position checking, and global variable management.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "CMO custom indicator (iCustom with name 'CMO')"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "1) Must implement CMO (Chande Momentum Oscillator) indicator in Python: CMO = 100 * (Sum(Up) - Sum(Down)) / (Sum(Up) + Sum(Down)), then apply smoothing (SMA by default). 2) Must replicate TradeAlgorithms.mqh position management — check existing positions before opening, use global variable tracking for signal dedup. 3) Entry signal: CMO crosses zero line — long when CMO was above 0 on bar[SignalBar+1] and below 0 on bar[SignalBar] (note: verify crossover direction intent). 4) Position sizing: if MM<0 use abs(MM) as fixed lot; if MM>0 use as deposit fraction. 5) SL=1000 points, TP=2000 points applied on open. 6) Signal reversal closes opposite positions if enabled. 7) Deviation/slippage parameter=10 points.",
+  "extraction_timestamp": "2026-05-20T22:17:29.947424",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 100.6,
+    "cost": 0
+  }
+}

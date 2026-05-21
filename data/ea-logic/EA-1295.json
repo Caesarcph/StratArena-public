@@ -1,0 +1,139 @@
+{
+  "ea_id": "EA-1295",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown 'ColorAML' indicator and external #include <TradeAlgorithms.mqh> library. Both require manual Python reimplementation - the ColorAML indicator logic and the trade management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) are not built-in.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorAML",
+      "params": {
+        "Fractal": 6,
+        "Lag": 7,
+        "buffer_index": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 13
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value[0] - ColorAML buffer 1 at SignalBar+1",
+      "formula": "CopyBuffer(ColorAML_handle, buffer=1, shift=SignalBar+1, count=1)",
+      "used_by": "entry/exit rule - previous bar color state"
+    },
+    {
+      "name": "Value[1] - ColorAML buffer 1 at SignalBar",
+      "formula": "CopyBuffer(ColorAML_handle, buffer=1, shift=SignalBar, count=1)",
+      "used_by": "entry/exit rule - signal bar color state"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Value[1] (ColorAML buffer1 at SignalBar)",
+        "right": "2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Value[1] (ColorAML buffer1 at SignalBar)",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when ColorAML signal reverses to sell (Value[1]==0 and BuyPosClose=true)",
+      "Short position closed when ColorAML signal reverses to buy (Value[1]==2 and SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "interpretation": "MM=-0.1 means 0.1 lot fixed size (negative = lot size, positive = deposit share)"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If MM<0 then |MM| is fixed lot size; if MM>0 then MM is fraction of deposit"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "ColorAML is a custom indicator with buffer1 acting as a color/trend state: 0=downtrend (sell signal), 2=uptrend (buy signal). Entry only triggers on transition: BUY_Open requires Value[1]==2 AND Value[0]!=2 (color changed to uptrend). SELL_Open requires Value[1]==0 AND Value[0]!=0 (color changed to downtrend). SignalBar=1 means signals are read from the previous completed bar (bar index 1), reducing repainting risk. CIsNewBar class from TradeAlgorithms.mqh handles new bar detection. LoadHistory() ensures history data is available. GlobalVariableDel_() cleans up on deinit. The TradeAlgorithms.mqh library provides all trade execution wrappers (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) with signal time tracking to prevent duplicate entries.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "ColorAML indicator (custom .ex5/.mq5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Two main components need manual implementation: (1) ColorAML indicator - must obtain or reverse-engineer the AML (Adaptive Moving Level) algorithm from its .mq5 source. The indicator uses Fractal=6 and Lag=7 parameters. Buffer 1 outputs a discrete color state (0=down, 1=neutral, 2=up). (2) TradeAlgorithms.mqh functions - these are standard trade wrappers that can be replaced with simple market order execution in Python. The position sizing logic is straightforward: negative MM = fixed lots, positive MM = deposit fraction. The new-bar guard and signal-on-transition logic are easy to replicate. Key conversion: ColorAML buffer1 values 0/2 as trend state with transition detection for entry signals.",
+  "extraction_timestamp": "2026-05-20T23:07:29.505086",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 179.26,
+    "cost": 0
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "ea_id": "EA-12529",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator name 'RangeExpansionIndex' and external #include <TradeAlgorithms.mqh> library for position management. Custom indicator must be manually reimplemented in Python, and the trade algorithm library functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) need manual porting.",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "RangeExpansionIndex",
+      "params": {
+        "period": 8,
+        "method": null,
+        "applied_to": null,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 8
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "REI buffer 0 current bar",
+      "formula": "CopyBuffer(InpInd_Handle, 0, SignalBar, 2, Ind) → Ind[0]=current signal bar, Ind[1]=previous bar",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "UpSignalTime",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec (PeriodSeconds of InpInd_Timeframe)",
+      "used_by": "entry rule (long)"
+    },
+    {
+      "name": "DnSignalTime",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec (PeriodSeconds of InpInd_Timeframe)",
+      "used_by": "entry rule (short)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "RangeExpansionIndex[0]",
+        "right": "Dn_Indicator_level (-60)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "RangeExpansionIndex[0]",
+        "right": "Up_Indicator_level (+60)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closes when REI[1] is above Dn_Indicator_level (Ind[1]>Dn_Indicator_level evaluates false for the first if-block, so BUY_Close=true from the else branch at line 115), which means REI moves back above -60",
+      "Short position closes when REI[1] is below Up_Indicator_level (Ind[1]<Up_Indicator_level evaluates false for the second if-block, so SELL_Close=true from the else branch at line 123), which means REI moves back below +60",
+      "BuyPosClose and SellPosClose input flags control whether signal-based closes are enabled"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT",
+      "modes_available": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum from TradeAlgorithms.mqh determines lot sizing method; default LOT means fixed lot sizing with MM=0.1"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic detail: BUY_Open triggers when Ind[1] > Dn_Indicator_level AND Ind[0] <= Dn_Indicator_level — this is a crossover of REI dropping below -60 (bearish crossover into oversold zone used as buy signal). SELL_Open triggers when Ind[1] < Up_Indicator_level AND Ind[0] >= Up_Indicator_level — crossover of REI rising above +60 (overbought zone used as sell signal). Exit logic: BUY_Close=true when Ind[1] <= Dn_Indicator_level (else branch line 115), meaning REI stays below -60 zone. SELL_Close=true when Ind[1] >= Up_Indicator_level (else branch line 123), meaning REI stays above +60 zone. The CIsNewBar class and IsNewBar() gate ensures signals are only evaluated on new bars. Recount flag allows re-evaluation on first tick or when CopyBuffer fails. The GlobalVariableDel_ and LoadHistory are TradeAlgorithms.mqh helpers. UpSignalTime/DnSignalTime are passed to position open functions likely for trade time gating or duplicate trade prevention.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "RangeExpansionIndex custom indicator (.ex5 or .mq5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "EURUSD H8 730 days",
+  "python_conversion_notes": "Must reimplement the RangeExpansionIndex indicator in Python — this is the DeMark Range Expansion Index (REI) which compares high/low shifts over a lookback period. The TradeAlgorithms.mqh library functions for position management (open/close with margin modes) must be ported; the core logic is standard buy/sell with SL/TP. Entry signals are threshold crossovers on the REI indicator: buy when REI crosses below -60, sell when REI crosses above +60. Exits are signal-based (REI returning from extreme zones) combined with fixed SL/TP of 1000/2000 points. The new-bar guard should be implemented as a bar-time change detector. Deviation parameter of 10 points should be handled as slippage tolerance in backtest fill logic.",
+  "extraction_timestamp": "2026-05-20T22:48:55.072980",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 137.74,
+    "cost": 0
+  }
+}

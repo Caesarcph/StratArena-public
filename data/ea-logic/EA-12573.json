@@ -1,0 +1,143 @@
+{
+  "ea_id": "EA-12573",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'HLRSign' custom indicator and includes external TradeAlgorithms.mqh library for position management. Custom indicator logic is opaque and requires manual Python reimplementation. Trade functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) come from external .mqh.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "HLRSign",
+      "params": {
+        "mode": 1,
+        "hlr_range": 40,
+        "hlr_up_level": 80,
+        "hlr_dn_level": 20,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 40
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpSignal",
+      "formula": "HLRSign buffer[1] at SignalBar — non-zero and != EMPTY_VALUE indicates bullish signal",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DnSignal",
+      "formula": "HLRSign buffer[0] at SignalBar — non-zero and != EMPTY_VALUE indicates bearish signal",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "HLRSign buffer[1] (UpValue)",
+        "right": "non-zero and != EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "HLRSign buffer[0] (DnValue)",
+        "right": "non-zero and != EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite HLRSign signal closes position: UpSignal triggers BUY_Close (closes short) and SELL_Close (closes short via opposite). DnSignal triggers SELL_Close (closes long) and BUY_Close (closes long via opposite). Gated by BuyPosClose/SellPosClose input booleans.",
+      "Additional exit scan: When both open and close are enabled for same side and no close signal found yet, scans forward bars from SignalBar+1 looking for opposing HLRSign signal to set close flags."
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT",
+      "modes_available": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot, others calculate based on balance/margin fractions"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "HLRSign is a custom indicator with two buffers: buffer[0]=DnSignal (bearish), buffer[1]=UpSignal (bullish). The Alg_Method enum (MODE_IN/MODE_OUT) is passed to the indicator but its effect is unknown without the indicator source. When SignalBar=0, signals are evaluated every tick instead of on new bar. The EA has an extra forward-scan exit logic: if both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are true and no close signal on current bar, it scans forward bars for an opposing signal to set close flags early. TimeShiftSec is calculated from the indicator timeframe for signal time tracking. GlobalVariableDel_ cleanup on deinit suggests persistent state management via global variables.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh — provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar class",
+    "HLRSign custom indicator — .ex5 or .mq5 required, implements High-Low Range Sign with configurable mode, range period, and up/down threshold levels"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "EURUSD H1 730 days",
+  "python_conversion_notes": "Must reverse-engineer HLRSign indicator logic or find its source. The indicator appears to compute a high-low range percentage with overbought/oversold levels (80/20 defaults). Buffer[1] fires when range exceeds up level (bullish), buffer[0] fires when below dn level (bearish). TradeAlgorithms.mqh functions need standard market order wrappers. The forward-bar exit scan is non-standard and must be replicated — it looks ahead from SignalBar+1 to find the next opposing signal to pre-set close flags. Alg_Method MODE_IN vs MODE_OUT likely controls whether signals fire on entering or exiting the overbought/oversold zones. StopLoss/TakeProfit are in points (1000/2000 = 100/200 pips at 5-digit), need pip conversion.",
+  "extraction_timestamp": "2026-05-20T22:54:26.650701",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 137.11,
+    "cost": 0
+  }
+}

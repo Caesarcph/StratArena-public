@@ -1,0 +1,213 @@
+{
+  "ea_id": "EA-1129",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Includes external .mqh dependency (TradeAlgorithms.mqh) providing BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, LoadHistory, GlobalVariableDel_, and CIsNewBar class. Also loads a custom indicator (ColorMaRsi-Trigger) via iCustom, though it's only used for visual testing. The core signal logic is simple (MA crossover + RSI crossover), but the trade execution functions from the external library must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 3,
+        "method": 0,
+        "applied_to": 5,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 13,
+        "method": 0,
+        "applied_to": 4,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 5,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 10,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ColorMaRsi-Trigger",
+      "params": {
+        "nPeriodRsi": 3,
+        "nRSIPrice": 5,
+        "nPeriodRsiLong": 13,
+        "nRSIPriceLong": 4,
+        "nPeriodMa": 5,
+        "nMAType": 1,
+        "nMAPrice": 0,
+        "nPeriodMaLong": 10,
+        "nMATypeLong": 1,
+        "nMAPriceLong": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Trend score at signal bar",
+      "formula": "res = (MA_fast > MA_long ? +1 : 0) + (MA_fast < MA_long ? -1 : 0) + (RSI_fast > RSI_long ? +1 : 0) + (RSI_fast < RSI_long ? -1 : 0); Trend = res at bar=SignalBar",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "LastTrend score",
+      "formula": "First non-zero res value found by scanning bars from SignalBar+1 onward; same scoring as Trend",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Trend",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "LastTrend",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Trend",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "LastTrend",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose on Trend<0 when BuyPosClose input is true",
+      "SellPosClose on Trend>0 when SellPosClose input is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "fixed_lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM input: negative values interpreted as fixed lot size, positive values as deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal detection uses a dual-scoring system: both MA and RSI components contribute +/-1 to a composite 'res' score. Trend is the score at the SignalBar (default bar 1). LastTrend is found by scanning forward from SignalBar+1 until a non-zero res is encountered. Long entry requires Trend>0 AND LastTrend<0 (trend reversal from bearish to bullish). Short entry requires Trend<0 AND LastTrend>0 (reversal from bullish to bearish). The trade execution functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) come from external TradeAlgorithms.mqh and handle position management internally. The custom indicator ColorMaRsi-Trigger is only loaded during visual testing and is NOT used in actual trade logic.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Core signal logic is straightforward: two MA comparisons + two RSI comparisons composited into a score. The main effort is reimplementing TradeAlgorithms.mqh functions: BuyPositionOpen, SellPositionOpen (which handle lot sizing from MM parameter, SL/TP placement, and position gating), BuyPositionClose, SellPositionClose (which handle closing opposite positions), LoadHistory (history preloading for IsNewBar), and CIsNewBar class. The custom indicator is purely visual and can be ignored. Signal calculation iterates bars to find LastTrend — this scan loop must be faithfully reproduced. Entry is reversal-based: signal fires when current Trend opposes the prior LastTrend. Position sizing uses the MM parameter with dual interpretation: negative = fixed lot, positive = deposit fraction.",
+  "extraction_timestamp": "2026-05-20T22:12:37.191722",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 236.41,
+    "cost": 0
+  }
+}

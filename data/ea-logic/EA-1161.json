@@ -1,0 +1,216 @@
+{
+  "ea_id": "EA-1161",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in indicators (iMA, iCCI, iStochastic). Simple market orders with fixed SL/TP. MWMode logic for post-open SL/TP modification is straightforward to replicate. No custom indicators, no grid/martingale, no multi-currency.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "LWMA",
+      "params": {
+        "period": 1,
+        "method": 3,
+        "applied_to": 5,
+        "shift": 5
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI",
+      "params": {
+        "period": 10,
+        "applied_to": 4,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Stochastic",
+      "name": "Stochastic",
+      "params": {
+        "K_period": 5,
+        "D_period": 3,
+        "S_period": 3,
+        "method": 0,
+        "price": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "effective_ma_shift",
+      "formula": "MAShift + CommonShift",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "effective_p_shift",
+      "formula": "PShift + CommonShift",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "effective_cci_shift",
+      "formula": "CCIShift + CommonShift",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "effective_st_shift",
+      "formula": "StShift + CommonShift",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "CCI[cci_shift]",
+        "right": "-CCIDiffer",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Stochastic_Main[st_shift]",
+        "right": "50-StDiffer",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Close[p_shift]",
+        "right": "MA[ma_shift]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "CCI[cci_shift]",
+        "right": "CCIDiffer",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Stochastic_Main[st_shift]",
+        "right": "50+StDiffer",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Close[p_shift]",
+        "right": "MA[ma_shift]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 550,
+      "params": {
+        "unit": "points",
+        "buy_sl_formula": "Ask - Point * StopLoss",
+        "sell_sl_formula": "Bid + Point * StopLoss"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 550,
+      "params": {
+        "unit": "points",
+        "buy_tp_formula": "Ask + Point * TakeProfit",
+        "sell_tp_formula": "Bid - Point * TakeProfit"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "MWMode: SL/TP applied post-open via PositionModify when position has no SL/TP, with SL clamped to min stops level"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "fixed_lot": 0.1,
+      "risk_fraction": 0.05,
+      "formula_when_lots_zero": "FreeMargin * MaximumRisk / 1000.0",
+      "normalization": "round to VOLUME_STEP, clamp to [VOLUME_MIN, VOLUME_MAX]"
+    },
+    "max_positions": 1,
+    "conditional_logic": "if Lots > 0 use fixed Lots, else use deposit_fraction formula"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "MWMode feature: When enabled, SL/TP are set to 0 on order open, stored in global variables, then applied via PositionModify on next tick after position is detected. This is a workaround for brokers requiring zero SL/TP on open. SL is clamped: Buy SL min = Bid - Point*(Spread+StopsLevel+1), Sell SL min = Ask + Point*(Spread+StopsLevel+1). RevClose parameter allows opposite signal to close existing position. CommonShift adds a uniform offset to all indicator shift parameters. ZeroBar flag allows trading on bar 0 if any shift resolves to 0.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "Any symbol 730 days",
+  "python_conversion_notes": "Straightforward conversion. All three indicators (LWMA, CCI, Stochastic) have pandas-ta equivalents. Entry is a simple 3-condition AND gate. MWMode can be simplified in Python backtest by directly applying SL/TP at open (the MWMode workaround is broker-specific and unnecessary in backtesting). The CommonShift is just a lookback offset. Lot sizing formula is simple. No tick-level logic required since new_bar_guard limits to once per bar.",
+  "extraction_timestamp": "2026-05-20T22:27:27.581722",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 191.13,
+    "cost": 0
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "ea_id": "EA-1315",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with 'ColorJVariation' custom indicator (unknown implementation) and includes external TradeAlgorithms.mqh library. Entry/exit logic depends on custom indicator buffer values requiring manual Python reimplementation of the indicator.",
+  "symbol": null,
+  "timeframe_hint": "D1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorJVariation",
+      "params": {
+        "period": 12,
+        "method": 0,
+        "jlength": 3,
+        "jphase": 100,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 12
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value[0..2] - ColorJVariation buffer 0 values at SignalBar, SignalBar+1, SignalBar+2",
+      "formula": "CopyBuffer(handle, 0, SignalBar, 3, Value) → Value[0]=bar[SignalBar], Value[1]=bar[SignalBar+1], Value[2]=bar[SignalBar+2]",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1]",
+        "right": "Value[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "above",
+        "left": "Value[0]",
+        "right": "Value[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1]",
+        "right": "Value[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "below",
+        "left": "Value[0]",
+        "right": "Value[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when sell signal detected (Value[1]>Value[2]) and BuyPosClose=true",
+      "Short position closed when buy signal detected (Value[1]<Value[2]) and SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "fixed_lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 → fixed lot size = abs(MM); MM>0 → deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal logic: Value[1]<Value[2] means indicator was declining (bullish setup), then Value[0]>Value[1] means indicator turned up (confirmation) → buy. Opposite for sell. The indicator is a JMA-smoothed variation of a moving average - needs ColorJVariation indicator source code to reimplement in Python. TradeAlgorithms.mqh provides BuyPositionClose, SellPositionClose, BuyPositionOpen, SellPositionOpen helpers and GlobalVariableDel_ cleanup. SignalBar=1 means signals read from the previous completed bar (not current forming bar).",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "ColorJVariation indicator (.mq5 compiled or source)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "D1 730 days any symbol with 5-digit pricing",
+  "python_conversion_notes": "Must reimplement ColorJVariation indicator: it applies JMA smoothing (JLength=3, JPhase=100) to a variation series derived from MA (period=12, SMA). Entry: indicator declining across bars [2]→[1] then rising [1]→[0] = buy; rising then declining = sell. Exit via SL/TP or signal reversal. Position sizing: MM=-0.1 means fixed 0.1 lot; positive MM would be deposit fraction. The Recount flag ensures signal recalculation on data gaps.",
+  "extraction_timestamp": "2026-05-20T23:10:13.650716",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 68.94,
+    "cost": 0
+  }
+}

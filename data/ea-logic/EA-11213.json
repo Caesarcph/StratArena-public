@@ -1,0 +1,152 @@
+{
+  "ea_id": "EA-11213",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'HullTrend' custom indicator with unknown internal implementation, plus two external .mqh includes (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) providing trade helpers and smoothing algorithms not available in Python backtest frameworks.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "HullTrend",
+      "params": {
+        "period": 20,
+        "applied_price": 1,
+        "smooth_method": 3,
+        "phase": 15
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "HullTrend indicator line (buffer 0)",
+      "formula": "iCustom(Symbol(), Timeframe, \"HullTrend\", XLength=20, IPC=PRICE_CLOSE, XMA_Method=LWMA, XPhase=15) buffer 0",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "HullTrend signal line (buffer 1)",
+      "formula": "iCustom(Symbol(), Timeframe, \"HullTrend\", XLength=20, IPC=PRICE_CLOSE, XMA_Method=LWMA, XPhase=15) buffer 1",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "SqrXLength",
+      "formula": "int(MathFloor(MathSqrt(XLength))) = int(MathFloor(MathSqrt(20))) = 4",
+      "used_by": "min_rates_total calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "HullTrend indicator line",
+        "right": "HullTrend signal line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "HullTrend indicator line",
+        "right": "HullTrend signal line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when HullTrend indicator crosses below signal line (BUY_Close=true when Ind[1]<Sign[1] and BuyPosClose input is true)",
+      "Short position closed when HullTrend indicator crosses above signal line (SELL_Close=true when Ind[1]>Sign[1] and SellPosClose input is true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT",
+      "available_modes": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM=0.1 fraction applied according to MMMode enum; LOT mode means fixed lot sizing"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The HullTrend indicator is a custom indicator loaded via iCustom. It computes a smoothed Hull Moving Average with two buffers: main line (buffer 0) and signal line (buffer 1). Entry signals require a crossover between bars [1] and [0] relative to SignalBar (default=1), meaning the actual crossover is checked on completed bars. The crossover detection is: long when Ind[1]>Sign[1] AND Ind[0]<=Sign[0] (indicator was above signal on prior bar and at-or-below on current signal bar, indicating a bullish cross). SignalBar=1 means the signal is evaluated on the previous completed bar. Recount flag provides retry logic if CopyBuffer fails. GlobalVariableDel_ in OnDeinit cleans up global variables. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose inputs allow independently enabling/disabling entry and exit directions. The smooth method parameter uses extended methods beyond standard MQL5 (JJMA, JurX, ParMA, T3, VIDYA, AMA) defined in SmoothAlgorithms.mqh.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh",
+    "HullTrend custom indicator (iCustom)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days (symbol not hardcoded, uses Symbol())",
+  "python_conversion_notes": "The main challenge is reimplementing the HullTrend custom indicator. It uses a Hull Moving Average: typically calculated as WMA(2*WMA(n/2) - WMA(n), sqrt(n)). The SmoothAlgorithms.mqh library supports extended smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA) beyond standard MA types. For LWMA mode (default), the Hull MA can be reimplemented in Python using numpy/scipy linearly-weighted moving averages. The trade logic itself is simple crossover-based with fixed SL/TP. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose helpers which handle position sizing, deviation, and order sending — these need simple market order wrappers in Python. The new bar guard and SignalBar=1 logic mean signals are evaluated on completed bars only, making backtesting straightforward with bar-by-bar iteration.",
+  "extraction_timestamp": "2026-05-20T22:05:50.498172",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 186.45,
+    "cost": 0
+  }
+}

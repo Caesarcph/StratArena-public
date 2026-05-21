@@ -1,0 +1,149 @@
+{
+  "ea_id": "EA-11372",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown 'ExchangePrice' indicator (source not available), includes external TradeAlgorithms.mqh library for position management, and relies on custom CIsNewBar class. The custom indicator logic is opaque and must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ExchangePrice",
+      "params": {
+        "countBarsS": 96,
+        "countBarsL": 288
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null,
+      "buffers": {
+        "buffer_0": "Main line (Ind)",
+        "buffer_1": "Signal line (Sign)"
+      }
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Ind",
+      "formula": "CopyBuffer(handle,0,SignalBar,2) - main line of ExchangePrice indicator",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Sign",
+      "formula": "CopyBuffer(handle,1,SignalBar,2) - signal line of ExchangePrice indicator",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "UpSignalTime",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec - timestamp for long entry signal",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "DnSignalTime",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec - timestamp for short entry signal",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Ind",
+        "right": "Sign",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position",
+        "detail": "Ind[1]>Sign[1] on prior bar AND Ind[0]<=Sign[0] on current signal bar (crossover from above to below in indicator space, which triggers BuyPosOpen when BuyPosOpen input is true)"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Ind",
+        "right": "Sign",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position",
+        "detail": "Ind[1]<Sign[1] on prior bar AND Ind[0]>=Sign[0] on current signal bar (crossover from below to above in indicator space, which triggers SellPosOpen when SellPosOpen input is true)"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal reversal: when Ind crosses below Sign (was above), closes short position via SellPosClose. When Ind crosses above Sign (was below), closes long position via BuyPosClose. BuyPosClose and SellPosClose input booleans control whether signal-reversal exits are active."
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT - fixed lot sizing selected by default, also supports FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE modes from TradeAlgorithms.mqh"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode input selects between 5 margin modes: FREEMARGIN(free margin fraction), BALANCE(balance fraction), LOSSFREEMARGIN(free margin minus loss fraction), LOSSBALANCE(balance minus loss fraction), LOT(fixed lot). Default is LOT."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "1. ExchangePrice is a custom indicator with two buffers (main and signal line) using countBarsS=96 and countBarsL=288 as lookback periods - likely computes some form of exchange price ratio or smoothed price channels. 2. Signal logic: When Ind[1]>Sign[1] (main was above signal on previous bar) AND Ind[0]<=Sign[0] (main dropped to or below signal on current bar), it triggers a BUY open and SELL close. The inverse triggers SELL open and BUY close. This is a crossover system where the crossover direction is opposite to trade direction (main falling below signal = buy, main rising above signal = sell), suggesting the indicator may be an oscillator or exchange rate where lower values indicate buying opportunity. 3. CIsNewBar class from TradeAlgorithms.mqh handles new bar detection. 4. GlobalVariableDel_ cleans up global variables on deinit. 5. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input flags allow independently enabling/disabling long entries, short entries, long exits, and short exits. 6. LoadHistory() call ensures historical bars are available. 7. SignalBar=1 means signals are read from bar index 1 (previous completed bar), but if SignalBar=0, signals are evaluated every tick instead of only on new bars.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh - provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, LoadHistory, GlobalVariableDel_ functions",
+    "ExchangePrice custom indicator - iCustom indicator with two buffers, parameters countBarsS and countBarsL, source code not included"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "",
+  "python_conversion_notes": "Must reimplement the ExchangePrice custom indicator logic in Python - without its source code, need to either find the indicator source or reverse-engineer from behavior. The TradeAlgorithms.mqh functions for position open/close need standard market order wrappers. The crossover logic is straightforward once indicator values are available. Key challenge: the ExchangePrice indicator is opaque - it takes two lookback periods (96 and 288 bars) and produces main+signal lines. The signal logic (Ind crosses Sign) is a standard dual-line crossover system. Position sizing supports 5 modes but LOT (fixed) is default and simplest to implement. SL=1000 points, TP=2000 points are fixed. New-bar guard and SignalBar=1 means backtest should evaluate on bar close only.",
+  "extraction_timestamp": "2026-05-20T22:13:52.944453",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 176.77,
+    "cost": 0
+  }
+}

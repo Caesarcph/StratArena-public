@@ -1,0 +1,148 @@
+{
+  "ea_id": "EA-1232",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to invoke 'ColorLinearRegSlope_V2' which is an unknown custom indicator. Also includes two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) containing custom smoothing algorithms and trade management logic that must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorLinearRegSlope_V2",
+      "params": {
+        "period": 12,
+        "method": 0,
+        "applied_to": 1,
+        "shift": 1,
+        "phase": 15,
+        "trigger_shift": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "DnValue",
+      "formula": "ColorLinearRegSlope_V2 buffer 0 (bearish slope line value at SignalBar and SignalBar+1)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "UpValue",
+      "formula": "ColorLinearRegSlope_V2 buffer 1 (bullish slope line value at SignalBar and SignalBar+1)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "min_rates_total",
+      "formula": "GetStartBars(SlMethod,1,SlPhase) + SlLength + TriggerShift + 3 + SignalBar",
+      "used_by": "data sufficiency check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "UpValue[1]",
+        "right": "DnValue[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "DnValue[1]",
+        "right": "UpValue[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when slope turns bearish (DnValue > UpValue) if BuyPosClose permission is true",
+      "Short position closed when slope turns bullish (UpValue > DnValue) if SellPosClose permission is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "description": "MM=-0.1 means 0.1 lots fixed; positive values mean fraction of deposit"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If MM is negative, absolute value is lot size; if positive, it is share of deposit"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The core signal comes from a custom indicator ColorLinearRegSlope_V2 which computes a linear regression slope with smoothing. Buffer 0 is the bearish/down slope line, buffer 1 is the bullish/up slope line. Entry signal requires a crossover between these two buffers: when UpValue crosses above DnValue, buy signal triggers; when DnValue crosses above UpValue, sell signal triggers. The crossover is confirmed by checking the previous bar (index 1) for the crossover and the current signal bar (index 0) for the prior opposite state. Mutual exclusion logic cancels both buy and sell signals if both fire simultaneously. The Recount flag handles data unavailability by retrying on next tick. Trade functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) come from TradeAlgorithms.mqh and encapsulate order sending, position checking, and global variable management. Permission booleans (BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose) gate each action independently.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "ColorLinearRegSlope_V2 (custom indicator .ex5 or .mq5)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Symbol-specific H4 730 days",
+  "python_conversion_notes": "The main challenge is reimplementing the ColorLinearRegSlope_V2 indicator in Python. It requires: (1) Linear regression slope calculation over SlLength period, (2) smoothing of the slope using one of 10 methods from SmoothAlgorithms.mqh (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA), (3) splitting into two color buffers (up/down slope lines). The JJMA, JurX, ParMA, T3, VIDYA, AMA smoothing methods are non-standard and require porting from the SmoothAlgorithms.mqh library. TradeAlgorithms.mqh functions need replacement with simple market order logic. The crossover logic itself is straightforward once the indicator values are computed. SignalBar=1 means signals are evaluated at bar index 1 (last completed bar), typical for on-bar backtesting.",
+  "extraction_timestamp": "2026-05-20T22:42:23.537005",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 150.19,
+    "cost": 0
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "ea_id": "EA-1190",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown 'Candles_Smoothed' indicator and two external .mqh includes (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) requiring manual Python reimplementation of smoothed candle logic and trade management functions.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Candles_Smoothed",
+      "params": {
+        "smooth_method": 3,
+        "period": 30,
+        "phase": 100
+      },
+      "source": "custom",
+      "library": "Candles_Smoothed",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "dLevel",
+      "formula": "Level * _Point (break-out threshold in price units)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "min_rates_total",
+      "formula": "XMA.GetStartBars(MA_SMethod, MA_Length, MA_Phase) + 3 + SignalBar",
+      "used_by": "bars-sufficiency check"
+    },
+    {
+      "name": "Smoothed_High",
+      "formula": "CopyBuffer(InpInd_Handle, buffer_index=1, bar, 1) - smoothed candle high from Candles_Smoothed indicator buffer 1",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Smoothed_Low",
+      "formula": "CopyBuffer(InpInd_Handle, buffer_index=2, bar, 1) - smoothed candle low from Candles_Smoothed indicator buffer 2",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Close[SignalBar]",
+        "right": "Smoothed_High[SignalBar] + dLevel",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Close[SignalBar]",
+        "right": "Smoothed_Low[SignalBar] - dLevel",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when Close < Smoothed_Low - dLevel (if BuyPosClose=true)",
+      "Short position closed when Close > Smoothed_High + dLevel (if SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0: fixed lot size=abs(MM); MM>0: deposit fraction percentage"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The entry logic scans from SignalBar outward through historical bars to find the FIRST bar where Close breaks above Smoothed_High+dLevel or below Smoothed_Low-dLevel. Only if the break occurs AT SignalBar does it generate an open signal; otherwise it only generates a close signal. The Candles_Smoothed custom indicator applies user-selectable smoothing (from SmoothAlgorithms.mqh: SMA/EMA/SMMA/LWMA/JJMA/JurX/ParMA/T3/VIDYA/AMA) to candle OHLC data, producing smoothed high/low channels in buffers 1 and 2. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with built-in position management and global variable cleanup.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "Candles_Smoothed custom indicator"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement Candles_Smoothed indicator: apply one of 10 smoothing algorithms (LWMA default) to OHLC to produce smoothed High/Low channels. The break-out logic compares bar close against smoothed channel +/- Level*point. Entry only on SignalBar break; exit signals from any bar break. The CXMA class from SmoothAlgorithms.mqh provides 10 smoothing methods - need to port at least the default LWMA and any user-selected method. Trade position management from TradeAlgorithms.mqh handles buy/sell open/close with permission gates - straightforward to replicate. The scanning loop from SignalBar outward is unusual: it finds the first breakout bar and only generates entry if that breakout is at SignalBar.",
+  "extraction_timestamp": "2026-05-20T22:33:27.286404",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 140.52,
+    "cost": 0
+  }
+}

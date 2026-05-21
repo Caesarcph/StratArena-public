@@ -1,0 +1,147 @@
+{
+  "ea_id": "EA-11256",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown custom indicator 'TSI_DeMarker' plus two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) providing money management, position management, and smoothing algorithms that must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H8",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "TSI_DeMarker",
+      "params": {
+        "xma_method": 0,
+        "demarker_period": 25,
+        "mom_period": 1,
+        "xlength1": 5,
+        "xlength2": 8,
+        "xlength3": 20,
+        "xphase": 15
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Ind - TSI_DeMarker main line (buffer 0)",
+      "formula": "iCustom(TSI_DeMarker, buffer 0, smoothed True Strength Index of DeMarker momentum",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Sign - TSI_DeMarker signal line (buffer 1)",
+      "formula": "iCustom(TSI_DeMarker, buffer 1, signal line of the TSI",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Ind (TSI_DeMarker main line, previous bar)",
+        "right": "Sign (TSI_DeMarker signal line, previous bar)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Ind (TSI_DeMarker main line, previous bar)",
+        "right": "Sign (TSI_DeMarker signal line, previous bar)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when Ind crosses below Sign (signal reversal)",
+      "Short position closed when Ind crosses above Sign (signal reversal)",
+      "BuyPosClose and SellPosClose can be individually disabled via input flags"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT",
+      "modes_available": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum from TradeAlgorithms.mqh controls lot sizing method; default LOT mode uses fixed lot from MM parameter"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Core logic: TSI (True Strength Index) applied to DeMarker oscillator. The custom indicator TSI_DeMarker must be fully reimplemented - it takes DeMarker values, computes momentum, then applies triple smoothing (XLength1, XLength2, XLength3) using a selectable method from SmoothAlgorithms.mqh (SMA/EMA/SMMA/LWMA/JJMA/JurX/ParMA/T3/VIDYA/AMA). Signal line is derived from further smoothing. Entry uses 2-bar crossover: previous bar Ind>Sign establishes trend direction, then Ind[0]<=Sign[0] triggers long entry on crossover down-to-up. SignalBar input (default 1) shifts which bar is used for current signal reading. LoadHistory() call ensures bar data is available. GlobalVariableDel_ cleanup on deinit. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose flags allow independently enabling/disabling each trade direction and close action.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh - provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar, GetStartBars, MarginMode enum",
+    "SmoothAlgorithms.mqh - provides Smooth_Method enum (SMA/EMA/SMMA/LWMA/JJMA/JurX/ParMA/T3/VIDYA/AMA) and smoothing algorithm implementations",
+    "TSI_DeMarker.ex5 - compiled custom indicator loaded via iCustom()"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H8 730 days with DeMarker computation support",
+  "python_conversion_notes": "Must reimplement TSI_DeMarker custom indicator: (1) Compute DeMarker(period=25), (2) Compute momentum of DeMarker(mom_period=1), (3) Apply triple smoothing using selected method (default SMA) with periods 5, 8, 20 and phase parameter, (4) Generate signal line from further smoothing. Then implement crossover logic: long when Ind crosses above Sign (Ind[1]>Sign[1] and Ind[0]<=Sign[0]), short when Ind crosses below Sign. Position sizing uses 5 modes from MarginMode enum - default LOT mode is simplest (fixed lot=0.1). StopLoss=1000 points, TakeProfit=2000 points. Signal evaluated once per new bar on H8 timeframe. The SmoothAlgorithms.mqh library contains 10 smoothing methods including advanced ones (JJMA, JurX, ParMA, T3, VIDYA, AMA) that require careful Python reimplementation - using only SMA (default) simplifies this significantly.",
+  "extraction_timestamp": "2026-05-20T22:09:57.178263",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 137.77,
+    "cost": 0
+  }
+}

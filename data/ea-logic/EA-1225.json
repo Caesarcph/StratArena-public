@@ -1,0 +1,143 @@
+{
+  "ea_id": "EA-1225",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for 'MACD_Xtr' custom indicator with unknown internal logic, plus #include <TradeAlgorithms.mqh> external library for position management. Custom indicator buffer values (0,1,2) drive all signals, requiring manual Python reimplementation of both the MACD_Xtr indicator and the trade algorithm helpers.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "MACD_Xtr",
+      "params": {
+        "fast_ema": 12,
+        "slow_ema": 26,
+        "source_mode": 1,
+        "source_period": 22,
+        "front_period": 1,
+        "back_period": 444,
+        "xvolatility": 0.5,
+        "sensitivity": 0,
+        "volume_type": 1001,
+        "applied_to": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Signal buffer value (0=short trend, 1=no trend, 2=long trend)",
+      "formula": "MACD_Xtr buffer 1[bar] returns {0,1,2} discretized trend state",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "Signal change detection",
+      "formula": "Signal[1]!=Signal[0] detects transition between trend states",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "MACD_Xtr buffer 1 at SignalBar+1",
+        "right": "2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "MACD_Xtr buffer 1 at SignalBar+1",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close long when MACD_Xtr signal buffer == 0 (opposite trend detected) and BuyPosClose is true",
+      "Close short when MACD_Xtr signal buffer == 2 (opposite trend detected) and SellPosClose is true",
+      "Close both long and short when MACD_Xtr signal buffer == 1 (no trend) and respective close permission is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_meansFixedLot": true,
+      "fixed_lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM=-0.1 means negative value is treated as fixed lot size (0.1); positive values would be deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The MACD_Xtr custom indicator must be fully reverse-engineered. It takes Fast/Slow EMA periods plus a 'source' enum (VOLUME/ATR/STDEV) with its own period, front/back smoothing periods, volatility multiplier, and sensitivity threshold. It outputs 3 discrete states (0=short, 1=neutral, 2=long) on buffer index 1. Entry requires a state TRANSITION (Signal[1]!=Signal[0]) not just a state value. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose/GlobalVariableDel_/LoadHistory helper functions that manage position opening with signal time tracking and closing logic. The signal time is used as a position identifier/timestamp for the trade algorithm library. When SignalBar==0, the EA checks every tick instead of only on new bars.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "MACD_Xtr.ex5 (compiled custom indicator)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Symbol H4 730 days with tick volume",
+  "python_conversion_notes": "1) Must reimplement MACD_Xtr indicator: compute Fast/Slow EMA, derive source series (ATR/StDev/Tick Volume) with period, apply front smoothing (period 1 = no smoothing) and back damping smoothing (EMA period 444), then discretize with xVolatility and Sens threshold into 3 states {0,1,2}. 2) Must reimplement TradeAlgorithms.mqh functions for position management including signal-time-based tracking. 3) Entry signals require state transition detection (prev_state != curr_state), not just threshold comparison. 4) Position sizing: negative MM = fixed lot, positive = deposit fraction. 5) New-bar gate with fallback to every-tick when SignalBar=0.",
+  "extraction_timestamp": "2026-05-20T22:42:03.039634",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 195.45,
+    "cost": 0
+  }
+}

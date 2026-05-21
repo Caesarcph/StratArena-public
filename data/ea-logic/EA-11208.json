@@ -1,0 +1,151 @@
+{
+  "ea_id": "EA-11208",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'wlxBWWiseMan-2' (unknown Bill Williams WiseMan-2 custom indicator) and includes external .mqh dependency (TradeAlgorithms.mqh) with complex position management functions that require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "wlxBWWiseMan-2",
+      "params": {
+        "updown": 10,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpValue",
+      "formula": "CopyBuffer(InpInd_Handle, buffer_index=1, SignalBar) — bullish WiseMan-2 signal value from custom indicator buffer 1",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DnValue",
+      "formula": "CopyBuffer(InpInd_Handle, buffer_index=0, SignalBar) — bearish WiseMan-2 signal value from custom indicator buffer 0",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "UpSignalTime",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec (period seconds offset)",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "DnSignalTime",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec (period seconds offset)",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "UpValue[SignalBar]",
+        "right": "non-zero and non-EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "BuyPosOpen_enabled"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "DnValue[SignalBar]",
+        "right": "non-zero and non-EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "SellPosOpen_enabled"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal close: UpValue signal closes short positions if SellPosClose=true, DnValue signal closes long positions if BuyPosClose=true",
+      "Historical scan for opposite close signal: when both open and close are enabled for same direction and no close signal on SignalBar, scans historical bars (SignalBar+1 to Bars_) for an opposite signal to set close flag"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT",
+      "modes_available": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects lot sizing method: LOT=fixed lot, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus losses, LOSSBALANCE=fraction of balance minus losses"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Bill Williams WiseMan-2 is a custom indicator (part of the Profitunity/Bill Williams system). The EA uses two buffers: buffer 0 for bearish signals (DnValue) and buffer 1 for bullish signals (UpValue). A non-zero, non-EMPTY_VALUE reading on SignalBar constitutes a signal. When both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled and no close signal is detected on the current SignalBar, the EA scans backward through historical bars to find the most recent opposite signal to determine if a close should occur. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and LoadHistory helper functions that handle order execution, position checking, global variable cleanup, and history loading respectively. The updown parameter (default=10) is passed to the custom indicator and likely controls a threshold for signal generation.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "wlxBWWiseMan-2.ex5 (custom indicator binary/source required)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "The wlxBWWiseMan-2 custom indicator logic must be reimplemented in Python. This is a Bill Williams WiseMan-2 signal (part of the Awesome Oscillator + Fractal-based Profitunity system). The indicator likely identifies when the AO changes from red to green (or vice versa) with specific bar patterns. The 'updown' parameter (10) likely controls a minimum bar count threshold for the signal. Two buffers map to bullish/bearish WiseMan-2 signals. The TradeAlgorithms.mqh functions need equivalent Python implementations for position sizing (5 margin modes), market order execution with deviation, and position management. The historical backward scan for opposite close signals must be preserved. SignalBar defaults to 1 (previous completed bar), ensuring only confirmed signals trigger trades.",
+  "extraction_timestamp": "2026-05-20T22:03:28.477461",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 62.82,
+    "cost": 0
+  }
+}

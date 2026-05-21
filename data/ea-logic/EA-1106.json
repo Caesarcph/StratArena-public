@@ -1,0 +1,185 @@
+{
+  "ea_id": "EA-1106",
+  "convertibility": "auto_convert",
+  "convertibility_reason": "Uses only built-in indicators (4x iMA, 1x iVolumes). Simple market orders with no grid/martingale. Trade.mqh/SymbolInfo.mqh/DealInfo.mqh/PositionInfo.mqh are standard MT5 library includes, not custom logic. Signal logic is straightforward formula comparison.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 174,
+        "method": 1,
+        "applied_to": 3,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 174,
+        "method": 1,
+        "applied_to": 2,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 174,
+        "method": 1,
+        "applied_to": 1,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 174,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "OBV",
+      "name": "Volumes",
+      "params": {
+        "applied_to": 1
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "GO",
+      "formula": "((MA_Close-MA_Open)+(MA_High-MA_Open)+(MA_Low-MA_Open)+(MA_Close-MA_Low)+(MA_Close-MA_High))*Volume",
+      "used_by": "entry and exit rules"
+    },
+    {
+      "name": "OpenLevel",
+      "formula": "input parameter, default 0",
+      "used_by": "entry rule threshold"
+    },
+    {
+      "name": "CloseLevel",
+      "formula": "OpenLevel - CloseLevelDif",
+      "used_by": "exit rule threshold"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "GO",
+        "right": "OpenLevel",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "GO",
+        "right": "-OpenLevel",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close long when GO < (OpenLevel - CloseLevelDif)",
+      "Close short when GO > -(OpenLevel - CloseLevelDif)",
+      "Signal reversal: opposite signal closes current position before opening new one (position_gate ensures only one position at a time)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "risk_fraction": 0.05,
+      "divisor": 1000.0
+    },
+    "max_positions": 1,
+    "conditional_logic": "if Lots==0 then lot = AccountFreeMargin * MaximumRisk / 1000.0 (normalized), else lot = Lots (fixed)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "GO formula simplifies to: GO = 2*(MA_Close - MA_Open)*Volume. The terms (MA_High-MA_Open)+(MA_Low-MA_Open)+(MA_Close-MA_Low)+(MA_Close-MA_High) cancel out leaving only 2*(C-O)*V. Sell order incorrectly uses SolveBuySL/SolveBuyTP instead of SolveSellSL/SolveSellTP (likely bug in original code). StopLoss and TakeProfit are hardcoded to 0 so SL/TP are effectively disabled. CloseLevelDif default is 0, so close level equals open level when default.",
+  "external_dependencies": [],
+  "estimated_difficulty": "easy",
+  "backtest_data_needs": "Any symbol PERIOD_CURRENT 730 days, default MA period 174 suggests H1 or higher timeframe",
+  "python_conversion_notes": "Straightforward conversion. Compute 4 EMAs (period 174 on Close/Open/High/Low) plus volume, calculate GO = 2*(EMA_Close - EMA_Open) * Volume. Entry: GO > OpenLevel -> long, GO < -OpenLevel -> short. Exit: long closed when GO < (OpenLevel - CloseLevelDif), short closed when GO > -(OpenLevel - CloseLevelDif). Position sizing: if Lots==0 then FreeMargin * MaximumRisk / 1000 normalized to volume step. No SL/TP since both are 0. One position at a time. New-bar guard using bar timestamp comparison.",
+  "extraction_timestamp": "2026-05-20T22:00:41.511527",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 128.82,
+    "cost": 0
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "ea_id": "EA-1066",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom('AroonSignal') which is an unknown custom indicator requiring manual Python reimplementation, plus includes external TradeAlgorithms.mqh library for order management",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AroonSignal",
+      "params": {
+        "high_level": 85,
+        "low_level": 15,
+        "period": 9,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "AroonSignal",
+      "derived_period": 9
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpValue - AroonSignal buffer 0 (buy signal)",
+      "formula": "CopyBuffer(handle, 0, SignalBar, 1) != 0 && != EMPTY_VALUE → buy signal active",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "DnValue - AroonSignal buffer 1 (sell signal)",
+      "formula": "CopyBuffer(handle, 1, SignalBar, 1) != 0 && != EMPTY_VALUE → sell signal active",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy order",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell order",
+      "formula": "SERIES_LASTBAR_DATE + TimeShiftSec",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "AroonSignal buffer 0 (UpValue)",
+        "right": "non-zero and non-EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "AroonSignal buffer 1 (DnValue)",
+        "right": "non-zero and non-EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "points": 1000
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "points": 2000
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Historical signal scan: if no direct close signal from SignalBar, EA scans backward through bars looking for the most recent opposite signal to determine if a close is warranted (lines 119-145)",
+      "BuyPosClose/SellPosClose permission flags gate exit signals"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 means fixed lot size of abs(MM); MM>0 means deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "1. The AroonSignal custom indicator has two buffers: buffer 0 = buy/Up signal, buffer 1 = sell/Down signal. Non-zero non-EMPTY_VALUE means signal is active. 2. The EA has a backward signal scan (lines 119-145) where if both open and close permissions are enabled for a direction and no direct close signal exists at SignalBar, it scans historical bars to find the last opposite signal to set close flags. This is critical logic for backtesting accuracy. 3. The TradeAlgorithms.mqh library handles BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose, CIsNewBar, LoadHistory, and GlobalVariableDel_ — all must be reimplemented. 4. SignalBar=1 means signals are read from the previous completed bar (not the current forming bar). 5. MM parameter: negative values = fixed lot size (abs value), positive values = deposit share fraction.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "AroonSignal custom indicator (not built-in, requires source or reverse engineering)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "EURUSD H4 730 days",
+  "python_conversion_notes": "1. Must implement AroonSignal indicator in Python. The indicator likely uses Aroon Up/Down oscillators with HighLevel=85 and LowLevel=15 thresholds, outputting non-zero values on buffer 0 when a buy signal triggers and buffer 1 for sell signals. 2. The backward historical signal scan (lines 119-145) must be faithfully replicated — it determines close signals by scanning bars before SignalBar for opposite signals. 3. TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) use standard MT5 trade operations with deviation, SL, TP — replace with simple market order logic. 4. CIsNewBar class tracks new bar formation — use pandas Timestamp comparison. 5. MM=-0.1 means fixed 0.1 lot sizing. 6. StopLoss_=1000 points and TakeProfit_=2000 points need point-to-pip conversion based on symbol digits.",
+  "extraction_timestamp": "2026-05-20T21:45:25.745026",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 149.86,
+    "cost": 0
+  }
+}

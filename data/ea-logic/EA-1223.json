@@ -1,0 +1,181 @@
+{
+  "ea_id": "EA-1223",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'TrendValue' custom indicator (not a built-in MT5 indicator), and includes external TradeAlgorithms.mqh library for order management. Both require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "TrendValue",
+      "params": {
+        "MAperiod": 13,
+        "shiftPercent": 0,
+        "ATRPeriod": 15,
+        "ATRSensitivity": 1.5
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 15,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": 15
+    },
+    {
+      "type": "MA",
+      "name": "SMA",
+      "params": {
+        "period": 13,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": 13
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpTrend",
+      "formula": "TrendValue indicator buffer 0 value at SignalBar",
+      "used_by": "exit rule"
+    },
+    {
+      "name": "DnTrend",
+      "formula": "TrendValue indicator buffer 1 value at SignalBar",
+      "used_by": "exit rule"
+    },
+    {
+      "name": "UpSignal",
+      "formula": "TrendValue indicator buffer 2 value at SignalBar, non-zero and !=EMPTY_VALUE indicates buy signal",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DnSignal",
+      "formula": "TrendValue indicator buffer 3 value at SignalBar, non-zero and !=EMPTY_VALUE indicates sell signal",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "LastTrend",
+      "formula": "Integer tracking last detected trend direction, 0=undefined",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "UpSignal[0]",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "DnSignal[0]",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when DnSignal is active (BuyPosClose=true by default) or when DnTrend is non-zero and not EMPTY_VALUE",
+      "Short position closed when UpSignal is active (SellPosClose=true by default) or when UpTrend is non-zero and not EMPTY_VALUE"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_size_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values interpreted as fixed lot size, positive values as deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "TrendValue is a custom indicator with 4 buffers: buffer 0 = UpTrend line, buffer 1 = DnTrend line, buffer 2 = UpSignal (buy arrow), buffer 3 = DnSignal (sell arrow). The EA checks signal on bar index defined by SignalBar (default 1 = last closed bar). Trend continuation (UpTrend/DnTrend buffers) also triggers exit signals: UpTrend active forces short close, DnTrend active forces long close. The TrendValue indicator internally uses MA (period 13) and ATR (period 15, sensitivity 1.5) with a horizontal shift percentage. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions with deviation and signal time parameters. GlobalVariableDel_ cleanup on deinit. LoadHistory call ensures bar data availability. Recount flag triggers recalculation on first tick or data insufficient.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "TrendValue.ex5 (custom indicator compiled binary)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "EURUSD H4 730 days",
+  "python_conversion_notes": "Must reimplement TrendValue indicator logic in Python. The indicator uses MA(13) with ATR(15, sensitivity 1.5) to construct trend channels with buy/sell signal buffers. Need to reverse-engineer the 4-buffer structure: buffer 0 (UpTrend), buffer 1 (DnTrend), buffer 2 (UpSignal arrows), buffer 3 (DnSignal arrows). The TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) are standard order wrappers and can be replaced with simple market order logic. Signal time tracking (UpSignalTime, DnSignalTime) is passed to order functions but likely used only for logging/filtering in the library. Entry signals are simple: non-zero non-EMPTY_VALUE on signal buffers. Exit signals include both explicit signal reversals and trend continuation exits. Position sizing: MM=-0.1 means fixed 0.1 lot (negative = lot size per the input comment).",
+  "extraction_timestamp": "2026-05-20T22:39:40.612686",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 166.85,
+    "cost": 0
+  }
+}

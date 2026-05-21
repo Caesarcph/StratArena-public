@@ -1,0 +1,162 @@
+{
+  "ea_id": "EA-1063",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses three iCustom indicators (AdaptiveCyberCycle, AdaptiveCGOscillator, AdaptiveRVI) which are custom indicators without available source code in the file. Also depends on external TradeAlgorithms.mqh library for position management. These require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AdaptiveCyberCycle",
+      "params": {
+        "alpha": 0.07,
+        "unused_param": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "AdaptiveCGOscillator",
+      "params": {
+        "alpha": 0.07,
+        "unused_param": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "AdaptiveRVI",
+      "params": {
+        "alpha": 0.07,
+        "unused_param": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value (MAIN_LINE buffer)",
+      "formula": "CopyBuffer(InpInd_Handle, MAIN_LINE, SignalBar, 2) — main line of selected adaptive indicator",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "SigValue (SIGNAL_LINE buffer)",
+      "formula": "CopyBuffer(InpInd_Handle, SIGNAL_LINE, SignalBar, 2) — signal line of selected adaptive indicator",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Value (MAIN_LINE)",
+        "right": "SigValue (SIGNAL_LINE)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Value (MAIN_LINE)",
+        "right": "SigValue (SIGNAL_LINE)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when Value crosses below SigValue (signal reversal with BuyPosClose permission)",
+      "Short position closed when Value crosses above SigValue (signal reversal with SellPosClose permission)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "description": "Negative MM value = fixed lot size of |MM|; positive value = deposit fraction"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM < 0 → fixed lot = abs(MM); MM > 0 → deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA supports 3 modes via enum switch: AdaptiveCyberCycle, AdaptiveCGOscillator, AdaptiveRVI — each loads a different custom indicator but uses identical crossover logic (MAIN_LINE vs SIGNAL_LINE). The crossover is detected on bars [SignalBar] and [SignalBar+1] — comparing current bar's relationship vs previous bar's. SignalBar=1 means the signal is confirmed on the recently closed bar (1 bar ago). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are permission gates that can disable specific directions. Position management is entirely delegated to TradeAlgorithms.mqh library functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar).",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "AdaptiveCyberCycle custom indicator",
+    "AdaptiveCGOscillator custom indicator",
+    "AdaptiveRVI custom indicator"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "EURUSD H4 730 days",
+  "python_conversion_notes": "The core crossover logic is simple (main line crosses signal line), but the three custom indicators (AdaptiveCyberCycle, AdaptiveCGOscillator, AdaptiveRVI) each need to be reimplemented in Python. These are John Ehlers' adaptive cycle indicators based on a homodyne discriminator for instantaneous frequency measurement. The Alpha parameter (0.07) is a smoothing constant. The MAIN_LINE and SIGNAL_LINE buffers correspond to the cycle value and its smoothed trigger line. Need to find or implement the CyberCycle, CG Oscillator, and RVI algorithms from Ehlers' 'Cybernetic Analysis for Stocks and Futures'. The TradeAlgorithms.mqh functions handle lot sizing, SL/TP application, and position management — these need straightforward Python equivalents. The new-bar guard means signals are evaluated once per completed bar using bar[1] and bar[2] relative to current.",
+  "extraction_timestamp": "2026-05-20T21:42:55.881502",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 112.47,
+    "cost": 0
+  }
+}

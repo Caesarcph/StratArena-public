@@ -1,0 +1,203 @@
+{
+  "ea_id": "EA-1054",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses no built-in indicators but calculates pivot levels from raw OHLC data via custom formulas. Entry/exit logic is custom pivot-based with multiple TgtProfit variants, second-attempt SL/TP fallback, breakeven modification, and lot reduction after losses. While logic is self-contained (no iCustom), the multi-variant pivot level mapping and fallback SL/TP logic requires careful manual Python reimplementation rather than simple indicator mapping.",
+  "symbol": null,
+  "timeframe_hint": "H1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Pivot",
+      "formula": "(D1_low + D1_high + D1_close) / 3",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Resist1",
+      "formula": "2 * Pivot - D1_low",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Support1",
+      "formula": "2 * Pivot - D1_high",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Resist2",
+      "formula": "Pivot + (Resist1 - Support1)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Support2",
+      "formula": "Pivot - (Resist1 - Support1)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Resist3",
+      "formula": "D1_high + 2 * (Pivot - D1_low)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Support3",
+      "formula": "D1_low - 2 * (D1_high - Pivot)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "sLevel",
+      "formula": "Varies by TgtProfit: R1(1,2), R2(3,4,5)",
+      "used_by": "entry rule (sell)"
+    },
+    {
+      "name": "bLevel",
+      "formula": "Varies by TgtProfit: S1(1,2), S2(3,4,5)",
+      "used_by": "entry rule (buy)"
+    },
+    {
+      "name": "StopBuy",
+      "formula": "Varies by TgtProfit: S2(1,2,3,4,5), S3(3,4,5)",
+      "used_by": "exit rule (buy SL)"
+    },
+    {
+      "name": "ProfitBuy",
+      "formula": "Varies by TgtProfit: R1(1,3), R2(2,4), R3(5)",
+      "used_by": "exit rule (buy TP)"
+    },
+    {
+      "name": "StopSell",
+      "formula": "Varies by TgtProfit: R2(1,2), R3(3,4,5)",
+      "used_by": "exit rule (sell SL)"
+    },
+    {
+      "name": "ProfitSell",
+      "formula": "Varies by TgtProfit: S1(1,3), S2(2,4), S3(5)",
+      "used_by": "exit rule (sell TP)"
+    },
+    {
+      "name": "TargetBuy",
+      "formula": "Varies by TgtProfit: Pivot(1,2), S1(3,4,5)",
+      "used_by": "breakeven modification"
+    },
+    {
+      "name": "TargetSell",
+      "formula": "Varies by TgtProfit: Pivot(1,2), R1(3,4,5)",
+      "used_by": "breakeven modification"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "bar[2].low < bLevel OR bar[2].close <= bLevel",
+        "right": "bar[2].open > bLevel AND bar[1].close >= bLevel",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "bar[2].high > sLevel OR bar[2].close >= sLevel",
+        "right": "bar[2].open < sLevel AND bar[1].close <= sLevel",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 0,
+      "params": {
+        "buy_sl_formula": "StopBuy (pivot Support level per TgtProfit variant)",
+        "sell_sl_formula": "StopSell (pivot Resistance level per TgtProfit variant)",
+        "fallback_buy_sl": "Support2",
+        "fallback_sell_sl": "Resist2 + spread"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 0,
+      "params": {
+        "buy_tp_formula": "ProfitBuy (pivot Resistance level per TgtProfit variant)",
+        "sell_tp_formula": "ProfitSell (pivot Support level per TgtProfit variant)",
+        "fallback_buy_tp": "Resist3",
+        "fallback_sell_tp": "Support3 + spread"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Breakeven SL modification: when ModSL=true and Bid reaches TargetBuy/TargetSell level, SL moved to open price +/- spread",
+      "Intraday close: when isTradeDay=true and hour==23, position is closed",
+      "Fallback SL/TP: if primary SL/TP fails minimum stop-level check, second variant SL/TP is attempted"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "fixed_lots": 0.1,
+      "max_risk_fraction": 0.02,
+      "lot_reduction_factor_DcF": 3,
+      "lot_reduction_formula": "lots = lots - lots * consecutive_losses / DcF (when consecutive_losses > 1)",
+      "margin_formula": "FreeMargin * MaxR / 1000 (when Lots=0)"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If Lots>0 use fixed; if Lots==0 use FreeMargin*MaxR/1000; if DcF>0 reduce lot after consecutive losses"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 23
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Classic Pivot Point strategy with 5 TgtProfit variants mapping different S/R combinations to entry/SL/TP levels. Uses bar[2] (two bars ago) OHLC for signal detection: price must penetrate the level on bar[2] but close back on the correct side, confirmed by bar[1] close. Second-attempt SL/TP uses wider stops (Support2/Resist3 for buy, Resist2+spread/Support3+spread for sell) if primary levels violate minimum stop distance. Breakeven SL modification moves stop to open price +/- spread when first target (TargetBuy/TargetSell) is hit. Lot reduction after consecutive losing trades uses DcF factor. The EA uses D1 bar data for pivot calculation but current timeframe bars for signal detection.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "EURUSD H1 730 days",
+  "python_conversion_notes": "All pivot calculations are straightforward arithmetic from D1 OHLC - easy to replicate. Entry signal uses bar[2] penetration + bar[1] confirmation pattern. The 5 TgtProfit variants just remap which S/R levels become SL/TP - implement as a lookup dict. Key complexity: (1) Minimum stop-level validation (ChekBuyMSL/ChekBuyMTP etc.) which compares desired SL/TP against broker StopsLevel distance from current price, with fallback to second-variant levels. (2) Breakeven modification tracking via GlobalVariable (store target level, check if price reached it, then modify SL). (3) Lot reduction logic iterating deal history counting consecutive losses. All three are implementable in Python but require careful handling of stop-level constraints and deal history iteration.",
+  "extraction_timestamp": "2026-05-20T21:43:28.063163",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 245.75,
+    "cost": 0
+  }
+}

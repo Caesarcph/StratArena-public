@@ -1,0 +1,150 @@
+{
+  "ea_id": "EA-11216",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load a custom indicator 'TSI_CCI' which is not a built-in MT5 indicator. Also depends on two external .mqh libraries (TradeAlgorithms.mqh and SmoothAlgorithms.mqh) for trade execution and smoothing algorithms. The custom indicator logic and library functions must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "TSI_CCI",
+      "params": {
+        "xma_method": 1,
+        "cci_period": 15,
+        "cci_applied_price": 0,
+        "mom_period": 1,
+        "xlength1": 5,
+        "xlength2": 8,
+        "xlength3": 10,
+        "xphase": 15
+      },
+      "source": "custom",
+      "library": "TSI_CCI (external .ex5 or .mq5 indicator)",
+      "derived_period": 33
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Ind buffer (TSI_CCI buffer 0)",
+      "formula": "TSI_CCI histogram/main line - triple-smoothed CCI momentum",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Sign buffer (TSI_CCI buffer 1)",
+      "formula": "TSI_CCI signal line - further smoothed version of the main line",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "min_rates_total",
+      "formula": "CCIPeriod + MomPeriod + GetStartBars(XMA_Method,XLength1,XPhase) + GetStartBars(XMA_Method,XLength2,XPhase) + GetStartBars(XMA_Method,XLength3,XPhase) + 3 + SignalBar",
+      "used_by": "warmup check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Ind[1] (main line, previous bar)",
+        "right": "Sign[1] (signal line, previous bar)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Ind[1] (main line, previous bar)",
+        "right": "Sign[1] (signal line, previous bar)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when main line crosses below signal line (Ind[1]<Sign[1]) and BuyPosClose=true",
+      "Short position closed when main line crosses above signal line (Ind[1]>Sign[1]) and SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "mm_fraction": 0.1,
+      "margin_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects between FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE, LOT sizing methods. Default LOT means fixed lot sizing."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The TSI_CCI custom indicator is a True Strength Index applied to CCI, using configurable smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA via SmoothAlgorithms.mqh). The crossover logic uses a two-bar comparison: previous bar (index 1) determines trend direction, and the bar at SignalBar offset (default 1, so current-1) detects the actual crossover moment (Ind[0]<=Sign[0] for bullish crossover confirmation). TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose wrappers and the CIsNewBar class. LoadHistory() call ensures bar data availability. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose input booleans allow independently enabling/disabling each trade direction and close-on-reversal.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh",
+    "TSI_CCI.ex5 or TSI_CCI.mq5 (custom indicator)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement: (1) TSI_CCI indicator - triple-smoothed CCI momentum with configurable smoothing (EMA default, supports JJMA/JurX/ParMA/T3/VIDYA/AMA), (2) TradeAlgorithms position sizing logic for 5 MarginMode variants, (3) CIsNewBar new-bar detection. The core signal logic is straightforward: Ind vs Sign crossover. Start with EMA-only smoothing (MODE_EMA=1) which maps directly to pandas EWM. The GetStartBars function from SmoothAlgorithms.mqh determines warmup periods per smoothing method. SignalBar=1 means signals are read from the previous completed bar (standard for backtesting). Entry: long when Ind crosses above Sign; short when Ind crosses below Sign. Exit: opposite signal closes position. SL=1000 points, TP=2000 points. Position sizing default is LOT (fixed lot), fraction MM=0.1.",
+  "extraction_timestamp": "2026-05-20T22:06:56.554696",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 147.33,
+    "cost": 0
+  }
+}

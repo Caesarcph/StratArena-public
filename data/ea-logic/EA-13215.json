@@ -1,0 +1,142 @@
+{
+  "ea_id": "EA-13215",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to call 'CenterOfGravityOSMA' custom indicator which is not a built-in MT5 indicator. Also depends on external TradeAlgorithms.mqh library for position management (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, LoadHistory, GlobalVariableDel_). Custom indicator logic must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "CenterOfGravityOSMA",
+      "params": {
+        "period": 10,
+        "smooth_period1": 3,
+        "ma_method1": 0,
+        "smooth_period2": 3,
+        "ma_method2": 0,
+        "applied_price": 1
+      },
+      "source": "custom",
+      "library": "CenterOfGravityOSMA",
+      "derived_period": 10
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "macd_buffer",
+      "formula": "iCustom('CenterOfGravityOSMA', buffer 0, bars SignalBar..SignalBar+2) — OSMA-style histogram values from Center of Gravity indicator after double smoothing",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "macd_slope",
+      "formula": "macd[1] vs macd[2] comparison determines direction; macd[0] vs macd[1] determines momentum shift",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "macd[1]<macd[2]",
+        "right": "macd[0]>macd[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "macd[1]>macd[2]",
+        "right": "macd[0]<macd[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when short signal fires (macd[1]>macd[2]) and BuyPosClose=true",
+      "Short position closed when long signal fires (macd[1]<macd[2]) and SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "mm_fraction": 0.1,
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum (LOT vs margin-based) controls lot calculation; 0.1 is the fraction of margin or fixed lot size depending on mode"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The CenterOfGravityOSMA is a custom indicator — likely a Center of Gravity oscillator smoothed twice (OSMA = oscillator minus signal line). Entry logic: bullish when histogram was declining (macd[1]<macd[2]) but now rising (macd[0]>macd[1]), indicating momentum reversal upward. Bearish when histogram was rising (macd[1]>macd[2]) but now declining (macd[0]<macd[1]). Signal evaluated on bar index SignalBar=1 (previous completed bar) or on new bar. The CIsNewBar class and LoadHistory() are from TradeAlgorithms.mqh. BuyPosOpen/SellPosOpen and BuyPosClose/SellPosClose boolean inputs allow independently enabling/disabling entry and exit directions. GlobalVariableDel_ cleans up global variables on deinit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "CenterOfGravityOSMA indicator (.ex5 or .mq5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days (user-configurable Symbol())",
+  "python_conversion_notes": "Must reimplement CenterOfGravityOSMA indicator in Python. The indicator applies Center of Gravity formula over 'Period_' bars, then smooths twice with configurable MA methods and periods. The OSMA output (buffer 0) is the difference between the CG oscillator and its signal line. Entry signals are based on slope reversal of this OSMA histogram: long when declining slope reverses upward, short when rising slope reverses downward. Position sizing uses MM fraction with LOT vs margin mode. TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) handle standard market order execution with SL/TP — straightforward to replicate with market orders in Python backtest framework.",
+  "extraction_timestamp": "2026-05-20T23:18:05.968273",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 202.61,
+    "cost": 0
+  }
+}

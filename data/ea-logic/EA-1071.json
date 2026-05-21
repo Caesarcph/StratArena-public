@@ -1,0 +1,171 @@
+{
+  "ea_id": "EA-1071",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom('BBSqueeze') which is a custom indicator not available as a built-in MT5 indicator, plus includes external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) with custom classes (CXMA, CIsNewBar) and trade functions that require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BBSqueeze",
+      "params": {
+        "BB_Method": "MODE_EMA_",
+        "BB_Period": 20,
+        "BB_Phase": 100,
+        "BB_Deviation": 2.0,
+        "Keltner_Period": 20,
+        "Keltner_Deviation": 1.5,
+        "applied_price": "PRICE_CLOSE_",
+        "signal_bar": 1
+      },
+      "source": "custom",
+      "library": "BBSqueeze",
+      "derived_period": 20
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpValue",
+      "formula": "CopyBuffer(BBSqueeze, buffer 0) - upper/squeeze momentum histogram value",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DnValue",
+      "formula": "CopyBuffer(BBSqueeze, buffer 1) - lower/squeeze momentum histogram value",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "UpSignalTime",
+      "formula": "SeriesInfoInteger(SERIES_LASTBAR_DATE) + TimeShiftSec - timestamp for buy order signal",
+      "used_by": "position sizing / order timing"
+    },
+    {
+      "name": "DnSignalTime",
+      "formula": "SeriesInfoInteger(SERIES_LASTBAR_DATE) + TimeShiftSec - timestamp for sell order signal",
+      "used_by": "position sizing / order timing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "UpValue[1]",
+        "right": "non-zero and non-EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "DnValue[0]",
+        "right": "non-zero and non-EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "DnValue[1]",
+        "right": "non-zero and non-EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "and_combination",
+        "left": "UpValue[0]",
+        "right": "non-zero and non-EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "points": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "points": true
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long close triggered when DnValue[1] is non-zero and non-EMPTY_VALUE (squeeze momentum turns bearish)",
+      "Short close triggered when UpValue[1] is non-zero and non-EMPTY_VALUE (squeeze momentum turns bullish)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "fixed_lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "If MM is negative, |MM| is used as fixed lot size; if positive, it's the share of deposit per transaction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The BBSqueeze indicator is a Bollinger Band Squeeze detector combining Bollinger Bands and Keltner Channels. It has two buffers: buffer 0 (UpValue/histogram) signals bullish momentum, buffer 1 (DnValue/histogram) signals bearish momentum. Entry logic requires both the previous bar's signal buffer AND current bar's opposite buffer to be non-zero and non-EMPTY_VALUE (squeeze breakout confirmation). The entry uses UpValue[1] (1 bar ago) and DnValue[0] (current/SignalBar) together for longs, and vice versa for shorts. SignalBar=1 means signals are read from bar index 1 (last closed bar). The MM parameter uses negative value convention: negative means fixed lot size (absolute value), positive means deposit fraction. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions with built-in position management. LoadHistory() and IsNewBar() are used for proper bar synchronization. GlobalVariableDel_ cleans up global variables on deinit.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "BBSqueeze custom indicator"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "EURUSD H4 730 days",
+  "python_conversion_notes": "Must reimplement the BBSqueeze custom indicator logic in Python (Bollinger Band width vs Keltner Channel width comparison producing momentum histogram). The entry logic reads two buffers: UpValue (buffer 0) and DnValue (buffer 1). A non-zero, non-EMPTY_VALUE on UpValue[1] indicates bullish squeeze breakout on the previous bar; confirming DnValue[0] non-zero means the squeeze is also active on the signal bar. The MM=-0.1 convention means fixed 0.1 lot sizing. StopLoss=1000 points and TakeProfit=2000 points are fixed. Signal reversal closes are explicitly handled before new positions are opened. The TradeAlgorithms.mqh functions (BuyPositionOpen, etc.) handle order sending with deviation and timing - these need to be replicated as simple market order functions in Python backtest. The CXMA class from SmoothAlgorithms.mqh is used only for GetStartBars() to compute min_rates_total - not needed for signal generation itself, only for warmup period calculation.",
+  "extraction_timestamp": "2026-05-20T21:48:10.912897",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 165.17,
+    "cost": 0
+  }
+}

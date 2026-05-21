@@ -1,0 +1,273 @@
+{
+  "ea_id": "EA-1113",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for 3 unknown custom indicators ('Pivot Lines TimeZone', 'Support_and_Resistance', 'i_Trend'). Includes martingale-style lot multiplication with grid/DCA position management. Trade.mqh/SymbolInfo.mqh/DealInfo.mqh/PositionInfo.mqh are standard MT5 library includes but the grid logic requires careful manual reimplementation.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "period": null,
+        "fast_period": 14,
+        "slow_period": 26,
+        "signal_period": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Pivot Lines TimeZone",
+      "params": {
+        "DayStartHour": 0,
+        "DayStartMinute": 0,
+        "AttachSundToMond": true
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "Support_and_Resistance",
+      "params": {
+        "period": 70
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "i_Trend",
+      "params": {
+        "price": 0,
+        "bb_period": 10,
+        "bb_shift": 0,
+        "bb_deviation": 2.0,
+        "bb_price": 0,
+        "bb_line": 0,
+        "bulls_bears_period": 6
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Stochastic",
+      "name": "Stochastic",
+      "params": {
+        "k_period": 8,
+        "d_period": 3,
+        "slowing": 4,
+        "method": 0,
+        "price": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Momentum",
+      "name": "MFI",
+      "params": {
+        "period": 5,
+        "applied_volume": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MACD signal",
+      "formula": "MACD_buffer[Shift] > MACD_buffer[Shift+1] => buy; MACD_buffer[Shift] < MACD_buffer[Shift+1] => sell",
+      "used_by": "entry rule for MACD mode"
+    },
+    {
+      "name": "Pivot signal",
+      "formula": "Close[Shift] > Pivot[Shift] => buy; Close[Shift] < Pivot[Shift] => sell",
+      "used_by": "entry rule for Pivot mode"
+    },
+    {
+      "name": "SupRes breakout",
+      "formula": "Close[Shift] > Resistance[Shift] AND Close[Shift+1] <= Resistance[Shift+1] => buy; Close[Shift] < Support[Shift] AND Close[Shift+1] >= Support[Shift+1] => sell",
+      "used_by": "entry rule for SupRes mode"
+    },
+    {
+      "name": "i_Trend+RSI combo",
+      "formula": "iTrend_green[0]>iTrend_red[0] AND iTrend_green[0]>iTrend_green[1] AND RSI[0]>RSI[1] => buy; inverse => sell",
+      "used_by": "entry rule for i_TrendRSI mode"
+    },
+    {
+      "name": "i_Trend+RSI+Sto combo",
+      "formula": "i_Trend green growing above red AND Stoch_main>Stoch_signal AND Stoch_main growing AND Stoch between 20-80 AND RSI growing => buy; inverse => sell",
+      "used_by": "entry rule for i_TrendRSISto mode"
+    },
+    {
+      "name": "i_Trend+RSI+Sto+MFI combo",
+      "formula": "i_TrendRSISto conditions AND MFI[0]>MFI[1] => buy; AND MFI[0]<MFI[1] => sell",
+      "used_by": "entry rule for i_TrRSIStoMFI mode"
+    },
+    {
+      "name": "grid_lot_size",
+      "formula": "StartLots * 2^min(Index, DoubleCount-1) for first DoubleCount entries; StartLots * 2^(DoubleCount-1) * 1.5^(Index-DoubleCount+1) after",
+      "used_by": "position sizing for additions"
+    },
+    {
+      "name": "grid_average_tp",
+      "formula": "(Pos.PriceOpen*Pos.Volume + CurrentPrice*NewLot) / (Pos.Volume+NewLot) +/- TakeProfit2*Point",
+      "used_by": "exit rule for grid positions"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "signal_selector",
+        "right": "no_existing_position",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "signal_selector",
+        "right": "grid_add_condition",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "signal_selector",
+        "right": "no_existing_position",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "signal_selector",
+        "right": "grid_add_condition",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 2500,
+      "params": {
+        "applied_only_on_last_grid_entry": true,
+        "points": 2500
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 500,
+      "params": {
+        "initial_tp_points": 500,
+        "grid_tp_points": 100,
+        "grid_tp_is_breakeven_plus_tp2": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Trailing stop modifies position SL when price moves Trailing points beyond entry price (only when Trailing>0)",
+      "Grid SL set only on the MaxCount-th (final) addition, calculated as min(buy_SL, Bid-StopsLevel) or max(sell_SL, Ask+StopsLevel)"
+    ]
+  },
+  "position_sizing": {
+    "type": "martingale",
+    "value": 0.1,
+    "params": {
+      "fixed_lots": 0.1,
+      "risk_fraction": 0.05,
+      "risk_based_when_lots_zero": true,
+      "double_count": 5,
+      "multiplier_first_phase": 2.0,
+      "multiplier_second_phase": 1.5
+    },
+    "max_positions": 10,
+    "conditional_logic": "If Lots==0: lot = Normalize(FreeMargin * MaximumRisk / 1000). Grid additions: StartLots * 2^min(Index, DoubleCount-1); if Index > DoubleCount-1: multiply further by 1.5^(Index-DoubleCount+1). MaxCount limits total grid entries per direction."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "BUG in CSigi_TrendRSISto::Refresh() line 743: m_buy is assigned the sell condition (overwriting the buy condition on line 741). This is a copy-paste bug where m_buy should be m_sell on line 743. Also: ReverseCondition input swaps buy/sell signals. Grid/DCA logic: adds positions at Pips distance intervals with increasing lot sizes (2x for first DoubleCount entries, 1.5x thereafter). SL only placed on the final MaxCount-th grid entry. TP for grid entries is calculated as volume-weighted average entry price + TakeProfit2 points. Trailing stop only activates when price has moved Trailing points beyond entry, requiring price beyond breakeven. The deal history is scanned via CDealInfo to find the last entry deal index (encoded in deal comment as 'N=') and starting lot size.",
+  "external_dependencies": [
+    "Pivot Lines TimeZone (custom indicator)",
+    "Support_and_Resistance (custom indicator)",
+    "i_Trend (custom indicator)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "EURUSD H1 730 days",
+  "python_conversion_notes": "Must manually reimplement 3 custom indicators (Pivot Lines TimeZone, Support_and_Resistance, i_Trend). Pivot is standard pivot point calculation with timezone offset - straightforward. Support_and_Resistance with period 70 needs source or reverse engineering. i_Trend uses Bollinger Bands + Bulls/Bears Power - may be reconstitutable from standard indicators. Grid/DCA position management must be faithfully replicated: deal history tracking for index/starting lot, lot multiplier schedule (2x then 1.5x), volume-weighted breakeven TP for additions. Fix the copy-paste bug in CSigi_TrendRSISto (m_buy on line 743 should be m_sell). Trailing stop logic is standard but must respect StopsLevel. ReverseCondition is a simple signal swap. Deviation is set to 3x spread at order time.",
+  "extraction_timestamp": "2026-05-20T22:04:29.220653",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 227.71,
+    "cost": 0
+  }
+}

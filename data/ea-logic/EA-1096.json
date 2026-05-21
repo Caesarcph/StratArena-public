@@ -1,0 +1,193 @@
+{
+  "ea_id": "EA-1096",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'XMACD' custom indicator with 8 parameters, plus includes external .mqh files (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) with custom smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA) not available as built-in MT5 indicators. The custom indicator and its smoothing algorithms require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "XMACD",
+      "params": {
+        "xma_method": 1,
+        "fast_period": 12,
+        "slow_period": 26,
+        "xphase": 100,
+        "signal_method": 0,
+        "signal_period": 9,
+        "signal_phase": 100,
+        "applied_price": 1
+      },
+      "source": "custom",
+      "library": "XMACD",
+      "derived_period": 26
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "XMACD histogram (buffer 0)",
+      "formula": "Fast_XMA(Fast_XMA_period, XMA_Method, AppliedPrice) - Slow_XMA(Slow_XMA_period, XMA_Method, AppliedPrice), smoothed by XMA_Method",
+      "used_by": "entry/exit rule (breakdown, MACDtwist, MACDdisposition modes)"
+    },
+    {
+      "name": "XMACD signal line (buffer 1)",
+      "formula": "Signal_XMA(Signal_XMA_period, Signal_Method) applied to histogram",
+      "used_by": "entry/exit rule (SIGNALtwist, MACDdisposition modes)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "XMACD_histogram",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      },
+      {
+        "condition": "crossover",
+        "left": "XMACD_histogram",
+        "right": "XMACD_histogram_prev",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      },
+      {
+        "condition": "crossover",
+        "left": "XMACD_signal_line",
+        "right": "XMACD_signal_line_prev",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      },
+      {
+        "condition": "crossover",
+        "left": "XMACD_histogram",
+        "right": "XMACD_signal_line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "XMACD_histogram",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      },
+      {
+        "condition": "crossunder",
+        "left": "XMACD_histogram",
+        "right": "XMACD_histogram_prev",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      },
+      {
+        "condition": "crossunder",
+        "left": "XMACD_signal_line",
+        "right": "XMACD_signal_line_prev",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      },
+      {
+        "condition": "crossunder",
+        "left": "XMACD_histogram",
+        "right": "XMACD_signal_line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: opposite entry signal closes existing position (BUY_Close when sell signal fires, SELL_Close when buy signal fires), gated by BuyPosClose/SellPosClose input booleans"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_meansFixedLot": true,
+      "fixed_lot_when_negative": 0.1,
+      "deposit_fraction_when_positive": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM input: negative values = fixed lot size (abs value), positive values = share of deposit"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Four switchable algorithm modes via AlgMode enum: (1) 'breakdown' - MACD histogram crosses zero line; (2) 'MACDtwist' - histogram direction change (falling to rising = buy, rising to falling = sell); (3) 'SIGNALtwist' - signal line direction change; (4) 'MACDdisposition' - histogram crosses signal line. Each mode checks Value[0] (SignalBar bar) vs Value[1] (SignalBar+1 bar) for crossover detection. SignalBar=1 means signals are read from the previous closed bar (shift 1). Entry permissions are controlled by BuyPosOpen/SellPosOpen booleans; exit permissions by BuyPosClose/SellPosClose. Uses LoadHistory() for bar synchronization. Recount flag triggers signal recalculation on data arrival failure. The XMACD custom indicator supports 10 smoothing methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA) via SmoothAlgorithms.mqh - these are non-standard and must be reimplemented in Python. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose wrappers with position management.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "XMACD custom indicator (iCustom call)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "EURUSD H4 730 days",
+  "python_conversion_notes": "Must reimplement XMACD indicator in Python with support for 10 smoothing methods from SmoothAlgorithms.mqh (JJMA, JurX, ParMA, T3, VIDYA, AMA are non-standard). The histogram = Fast_MA - Slow_MA using selectable smoothing; signal line = SMA/other of histogram. Four entry modes need to be parameterized in the backtest framework. Default mode is MACDdisposition (histogram crosses signal line). Position sizing has dual mode (fixed lot vs deposit fraction) based on sign of MM input. StopLoss/TakeProfit are in points (1000/2000 = 100/200 pips for 5-digit brokers). TradeAlgorithms.mqh functions need mapping to standard open/close operations. The SignalBar=1 default ensures signals come from completed bars - critical for realistic backtesting.",
+  "extraction_timestamp": "2026-05-20T21:53:47.594791",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 191.92,
+    "cost": 0
+  }
+}

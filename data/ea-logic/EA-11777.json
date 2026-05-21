@@ -1,0 +1,149 @@
+{
+  "ea_id": "EA-11777",
+  "convertibility": "mt5_only",
+  "convertibility_reason": "Multi-currency simultaneous trading (Money1 + Money2 pair), tick-level monitoring loop with Sleep() for profit tracking, custom Correlation indicator dependency, complex deal history polling to detect SL/TP closures of paired positions, and intrabar tick-driven position management that cannot be faithfully reproduced in bar-based backtesting.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Correlation",
+      "params": {
+        "period": 50,
+        "applied_to": 6,
+        "shift": 0,
+        "secondary_symbol": "USDCHF"
+      },
+      "source": "custom",
+      "library": "Correlation",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "CorrelationF",
+      "formula": "CorrelationBuffer[0] within [Open_Value - Demis_Value, Open_Value + Demis_Value]",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "TrendUP/TrendDown for Money1",
+      "formula": "Based on session time and currency position in pair (0=base=up, 3=quote=down) for AUD,NZD,JPY,EUR,CHF,GBP,USD,CAD",
+      "used_by": "entry rule (auto direction)"
+    },
+    {
+      "name": "TrendUP2/TrendDown2 for Money2",
+      "formula": "Same logic as TrendUP/TrendDown but applied to Money2 symbol",
+      "used_by": "entry rule (auto direction)"
+    },
+    {
+      "name": "CombinedProfit",
+      "formula": "OrderProfit1 + OrderProfit2 via OrderCalcProfit",
+      "used_by": "exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "CorrelationBuffer[0]",
+        "right": "range [Open_Value - Demis_Value, Open_Value + Demis_Value]",
+        "direction": "within",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "CorrelationBuffer[0]",
+        "right": "range [Open_Value - Demis_Value, Open_Value + Demis_Value]",
+        "direction": "within",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 5000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 5000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close both positions when combined profit (OrderProfit1 + OrderProfit2) >= Profit parameter (20) in account currency",
+      "Detect SL/TP hit on either leg via HistoryDealGetTicket polling, then wait for the other leg to also hit SL/TP before allowing new entries"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed",
+    "value": 1.0,
+    "params": {
+      "lot1": 1.0,
+      "lot2": 1.3
+    },
+    "max_positions": 2,
+    "conditional_logic": "Always opens 2 simultaneous positions (one per symbol) with different lot sizes"
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 3,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_tick",
+    "intrabar_signal_behavior": "every_tick"
+  },
+  "custom_logic_notes": "This is a correlation-based pairs trading EA. It simultaneously opens two positions on two correlated currency pairs (Money1=chart symbol, Money2=user-specified). Direction is determined either manually or automatically based on session time and which currency is base/quote. Auto mode has two sub-modes: 'Direct' (opposite directions - hedge) and 'Inverted' (same direction). The EA uses a Sleep()-based monitoring loop after opening positions, polling OrderCalcProfit every 10ms until combined profit >= threshold or SL/TP hit. It then closes both positions with opposite market orders. The day-of-week filter blocks trading on disabled days. The custom 'Correlation' indicator is required and not a built-in MT5 indicator.",
+  "external_dependencies": [
+    "Correlation custom indicator (iCustom call to 'Correlation' with Money2, Depth, AppliedPrice parameters)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Multi-symbol tick data for two correlated pairs (e.g. EURUSD + USDCHF) with at least 730 days",
+  "python_conversion_notes": "Requires multi-symbol data alignment, custom correlation indicator implementation (Pearson rolling correlation on applied price), pairs trading logic with combined P&L tracking, session-based currency direction bias, and simultaneous position management. The Sleep()-based monitoring loop must be converted to event-driven bar-by-bar evaluation. The SL/TP detection via HistoryDealGetTicket polling must be replaced with price-level comparison logic. Auto direction logic based on session times and currency position in pair name must be reimplemented.",
+  "extraction_timestamp": "2026-05-20T22:30:12.031975",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 99.29,
+    "cost": 0
+  }
+}

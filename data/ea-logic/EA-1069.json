@@ -1,0 +1,148 @@
+{
+  "ea_id": "EA-1069",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator name '3rdGenXMA' and includes external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) that contain custom smoothing algorithms and trade management logic not available as built-in indicators. The 3rd Generation XMA is a custom indicator requiring manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "3rdGenXMA",
+      "params": {
+        "method": 1,
+        "period": 50,
+        "phase": 15,
+        "applied_price": 6,
+        "shift": 0,
+        "price_shift": 0
+      },
+      "source": "custom",
+      "library": "3rdGenXMA indicator (depends on SmoothAlgorithms.mqh)",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value[0], Value[1], Value[2] - three consecutive bars of 3rdGenXMA buffer 0",
+      "formula": "CopyBuffer(handle, 0, SignalBar, 3) → Value[0]=current bar, Value[1]=previous bar, Value[2]=two bars ago",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "XMA rising condition",
+      "formula": "Value[1] < Value[2] (XMA was rising on previous bar)",
+      "used_by": "entry rule long"
+    },
+    {
+      "name": "XMA falling condition",
+      "formula": "Value[1] > Value[2] (XMA was falling on previous bar)",
+      "used_by": "entry rule short"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1] < Value[2]",
+        "right": "Value[0] > Value[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1] > Value[2]",
+        "right": "Value[0] < Value[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when XMA falling condition detected (Value[1] > Value[2]) and BuyPosClose=true",
+      "Short position closed when XMA rising condition detected (Value[1] < Value[2]) and SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_size_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM=-0.1 means negative values are treated as fixed lot size (0.1 lots), positive values are deposit share fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The 3rd Generation XMA indicator is a double-smoothed moving average using configurable smoothing methods (SMA/EMA/SMMA/LWMA/JJMA/JurX/ParMA/T3/VIDYA/AMA). It requires SmoothAlgorithms.mqh which contains the CXMA class with GetStartBars() and the full smoothing algorithm implementations. The TradeAlgorithms.mqh library handles BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose with global variable management and signal time tracking. Entry logic: long when XMA was rising (Value[1]<Value[2]) and current bar continues rise (Value[0]>Value[1]); short when XMA was falling (Value[1]>Value[2]) and current bar continues fall (Value[0]<Value[1]). SignalBar=1 means signals are evaluated on the previous completed bar (shift=1). BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose are boolean gates allowing independent control of entry and exit permissions.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh - Contains CXMA class with 10 smoothing method implementations (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA)",
+    "TradeAlgorithms.mqh - Contains BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar",
+    "3rdGenXMA custom indicator - The actual indicator file loaded via iCustom"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days (default H4 timeframe, symbol from chart)",
+  "python_conversion_notes": "The 3rdGenXMA indicator is a double-smoothed moving average: first smooth with period 2*XLength, then smooth the result with period XLength, both using the same XMA_Method. The third generation aspect adds a correction term. For Python conversion: (1) Implement the selected smoothing method (default EMA with period 50) - can use pandas EWM for EMA; (2) Compute first smooth on price with period 100 (2*50), then second smooth on result with period 50; (3) The signal logic is straightforward: compare 3 consecutive XMA values. Entry on next bar open after signal. The SignalBar=1 offset means using previous bar's values for signal generation. Position sizing with negative MM value means fixed lot size of 0.1. StopLoss=1000 points, TakeProfit=2000 points. Signal reversal closes existing position before opening opposite.",
+  "extraction_timestamp": "2026-05-20T21:46:16.424322",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 168.36,
+    "cost": 0
+  }
+}

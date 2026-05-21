@@ -1,0 +1,132 @@
+{
+  "ea_id": "EA-12581",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'simple_trading_system' custom indicator (unknown implementation), plus external #include <TradeAlgorithms.mqh> library providing BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose/LoadHistory/GlobalVariableDel_/CIsNewBar helpers. Custom indicator logic is opaque and must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "simple_trading_system",
+      "params": {
+        "ma_shift": 4,
+        "ma_period": 2,
+        "ma_method": 1,
+        "applied_price": 0,
+        "signal_bar": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpSignal (buy arrow)",
+      "formula": "simple_trading_system buffer 1 at SignalBar != 0 && != EMPTY_VALUE",
+      "used_by": "entry rule long / exit rule short"
+    },
+    {
+      "name": "DnSignal (sell arrow)",
+      "formula": "simple_trading_system buffer 0 at SignalBar != 0 && != EMPTY_VALUE",
+      "used_by": "entry rule short / exit rule long"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "simple_trading_system buffer 1 (UpValue)",
+        "right": "non-zero and non-EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "simple_trading_system buffer 0 (DnValue)",
+        "right": "non-zero and non-EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: if BuyPosClose enabled and DnValue signal appears, close long; if SellPosClose enabled and UpValue signal appears, close short. Additionally, historical bar scan (bars > SignalBar) checks for prior opposite signal to confirm close."
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum: FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3, LOT=4. Default LOT means fixed lot sizing at MM=0.1."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "1. The EA calls iCustom(Symbol(), InpInd_Timeframe, 'simple_trading_system', MAShift=4, MAPeriod=2, MAType=MODE_EMA, MAPrice=PRICE_CLOSE) — the indicator source is NOT available, so buffer semantics (which bar gets an arrow) are unknown. 2. TradeAlgorithms.mqh provides CIsNewBar class for new-bar detection, plus BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose wrappers that handle position counting, margin calc, and order sending. 3. When both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled, the EA scans historical bars beyond SignalBar to find a prior opposite signal before allowing a close — this is a confirmation mechanism. 4. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose are input booleans allowing independent toggling of each direction's entry and exit. 5. ATR_Period=15 is used only for min_rates_total calculation (sufficient-bars guard), not as a trading indicator. 6. Signal bar parameter defaults to 1 (previous completed bar).",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "simple_trading_system indicator (custom, source not available)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H6 730 days (symbol unspecified in EA, uses Symbol() at runtime)",
+  "python_conversion_notes": "1. Must reverse-engineer or locate the 'simple_trading_system' custom indicator to understand its buffer logic. The indicator likely computes a MA crossover with shift and plots arrows in buffers 0 (sell) and 1 (buy). Given params: EMA period 2 shift 4 on close, the indicator probably compares current EMA vs shifted EMA. 2. TradeAlgorithms.mqh helper functions must be reimplemented: position counting, margin-based lot sizing (5 modes), new-bar detection, order send with deviation. 3. The historical-bar close-confirmation scan (lines 130-153) must be faithfully reproduced. 4. Position sizing LOT mode is straightforward (fixed 0.1 lot), but other MarginMode options require balance/equity/free margin queries. 5. StopLoss and TakeProfit are in points (1000/2000 = 100/200 pips at 5-digit), must convert to price levels in Python.",
+  "extraction_timestamp": "2026-05-20T22:55:14.282070",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 89.53,
+    "cost": 0
+  }
+}

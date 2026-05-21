@@ -1,0 +1,193 @@
+{
+  "ea_id": "EA-1296",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with 'ColorNonLagDotMACD' which is an unknown custom indicator not among built-in MT5 indicators. Also includes external TradeAlgorithms.mqh library for position management. The custom indicator logic and external library require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorNonLagDotMACD",
+      "params": {
+        "price": 1,
+        "filter": 0,
+        "deviation": 0.0,
+        "fast_method": 0,
+        "fast_period": 12,
+        "slow_method": 0,
+        "slow_period": 26,
+        "signal_period": 9,
+        "signal_method": 1
+      },
+      "source": "custom",
+      "library": "ColorNonLagDotMACD",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MACD histogram (buffer 0)",
+      "formula": "ColorNonLagDotMACD buffer 0 - NonLagDot fast MA minus NonLagDot slow MA",
+      "used_by": "entry rule (breakdown, MACDtwist, MACDdisposition modes)"
+    },
+    {
+      "name": "Signal line (buffer 2)",
+      "formula": "ColorNonLagDotMACD buffer 2 - Signal MA of the MACD histogram",
+      "used_by": "entry rule (SIGNALtwist, MACDdisposition modes)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "MACD histogram",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "MACD histogram[1]",
+        "right": "MACD histogram[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Signal line[1]",
+        "right": "Signal line[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "MACD histogram",
+        "right": "Signal line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "MACD histogram",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "MACD histogram[1]",
+        "right": "MACD histogram[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "Signal line[1]",
+        "right": "Signal line[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossunder",
+        "left": "MACD histogram",
+        "right": "Signal line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when sell signal is generated and BuyPosClose=true",
+      "Short position closed when buy signal is generated and SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_meansFixedLot": true,
+      "fixed_lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "When MM is negative, absolute value is used as fixed lot size; when positive, it represents the share of deposit per deal"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA implements 4 entry modes selectable via AlgMode enum: (1) 'breakdown' - MACD histogram crosses zero line; (2) 'MACDtwist' - MACD histogram changes direction (Value[0]>Value[1] after Value[1]<Value[2] for buy); (3) 'SIGNALtwist' - Signal line (buffer 2) changes direction; (4) 'MACDdisposition' - MACD histogram crosses signal line. Default mode is MACDdisposition. The NonLagDot variant is a zero-lag smoothing technique applied to the MACD calculation, replacing standard MAs with NonLagDot MAs. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean gates independently control entry and exit permissions. SignalBar=1 means signals are read from the previous closed bar (not current forming bar). Recount flag triggers signal recalculation if CopyBuffer fails.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "ColorNonLagDotMACD indicator (.ex5 or .mq5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "The custom ColorNonLagDotMACD indicator must be reimplemented in Python. NonLagDot is a zero-lag moving average - need to find its algorithm (likely uses extrapolation of linear regression or similar zero-lag technique). The MACD is then NonLagDot(fast_period) - NonLagDot(slow_period), with a signal line of NonLagDotMA(signal_period) applied to the MACD. The TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, CIsNewBar, LoadHistory, GlobalVariableDel_) handle order management and must be reimplemented as standard market order logic with SL/TP. The 4 entry modes are straightforward conditional logic. Position sizing with negative MM=lot size is a simple conditional. SignalBar=1 means always use previous bar's values for signal generation.",
+  "extraction_timestamp": "2026-05-20T23:06:24.401212",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 91.33,
+    "cost": 0
+  }
+}

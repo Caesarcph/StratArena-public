@@ -1,0 +1,146 @@
+{
+  "ea_id": "EA-12606",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator 'AFL_WinnerSign' which is not a built-in MT5 indicator. Also includes two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) providing custom trade management and smoothing algorithms. The AFL_WinnerSign indicator logic is opaque and must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AFL_WinnerSign",
+      "params": {
+        "iAverage": 5,
+        "iPeriod": 10,
+        "iMA_Method": 0,
+        "iLength": 5,
+        "iPhase": 15,
+        "IPC": 6,
+        "VolumeType": 1,
+        "signal_bar": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 10
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpValue - AFL_WinnerSign buffer 1 buy signal",
+      "formula": "CopyBuffer(handle, 1, SignalBar, 1, UpValue) — non-zero and != EMPTY_VALUE means buy signal",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DnValue - AFL_WinnerSign buffer 0 sell signal",
+      "formula": "CopyBuffer(handle, 0, SignalBar, 1, DnValue) — non-zero and != EMPTY_VALUE means sell signal",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "AFL_WinnerSign buffer 1 (UpValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "AFL_WinnerSign buffer 0 (DnValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposing signal closes position: UpValue signal closes short, DnValue signal closes long. Additional lookback scan from SignalBar+1 to Bars checks for opposing signals if both open and close flags are enabled and no close signal found on current bar."
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT",
+      "modes_available": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method; LOT mode uses fixed lot fraction of 0.1"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The AFL_WinnerSign custom indicator must be fully reimplemented. It uses configurable smoothing (SMA/EMA/SMMA/LWMA/JJMA/JurX/ParMA/T3/VIDYA/AMA via SmoothAlgorithms.mqh), applied price types (9 custom price types beyond standard 7), and volume type selection. The EA has a lookback scan mechanism: if both open and close flags are enabled for a side and no close signal is found on the SignalBar, it scans forward bars (SignalBar+1 to Bars) for an opposing signal to trigger close. Signal bar is configurable (default=1 meaning previous bar). BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose boolean inputs gate which actions are allowed. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar utilities.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh",
+    "AFL_WinnerSign.ex5 (custom indicator binary)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H6 730 days with tick volume",
+  "python_conversion_notes": "Must reverse-engineer or find AFL_WinnerSign indicator source to reimplement in Python. The indicator uses the SmoothAlgorithms.mqh library which implements 10 smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard MAs). The AFL_WinnerSign indicator logic likely combines a weighted/average price with smoothing and volume normalization to produce directional signals on two buffers. The applied price enum (PRICE_WEIGHTED default=HLCC/4) and volume type (VOLUME_TICK default) feed into the indicator. GetStartBars() from SmoothAlgorithms.mqh determines minimum lookback. Entry is simple (signal on previous bar), but the lookback close-scan loop adds complexity. Position sizing supports 5 margin modes via TradeAlgorithms.mqh which must also be ported.",
+  "extraction_timestamp": "2026-05-20T22:59:49.013973",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 159.74,
+    "cost": 0
+  }
+}

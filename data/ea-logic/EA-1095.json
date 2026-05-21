@@ -1,0 +1,247 @@
+{
+  "ea_id": "EA-1095",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'BinaryWave' custom indicator and includes external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) with unknown implementations. The BinaryWave indicator itself is a composite of 7 weighted sub-indicators with JJMA smoothing - requires manual Python reimplementation of the custom indicator logic.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BinaryWave",
+      "params": {
+        "WeightMA": 1.0,
+        "WeightMACD": 1.0,
+        "WeightOsMA": 1.0,
+        "WeightCCI": 1.0,
+        "WeightMOM": 1.0,
+        "WeightRSI": 1.0,
+        "WeightADX": 1.0,
+        "MAPeriod": 13,
+        "MAType": 1,
+        "MAPrice": 0,
+        "FastMACD": 12,
+        "SlowMACD": 26,
+        "SignalMACD": 9,
+        "PriceMACD": 0,
+        "FastPeriod": 12,
+        "SlowPeriod": 26,
+        "SignalPeriod": 9,
+        "OsMAPrice": 0,
+        "CCIPeriod": 14,
+        "CCIPrice": 5,
+        "MOMPeriod": 14,
+        "MOMPrice": 0,
+        "RSIPeriod": 14,
+        "RSIPrice": 0,
+        "ADXPeriod": 14,
+        "bMA_Method": 4,
+        "bLength": 5,
+        "bPhase": 100
+      },
+      "source": "custom",
+      "library": "BinaryWave",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 13,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "CCI",
+      "name": "CCI",
+      "params": {
+        "period": 14,
+        "applied_to": 5
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Momentum",
+      "name": "Momentum",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "applied_to": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "BinaryWave",
+      "formula": "weighted_sum = WeightMA*MA_signal + WeightMACD*MACD_signal + WeightOsMA*OsMA_signal + WeightCCI*CCI_signal + WeightMOM*MOM_signal + WeightRSI*RSI_signal + WeightADX*ADX_signal; each sub-signal is binary (+1/-1); result smoothed by bMA_Method(JJMA, period=5, phase=100)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "BinaryWave_breakdown_signal",
+      "formula": "Value[1]>0 AND Value[0]<=0 => BUY; Value[1]<0 AND Value[0]>=0 => SELL (zero crossover)",
+      "used_by": "entry rule in breakdown mode"
+    },
+    {
+      "name": "BinaryWave_twist_signal",
+      "formula": "Value[1]<Value[2] AND Value[0]>Value[1] => BUY (wave direction change to up); Value[1]>Value[2] AND Value[0]<Value[1] => SELL (wave direction change to down)",
+      "used_by": "entry rule in twist mode"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "BinaryWave[1]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "BinaryWave",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "BinaryWave[1]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "BinaryWave",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "points": 1000
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "points": 2000
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "In breakdown mode: long closes when BinaryWave goes below 0 (if BuyPosClose=true)",
+      "In breakdown mode: short closes when BinaryWave goes above 0 (if SellPosClose=true)",
+      "In twist mode: long closes when wave direction changes downward (if BuyPosClose=true)",
+      "In twist mode: short closes when wave direction changes upward (if SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "MM": -0.1,
+      "note": "negative value means fixed lot size of 0.1; positive values represent deposit fraction"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 => fixed lot |MM|; MM>0 => deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Two entry modes: 'breakdown' (zero-line crossover of BinaryWave) and 'twist' (direction change of smoothed BinaryWave). The BinaryWave indicator is a composite of 7 standard indicators (MA, MACD, OsMA, CCI, Momentum, RSI, ADX) each converted to binary +/-1 signals, weighted, summed, then smoothed by JJMA (JMA) algorithm from SmoothAlgorithms.mqh. SignalBar=1 means signals are read from the previous closed bar (bar index 1). In breakdown mode, Value[0] is bar at SignalBar, Value[1] is bar at SignalBar+1 - detecting crossover of zero line. In twist mode, 3 bars are read to detect direction change. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean gates controlling which trade actions are permitted.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "BinaryWave indicator (custom .ex5 or .mq5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement BinaryWave indicator: compute 7 sub-indicators (MA, MACD, OsMA, CCI, Momentum, RSI, ADX), convert each to binary signal (+1 if bullish, -1 if bearish), apply weights, sum, then smooth with JJMA algorithm. JJMA (JMA) is a proprietary smoothing algorithm from SmoothAlgorithms.mqh - need to find or reimplement the Jurik/JJMA smoothing. The TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose - standard market order execution with SL/TP. Two entry modes need separate implementation: breakdown (zero crossover) and twist (direction reversal). Position sizing logic: MM<0 means fixed lot |MM|, MM>0 means fraction of deposit.",
+  "extraction_timestamp": "2026-05-20T21:53:27.789598",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 230.91,
+    "cost": 0
+  }
+}

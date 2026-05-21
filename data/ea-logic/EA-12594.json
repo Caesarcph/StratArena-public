@@ -1,0 +1,166 @@
+{
+  "ea_id": "EA-12594",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with 'NRatioSign' (unknown custom indicator) and includes two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) with complex position management functions that require manual Python reimplementation",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "NRatioSign",
+      "params": {
+        "xma_method": 0,
+        "xlength": 3,
+        "xphase": 15,
+        "ipc": 1,
+        "kf": 1.0,
+        "fast": 2.0,
+        "sharp": 2.0,
+        "mode": 1,
+        "nratio_uplevel": 80,
+        "nratio_dnlevel": 20,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "NRatioSign.ex5",
+      "derived_period": null
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 10,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "min_rates_total",
+      "formula": "max(GetStartBars(XMA_Method,XLength,XPhase)+1, ATR_Period) + SignalBar + 3",
+      "used_by": "bar count guard"
+    },
+    {
+      "name": "UpSignal",
+      "formula": "CopyBuffer(handle,1,SignalBar,1) != 0 and != EMPTY_VALUE",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DnSignal",
+      "formula": "CopyBuffer(handle,0,SignalBar,1) != 0 and != EMPTY_VALUE",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Historical close signal scan",
+      "formula": "Loop from SignalBar+1 to Bars_-1 checking buffers 1 and 0 for non-zero non-EMPTY_VALUE to set BUY_Close/SELL_Close when both open and close flags enabled and no direct close signal found",
+      "used_by": "exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "NRatioSign buffer 1 (UpValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "NRatioSign buffer 0 (DnValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Historical bar scan: when both BuyPosOpen+BuyPosClose or SellPosOpen+SellPosClose are enabled, and no direct close signal on SignalBar, scans historical bars forward from SignalBar+1 to find the first opposing signal to set close flags",
+      "BuyPosClose and SellPosClose input flags control whether signal-reversal closes are active"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode selects between FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE, or fixed LOT sizing"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a custom NRatioSign indicator with two buffers: buffer 0 for down signals, buffer 1 for up signals. Signal interpretation depends on Alg_Method (MODE_IN vs MODE_OUT). Includes a complex historical bar scan for close signals when both open and close permissions are enabled simultaneously and no direct close signal is found on the current SignalBar. Position management is handled by external TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, GetStartBars). The CIsNewBar class from TradeAlgorithms.mqh controls new-bar gating. SmoothAlgorithms.mqh provides the Smooth_Method enum and GetStartBars function used for indicator parameter validation. Input flags BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose act as conditional gates on all signal actions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh",
+    "NRatioSign.ex5"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "",
+  "python_conversion_notes": "Requires full reimplementation of NRatioSign indicator logic (unknown internals) or reverse-engineering from the .ex5. TradeAlgorithms.mqh position sizing and order management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) must be reimplemented in Python including margin calculation modes (FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE, LOT). The historical bar scan for close signals on bars beyond SignalBar adds complexity. CIsNewBar class must be replaced with a bar-based timestamp tracking mechanism. SmoothAlgorithms.mqh provides multiple smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard SMA/EMA/SMMA/LWMA) which would need Python implementations if NRatioSign uses any non-standard method.",
+  "extraction_timestamp": "2026-05-20T22:57:03.314207",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 109.03,
+    "cost": 0
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "ea_id": "EA-1150",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "EA depends on iCustom call to 'T3MA-ALARM' indicator which is a custom indicator (double-smoothed MA with direction change detection). The indicator logic is available in the companion file but requires manual Python reimplementation of the custom indicator's derived signals (BufDir direction tracking and arrow triggers). Standard library includes (Trade.mqh, SymbolInfo.mqh, PositionInfo.mqh) are MT5 trade management helpers, not signal logic.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "T3MA-ALARM",
+      "params": {
+        "period": 19,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "t3ma-alarm.mq5",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 4,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 4,
+        "method": 1,
+        "applied_to": 8,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "BufDir",
+      "formula": "BufDir[i] = BufDir[i-1]; if MA2[i-MAShift] > MA2[i-MAShift-1] then BufDir[i]=1; if MA2[i-MAShift] < MA2[i-MAShift-1] then BufDir[i]=-1",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "BufBuy arrow signal",
+      "formula": "BufDir[i]==1 && BufDir[i-1]==-1 → Buy arrow at low[i]",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "BufSell arrow signal",
+      "formula": "BufDir[i]==-1 && BufDir[i-1]==1 → Sell arrow at high[i]",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "T3MA-ALARM buffer 1 (BufBuy)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "T3MA-ALARM buffer 2 (BufSell)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 0,
+      "params": {
+        "default_input": 0,
+        "unit": "points",
+        "note": "0 means no stoploss by default; if set > 0, buy SL = Ask - StopLoss*Point, sell SL = Bid + StopLoss*Point"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 300,
+      "params": {
+        "unit": "points",
+        "note": "Buy TP = Ask + TakeProfit*Point, Sell TP = Bid - TakeProfit*Point"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "StopsLevel minimum distance check: SL/TP must be beyond broker minimum stop level"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The T3MA-ALARM indicator computes a double-smoothed EMA: first iMA on PRICE_CLOSE, then iMA on the first MA's handle output (MA of MA). Direction is tracked in BufDir: +1 for rising, -1 for falling. Buy signal fires on BufDir crossing from -1 to +1; Sell signal fires on BufDir crossing from +1 to -1. The EA reads buffer index 1 (BufBuy) and buffer index 2 (BufSell) from the custom indicator. When RevClose=true, opposite signal closes existing position before new entry. Entry is blocked if opposite close signal exists (no_position gate with additional condition: OpenBuy && !OpenSell && !CloseBuy). StopLoss/TakeProfit are validated against broker StopsLevel before order placement. Shift=1 means signals are evaluated on the first confirmed bar (not the forming bar), which is critical for backtest accuracy.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/PositionInfo.mqh",
+    "T3MA-ALARM indicator (custom, source available)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol D1 or H1 730 days",
+  "python_conversion_notes": "Reimplement T3MA-ALARM indicator in Python: compute EMA on close prices, then compute EMA on the EMA result. Track direction changes: when double-EMA rises set dir=1, when it falls set dir=-1. Buy signal when dir crosses from -1 to +1; Sell signal when dir crosses from +1 to -1. Use input defaults: MAPeriod=19, MAMethod=EMA, MAPrice=CLOSE, Shift=1 (evaluate on previous confirmed bar). Position sizing is fixed lot. SL/TP in points need conversion to price offsets. RevClose=true means close on opposite signal. Only one position at a time per symbol.",
+  "extraction_timestamp": "2026-05-20T22:22:48.938257",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 208.48,
+    "cost": 0
+  }
+}

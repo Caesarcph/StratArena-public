@@ -1,0 +1,174 @@
+{
+  "ea_id": "EA-1290",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load '3XMA_Ishimoku' custom indicator and includes external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh). The 3XMA_Ishimoku indicator implements triple smoothed high/low channels with Ishimoku-style logic that must be manually reimplemented in Python. However, the trading logic itself is straightforward (crossover signals), making conversion manageable but not automatic.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "3XMA_Ishimoku",
+      "params": {
+        "Up_period1": 3,
+        "Dn_period1": 3,
+        "Up_period2": 6,
+        "Dn_period2": 6,
+        "Up_period3": 9,
+        "Dn_period3": 9,
+        "Up_mode1": 2,
+        "Dn_mode1": 1,
+        "Up_mode2": 2,
+        "Dn_mode2": 1,
+        "Up_mode3": 2,
+        "Dn_mode3": 1,
+        "XMA1_Method": 0,
+        "XMA2_Method": 0,
+        "XMA3_Method": 0,
+        "XLength1": 8,
+        "XLength2": 25,
+        "XLength3": 80,
+        "XPhase": 15,
+        "applied_price1": 0,
+        "applied_price2": 0,
+        "applied_price3": 0
+      },
+      "source": "custom",
+      "library": "3XMA_Ishimoku",
+      "derived_period": 80
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "XmaValue",
+      "formula": "Buffer 0 of 3XMA_Ishimoku indicator - central smoothed line (triple XMA of price)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "UpValue",
+      "formula": "Buffer 1 of 3XMA_Ishimoku indicator - upper channel line (smoothed high extremes across 3 periods)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DnValue",
+      "formula": "Buffer 2 of 3XMA_Ishimoku indicator - lower channel line (smoothed low extremes across 3 periods)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "UpperEnvelope",
+      "formula": "MathMax(UpValue, DnValue) - the higher of the two channel lines",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "LowerEnvelope",
+      "formula": "MathMin(UpValue, DnValue) - the lower of the two channel lines",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "XmaValue",
+        "right": "UpperEnvelope(MathMax(UpValue,DnValue))",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "XmaValue",
+        "right": "LowerEnvelope(MathMin(UpValue,DnValue))",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed on signal reversal when XmaValue crosses below LowerEnvelope (BUY_Close=true when short entry signal fires and BuyPosClose=true)",
+      "Short position closed on signal reversal when XmaValue crosses above UpperEnvelope (SELL_Close=true when long entry signal fires and SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "description": "MM=-0.1 means negative value indicates fixed lot size of 0.1; positive values would be deposit fraction"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0: absolute lot size=|MM|; MM>0: fraction of deposit"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The 3XMA_Ishimoku indicator computes 3 layers of smoothed high/low channels with periods (3,6,9) using configurable smoothing methods (default SMA) and smoothing depths (8,25,80). The central XMA line crosses above/below the channel envelope (MathMax/MathMin of Up and Dn channel lines) to generate signals. Signal detection uses a 2-bar lookback: previous bar XmaValue was outside envelope AND current bar XmaValue is inside or crossed back, confirming a crossover. The Ishimoku aspect refers to the high/low extremum channel approach similar to Ichimoku cloud construction. SignalBar=1 means signals are read from the previous completed bar (not the forming bar), which reduces repainting. The BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose booleans allow independently enabling/disabling each trade direction and exit type. LoadHistory() call ensures sufficient bar data is available before signal detection.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "3XMA_Ishimoku (custom indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any forex pair H4 730 days",
+  "python_conversion_notes": "Must reimplement 3XMA_Ishimoku indicator: (1) compute rolling max(HIGH, Up_period) and min(LOW, Dn_period) for each of the 3 period sets, (2) apply configured smoothing (SMA by default) with depths 8/25/80 to both upper and lower extremum series, (3) combine the 3 smoothed upper lines into UpValue and 3 smoothed lower lines into DnValue, (4) compute XmaValue as the smoothed central line. Then entry logic is: XmaValue[1]>MathMax(UpValue[1],DnValue[1]) AND XmaValue[0]<=MathMax(UpValue[0],DnValue[0]) → buy; XmaValue[1]<MathMin(UpValue[1],DnValue[1]) AND XmaValue[0]>=MathMin(UpValue[0],DnValue[0]) → sell. Position sizing: if MM<0 use |MM| as lot; if MM>0 use as deposit fraction. Fixed SL=1000 points, TP=2000 points. Signal reversal closes opposite positions. Trade only on new bar at H4. The CXMA.GetStartBars() function from SmoothAlgorithms.mqh determines the minimum bars needed for warmup - for SMA this equals the period length. Will need to reverse-engineer the 3XMA_Ishimoku indicator source to replicate exact buffer calculations.",
+  "extraction_timestamp": "2026-05-20T23:05:29.352761",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 158.44,
+    "cost": 0
+  }
+}

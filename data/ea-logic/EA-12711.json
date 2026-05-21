@@ -1,0 +1,190 @@
+{
+  "ea_id": "EA-12711",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator name 'ForexProfitBoost_2nb' and includes external .mqh library 'TradeAlgorithms.mqh' which provides position management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, LoadHistory) that must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 7,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "ForexProfitBoost_2nb",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "SMA",
+      "params": {
+        "period": 21,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "ForexProfitBoost_2nb",
+      "derived_period": null
+    },
+    {
+      "type": "BB",
+      "name": "BB",
+      "params": {
+        "period": 15,
+        "method": 0,
+        "applied_to": 0,
+        "deviation": 1.0,
+        "shift": 1
+      },
+      "source": "custom",
+      "library": "ForexProfitBoost_2nb",
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "ForexProfitBoost_2nb",
+      "params": {
+        "ma_period1": 7,
+        "ma_method1": 1,
+        "ma_price1": 0,
+        "ma_period2": 21,
+        "ma_method2": 0,
+        "ma_price2": 0,
+        "bb_period": 15,
+        "bb_deviation": 1.0,
+        "bb_shift": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Up signal buffer (index 4)",
+      "formula": "CopyBuffer(handle, 4, SignalBar, 2, Up) — custom indicator buffer 4, EMPTY_VALUE means no signal",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Dn signal buffer (index 2)",
+      "formula": "CopyBuffer(handle, 2, SignalBar, 2, Dn) — custom indicator buffer 2, EMPTY_VALUE means no signal",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "min_rates_total",
+      "formula": "max(BBPeriod, max(MAPeriod1, MAPeriod2)) + 1 + 2 + SignalBar",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Up[1] (buffer 4 at SignalBar+1)",
+        "right": "Dn[0] (buffer 2 at SignalBar)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Dn[1] (buffer 2 at SignalBar+1)",
+        "right": "Up[0] (buffer 4 at SignalBar)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose triggered when Dn[1] != EMPTY_VALUE (down signal appears)",
+      "SellPosClose triggered when Up[1] != EMPTY_VALUE (up signal appears)"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT",
+      "description": "MarginMode input selects between LOT and other margin-based sizing modes defined in TradeAlgorithms.mqh"
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a custom indicator 'ForexProfitBoost_2nb' with 5+ buffers (at least buffers 2 and 4 are used for signals). Signal logic: Up[1]!=EMPTY_VALUE triggers long entry if Dn[0]!=EMPTY_VALUE (confirming prior bearish state) and closes shorts. Dn[1]!=EMPTY_VALUE triggers short entry if Up[0]!=EMPTY_VALUE (confirming prior bullish state) and closes longs. The UpSignalTime/DnSignalTime are passed to position open functions (likely used as expiration or gating). The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, and LoadHistory — all need manual Python reimplementation. LoadHistory pre-loads bar history; CIsNewBar ensures once-per-bar execution. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose are boolean inputs allowing users to disable specific trade directions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "ForexProfitBoost_2nb (custom indicator .ex5 or .mq5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H6 730 days",
+  "python_conversion_notes": "Must reverse-engineer ForexProfitBoost_2nb indicator logic: it combines EMA(7, CLOSE), SMA(21, CLOSE), and BB(15, 1.0 dev, shift 1). Buffer 2 = down signals, Buffer 4 = up signals. EMPTY_VALUE = no signal. The signal confirmation logic requires two consecutive bar checks (SignalBar and SignalBar+1). TradeAlgorithms.mqh functions must be reimplemented: position open/close with SL/TP in points, margin-based lot sizing, new bar detection, and history loading. The SignalBar input (default 1) means signals are read from bar index 1 (previous completed bar), making this suitable for next-bar-open backtesting.",
+  "extraction_timestamp": "2026-05-20T23:01:07.486240",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 184.61,
+    "cost": 0
+  }
+}

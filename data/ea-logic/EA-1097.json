@@ -1,0 +1,141 @@
+{
+  "ea_id": "EA-1097",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'Arrows_Curves' indicator (unknown custom indicator with 4 proprietary buffers) and #include <TradeAlgorithms.mqh> external library for order management. Both require manual Python reimplementation of the indicator logic and trade helper functions.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Arrows_Curves",
+      "params": {
+        "SSP": 20,
+        "Channel": 0,
+        "Ch_Close": 30,
+        "relay": 10
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 20
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Buy signal buffer (index 1)",
+      "formula": "CopyBuffer(handle,1,SignalBar,1) !=0 && !=EMPTY_VALUE",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Sell signal buffer (index 0)",
+      "formula": "CopyBuffer(handle,0,SignalBar,1) !=0 && !=EMPTY_VALUE",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "SellStop buffer (index 2)",
+      "formula": "CopyBuffer(handle,2,bar,1) !=0 && !=EMPTY_VALUE",
+      "used_by": "exit rule"
+    },
+    {
+      "name": "BuyStop buffer (index 3)",
+      "formula": "CopyBuffer(handle,3,bar,1) !=0 && !=EMPTY_VALUE",
+      "used_by": "exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Buy buffer[1]",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Sell buffer[0]",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Stop channel exit: historical scan of SellStop buffer (index 2) or Buy signal re-occurrence triggers short close; BuyStop buffer (index 3) or Sell signal re-occurrence triggers long close. Scans bars from SignalBar forward until condition found."
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 means fixed lot size equal to abs(MM); MM>0 means deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The Arrows_Curves custom indicator has 4 buffers: buffer0=Sell signal, buffer1=Buy signal, buffer2=SellStop (exit for shorts), buffer3=BuyStop (exit for longs). The exit logic scans forward through historical bars from SignalBar to find the first non-zero/non-EMPTY_VALUE stop signal OR a reverse signal to generate close signals when no direct close signal is present. This historical scan (loop from SignalBar to Bars_) is non-standard and must be carefully replicated. The TradeAlgorithms.mqh include provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, LoadHistory, CIsNewBar, and GlobalVariableDel_ helper functions. SignalBar=1 means signals are read from the previous completed bar. The relay parameter shifts the indicator's lookback in history.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "Arrows_Curves indicator (.ex5/.mq5)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Two major hurdles: (1) The Arrows_Curves custom indicator algorithm must be obtained/reverse-engineered to compute the 4 signal buffers in Python. Without the indicator source, the buy/sell/stop signals cannot be reproduced. (2) The TradeAlgorithms.mqh library functions for order management need Python equivalents, but these are standard wrappers around CTrade. The signal logic itself is straightforward: buy when buffer1 is non-empty, sell when buffer0 is non-empty, close via signal reversal or stop buffer detection. The historical bar scan for stop signals is the trickiest part and must preserve exact iteration semantics. The MM parameter dual-behavior (negative=lot, positive=deposit fraction) must be handled in position sizing code.",
+  "extraction_timestamp": "2026-05-20T21:52:46.307384",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 84.57,
+    "cost": 0
+  }
+}

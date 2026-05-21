@@ -1,0 +1,139 @@
+{
+  "ea_id": "EA-1215",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to invoke 'ZPF' custom indicator and depends on two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh). The ZPF indicator is not a built-in MT5 indicator, and the smoothing algorithms (JJMA, JurX, ParMA, T3, VIDYA, AMA) require manual Python reimplementation. Simple market order logic otherwise.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ZPF",
+      "params": {
+        "xma_method": 0,
+        "xlength": 12,
+        "xphase": 15,
+        "applied_price": 1,
+        "volume_type": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": 12
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "ZPF histogram value (buffer 1)",
+      "formula": "iCustom(Symbol(), InpInd_Timeframe, 'ZPF', XMA_Method, XLength, XPhase, IPC, VolumeType, 0) buffer 1 at SignalBar and SignalBar+1",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ZPF[SignalBar+1]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "ZPF[SignalBar+1]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when ZPF crosses below zero (signal reversal)",
+      "Short position closed when ZPF crosses above zero (signal reversal)",
+      "BuyPosClose and SellPosClose permissions gate the signal-reversal exits"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_size_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 means fixed lot size of abs(MM); MM>0 means deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal logic: reads two consecutive values from ZPF buffer 1 at SignalBar and SignalBar+1. When Value[1]>0 (current bar ZPF positive) AND Value[0]<=0 (previous bar ZPF was zero or negative), a buy crossover signal fires. Opposite for sell. The SignalBar input (default=1) allows signal verification on closed bars. Recount flag ensures data is re-read on failure. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose are boolean permission gates that can independently disable long entry, short entry, long exit, and short exit. The ZPF indicator uses the SmoothAlgorithms.mqh library which implements 10 smoothing methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA) — all would need Python equivalents. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose helper functions.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "ZPF custom indicator (exp_zpf.mq5 references iCustom with name 'ZPF')"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement ZPF indicator in Python. ZPF likely stands for 'Zero Point Filter' — a smoothed oscillator that crosses zero for signals. The smoothing method (default SMA, period 12, phase 15) must match. Start by implementing the 10 smoothing algorithms from SmoothAlgorithms.mqh (JJMA, JurX, ParMA, T3, VIDYA, AMA are non-standard). The entry logic is straightforward once ZPF values are available: buy on zero-line crossover upward, sell on crossover downward. Fixed SL=1000 points, TP=2000 points. Position sizing: if MM<0 use abs(MM) as lot, else use MM as deposit fraction. Signal evaluated on bar close (SignalBar=1 means use last closed bar). TradeAlgorithms.mqh functions are standard market order execution with SL/TP — can be replaced with simple order placement logic.",
+  "extraction_timestamp": "2026-05-20T22:39:53.349887",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 196.41,
+    "cost": 0
+  }
+}

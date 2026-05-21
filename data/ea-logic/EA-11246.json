@@ -1,0 +1,154 @@
+{
+  "ea_id": "EA-11246",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call 'TSI_WPR' custom indicator and includes external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh). The TSI_WPR indicator applies multiple smoothing passes (JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard EMA) which must be manually reimplemented in Python. Trade management functions (BuyPositionOpen, SellPositionOpen, etc.) come from TradeAlgorithms.mqh and need Python equivalents.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "WPR",
+      "name": "WPR",
+      "params": {
+        "period": 25,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "TSI_WPR (custom indicator)",
+      "derived_period": 25
+    },
+    {
+      "type": "Custom",
+      "name": "TSI_WPR",
+      "params": {
+        "XMA_Method": 1,
+        "WPRPeriod": 25,
+        "MomPeriod": 1,
+        "XLength1": 5,
+        "XLength2": 8,
+        "XLength3": 20,
+        "XPhase": 15
+      },
+      "source": "custom",
+      "library": "TSI_WPR + SmoothAlgorithms.mqh",
+      "derived_period": 25
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TSI_WPR Main Line (buffer 0)",
+      "formula": "WPR(25) smoothed with momentum: double-smoothed WPR with XMA_Method(XLength1) then XMA_Method(XLength2), then triple-smoothed with XMA_Method(XLength3)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "TSI_WPR Signal Line (buffer 1)",
+      "formula": "Signal line of TSI_WPR indicator (likely XMA_Method smoothed version of main line with shorter period)",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "TSI_WPR Main Line",
+        "right": "TSI_WPR Signal Line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "TSI_WPR Main Line",
+        "right": "TSI_WPR Signal Line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": []
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT",
+      "description": "MM=0.1 with LOT mode means fixed lot sizing; other modes (FREEMARGIN, BALANCE, LOSSFREEMARGIN, LOSSBALANCE) calculate based on margin/balance fraction"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects between fixed lot (LOT) or fraction-based sizing (FREEMARGIN=0, BALANCE=1, LOSSFREEMARGIN=2, LOSSBALANCE=3)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The TSI_WPR custom indicator computes a True Strength Index variant applied to WPR values. It uses two indicator buffers: buffer 0 (main line) and buffer 1 (signal line). Signal logic: Long when main crosses above signal (previous bar main<=signal, current bar main>signal with main already above signal on prev bar). Short when main crosses below signal. The crossover detection uses a 2-bar lookback: Ind[1]>Sign[1] confirms uptrend state, then Ind[0]<=Sign[0] on the signal bar means the crossover just happened. BuyPosOpen/SellPosOpen flags control whether entries are enabled. BuyPosClose/SellPosClose flags control whether signal-reversal exits are enabled. GlobalVariableDel_ in OnDeinit cleans up persistent variables. LoadHistory ensures sufficient bar data is loaded before processing.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar, GetStartBars)",
+    "SmoothAlgorithms.mqh (Smooth_Method enum: SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA; GetStartBars function)",
+    "TSI_WPR custom indicator (iCustom call)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Requires reimplementing TSI_WPR indicator which chains multiple smoothing algorithms from SmoothAlgorithms.mqh. The XMA_Method parameter (default EMA=1) selects from 9 smoothing methods including advanced ones (JJMA, JurX, ParMA, T3, VIDYA, AMA). Must implement: (1) WPR(25) calculation, (2) momentum of WPR, (3) triple-pass smoothing with configurable method and lengths (5, 8, 20), (4) signal line generation, (5) crossover detection. Trade management from TradeAlgorithms.mqh must be reimplemented: position open/close with SL/TP, margin-based lot sizing with 5 modes, deviation control, new bar detection. Entry logic uses SignalBar=1 (previous bar) for signal detection. The crossover logic is nuanced: it checks if the indicator was in one trend state on bar[1] and the crossover occurred by comparing bar[0] and bar[1] values.",
+  "extraction_timestamp": "2026-05-20T22:08:40.783483",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 170.28,
+    "cost": 0
+  }
+}

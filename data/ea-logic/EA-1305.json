@@ -1,0 +1,145 @@
+{
+  "ea_id": "EA-1305",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with 'XRVI' custom indicator and includes external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh). The XRVI indicator is not a built-in MT5 indicator and its internal logic requires manual Python reimplementation. Trade execution functions are from external TradeAlgorithms.mqh library.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "XRVI",
+      "params": {
+        "rvi_method": "MODE_JurX",
+        "rvi_period": 10,
+        "rvi_phase": 15,
+        "sign_method": "MODE_JurX",
+        "sign_period": 5,
+        "sign_phase": 15,
+        "applied_price": 1,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": 10
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "XRVI main line (Value)",
+      "formula": "iCustom XRVI buffer MAIN_LINE at SignalBar",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "XRVI signal line (SigValue)",
+      "formula": "iCustom XRVI buffer SIGNAL_LINE at SignalBar",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "XRVI main line",
+        "right": "XRVI signal line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "XRVI main line",
+        "right": "XRVI signal line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when XRVI main line crosses below signal line (BUY_Close=true when Value[1]<SigValue[1] and BuyPosClose input is true)",
+      "Short position closed when XRVI main line crosses above signal line (SELL_Close=true when Value[1]>SigValue[1] and SellPosClose input is true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_meansFixedLot": true,
+      "description": "MM=-0.1 means negative value = fixed lot of 0.1; positive values = share of deposit"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If MM<0 then abs(MM) is lot size; if MM>0 then MM is fraction of deposit"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a two-buffer custom indicator XRVI (main line + signal line) with crossover logic. Signal detection uses bar indices SignalBar and SignalBar+1 to detect crossovers: Value[1]>SigValue[1] on current confirmed bar AND Value[0]<=SigValue[0] on previous bar = bullish crossover for buy entry. The crossover is detected between the main line crossing above the signal line. The XRVI indicator internally uses JurX smoothing (from SmoothAlgorithms.mqh) for both the RVI calculation and its signal line. Trade execution is delegated to TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose). SignalBar defaults to 1 meaning signals are read from the last completed bar. The Recount flag forces recalculation on initial load. LoadHistory() ensures sufficient bar data for IsNewBar(). Permission flags (BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose) act as gates on signal execution.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "XRVI.ex5 (custom indicator compiled)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "EURUSD H4 730 days",
+  "python_conversion_notes": "Major blocker: XRVI custom indicator must be reimplemented in Python. It uses the JurX smoothing algorithm from SmoothAlgorithms.mqh which is a proprietary adaptive smoothing method. Steps: (1) Port JurX/CJurX smoothing class from SmoothAlgorithms.mqh to Python, (2) Port XRVI indicator calculation - it applies JurX smoothing to RVI values and then JurX smoothing again for the signal line, (3) Port TradeAlgorithms.mqh position sizing logic (MM negative=fixed lot, positive=deposit fraction), (4) Implement crossover signal detection: main line crosses above signal line for long, below for short, (5) Implement SL/TP in points (1000/2000), (6) New-bar guard for signal evaluation. The Applied_price_ enum includes non-standard price types (SIMPL=OC/2, QUARTER=HLOC/4, TRENDFOLLOW) that may need custom price series calculation.",
+  "extraction_timestamp": "2026-05-20T23:11:02.500607",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 212.99,
+    "cost": 0
+  }
+}

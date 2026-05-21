@@ -1,0 +1,143 @@
+{
+  "ea_id": "EA-1102",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with 'BullsBears' custom indicator and includes two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh). The BullsBears custom indicator buffers must be manually reimplemented in Python, and the trade algorithm helpers require manual porting.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BullsBears",
+      "params": {
+        "xma_method": 4,
+        "xlength": 12,
+        "xphase": 15,
+        "volume_type": 1,
+        "buffer_0": "DnTrend (Bears)",
+        "buffer_1": "UpTrend (Bulls)"
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": 12
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpTrend buffer",
+      "formula": "BullsBears indicator buffer 1: smoothed bulls power via XMA method (LWMA default, length=12, phase=15) applied to tick volume",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DnTrend buffer",
+      "formula": "BullsBears indicator buffer 0: smoothed bears power via XMA method (LWMA default, length=12, phase=15) applied to tick volume",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "UpTrend",
+        "right": "DnTrend",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "UpTrend",
+        "right": "DnTrend",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose triggered when UpTrend crosses below DnTrend (if BuyPosClose input is true)",
+      "SellPosClose triggered when UpTrend crosses above DnTrend (if SellPosClose input is true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "explanation": "MM=-0.1 means negative value is treated as fixed lot size (0.1 lots); positive values are deposit fraction"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If MM<0: lot=abs(MM); if MM>0: lot=deposit_fraction*equity/margin_per_lot"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Signal logic uses 2-bar lookback: UpTrend[1]>DnTrend[1] confirms prior bar was bullish; then checks UpTrend[0]<=DnTrend[0] for crossover trigger on the signal bar. This is a crossover-on-prior-bar with confirmation pattern. The SignalBar input (default=1) shifts which bar to read. When SignalBar=0, signals are evaluated every tick instead of on new bar. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose helper functions with time-gated order logic (UpSignalTime/DnSignalTime prevent duplicate entries within same bar). CIsNewBar class from TradeAlgorithms.mqh handles new bar detection. CXMA class from SmoothAlgorithms.mqh provides multi-method smoothing (JJMA, VIDIA, AMA beyond standard MA types). LoadHistory() ensures historical data availability.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "BullsBears.ex5 (custom indicator compiled)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement the BullsBears custom indicator: it computes bulls/bears power from tick volume, smoothed via configurable XMA method (LWMA default, but also supports JJMA/VIDIA/AMA from SmoothAlgorithms.mqh). For LWMA-only mode, scipy or talib LWMA can substitute. The crossover logic checks buffer[1] vs buffer[0] across two consecutive bars - straightforward to replicate. Trade execution helpers (BuyPositionOpen etc.) handle time-gating to avoid duplicate entries on same bar - implement with a last_trade_bar tracker. Position sizing dual-mode (negative=fixed lot, positive=deposit fraction) must be preserved. StopLoss=1000 points, TakeProfit=2000 points are fixed and passed directly.",
+  "extraction_timestamp": "2026-05-20T21:57:42.509235",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 152.86,
+    "cost": 0
+  }
+}

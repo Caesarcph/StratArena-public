@@ -1,0 +1,228 @@
+{
+  "ea_id": "EA-1229",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "The EA relies on an external DLL/library 'svMachineTool.ex5' for SVM classification (initSVMachine, setIndicatorHandles, genInputs, genOutputs, setParameter, training, classify, deinitSVMachine). This is a machine learning model that must be manually reimplemented in Python (e.g., using sklearn.svm.SVC). All indicators used are built-in, but the core signal logic depends on the external SVM library which cannot be auto-converted.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Force",
+      "name": "Force",
+      "params": {
+        "period": 13,
+        "method": 0,
+        "applied_to": 5,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": 13
+    },
+    {
+      "type": "Stochastic",
+      "name": "Stochastic",
+      "params": {
+        "Kperiod": 5,
+        "Dperiod": 3,
+        "slowing": 3,
+        "method": 0,
+        "price_field": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": 5
+    },
+    {
+      "type": "MACD",
+      "name": "MACD",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "applied_to": 4,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": 12
+    },
+    {
+      "type": "Momentum",
+      "name": "Momentum",
+      "params": {
+        "period": 13,
+        "applied_to": 4,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": 13
+    },
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 13,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": 13
+    },
+    {
+      "type": "BB",
+      "name": "BullsPower",
+      "params": {
+        "period": 13,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": 13
+    },
+    {
+      "type": "BB",
+      "name": "BearsPower",
+      "params": {
+        "period": 13,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": 13
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "SVM_buy_signal",
+      "formula": "classify(handleB) - SVM trained on indicator inputs with BUY output labels generated from hypothetical profitable buy trades within 'hours' duration hitting takeProfit before stopLoss",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "SVM_sell_signal",
+      "formula": "classify(handleS) - SVM trained on indicator inputs with SELL output labels generated from hypothetical profitable sell trades within 'hours' duration hitting takeProfit before stopLoss",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "pip_size",
+      "formula": "10^(-1 * round(abs(round(log10(bid/10000)))))",
+      "used_by": "stop loss and take profit calculation"
+    },
+    {
+      "name": "current_order_exposure",
+      "formula": "sum(order.VolumeCurrent() for all pending orders) / 2",
+      "used_by": "position gate"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "SVM_buy_signal",
+        "right": "true",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "SVM_sell_signal",
+        "right": "true",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 150,
+      "params": {
+        "unit": "pips",
+        "implementation": "pending_stop_order"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 100,
+      "params": {
+        "unit": "pips",
+        "implementation": "pending_limit_order"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Opposing SL/TP pending order deleted when matching order is triggered via ticket cache lookup in OnTrade()"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed",
+    "value": 1.0,
+    "params": {
+      "lot_size": 1
+    },
+    "max_positions": 5,
+    "conditional_logic": "risk_exp gate: new position only opened if Current_Order_Exposure() <= risk_exp (default 5)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 50,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Core signal generation uses Support Vector Machine (SVM) classification via external svMachineTool.ex5 library. Two separate SVMs are trained at initialization: one for buy signals, one for sell signals. Training inputs are generated from 7 technical indicator values over N_DataPoints bars. Training outputs are generated by simulating hypothetical trades (BUY or SELL) with given stopLoss/takeProfit levels over a maximum duration of 'hours' hours. The SVM is trained with a tolerance parameter. On each new bar, classify() is called on both SVMs using current indicator values to produce buy/sell signals. Stop loss and take profit are implemented as pending orders (SellStop/BuyStop for SL, SellLimit/BuyLimit for TP) rather than built-in SL/TP, with ticket numbers cached in a dynamic array to pair SL and TP orders. When one order triggers, OnTrade() searches the cache to find and delete the matching counterpart order.",
+  "external_dependencies": [
+    "svMachineTool.ex5",
+    "Trade\\Trade.mqh",
+    "Trade\\PositionInfo.mqh",
+    "Trade\\HistoryOrderInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol with 5-digit pricing, any timeframe, 730 days",
+  "python_conversion_notes": "Must reimplement SVM signal generation in Python: 1) Compute 7 indicator features per bar using ta-lib or pandas-ta. 2) Generate training labels by simulating hypothetical trades: for each historical bar, check if a buy/sell with given SL/TP would have hit TP before SL within 'hours' duration. 3) Train sklearn.svm.SVC (or similar) on indicator features vs labels with tolerance parameter. 4) At each bar, use trained SVM to classify current indicator values as buy/sell signal. The pending order SL/TP management with ticket cache must be reimplemented as paired SL/TP orders that cancel each other when one triggers. The Pip_Size() function should be replaced with proper pip calculation based on symbol digits.",
+  "extraction_timestamp": "2026-05-20T22:42:05.781660",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 145.17,
+    "cost": 0
+  }
+}

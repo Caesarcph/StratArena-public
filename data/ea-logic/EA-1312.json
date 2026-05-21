@@ -1,0 +1,147 @@
+{
+  "ea_id": "EA-1312",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown 'ColorStepXCCX' indicator and includes external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh). The ColorStepXCCX custom indicator logic is not available from built-in indicators, requiring manual Python reimplementation of the XCCX smoothing algorithm.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorStepXCCX",
+      "params": {
+        "d_smooth_method": 4,
+        "d_period": 30,
+        "d_phase": 100,
+        "m_smooth_method": 8,
+        "m_period": 7,
+        "m_phase": 15,
+        "applied_price": 5,
+        "step_size_fast": 5,
+        "step_size_slow": 30,
+        "buffer_index": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "MPlus - ColorStepXCCX buffer 0 (bullish step-momentum line)",
+      "formula": "ColorStepXCCX(DSmoothMethod=JJMA, DPeriod=30, DPhase=100, MSmoothMethod=T3, MPeriod=7, MPhase=15, IPC=PRICE_TYPICAL, StepSizeFast=5, StepSizeSlow=30)[SignalBar]",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "MMinus - ColorStepXCCX buffer 1 (bearish step-momentum line)",
+      "formula": "ColorStepXCCX(same params)[SignalBar]",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "MPlus",
+        "right": "MMinus",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "MPlus",
+        "right": "MMinus",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when MPlus crosses below MMinus (signal reversal) if BuyPosClose=true",
+      "Short position closed when MPlus crosses above MMinus (signal reversal) if SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_size_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "If MM is negative, absolute value is used as fixed lot size; if positive, used as deposit fraction for lot calculation"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The ColorStepXCCX indicator is a stepped XCCX (X-plane Cycle Crossover) oscillator using two smoothing layers: price smoothing (JJMA with period 30, phase 100) and deviation smoothing (T3 with period 7, phase 15), then stepped with fast=5 and slow=30 step sizes. The crossover of two buffers (MPlus and MMinus) generates signals. Uses CIsNewBar class for new bar detection. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions with signal-time-based position management. The entry signal checks 2 bars: bar[1] (previous) for crossover condition and bar[0] (current relative to SignalBar) for pre-crossover state to confirm the crossover just occurred.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "ColorStepXCCX.ex5 (custom indicator binary)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement the ColorStepXCCX indicator in Python. The indicator uses CXMA class from SmoothAlgorithms.mqh which provides JJMA, T3, and other advanced smoothing algorithms. These non-standard smoothers (JJMA/JurX/ParMA/T3/VIDYA/AMA) require porting from the .mqh library. The step-filter logic (StepSizeFast=5, StepSizeSlow=30) creates a staircase-like output from the smoothed CCI-style values. TradeAlgorithms.mqh position management functions need replacement with standard Python backtester position tracking. Entry logic: BUY when MPlus[1]>MMinus[1] AND MPlus[0]<=MMinus[0] (crossover confirmed); SELL when MPlus[1]<MMinus[1] AND MPlus[0]>=MMinus[0] (crossunder confirmed). The two-buffer crossover pattern is standard but the underlying indicator computation is complex.",
+  "extraction_timestamp": "2026-05-20T23:10:06.382145",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 104.48,
+    "cost": 0
+  }
+}

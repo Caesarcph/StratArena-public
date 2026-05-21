@@ -1,0 +1,151 @@
+{
+  "ea_id": "EA-13195",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom indicator 'ColorZerolagRVI' which is not a built-in MT5 indicator, plus external #include <TradeAlgorithms.mqh> library for position management (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar). The custom indicator and external library require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorZerolagRVI",
+      "params": {
+        "smoothing": 15,
+        "Factor1": 0.05,
+        "RVI_period1": 8,
+        "Factor2": 0.1,
+        "RVI_period2": 21,
+        "Factor3": 0.16,
+        "RVI_period3": 34,
+        "Factor4": 0.26,
+        "RVI_period4": 55,
+        "Factor5": 0.43,
+        "RVI_period5": 89
+      },
+      "source": "custom",
+      "library": "ColorZerolagRVI",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Osc1 - ColorZerolagRVI buffer 0 (main line)",
+      "formula": "CopyBuffer(handle, 0, SignalBar, 2) - weighted composite of 5 RVI indicators with factors [0.05, 0.10, 0.16, 0.26, 0.43]",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Osc2 - ColorZerolagRVI buffer 1 (signal line)",
+      "formula": "CopyBuffer(handle, 1, SignalBar, 2) - smoothed signal line of the composite RVI",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Zero-lag RVI composite",
+      "formula": "Factor1*RVI(period1) + Factor2*RVI(period2) + Factor3*RVI(period3) + Factor4*RVI(period4) + Factor5*RVI(period5), where factors sum to 1.0",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Osc1 (main line)",
+        "right": "Osc2 (signal line)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Osc1 (main line)",
+        "right": "Osc2 (signal line)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when Osc1 < Osc2 (signal line crossunder) on previous bar while Osc1 > Osc2 on bar before that, if BuyPosClose input is true",
+      "Short position closed when Osc1 > Osc2 (signal line crossover) on previous bar while Osc1 < Osc2 on bar before that, if SellPosClose input is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT (0=LOT, 1=LOT_MARGIN, 2=LOT_FREE_MARGIN)"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode input selects between LOT, LOT_MARGIN, LOT_FREE_MARGIN sizing modes; MM=0.1 is the fraction/lot size depending on mode"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The ColorZerolagRVI is a zero-lag composite RVI indicator that combines 5 RVI indicators with different periods (8,21,34,55,89) and weighting factors (0.05,0.10,0.16,0.26,0.43) to eliminate lag. Entry logic uses a 2-bar comparison: Osc1[1] vs Osc2[1] (previous bar relationship) combined with Osc1[0] vs Osc2[0] (current bar crossover) to detect fresh crossings. Signal is evaluated on bar[SignalBar] where SignalBar=1 by default (previous completed bar). The CIsNewBar class from TradeAlgorithms.mqh ensures signals are only processed once per new bar. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean inputs allow toggling each direction and close type independently. GlobalVariableDel_ cleans up global variables on deinit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh - provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar",
+    "ColorZerolagRVI custom indicator - required as iCustom dependency"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement ColorZerolagRVI indicator: compute 5 RVI values (periods 8,21,34,55,89), weight with factors (0.05,0.10,0.16,0.26,0.43), apply smoothing (period 15) for signal line. RVI = (close-open)/(high-low) smoothed approach. Entry: detect crossover of main vs signal line using 2-bar lookback. The TradeAlgorithms.mqh functions are standard position open/close with SL/TP - can be replaced with simple market orders in backtrader/vectorbt. Margin-based sizing needs LOT/LOT_MARGIN/LOT_FREE_MARGIN mode implementation. New-bar guard is essential - only evaluate signals once per completed H4 bar.",
+  "extraction_timestamp": "2026-05-20T23:14:47.236462",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 224.73,
+    "cost": 0
+  }
+}

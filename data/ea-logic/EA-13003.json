@@ -1,0 +1,164 @@
+{
+  "ea_id": "EA-13003",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with 'BlauTVI' (unknown custom indicator) and two external .mqh includes (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) with custom functions (GetStartBars, BuyPositionOpen, etc.) that require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BlauTVI",
+      "params": {
+        "XMA_Method": 1,
+        "XLength1": 12,
+        "XLength2": 12,
+        "XLength3": 5,
+        "XPhase": 15,
+        "VolumeType": 1
+      },
+      "source": "custom",
+      "library": "BlauTVI",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value[0] - BlauTVI buffer 0 at bar SignalBar",
+      "formula": "CopyBuffer(InpInd_Handle,0,SignalBar,3,Value) → Value[0]=bar(SignalBar), Value[1]=bar(SignalBar+1), Value[2]=bar(SignalBar+2)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "UpSignalTime - timestamp for buy order expiration",
+      "formula": "datetime(SERIES_LASTBAR_DATE) + TimeShiftSec",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "DnSignalTime - timestamp for sell order expiration",
+      "formula": "datetime(SERIES_LASTBAR_DATE) + TimeShiftSec",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1] (BlauTVI at bar+1)",
+        "right": "Value[2] (BlauTVI at bar+2)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "long_only"
+      },
+      {
+        "condition": "crossover",
+        "left": "Value[0] (BlauTVI at bar SignalBar)",
+        "right": "Value[1] (BlauTVI at bar+1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1] (BlauTVI at bar+1)",
+        "right": "Value[2] (BlauTVI at bar+2)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "short_only"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Value[0] (BlauTVI at bar SignalBar)",
+        "right": "Value[1] (BlauTVI at bar+1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed on signal reversal (Value[1]>Value[2] triggers BUY_Close when BuyPosClose=true)",
+      "Short position closed on signal reversal (Value[1]<Value[2] triggers SELL_Close when SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT",
+      "description": "0.1 lot when LOT mode; fraction of margin in other modes"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum (LOT vs deposit fraction) controls sizing interpretation"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "BlauTVI is a custom indicator (Blau's Trend Vigor Index) requiring SmoothAlgorithms.mqh for smoothing (EMA/JJMA/VIDIA/AMA methods via GetStartBars). TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose wrappers with expiration time logic (UpSignalTime/DnSignalTime used as order expiration). SignalBar=1 means signals are evaluated on the previous completed bar (not bar 0). The three-value CopyBuffer reads bars at offsets SignalBar, SignalBar+1, SignalBar+2 for crossover detection. Entry requires two conditions: (1) trend direction from Value[1] vs Value[2], and (2) momentum confirmation from Value[0] vs Value[1]. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose booleans gate each direction independently.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "BlauTVI.ex5 (compiled custom indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days with tick volume data",
+  "python_conversion_notes": "Must reimplement BlauTVI indicator in Python: triple-smoothed volume-based trend vigor index using configurable smoothing methods (EMA/JJMA/VIDIA/AMA). SmoothAlgorithms.mqh contains all smoothing algorithm implementations that must be ported. TradeAlgorithms.mqh order management can be replaced with simple market order execution since the EA only opens one position per direction. The crossover logic (Value[0]>Value[1] with Value[1]<Value[2] for long) is straightforward once the indicator is ported. SignalBar=1 means use previous bar's values, which maps naturally to pandas shifted data. StopLoss/TakeProfit in points need conversion to pips based on symbol digits.",
+  "extraction_timestamp": "2026-05-20T23:09:04.706889",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 160.3,
+    "cost": 0
+  }
+}

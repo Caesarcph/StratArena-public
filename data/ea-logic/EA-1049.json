@@ -1,0 +1,196 @@
+{
+  "ea_id": "EA-1049",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses built-in iATR only, but relies on Trade/SymbolInfo.mqh, Trade/DealInfo.mqh, Trade/PositionInfo.mqh standard library includes for position/deal management. The entry logic is based on a custom price channel (defPcChannel) computed from CopyHigh/CopyLow/CopyClose arrays — not a built-in channel indicator. Position sizing has loss-counting martingale-like reduction logic (LotsOptimized) that needs manual Python reimplementation. Trailing stop logic and the multi-condition channel breakout/reversal signals require careful manual conversion.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "ATR",
+      "name": "ATR",
+      "params": {
+        "period": 4,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "builtin",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Resist",
+      "formula": "Highest high of last rChannel bars (bar 1 to bar rChannel)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "ResistPrev",
+      "formula": "Highest high of previous rChannel bars (bar 2 to bar rChannel+1)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Support",
+      "formula": "Lowest low of last rChannel bars (bar 1 to bar rChannel)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "SupportPrev",
+      "formula": "Lowest low of previous rChannel bars (bar 2 to bar rChannel+1)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Pivot",
+      "formula": "(Resist + Support + Close[1]) / 3",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "hp1",
+      "formula": "High of bar 1",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "lp1",
+      "formula": "Low of bar 1",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "cl1",
+      "formula": "Close of bar 1",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "atr0",
+      "formula": "ATR[0] current bar value from iATR handle",
+      "used_by": "stop loss calculation"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "or_combination",
+        "left": "hp1[0]",
+        "right": "Resist",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "cl1[0]",
+        "right": "Resist",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "or_combination",
+        "left": "lp1[0]",
+        "right": "Support",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "custom",
+        "left": "cl1[0]",
+        "right": "Support",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "atr_based",
+      "value": 0,
+      "params": {
+        "atr_period": 4,
+        "long_sl_formula": "Support - ATR[0]",
+        "short_sl_formula": "Resist + ATR[0] + spread"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "fixed",
+      "value": 300,
+      "params": {
+        "trail_start_pips": 300,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close buy when hp1[0] >= Resist AND Resist == ResistPrev (same as open buy condition 1, meaning channel breakout triggers both open and close)",
+      "Close sell when lp1[0] <= Support AND Support == SupportPrev",
+      "Stop loss must be beyond minimum stop level (Sym.StopsLevel()+1); order rejected otherwise"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "fixed_lots": 0.1,
+      "max_risk_fraction": 0.02,
+      "loss_reduction_factor": 3,
+      "risk_based_formula": "AccountFreeMargin * MaxR / 1000 when Lots==0"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If Lots==0, use risk-based sizing (FreeMargin*MaxR/1000). If DcF>0, count consecutive losses from deal history and reduce lot: aLots = aLots - aLots*losses/DcF. Lot is then normalized to volume step/min/max."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The price channel (defPcChannel) is a custom Donchian-like channel computed from CopyHigh/CopyLow arrays over rChannel period, not a built-in indicator. Entry conditions are OR-combinations: Long condition 1 = High[1] >= Resist AND Resist==ResistPrev (breakout); Long condition 2 = Close[1] < Resist AND Resist==ResistPrev AND Close[1] > Pivot (pullback in upper channel). Short is symmetric. Exit conditions mirror entry condition 1 only. There is a bug on line 284: CopyLow returns ==1 instead of ==-1, meaning a failed copy would NOT be caught. Trailing stop runs every tick (outside new-bar guard) and only moves SL if new SL is better than open price. The LotsOptimized function counts consecutive losing deals from most recent history and reduces lot size proportionally — this is a loss-scaling anti-martingale that must be reimplemented in Python backtest. SL for sells includes spread adjustment: Resist + ATR + (Ask-Bid).",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol D1 730 days (symbol-agnostic EA)",
+  "python_conversion_notes": "1) Reimplement defPcChannel using rolling max/min over rChannel-period windows of High/Low arrays. 2) Entry signals: two OR conditions per direction with Resist==ResistPrev channel-stability gate. 3) ATR-based SL with different formulas for long (Support - ATR) vs short (Resist + ATR + spread). 4) Trailing stop at Trailing points from current price, only activated when SL is beyond open price. 5) Position sizing has two modes: fixed lots or risk-fraction, with loss-counting reduction — need to track consecutive losses in backtest state. 6) Only one position per symbol allowed. 7) New-bar guard means signals evaluated once per bar. 8) Bug in original code line 284 (CopyLow check ==1 instead of ==-1) should be fixed in Python conversion. 9) NormalizeDouble should map to Python round() with _Digits precision. 10) StopsLevel check must be preserved to reject orders where SL is too close.",
+  "extraction_timestamp": "2026-05-20T21:40:15.850323",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 175.41,
+    "cost": 0
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "ea_id": "EA-11415",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator name 'BvsB', plus two external .mqh includes (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) providing trade management and smoothing algorithms that must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BvsB",
+      "params": {
+        "method": 0,
+        "length": 12,
+        "phase": 15,
+        "applied_price": 1,
+        "buffer_index": 0
+      },
+      "source": "custom",
+      "library": "BvsB.ex5",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Ind buffer (main line)",
+      "formula": "CopyBuffer(handle, 0, SignalBar, 2) — BvsB indicator buffer 0",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Sign buffer (signal line)",
+      "formula": "CopyBuffer(handle, 1, SignalBar, 2) — BvsB indicator buffer 1",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Ind (BvsB main line, bar[1])",
+        "right": "Sign (BvsB signal line, bar[1])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Ind (BvsB main line, bar[0])",
+        "right": "Sign (BvsB signal line, bar[0])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Ind (BvsB main line, bar[1])",
+        "right": "Sign (BvsB signal line, bar[1])",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "Ind (BvsB main line, bar[0])",
+        "right": "Sign (BvsB signal line, bar[0])",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed on bearish crossover (Ind[1] < Sign[1] triggers BUY_Close=true when BuyPosClose is enabled)",
+      "Short position closed on bullish crossover (Ind[1] > Sign[1] triggers SELL_Close=true when SellPosClose is enabled)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "margin_mode": "LOT",
+      "mm_modes_available": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM=0.1 fraction applied according to MMMode enum (LOT mode = fixed lot sizing, other modes calculate based on balance/margin)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The BvsB indicator is a custom indicator using configurable smoothing methods (SMA/EMA/SMMA/LWMA/JJMA/JurX/ParMA/T3/VIDYA/AMA via SmoothAlgorithms.mqh). The entry logic uses a 2-bar crossover pattern: bar[1] must show the direction (Ind vs Sign relationship) AND bar[0] must confirm the reversal (Ind crossing back to/through Sign), making it a pullback/confirmation entry rather than a simple crossover. SignalBar=1 means signals are evaluated on the previous completed bar. Trade management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) come from TradeAlgorithms.mqh and handle order execution with position gating (no duplicate positions via time-based tracking). GlobalVariableDel_ cleanup on deinit. CIsNewBar class provides new bar detection. LoadHistory ensures bar history availability.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh",
+    "BvsB.ex5 (custom indicator compiled)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement BvsB indicator from scratch or obtain its source code — it takes a smoothing method, length, phase, and applied price as inputs and produces two buffers (main and signal). The smoothing library supports 10+ methods including proprietary ones (JJMA, JurX, ParMA, T3, VIDYA, AMA) which require Python equivalents (e.g., t3 from ta lib, vidya from custom code). Entry logic is non-standard: it requires Ind[1]>Sign[1] (prior bar bullish) AND Ind[0]<=Sign[0] (current bar crossed back bearish) for BUY entry — this is a mean-reversion/pullback entry on the signal line crossover, not a standard breakout. TradeAlgorithms.mqh functions for position management need porting: position existence checks, time-based duplicate prevention, and lot calculation based on 5 margin modes. Start by finding the BvsB indicator source (.mq5) to understand the two-buffer calculation.",
+  "extraction_timestamp": "2026-05-20T22:19:20.453641",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 195.46,
+    "cost": 0
+  }
+}

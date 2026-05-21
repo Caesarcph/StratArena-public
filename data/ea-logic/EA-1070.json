@@ -1,0 +1,157 @@
+{
+  "ea_id": "EA-1070",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with 'BBands_Stop_v1' (unknown custom indicator) and #include <TradeAlgorithms.mqh> (external library for trade execution). The custom indicator logic must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BBands_Stop_v1",
+      "params": {
+        "length": 20,
+        "deviation": 2,
+        "money_risk": 1.0,
+        "shift": 1,
+        "draw_lines": false
+      },
+      "source": "custom",
+      "library": "BBands_Stop_v1",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpValue",
+      "formula": "iCustom buffer 4 at SignalBar and SignalBar-1 — upper Bollinger Band stop line",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DnValue",
+      "formula": "iCustom buffer 1 at SignalBar and SignalBar-1 — lower Bollinger Band stop line",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "UpValue[1]",
+        "right": "non-zero",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      },
+      {
+        "condition": "and_combination",
+        "left": "DnValue[0]",
+        "right": "non-zero",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "DnValue[1]",
+        "right": "non-zero",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      },
+      {
+        "condition": "and_combination",
+        "left": "UpValue[0]",
+        "right": "non-zero",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long closed when DnValue[1] is non-zero (sell signal appears) and BuyPosClose permission is true",
+      "Short closed when UpValue[1] is non-zero (buy signal appears) and SellPosClose permission is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "fixed_lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "If MM < 0, |MM| is treated as fixed lot size; if MM > 0, it represents share of deposit per transaction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The BBands_Stop_v1 custom indicator computes upper/lower Bollinger Band stop lines across 6 buffers. This EA reads buffer 4 (upper stop line) and buffer 1 (lower stop line). A non-zero value on the signal bar indicates the band is active/triggered. Entry requires both the previous bar's signal line to be active (UpValue[1] or DnValue[1]) AND the opposite band on the current bar to be active (DnValue[0] for long, UpValue[0] for short) — this confirms a trend establishment. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions with signal-time deduplication (UpSignalTime/DnSignalTime) to prevent duplicate entries on the same bar. LoadHistory() is called to ensure bar data is available for IsNewBar() checks.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "BBands_Stop_v1.ex5"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Symbol H4 730 days",
+  "python_conversion_notes": "1) Must reimplement BBands_Stop_v1 logic: compute Bollinger Bands (period=20, dev=2), then offset by MoneyRisk factor to get stop lines. The indicator tracks which band price is touching and outputs 0 when inactive, non-zero stop level when active. 2) Must reimplement trade signal deduplication using signal timestamps. 3) Must reimplement deposit-fraction position sizing (MM param: negative=fixed lot, positive=deposit fraction). 4) The 6-buffer structure of BBands_Stop_v1 needs reverse-engineering: buffer 0=upper trend line, buffer 1=lower stop value, buffer 2=lower trend line, buffer 3=upper stop value (or similar), buffers 4-5 likely trend direction markers. 5) TradeAlgorithms.mqh functions must be replaced with standard market order logic with SL/TP in points.",
+  "extraction_timestamp": "2026-05-20T21:47:20.879825",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 180.6,
+    "cost": 0
+  }
+}

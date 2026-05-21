@@ -1,0 +1,140 @@
+{
+  "ea_id": "EA-1317",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call 'MovingAverage_FN' which is a custom indicator with no known built-in equivalent. Also depends on two external .mqh includes (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) containing custom classes (CXMA, CIsNewBar) and trading functions that must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "MovingAverage_FN",
+      "params": {
+        "filter_number": 44,
+        "xma_method": 4,
+        "xlength": 12,
+        "xphase": 15,
+        "ipc": 1,
+        "buffer_index_1": 0,
+        "buffer_index_2": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value[0..2]",
+      "formula": "CopyBuffer(MovingAverage_FN, buffer 0, SignalBar, 3) — three consecutive values of the custom FN moving average starting at SignalBar",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Value[0] (MA at SignalBar)",
+        "right": "Value[1] (MA at SignalBar+1)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Value[0] (MA at SignalBar)",
+        "right": "Value[1] (MA at SignalBar+1)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long closed when short signal detected (Value[1]>Value[2] and Value[0]<Value[1])",
+      "Short closed when long signal detected (Value[1]<Value[2] and Value[0]>Value[1])"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "fixed_lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 means fixed lot size equal to abs(MM); MM>0 means deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The MovingAverage_FN indicator is a filtered moving average using one of 57 possible FIR filter modes (N4-N60). The smoothing method defaults to JJMA (JMA) with configurable phase parameter (-100 to +100). The entry logic is a MA crossover: Value[1]<Value[2] indicates the MA was rising (bar+2 to bar+1), and Value[0]>Value[1] confirms continued rise — triggering buy. Conversely for sell. The filter_mode enum maps integer 4-60 to filter numbers. TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions with deposit-fraction money management. SignalBar=1 means signals are evaluated on the previously completed bar, not the current forming bar. LoadHistory() call ensures bar data availability. GlobalVariableDel_ cleans up global variables on deinit.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "MovingAverage_FN (custom indicator)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days with 5-digit pricing",
+  "python_conversion_notes": "The main challenge is reimplementing the MovingAverage_FN custom indicator. It uses a FIR filter algorithm from SmoothAlgorithms.mqh with 57 filter modes and 10 smoothing methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA). For Python backtesting: (1) Must port the CXMA class and its JJMA/T3/VIDYA/AMA smoothing algorithms from SmoothAlgorithms.mqh, or approximate with standard EMA/SMA if exact replication isn't needed. (2) Must port the FIR filter calculation (filter_mode N4-N60). (3) TradeAlgorithms.mqh functions (BuyPositionOpen, etc.) handle deposit-fraction sizing and can be replaced with standard Python backtest framework position management. (4) Entry logic is simple: 3-bar MA slope comparison — rising slope + current above previous = buy, falling slope + current below previous = sell. (5) Fixed SL=1000 points, TP=2000 points, with opposite-signal close. (6) SignalBar=1 means use prior completed bar for signal, fill at next bar open.",
+  "extraction_timestamp": "2026-05-20T23:13:52.984706",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 226.6,
+    "cost": 0
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "ea_id": "EA-1256",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator 'UltraFatl' and includes external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) with custom smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA) that require manual Python reimplementation",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "UltraFatl",
+      "params": {
+        "buffer_index": 2,
+        "w_method": 4,
+        "start_length": 3,
+        "w_phase": 100,
+        "n_step": 5,
+        "n_steps_total": 10,
+        "smooth_method": 4,
+        "smooth_length": 3,
+        "smooth_phase": 100,
+        "ipc": 1,
+        "signal_bar": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value[1] - UltraFatl buffer 2 at SignalBar+1",
+      "formula": "CopyBuffer(UltraFatl_handle, buffer=2, start=SignalBar, count=2) → Value[1]=bar[SignalBar+1], Value[0]=bar[SignalBar]",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Value[0] - UltraFatl buffer 2 at SignalBar",
+      "formula": "Same CopyBuffer call, index 0 is the more recent bar",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "min_rates_total - minimum bars for calculation",
+      "formula": "40 + GetStartBars(W_Method, StartLength+nStep*nStepsTotal, WPhase) + 1 + GetStartBars(SmoothMethod, SmoothLength, SmoothPhase) + 3 + SignalBar",
+      "used_by": "data sufficiency check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1] (UltraFatl buffer 2 at bar SignalBar+1)",
+        "right": "4",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "BuyPosOpen enabled"
+      },
+      {
+        "condition": "custom",
+        "left": "Value[0] (UltraFatl buffer 2 at bar SignalBar)",
+        "right": "5 AND Value[0] != 0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "BuyPosOpen enabled"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1] (UltraFatl buffer 2 at bar SignalBar+1)",
+        "right": "5",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "SellPosOpen enabled"
+      },
+      {
+        "condition": "custom",
+        "left": "Value[0] (UltraFatl buffer 2 at bar SignalBar)",
+        "right": "4",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "SellPosOpen enabled"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when sell signal detected (Value[1]<5 && Value[1]!=0) and BuyPosClose=true",
+      "Short position closed when buy signal detected (Value[1]>4) and SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "lot_size_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 → fixed lot=abs(MM); MM>0 → deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "UltraFatl is a custom multi-step adaptive smoothing indicator using JJMA and other advanced algorithms from SmoothAlgorithms.mqh. The signal logic uses buffer index 2 which likely represents a signal line or state value. Entry signal: BUY when Value[1]>4 (previous bar bullish state) AND Value[0]<5 && Value[0]!=0 (current bar signal transition). SELL when Value[1]<5 && Value[1]!=0 (previous bar bearish state) AND Value[0]>4 (current bar signal transition). The indicator appears to output integer-like state values (0-9 range based on nStepsTotal=10). TradeAlgorithms.mqh provides BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose helper functions with global variable management. SignalBar=1 means signals are evaluated on the last completed bar (not the forming bar), which is good for backtesting accuracy.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "UltraFatl indicator (.ex5 or .mq5)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Major challenges: (1) UltraFatl indicator must be fully reimplemented in Python - it uses CXMA class from SmoothAlgorithms.mqh with JJMA/JurX/ParMA/T3/VIDYA/AMA smoothing algorithms, none of which are standard TA-Lib functions. (2) The indicator computes adaptive multi-step smoothing: first pass with period stepping from StartLength by nStep up to nStepsTotal steps, then a second smoothing pass. (3) TradeAlgorithms.mqh functions need translation for position management. (4) The signal logic uses buffer index 2 specifically - need to understand what UltraFatl outputs on each buffer. (5) Applied_price_ enum includes custom price types (TrendFollow_1, TrendFollow_2) that need implementation. Recommendation: Find the UltraFatl.mq5 source to understand all 3 buffers and the smoothing algorithm internals before conversion.",
+  "extraction_timestamp": "2026-05-20T22:53:39.720186",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 231.78,
+    "cost": 0
+  }
+}

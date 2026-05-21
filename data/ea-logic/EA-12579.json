@@ -1,0 +1,160 @@
+{
+  "ea_id": "EA-12579",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load 'FatlSatlOsma' custom indicator and #includes external TradeAlgorithms.mqh library. Both require manual reimplementation in Python - the custom indicator's FATL/SATL digital filter coefficients must be sourced separately, and the trade management functions from the .mqh must be replicated.",
+  "symbol": null,
+  "timeframe_hint": "H12",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "FatlSatlOsma",
+      "params": {
+        "period": null,
+        "method": null,
+        "applied_to": null,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "FatlSatlOsma Value[0]",
+      "formula": "FatlSatlOsma buffer 0 at bar SignalBar (current signal bar)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "FatlSatlOsma Value[1]",
+      "formula": "FatlSatlOsma buffer 0 at bar SignalBar+1 (one bar prior)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "FatlSatlOsma Value[2]",
+      "formula": "FatlSatlOsma buffer 0 at bar SignalBar+2 (two bars prior)",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "FatlSatlOsma Value[1]",
+        "right": "FatlSatlOsma Value[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "long_only"
+      },
+      {
+        "condition": "above",
+        "left": "FatlSatlOsma Value[0]",
+        "right": "FatlSatlOsma Value[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "FatlSatlOsma Value[1]",
+        "right": "FatlSatlOsma Value[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "short_only"
+      },
+      {
+        "condition": "below",
+        "left": "FatlSatlOsma Value[0]",
+        "right": "FatlSatlOsma Value[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when FatlSatlOsma Value[1] > Value[2] (opposite signal triggers BUY_Close=true with BuyPosClose input enabled)",
+      "Short position closed when FatlSatlOsma Value[1] < Value[2] (opposite signal triggers SELL_Close=true with SellPosClose input enabled)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT or FREEMARGIN or PERCENT as per MarginMode enum"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode input selects between LOT (fixed lot), FREEMARGIN (fraction of free margin), PERCENT (percentage of deposit)"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The FatlSatlOsma indicator is a digital filter based oscillator combining FATL (39-bar Finite Impulse Response filter) and SATL (65-bar FIR filter) into an OSMA-style histogram. The FATL and SATL coefficients are hardcoded in the custom indicator .mq5 file and must be replicated exactly. Trade management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar) come from the external TradeAlgorithms.mqh include and handle position checking, signal deduplication via global variables keyed on symbol+signal_time, and history loading. The SignalBar input (default 1) shifts which bar the signal is read from, allowing confirmed-bar vs current-bar trading. BarsCalculated check ensures sufficient data before processing.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh - provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar class",
+    "FatlSatlOsma custom indicator - digital filter oscillator combining FATL(39) and SATL(65) filters as OSMA histogram"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H12 730 days",
+  "python_conversion_notes": "Two main reimplementation tasks: (1) The FatlSatlOsma custom indicator - need to find and port the FATL/SATL FIR filter coefficients. FATL is a 39-coefficient digital filter, SATL is a 65-coefficient digital filter. The OSMA is likely SATL - FATL or FATL - SATL rendered as histogram. Must find the indicator source to get exact coefficients. (2) The TradeAlgorithms.mqh functions - these manage position state (checking if position exists before opening, using global variables to prevent duplicate entries on same signal, closing positions with deviation handling). In Python backtest, this simplifies to: check if position exists before opening, use signal timestamps to avoid duplicate entries, close opposite positions on reversal signals. The entry logic itself is straightforward: long when osma[1]<osma[2] AND osma[0]>osma[1] (histogram turning up from negative territory), short when osma[1]>osma[2] AND osma[0]<osma[1] (histogram turning down from positive territory). SL=1000 points, TP=2000 points, position sizing=0.1 of deposit.",
+  "extraction_timestamp": "2026-05-20T22:57:09.268541",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 209.55,
+    "cost": 0
+  }
+}

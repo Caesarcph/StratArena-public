@@ -1,0 +1,137 @@
+{
+  "ea_id": "EA-1031",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'AML' custom indicator which has fractal dimension-based adaptive smoothing logic. The AML indicator is provided but requires manual Python reimplementation of its non-trivial algorithm (fractal dimension calculation, ring buffer smoothing, conditional line stepping). Trade logic is otherwise simple (market orders, single position), but the custom indicator dependency prevents auto-conversion.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AML",
+      "params": {
+        "Fractal": 70,
+        "Lag": 18,
+        "Shift": 0
+      },
+      "source": "custom",
+      "library": "aml.mq5",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "AML value - adaptive market level based on fractal dimension",
+      "formula": "R1=Range(Fractal,bar)/Fractal; R2=Range(Fractal,bar+Fractal)/Fractal; R3=Range(2*Fractal,bar)/(2*Fractal); dim=(log(R1+R2)-log(R3))*1.44269504088896; alpha=exp(-Lag*(dim-1)); alpha=clamp(alpha,0.01,1.0); price=(H+L+2*O+2*C)/6; Smooth=alpha*price+(1-alpha)*Smooth_prev; if|Smooth[0]-Smooth[Lag]|>=Lag*Lag*Point then AML=Smooth else AML=AML_prev",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "Lot size with deposit-proportional scaling",
+      "formula": "if use_Multpl: Lots*AccountBalance/Max_drawdown, clamped to SYMBOL_VOLUME_MAX; else: Lots",
+      "used_by": "position sizing"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "AML[1]",
+        "right": "bar[1] candle body",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "AML[1]",
+        "right": "bar[1] candle body",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 500,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 3500,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite signal closes current position and opens reverse when use_opposite=true: if long and AML inside bearish candle, close long then open short; if short and AML inside bullish candle, close short then open long"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "scaling_method": "balance_proportional",
+      "max_drawdown_reference": 1800
+    },
+    "max_positions": 1,
+    "conditional_logic": "if use_Multpl=true, lot = Lots * AccountBalance / Max_drawdown, normalized to 2 decimals, clamped to broker SYMBOL_VOLUME_MAX; otherwise fixed Lots=0.1"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 45,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry condition uses AML value from completed bar (index 1, not current bar). Long: AML[1] >= Open[1] AND AML[1] <= Close[1] (AML inside bullish candle body). Short: AML[1] <= Open[1] AND AML[1] >= Close[1] (AML inside bearish candle body). SL/TP modification attempted up to N_modify_sltp=7 times with 1s sleep between retries. The AML indicator itself uses a ring buffer (Count array) for efficient smoothing across Lag periods, and applies a threshold (Lag*Lag*_Point) to decide whether the smoothed value steps to a new level or holds the previous value, creating a step-like adaptive line. The 1.44269504088896 constant is 1/ln(2) for converting natural log to log2 in fractal dimension calculation.",
+  "external_dependencies": [
+    "AML custom indicator (aml.mq5) - must be available in MT5 Indicators directory"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol with 5-digit pricing, 730+ days daily or H1 data",
+  "python_conversion_notes": "The AML indicator must be reimplemented in Python: 1) Compute Range() as highest-high minus lowest-low over count bars starting at offset. 2) Calculate fractal dimension dim = (log2(R1+R2) - log2(R3)) using the log2 conversion constant. 3) Compute adaptive alpha = exp(-Lag*(dim-1)), clamped to [0.01, 1.0]. 4) Calculate weighted price = (H+L+2*O+2*C)/6. 5) Apply EMA-style smoothing with adaptive alpha using ring buffer of size Lag+1. 6) Apply step threshold: if |Smooth_current - Smooth_Lag_ago| >= Lag^2 * Point, output Smooth; else carry previous AML value. Entry signals: AML inside candle body of previous completed bar. SL=500 points, TP=3500 points. Position sizing: optional balance-proportional mode. Single position per symbol with optional opposite-signal reversal.",
+  "extraction_timestamp": "2026-05-20T21:39:15.238112",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 114.79,
+    "cost": 0
+  }
+}

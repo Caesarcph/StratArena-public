@@ -1,0 +1,155 @@
+{
+  "ea_id": "EA-1158",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses two custom indicators (2pbIdeal1MA and 2pbIdeal3MA) via iCustom calls with unknown internal logic, plus an external .mqh include (TradeAlgorithms.mqh) for order management. Custom indicator logic cannot be auto-converted without reimplementing the indicator calculations in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "2pbIdeal1MA",
+      "params": {
+        "Period1": 10,
+        "Period2": 10,
+        "buffer_index": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 10
+    },
+    {
+      "type": "Custom",
+      "name": "2pbIdeal3MA",
+      "params": {
+        "PeriodX1": 10,
+        "PeriodX2": 10,
+        "PeriodY1": 10,
+        "PeriodY2": 10,
+        "PeriodZ1": 10,
+        "PeriodZ2": 10,
+        "buffer_index": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 10
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Ma1 - 2pbIdeal1MA buffer 0 value",
+      "formula": "CopyBuffer(InpInd1_Handle, 0, SignalBar, 2) → Ma1[0]=current bar, Ma1[1]=previous bar",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Ma2 - 2pbIdeal3MA buffer 0 value",
+      "formula": "CopyBuffer(InpInd2_Handle, 0, SignalBar, 2) → Ma2[0]=current bar, Ma2[1]=previous bar",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Ma1 (2pbIdeal1MA)",
+        "right": "Ma2 (2pbIdeal3MA)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Ma1 (2pbIdeal1MA)",
+        "right": "Ma2 (2pbIdeal3MA)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Opposite crossover signal closes existing position: Ma1<Ma2 on previous bar triggers close of short; Ma1>Ma2 on previous bar triggers close of long"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 → fixed lot size = abs(MM); MM>0 → deposit fraction = MM"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Dual custom MA crossover system: 2pbIdeal1MA (single ideal MA with rough+adjusting smoothing) crossed against 2pbIdeal3MA (triple ideal MA with three rough+adjusting smoothing pairs). Signal logic: BUY when Ma1[1]>Ma2[1] (previous bar: 1MA above 3MA) AND Ma1[0]<Ma2[0] (current bar: 1MA was below 3MA = crossover upward). SELL when Ma1[1]<Ma2[1] AND Ma1[0]>Ma2[0] (crossover downward). The crossover detection uses previous bar comparison for direction and current bar for confirmation. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose booleans gate each direction independently. TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose functions with position-exists checks built in.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "2pbIdeal1MA indicator (custom .ex5)",
+    "2pbIdeal3MA indicator (custom .ex5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement both 2pbIdeal1MA and 2pbIdeal3MA indicator logic in Python. The '2pbIdealMA' family appears to use a two-pass smoothing technique (rough + adjusting). Without the indicator source code, will need to locate the .mq5 source for 2pbIdeal1MA and 2pbIdeal3MA to port their calculation. TradeAlgorithms.mqh functions (BuyPositionOpen etc.) handle position-exists checks, lot sizing, SL/TP setting — these map to standard backtester order calls. The crossover logic itself is straightforward once indicator values are available. Signal is evaluated on new bar only; use next-bar-open fill assumption. StopLoss=1000 points, TakeProfit=2000 points (with 5-digit broker: 100 pips SL, 200 pips TP). MM=-0.1 means fixed 0.1 lot sizing.",
+  "extraction_timestamp": "2026-05-20T22:24:23.677692",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 94.74,
+    "cost": 0
+  }
+}

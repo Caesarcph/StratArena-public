@@ -1,0 +1,185 @@
+{
+  "ea_id": "EA-1136",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses no built-in indicators — all signals are derived from raw bar comparisons (Inside Bar, Black/White Insider, Bird patterns, and custom Zig_level calculations). While it uses standard MT5 Trade library .mqh files (Trade.mqh, SymbolInfo.mqh, DealInfo.mqh, PositionInfo.mqh), these are not custom indicator libraries. However, the entire signal logic is custom price-action pattern matching that has no built-in indicator equivalent and must be manually reimplemented in Python. Order management is simple (single position per symbol, market orders), so the difficulty is moderate.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Insider",
+      "formula": "r[1].high <= r[2].high AND r[1].low >= r[2].low (bar[1] is inside bar[2])",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "Insider2",
+      "formula": "r[2].high <= r[3].high AND r[2].low >= r[3].low (bar[2] is inside bar[3])",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "Black_insider",
+      "formula": "Insider AND r[1].close <= r[1].open (bearish inside bar)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "White_insider",
+      "formula": "Insider AND r[1].close > r[1].open (bullish inside bar)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "White_bird",
+      "formula": "White_insider AND r[2].close > r[2].open (bullish inside bar after bullish outer bar)",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "Black_bird",
+      "formula": "Black_insider AND r[2].close < r[2].open (bearish inside bar after bearish outer bar)",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "Zig_level_buy",
+      "formula": "IF r[1] is bullish: r[1].close - (r[1].close - r[1].open) / 3; ELSE: r[1].close - (r[1].close - r[1].low) / 3",
+      "used_by": "entry rule (confirm_buy)"
+    },
+    {
+      "name": "Zig_level_sell",
+      "formula": "IF r[1] is bearish: r[1].close + (r[1].open - r[1].close) / 3; ELSE: r[1].close + (r[1].high - r[1].close) / 3",
+      "used_by": "entry rule (confirm_sell)"
+    },
+    {
+      "name": "Confirm_buy",
+      "formula": "(r[0].low <= Zig_level_buy OR hour >= 8) AND NOT Black_bird AND NOT White_insider",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Confirm_sell",
+      "formula": "(r[0].high >= Zig_level_sell OR hour >= 8) AND NOT White_bird AND NOT Black_insider",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Buy_signal",
+      "formula": "r[0].high > r[1].high (current bar breaks above prior bar high)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Sell_signal",
+      "formula": "r[0].low < r[1].low (current bar breaks below prior bar low)",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Buy_signal",
+        "right": "Confirm_buy AND r[0].low > r[1].low AND r[1].low < r[2].high",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Sell_signal",
+        "right": "Confirm_sell AND r[0].high < r[1].high AND r[1].high > r[2].low",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 0,
+      "params": {
+        "input_param": "StopLoss",
+        "unit": "points",
+        "buy_formula": "Ask - Point * StopLossPoints",
+        "sell_formula": "Bid + Point * StopLossPoints"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 0,
+      "params": {
+        "input_param": "TakeProfit",
+        "unit": "points",
+        "buy_formula": "Ask + Point * TakeProfitPoints",
+        "sell_formula": "Bid - Point * TakeProfitPoints"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Close long when Sell_signal AND Confirm_sell AND r[0].high < r[1].high (no requirement for r[1].high > r[2].low)",
+      "Close short when Buy_signal AND Confirm_buy AND r[0].low > r[1].low (no requirement for r[1].low < r[2].high)",
+      "Exit conditions are simpler than entry — entry adds an extra r[1] vs r[2] cross-check that exit does not require"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed",
+    "value": 0.1,
+    "params": {
+      "input_param": "Lots",
+      "comment": "MaximumRisk parameter works with zero value — no risk-based sizing implemented"
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 8
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "This is a price-action breakout EA based on the Inside Bar (Insider) pattern. The core strategy: (1) Identify inside bars and their bullish/bearish character, (2) Compute Zig_level buy/sell thresholds as 1/3 retracement levels from the prior bar, (3) Enter long on upside breakout (current high > prior high) with confirmation that current low touched the Zig buy zone or hour>=8, excluding Black_bird and White_insider patterns, (4) Enter short on downside breakout symmetrically. The exit conditions mirror entry but with one fewer condition (no cross-bar check against bar[2]). The time filter is embedded in Confirm_buy/Confirm_sell: after hour 8, the Zig_level price test is bypassed (OR clause). The InvertSignals input swaps all buy/sell signals. Global variables prevent duplicate entries within the same bar (LBT/LST). StopLevel checks validate SL/TP distance from broker minimums.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol with 5-digit pricing, H1 or lower, 730 days",
+  "python_conversion_notes": "The signal logic is entirely custom price-action pattern matching on OHLC bars — no built-in indicators to map. Reimplement the 4-bar pattern detection (Insider, Black/White Insider, Bird patterns) and Zig_level calculation directly in Python using pandas bar comparisons. The entry/exit conditions are boolean combinations of these derived values — straightforward to code but must carefully replicate the bar indexing (r[0]=current, r[1]=prior, etc. with ArraySetAsSeries=true). The GlobalVariable guard (LBT/LST) maps to a simple 'last signal bar timestamp' tracker in Python. The time filter (hour >= 8 bypasses Zig_level check) is an OR condition within Confirm_buy/Confirm_sell. InvertSignals is a simple signal swap. SL/TP in points need Point value conversion. Position check (single position) maps to checking current holdings.",
+  "extraction_timestamp": "2026-05-20T22:14:44.353602",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 287.17,
+    "cost": 0
+  }
+}

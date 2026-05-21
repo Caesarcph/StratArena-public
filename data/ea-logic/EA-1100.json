@@ -1,0 +1,150 @@
+{
+  "ea_id": "EA-1100",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom for 'BrakeExp' custom indicator (unknown implementation), plus external #include <TradeAlgorithms.mqh> library for order management. The custom indicator's buffer logic and the .mqh trading functions require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "BrakeExp",
+      "params": {
+        "A": 3,
+        "B": 1
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpTrend",
+      "formula": "BrakeExp buffer 0 at SignalBar",
+      "used_by": "exit rule (close short if UpTrend active and no UpSignal)"
+    },
+    {
+      "name": "DnTrend",
+      "formula": "BrakeExp buffer 1 at SignalBar",
+      "used_by": "exit rule (close long if DnTrend active and no DnSignal)"
+    },
+    {
+      "name": "UpSignal",
+      "formula": "BrakeExp buffer 2 at SignalBar",
+      "used_by": "entry rule (long) and exit rule (close short)"
+    },
+    {
+      "name": "DnSignal",
+      "formula": "BrakeExp buffer 3 at SignalBar",
+      "used_by": "entry rule (short) and exit rule (close long)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "UpSignal[0]",
+        "right": "non-zero",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "DnSignal[0]",
+        "right": "non-zero",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close short if UpTrend[0] is non-zero and no DnSignal (trend-based exit)",
+      "Close long if DnTrend[0] is non-zero and no UpSignal (trend-based exit)",
+      "Close short on UpSignal (signal reversal exit when SellPosClose=true)",
+      "Close long on DnSignal (signal reversal exit when BuyPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values treated as fixed lot size (abs value), positive values as deposit share fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The BrakeExp custom indicator has 4 buffers: buffer0=UpTrend, buffer1=DnTrend, buffer2=UpSignal, buffer3=DnSignal. Entry signals require the signal buffer to be non-zero. Trend-based exits occur when the opposing trend buffer is non-zero but no signal buffer fires. Signal timestamps are tracked (UpSignalTime, DnSignalTime) and passed to BuyPositionOpen/SellPositionOpen - likely for bar-time validation in TradeAlgorithms.mqh. The Recount flag causes recalculation on next tick if CopyBuffer fails. BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose are boolean gates that enable/disable respective trade actions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "BrakeExp custom indicator (BrakeExp.ex5 or BrakeExp.mq5 required)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement BrakeExp indicator logic in Python - need to locate and translate the BrakeExp.mq5 indicator source. The 4-buffer system (UpTrend/DnTrend/UpSignal/DnSignal) must be faithfully replicated. TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, LoadHistory) need Python equivalents - these handle position checking, lot sizing from MM parameter, and new-bar detection. The MM=-0.1 convention (negative=lot, positive=deposit fraction) must be preserved. Signal timestamps used for trade validation must be understood from the .mqh source.",
+  "extraction_timestamp": "2026-05-20T21:55:09.650660",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 101.86,
+    "cost": 0
+  }
+}

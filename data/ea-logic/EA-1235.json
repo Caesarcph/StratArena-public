@@ -1,0 +1,139 @@
+{
+  "ea_id": "EA-1235",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator name 'Extremum' which is not a built-in MT5 indicator. Also includes external #include <TradeAlgorithms.mqh> for trade management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, LoadHistory, GlobalVariableDel_, CIsNewBar). The Extremum indicator's 6 buffers and its logic must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Extremum",
+      "params": {
+        "NBars": 20,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "Extremum",
+      "derived_period": 20
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpValue",
+      "formula": "CopyBuffer(Extremum_handle, buffer_index=5, SignalBar, 2) — up-signal buffer of Extremum indicator, nonzero = extremum up detected",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DnValue",
+      "formula": "CopyBuffer(Extremum_handle, buffer_index=3, SignalBar, 2) — down-signal buffer of Extremum indicator, nonzero = extremum down detected",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "UpValue[1]",
+        "right": "DnValue[0]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "DnValue[1]",
+        "right": "UpValue[0]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when sell signal detected (DnValue[1] nonzero) and BuyPosClose permission is true",
+      "Short position closed when buy signal detected (UpValue[1] nonzero) and SellPosClose permission is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "fixed_lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative value = fixed lot size (abs value), positive value = deposit fraction for position sizing"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The Extremum custom indicator uses 6 buffers; buffers 3 (DnValue) and 5 (UpValue) are read. Signal logic: UpValue[1] (previous bar's up-signal) triggers buy consideration if DnValue[0] (current bar's down-signal) is also nonzero — this appears to be an extremum-confirmation pattern where a prior up-extremum combined with a current down-extremum absence confirms long entry, and vice versa. The signal timing uses SeriesInfoInteger SERIES_LASTBAR_DATE + TimeShiftSec for order signal timestamps. The CIsNewBar class and LoadHistory/GlobalVariableDel_ functions come from TradeAlgorithms.mqh. SignalBar=1 means signals are read from bar index 1 (most recent closed bar). The Recount flag forces re-reading of indicator data on the first tick or after a copy failure.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh — provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, LoadHistory, GlobalVariableDel_, CIsNewBar",
+    "Extremum indicator — custom indicator with 6 buffers, parameterized by NBars period"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reverse-engineer the Extremum indicator logic (buffers 3 and 5 at minimum). The indicator likely identifies local price extremums over NBars period and sets buffer values nonzero at extremum points. The two-buffer read pattern (UpValue[1] && DnValue[0] for buy, DnValue[1] && UpValue[0] for sell) suggests a confirmation system: a prior-bar extremum signal combined with absence of opposing extremum on the current bar. TradeAlgorithms.mqh functions are standard position management wrappers that can be reimplemented with simple market order logic. Signal is evaluated once per new bar (CIsNewBar guard) with SignalBar=1 using closed-bar data, so backtest can safely use next-bar-open fill assumption. The MM=-0.1 means fixed 0.1 lot sizing. StopLoss=1000 points, TakeProfit=2000 points (for 5-digit broker: 100 pips SL, 200 pips TP).",
+  "extraction_timestamp": "2026-05-20T22:45:15.834043",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 190.05,
+    "cost": 0
+  }
+}

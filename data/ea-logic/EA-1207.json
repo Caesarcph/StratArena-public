@@ -1,0 +1,188 @@
+{
+  "ea_id": "EA-1207",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator 'ColorRMACD' and two external .mqh includes (SmoothAlgorithms.mqh, TradeAlgorithms.mqh). The ColorRMACD indicator is not a built-in MT5 indicator, requiring manual Python reimplementation of the RMACD calculation logic.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorRMACD",
+      "params": {
+        "fast_rvi": 12,
+        "slow_trvi": 26,
+        "volume_type": 1,
+        "signal_method": 0,
+        "signal_xma": 9,
+        "signal_phase": 100,
+        "applied_to": 0
+      },
+      "source": "custom",
+      "library": "ColorRMACD",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "RMACD histogram (buffer 0)",
+      "formula": "ColorRMACD buffer 0: difference of fast RVI and slow TRVI moving averages using volume-weighted data",
+      "used_by": "entry/exit rule - breakdown, MACDtwist, MACDdisposition modes"
+    },
+    {
+      "name": "RMACD signal line (buffer 2)",
+      "formula": "ColorRMACD buffer 2: signal line smoothed from histogram using Signal_Method (SMA) with period Signal_XMA=9 and phase 100",
+      "used_by": "entry/exit rule - SIGNALtwist and MACDdisposition modes"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "RMACD histogram",
+        "right": "zero line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "RMACD histogram direction",
+        "right": "previous histogram values",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "Signal line direction",
+        "right": "previous signal line values",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossover",
+        "left": "RMACD histogram",
+        "right": "Signal line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "RMACD histogram",
+        "right": "zero line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossunder",
+        "left": "RMACD histogram direction",
+        "right": "previous histogram values",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Signal line direction",
+        "right": "previous signal line values",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "crossunder",
+        "left": "RMACD histogram",
+        "right": "Signal line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {}
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long positions closed when sell signal generated (if BuyPosClose=true)",
+      "Short positions closed when buy signal generated (if SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "description": "MM=-0.1: negative values specify fixed lot size (0.1 lots), positive values specify share of deposit"
+    },
+    "max_positions": 1,
+    "conditional_logic": "When MM<0, |MM| is used as fixed lot size; when MM>0, MM is fraction of deposit"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "EA has 4 entry modes selectable via AlgMode enum: (1) breakdown - MACD histogram crosses zero; (2) MACDtwist - MACD histogram changes direction (3-bar comparison); (3) SIGNALtwist - signal line changes direction (3-bar comparison, uses buffer 2); (4) MACDdisposition - MACD histogram crosses signal line. SignalBar=1 means signals are read from the previous closed bar (not the current forming bar). The BuyPosOpen/SellPosOpen/BuyPosClose/SellPosClose booleans act as permission gates for opening/closing long/short positions. The ColorRMACD indicator uses RVI (Relative Vigor Index) as the fast component and TRVI as the slow component, combined into a MACD-style oscillator with a configurable smoothing method for the signal line (supports JJMA, JurX, ParMA, T3, VIDYA, AMA beyond standard SMA/EMA/SMMA/LWMA).",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "ColorRMACD indicator (custom)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days with tick volume data",
+  "python_conversion_notes": "Requires reimplementation of ColorRMACD indicator: fast RVI(12) minus slow TRVI(26) with volume weighting, plus signal line smoothing. The SmoothAlgorithms.mqh library provides 10+ smoothing methods beyond standard MAs - need to implement at least the selected method (SMA for signal line). TradeAlgorithms.mqh provides position open/close wrappers that handle lot sizing (MM negative=fixed lots, positive=deposit fraction), SL/TP placement, and deviation - these are standard order management patterns easily replicated in Python. The 4 entry modes are straightforward crossover/direction-change logic. SignalBar=1 shifts all signal reads by 1 bar (use previous closed bar for decisions), which naturally maps to next-bar-open backtest filling.",
+  "extraction_timestamp": "2026-05-20T22:38:47.587968",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 184.78,
+    "cost": 0
+  }
+}

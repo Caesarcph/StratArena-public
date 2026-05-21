@@ -1,0 +1,161 @@
+{
+  "ea_id": "EA-1163",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator name 'iVLT' which is not a built-in MT5 indicator. Requires manual Python reimplementation of the VLT indicator logic. Also uses external .mqh libraries (Trade/Trade.mqh, Trade/SymbolInfo.mqh, etc.) and complex pending order management with GlobalVariable state machine.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "iVLT",
+      "params": {
+        "period": 9,
+        "method": null,
+        "applied_to": null,
+        "shift": 1
+      },
+      "source": "custom",
+      "library": "iVLT",
+      "derived_period": 9
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Signal",
+      "formula": "ind[0] != EMPTY_VALUE from iVLT buffer 2, shift 1",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "BuyStopPrice",
+      "formula": "NormalizePrice(High[1] + Point * (PendingLevel + Spread))",
+      "used_by": "entry rule long"
+    },
+    {
+      "name": "SellStopPrice",
+      "formula": "NormalizePrice(Low[1] - Point * PendingLevel)",
+      "used_by": "entry rule short"
+    },
+    {
+      "name": "MinBuyStopPrice",
+      "formula": "NormalizePrice(Ask + Point * (StopsLevel + 1))",
+      "used_by": "entry rule long price floor"
+    },
+    {
+      "name": "MinSellStopPrice",
+      "formula": "NormalizePrice(Bid - Point * (StopsLevel + 1))",
+      "used_by": "entry rule short price ceiling"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "iVLT buffer 2 at shift 1",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "iVLT buffer 2 at shift 1",
+        "right": "EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "stop",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 550,
+      "params": {
+        "unit": "points",
+        "buy_sl_formula": "BuyStopPrice - Point * StopLoss",
+        "sell_sl_formula": "SellStopPrice + Point * StopLoss",
+        "min_sl_adjustment": "adjusted to respect StopsLevel+Spread+1 minimum distance"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 550,
+      "params": {
+        "unit": "points",
+        "buy_tp_formula": "BuyStopPrice + Point * TakeProfit",
+        "sell_tp_formula": "SellStopPrice - Point * TakeProfit",
+        "min_tp_adjustment": "adjusted to respect StopsLevel+1 minimum distance"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Opposing pending stop orders are deleted when a position is already open and CheckDelete flag is true",
+      "No explicit signal-based close; exits rely entirely on SL/TP of the pending order"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed",
+    "value": 0.1,
+    "params": {},
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "stop",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "previous_bar_high_low",
+    "backtest_fill_assumption": "pending_order_fill_at_price",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "This EA uses a state machine via MT5 GlobalVariables to track pending order placement across ticks. When a new VLT signal fires on a new bar, it sets GlobalVariable timestamps ('bs' and 'ss'). On subsequent ticks, if the GV timestamp matches the current bar, it attempts to place BuyStop/SellStop pending orders at High[1]+PendingLevel+Spread (buy) and Low[1]-PendingLevel (sell). If the GV timestamp is stale, it deletes the GV. Both BuyStop and SellStop are placed simultaneously (OCO-like behavior managed by code). When a position is open, opposing/opposite pending stop orders are deleted. The iVLT custom indicator (buffer index 2) determines signal existence — the indicator itself is not included in this source and must be obtained separately. The EA uses CSymbolInfo for price normalization and CTrade for order placement. Dead code exists: SignalOpenBuy(), SignalOpenSell(), SignalCloseBuy(), SignalCloseSell() all return false and are never called.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/PositionInfo.mqh",
+    "Trade/OrderInfo.mqh",
+    "iVLT custom indicator (not included)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol with 5-digit pricing, daily or intraday bars, 365 days minimum. Requires iVLT indicator source or pre-computed signal values.",
+  "python_conversion_notes": "Major challenges: (1) The iVLT custom indicator must be reverse-engineered or sourced separately — buffer 2 at shift 1 produces non-EMPTY_VALUE on signal bars. (2) The pending order state machine using GlobalVariables must be reimplemented as a simple in-memory state dict keyed by bar timestamp. (3) Both BuyStop and SellStop are placed simultaneously per signal — this is OCO logic that must be handled when one fills (cancel the other). (4) Price normalization using Sym.NormalizePrice, Sym.Spread(), Sym.StopsLevel() must be replicated. (5) The SL/TP are calculated relative to the stop price, not current market price — important for backtest accuracy. (6) Pending order expiry is not set in the code — orders persist until filled or deleted by the CheckDelete logic. (7) The dead code functions (SignalOpenBuy etc.) can be ignored. Suggested approach: implement VLT indicator in Python first, then use vectorized signal detection with event-driven pending order simulation for accurate backtesting.",
+  "extraction_timestamp": "2026-05-20T22:30:03.553097",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 232.81,
+    "cost": 0
+  }
+}

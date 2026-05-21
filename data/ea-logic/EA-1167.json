@@ -1,0 +1,161 @@
+{
+  "ea_id": "EA-1167",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call '2pbIdealXOSMA' custom indicator and includes external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) with custom smoothing classes (CXMA) and trading functions that must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "2pbIdealXOSMA",
+      "params": {
+        "period1": 10,
+        "period2": 10,
+        "periodX1": 10,
+        "periodX2": 10,
+        "periodY1": 10,
+        "periodY2": 10,
+        "periodZ1": 10,
+        "periodZ2": 10
+      },
+      "source": "custom",
+      "library": "2pbIdealXOSMA",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "macd_buffer",
+      "formula": "2pbIdealXOSMA indicator buffer 0 values at bars [SignalBar, SignalBar+1, SignalBar+2]",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "smoothed_histogram",
+      "formula": "XMA1.SmoothMethod(MODE_JJMA, period=9, phase=100) applied to 2pbIdealXOSMA output",
+      "used_by": "min_rates_total calculation only"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "macd[1]",
+        "right": "macd[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "macd[0]",
+        "right": "macd[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "macd[1]",
+        "right": "macd[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "macd[0]",
+        "right": "macd[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when macd[1] > macd[2] (sell signal detected) and BuyPosClose input is true",
+      "Short position closed when macd[1] < macd[2] (buy signal detected) and SellPosClose input is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM input: negative values = fixed lot size, positive values = share of deposit"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The 2pbIdealXOSMA custom indicator is a triple-ideal-moving-average oscillator with OSMMA smoothing. It uses three pairs of rough+adjusting smoothing periods (X, Y, Z) plus two additional smoothing periods (Period1, Period2). The entry logic compares three consecutive histogram values: when histogram is declining (macd[1]<macd[2]) and current bar turns up (macd[0]>macd[1]), it generates a buy signal; conversely for sell. The CXMA class from SmoothAlgorithms.mqh supports 10 smoothing methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA) and is used for additional smoothing of the histogram output. TradeAlgorithms.mqh provides the BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose functions with position gating and signal-time tracking.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh",
+    "TradeAlgorithms.mqh",
+    "2pbIdealXOSMA.ex5 (custom indicator compiled)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement 2pbIdealXOSMA indicator in Python - it is a triple-ideal-MA oscillator with 8 smoothing period parameters plus an additional XMA smoothing pass (JJMA with period=9, phase=100). The JJMA (JMA) algorithm is proprietary and needs an open-source approximation. TradeAlgorithms.mqh functions must be replaced with simple market order logic. Signal logic is straightforward: 3-bar histogram comparison (declining-then-rising = buy, rising-then-declining = sell). Entry is gated by new bar detection and buy/sell permission flags. Stop loss/take profit are simple fixed-point values. Position sizing uses a dual-mode input (negative=fixed lot, positive=deposit fraction).",
+  "extraction_timestamp": "2026-05-20T22:28:58.221431",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 90.64,
+    "cost": 0
+  }
+}

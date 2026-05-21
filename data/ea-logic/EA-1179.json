@@ -1,0 +1,172 @@
+{
+  "ea_id": "EA-1179",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom('Oracle',...) which is a custom indicator with unknown internal logic. Also includes external #include <TradeAlgorithms.mqh> for trade management. Custom indicator buffers must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "Oracle",
+      "params": {
+        "period": 55,
+        "applied_price": 5,
+        "smooth": 8,
+        "recount": true,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "Oracle",
+      "derived_period": 55
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Oracle main line (buffer 0)",
+      "formula": "iCustom('Oracle',55,PRICE_CLOSE,8,true,0) buffer 0 - unknown internal calculation",
+      "used_by": "disposition entry/exit rule"
+    },
+    {
+      "name": "Oracle signal line (buffer 1)",
+      "formula": "iCustom('Oracle',55,PRICE_CLOSE,8,true,0) buffer 1 - unknown internal calculation",
+      "used_by": "breakdown/twist/disposition entry/exit rules"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Oracle signal line (buffer 1)",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Oracle signal line (buffer 1, bar+1)",
+        "right": "Oracle signal line (buffer 1, bar+2)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Oracle signal line (buffer 1)",
+        "right": "Oracle main line (buffer 0)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "Oracle signal line (buffer 1)",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Oracle signal line (buffer 1, bar+1)",
+        "right": "Oracle signal line (buffer 1, bar+2)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Oracle signal line (buffer 1)",
+        "right": "Oracle main line (buffer 0)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Signal-based close: long closed on sell signal when BuyPosClose=true; short closed on buy signal when SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_fixed_lot": true,
+      "fixed_lot_when_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM parameter: negative values interpreted as fixed lot size, positive as deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Three algorithm modes selectable via Mode enum: (1) 'breakdown' - signal line crosses zero; (2) 'twist' - signal line changes direction (compares 3 consecutive values); (3) 'disposition' - signal line crosses main line. Default mode is 'twist'. Entry signals only evaluated on new bar or when Recount=true. Recount flag set on CopyBuffer failure. LoadHistory() called each tick. SignalBar=1 means signals are read from the previous completed bar (shift 1). Permission booleans (BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose) act as gatekeepers for each trade direction and action.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "Oracle custom indicator (iCustom)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reverse-engineer or obtain the Oracle indicator source code to reimplement its two buffers (main=buffer0, signal=buffer1) in Python. The Oracle indicator takes params: period=55, applied_price=PRICE_CLOSE, smooth=8, recount=true. Without the Oracle indicator source, the signal generation logic is a black box. TradeAlgorithms.mqh must also be examined to understand BuyPositionOpen/SellPositionOpen/BuyPositionClose/SellPositionClose implementation details (likely standard market order execution with SL/TP and deviation handling). The three entry modes are straightforward once Oracle values are available. SignalBar=1 means using the prior bar's values - standard for backtesting. MM=-0.1 means fixed 0.1 lot sizing.",
+  "extraction_timestamp": "2026-05-20T22:31:06.763559",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 128.54,
+    "cost": 0
+  }
+}

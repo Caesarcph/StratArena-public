@@ -1,0 +1,180 @@
+{
+  "ea_id": "EA-11418",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with 'KaufWMAcross' (unknown custom indicator) and #include <TradeAlgorithms.mqh> (external library for position management). The core signal logic depends on a custom indicator that must be manually reimplemented in Python. Position open/close functions are from the external .mqh, not standard MT5 API.",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "KaufWMAcross",
+      "params": {
+        "ama_period": 9,
+        "fast_ma_period": 2,
+        "slow_ma_period": 30,
+        "AMA_applied_price": 5,
+        "MA_period": 13,
+        "MA_method": 3,
+        "MA_applied_price": 5
+      },
+      "source": "custom",
+      "library": "KaufWMAcross",
+      "derived_period": null
+    },
+    {
+      "type": "MA",
+      "name": "LWMA",
+      "params": {
+        "period": 13,
+        "method": 3,
+        "applied_to": 5,
+        "shift": 0
+      },
+      "source": "custom_indicator_subcomponent",
+      "library": null,
+      "derived_period": null
+    },
+    {
+      "type": "Custom",
+      "name": "AMA_Kaufman",
+      "params": {
+        "ama_period": 9,
+        "fast_ma_period": 2,
+        "slow_ma_period": 30,
+        "applied_price": 5
+      },
+      "source": "custom_indicator_subcomponent",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "UpValue - buy signal from KaufWMAcross buffer 1",
+      "formula": "KaufWMAcross buffer[1] at SignalBar: non-zero and not EMPTY_VALUE = AMA crosses above LWMA",
+      "used_by": "entry rule (long open, short close)"
+    },
+    {
+      "name": "DnValue - sell signal from KaufWMAcross buffer 0",
+      "formula": "KaufWMAcross buffer[0] at SignalBar: non-zero and not EMPTY_VALUE = AMA crosses below LWMA",
+      "used_by": "entry rule (short open, long close)"
+    },
+    {
+      "name": "Historical close signal for existing position",
+      "formula": "Scan bars from SignalBar+1 to Bars()-1 for opposite signal in buffer 0 or 1 to set BUY_Close/SELL_Close when both open and close flags are enabled",
+      "used_by": "exit rule (signal reversal close with confirmation)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "KaufWMAcross buffer 1 (UpValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "KaufWMAcross buffer 0 (DnValue)",
+        "right": "non-zero and not EMPTY_VALUE",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "When both BuyPosOpen and BuyPosClose (or SellPosOpen and SellPosClose) are true and no close signal on current bar, the EA scans historical bars from SignalBar+1 onward for a prior opposite signal to set close flags. This is a retroactive confirmation check to avoid closing when the cross happened too recently to have an open position."
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT",
+      "mm_value": 0.1,
+      "modes_available": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode enum selects between free margin fraction, balance fraction, loss-adjusted free margin, loss-adjusted balance, or fixed lot. Current default is LOT (fixed lot of 0.1)."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": true
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a Kaufman AMA vs LWMA crossover system via the custom 'KaufWMAcross' indicator (2 buffers: buffer 0 = down/sell crossover dots, buffer 1 = up/buy crossover dots, EMPTY_VALUE when no signal). It includes a retroactive position-check: when both entry and exit are enabled for a direction, but no exit signal fires on SignalBar, it scans backward through bars to find if an opposite signal exists, ensuring there was actually a position opened before trying to close it. The #include <TradeAlgorithms.mqh> provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, and LoadHistory — all must be reimplemented. The signal bar defaults to 1 (previous completed bar), avoiding repainting.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "KaufWMAcross (custom indicator .ex5 or .mq5)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H6 730 days",
+  "python_conversion_notes": "Must reimplement Kaufman AMA indicator: er = abs(close - close[ama_period]) / sum(abs(close[i] - close[i-1]) for i in range(1, ama_period+1)); fast_sc = 2/(fast_ma_period+1); slow_sc = 2/(slow_ma_period+1); sc = (er*(fast_sc - slow_sc) + slow_sc)^2; ama = ama_prev + sc*(close - ama_prev). Then compute LWMA(period=13) on close. Entry: AMA crosses above LWMA = long; AMA crosses below LWMA = short. StopLoss=1000 points, TakeProfit=2000 points. Signal on bar[1] (previous bar), execute at next bar open. The retroactive position-check logic can be simplified in Python by tracking whether a position was actually opened before sending a close order. MarginMode=LOT means fixed lot sizing at 0.1 lots.",
+  "extraction_timestamp": "2026-05-20T22:20:39.760082",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 222.42,
+    "cost": 0
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "ea_id": "EA-11254",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'SlopeDirectionLine' custom indicator and depends on two external .mqh includes (TradeAlgorithms.mqh, SmoothAlgorithms.mqh). The custom indicator's internal logic (double smoothing with JJMA/JurX/ParMA/T3/VIDYA/AMA methods beyond standard MA types) and the trade management functions from TradeAlgorithms.mqh require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "SlopeDirectionLine",
+      "params": {
+        "MA_Method1": 3,
+        "Length1": 12,
+        "Phase1": 15,
+        "MA_Method2": 0,
+        "Phase2": 15,
+        "IPC": 1,
+        "extra_param1": 0,
+        "extra_param2": 0,
+        "alert_push": false,
+        "alert_email": false,
+        "alert_sound": false,
+        "alert_msg": false,
+        "sound_file": "",
+        "email_subject": "",
+        "bars_visual": 0
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "SlopeDirectionLine buffer 1 value (trend state)",
+      "formula": "iCustom(Symbol(), Timeframe, 'SlopeDirectionLine', ...)[buffer 1]",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "min_rates_total (warmup bars)",
+      "formula": "GetStartBars(MA_Method1, Length1, Phase1) + GetStartBars(MA_Method2, int(max(sqrt(Length1),1)), Phase2) + 2 + SignalBar",
+      "used_by": "readiness check"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "SlopeDirectionLine buffer1[1]",
+        "right": "2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "SlopeDirectionLine buffer1[0]",
+        "right": "2",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "SlopeDirectionLine buffer1[1]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      },
+      {
+        "condition": "and_combination",
+        "left": "SlopeDirectionLine buffer1[0]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long closes when SlopeDirectionLine buffer1[1] == 0 (bearish trend state)",
+      "Short closes when SlopeDirectionLine buffer1[1] == 2 (bullish trend state)"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT",
+      "description": "MM fraction of deposit/balance/lot depending on MarginMode enum"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum controls sizing: LOT=fixed lot, FREEMARGIN=% of free margin, BALANCE=% of balance, LOSSFREEMARGIN=% of loss-free margin, LOSSBALANCE=% of loss-balance"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The SlopeDirectionLine custom indicator returns discrete trend state values in buffer 1: 0=bearish, 1=neutral, 2=bullish. Entry triggers on a transition: long when Value[1]==2 AND Value[0]!=2 (trend just turned bullish on the signal bar), short when Value[1]==0 AND Value[0]!=0 (trend just turned bearish). The indicator uses extended smoothing methods (JJMA, JurX, ParMA, T3, VIDYA, AMA) from SmoothAlgorithms.mqh which are not standard TA-Lib functions and must be manually reimplemented. The trade management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory) come from TradeAlgorithms.mqh and handle position checking, order sending, and margin calculation internally. SignalBar=1 means signals are evaluated on the previous completed bar (bar index 1), with Value[0] being bar 2 (one bar older) for transition detection.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh",
+    "SlopeDirectionLine.ex5 (custom indicator compiled)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Symbol H4 730 days",
+  "python_conversion_notes": "Three major reimplementations needed: (1) SlopeDirectionLine indicator - a double-smoothed trend indicator using LWMA(12, phase 15) then SMA(sqrt(12)≈3, phase 15) applied to CLOSE price, returning discrete states 0/1/2 for bear/neutral/bull. The custom smoothing algorithms (JJMA, JurX, ParMA, T3, VIDYA, AMA from SmoothAlgorithms.mqh) are non-standard and must be ported or approximated with standard MAs if exact replication is not required. (2) Trade management functions from TradeAlgorithms.mqh - BuyPositionOpen/SellPositionOpen with margin-based lot sizing (5 modes) and BuyPositionClose/SellPositionClose with position existence checks. (3) Entry logic uses buffer 1 of the indicator comparing Value[1] (signal bar) vs Value[0] (one bar before signal bar) to detect trend transitions. Fixed SL=1000 points, TP=2000 points. Signal evaluated on bar close (SignalBar=1), trades executed at next bar open for backtesting.",
+  "extraction_timestamp": "2026-05-20T22:09:21.183211",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 144.63,
+    "cost": 0
+  }
+}

@@ -1,0 +1,178 @@
+{
+  "ea_id": "EA-1053",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses MQL5 Trade Standard Library (.mqh includes) for order management and position handling, which requires manual Python reimplementation. No external custom indicators, but the pivot-based SL/TP logic with breakeven modification and lot reduction factor is complex enough to need careful manual conversion rather than auto-generation.",
+  "symbol": null,
+  "timeframe_hint": "D1",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "Pivot",
+      "formula": "(prev_day_low + prev_day_high + prev_day_close) / 3",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Resist1",
+      "formula": "2.0 * Pivot - prev_day_low",
+      "used_by": "exit rule"
+    },
+    {
+      "name": "Support1",
+      "formula": "2.0 * Pivot - prev_day_high",
+      "used_by": "exit rule"
+    },
+    {
+      "name": "Resist2",
+      "formula": "Pivot + (Resist1 - Support1)",
+      "used_by": "exit rule"
+    },
+    {
+      "name": "Support2",
+      "formula": "Pivot - (Resist1 - Support1)",
+      "used_by": "exit rule"
+    },
+    {
+      "name": "Resist3",
+      "formula": "prev_day_high + 2.0 * (Pivot - prev_day_low)",
+      "used_by": "exit rule"
+    },
+    {
+      "name": "Support3",
+      "formula": "prev_day_low - 2.0 * (prev_day_high - Pivot)",
+      "used_by": "exit rule"
+    },
+    {
+      "name": "cl1",
+      "formula": "Close[1] of current timeframe",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "cl2",
+      "formula": "Close[2] of current timeframe",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "cl1 (close 1 bar ago)",
+        "right": "Pivot",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "cl1 (close 1 bar ago)",
+        "right": "Pivot",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 0,
+      "params": {
+        "TgtProfit_1_buy_SL": "Support1",
+        "TgtProfit_2_buy_SL": "Support2",
+        "TgtProfit_3_buy_SL": "Support3",
+        "TgtProfit_1_sell_SL": "Resist1 + spread",
+        "TgtProfit_2_sell_SL": "Resist2 + spread",
+        "TgtProfit_3_sell_SL": "Resist3 + spread",
+        "fallback_buy_SL": "Support2",
+        "fallback_sell_SL": "Resist2 + spread"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 0,
+      "params": {
+        "TgtProfit_1_buy_TP": "Resist1",
+        "TgtProfit_2_buy_TP": "Resist2",
+        "TgtProfit_3_buy_TP": "Resist3",
+        "TgtProfit_1_sell_TP": "Support1 + spread",
+        "TgtProfit_2_sell_TP": "Support2 + spread",
+        "TgtProfit_3_sell_TP": "Support3 + spread",
+        "fallback_buy_TP": "Resist3",
+        "fallback_sell_TP": "Support3 + spread"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "signal_reversal_close": false,
+    "other_exits": [
+      "Breakeven stop modification: when ModSL=true and price reaches first target level (R1 for buy, S1 for sell), SL is moved to entry price +/- spread",
+      "Intraday forced close: when isTradeDay=true, position is closed at 23:00",
+      "Second-variant SL/TP: if primary SL/TP fails minimum stops level check, fallback SL/TP is attempted (buy: SL=Support2, TP=Resist3; sell: SL=Resist2+spread, TP=Support3+spread)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "fixed_lots": 0.1,
+      "max_risk_fraction": 0.02,
+      "lot_reduction_factor_DcF": 3,
+      "lot_reduction_formula": "when DcF>0 and consecutive_losses>1: lot = lot - lot * consecutive_losses / DcF",
+      "risk_sizing_formula": "when Lots=0: lot = free_margin * MaxR / 1000, then normalize to broker volume step/min/max"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If Lots>0 use fixed; if Lots=0 use deposit fraction; then apply DcF loss reduction if enabled"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": true,
+      "start_hour": 0,
+      "end_hour": 23
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Pivot levels are recalculated daily from previous D1 bar. Entry uses a 2-bar crossover of close vs Pivot (close[1] crosses above/below Pivot while close[2] was on the other side). SL/TP are set to pivot support/resistance levels based on TgtProfit parameter (1=S1/R1, 2=S2/R2, 3=S3/R3). If SL/TP violate minimum stops distance, a second-variant SL/TP is tried. Breakeven modification (ModSL) moves SL to entry+spread when first target (R1 for buy, S1 for sell) is reached. Lot reduction after consecutive losses (DcF parameter). The EA uses MQL5 Trade Standard Library classes (CTrade, CSymbolInfo, CDealInfo, CPositionInfo) and GlobalVariableSet/Get for tracking target levels across ticks.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol D1+currentTF 730 days",
+  "python_conversion_notes": "Core logic is straightforward: compute classic pivot levels from previous daily bar, check for close-vs-pivot crossover on new bar, place market orders with pivot-based SL/TP. Key challenges: (1) MQL5 Trade library order management needs manual Python equivalent using backtest framework's order API; (2) Minimum stops level check (StopsLevel) must be simulated; (3) Lot normalization to broker volume constraints; (4) Breakeven SL modification tracking via global variables needs in-memory state; (5) DcF loss reduction requires iterating deal history in reverse to count consecutive losses; (6) Sell SL/TP include a spread offset adjustment that must be preserved. The crossover entry logic is simple (cl1>Pivot && cl2<=Pivot for buy). No custom indicator calls to replicate.",
+  "extraction_timestamp": "2026-05-20T21:41:03.414510",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 108.18,
+    "cost": 0
+  }
+}

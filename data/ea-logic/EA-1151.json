@@ -1,0 +1,145 @@
+{
+  "ea_id": "EA-1151",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'CoeffofLine_true' custom indicator and includes external TradeAlgorithms.mqh library. Both require manual Python reimplementation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "CoeffofLine_true",
+      "params": {
+        "period": 5,
+        "method": 2,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 5
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "CoeffofLine_true buffer 0 value at SignalBar and SignalBar+1",
+      "formula": "iCustom(Symbol(), InpInd_Timeframe, \"CoeffofLine_true\", SMMAPeriod) buffer 0",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Value[1] - previous bar indicator value",
+      "formula": "CopyBuffer(handle, 0, SignalBar+1, 1) => Value[1]",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Value[0] - current signal bar indicator value",
+      "formula": "CopyBuffer(handle, 0, SignalBar, 1) => Value[0]",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "CoeffofLine_true[SignalBar]",
+        "right": "zero_line",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "long_only"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossunder",
+        "left": "CoeffofLine_true[SignalBar]",
+        "right": "zero_line",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "short_only"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when indicator crosses below zero (Value[1]<0 detected, BuyPosClose=true)",
+      "Short position closed when indicator crosses above zero (Value[1]>0 detected, SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_if_negative": 0.1
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM<0 uses absolute value as fixed lot size; MM>0 uses deposit fraction"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic: when Value[1]>0 (indicator on prior bar is positive) AND Value[0]<0 (indicator on signal bar is negative), that is a zero-line crossover upward -> BUY. When Value[1]<0 AND Value[0]>0, zero-line crossunder -> SELL. The SignalBar parameter (default 1) shifts which bar is used for current vs previous value. Exit signals are generated simultaneously: a buy signal also triggers short close, and a sell signal also triggers long close. The TradeAlgorithms.mqh library provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, and CIsNewBar - these must be reimplemented. CoeffofLine_true custom indicator is an SMMA-based coefficient of line indicator; its internal logic must be sourced separately for Python conversion.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "CoeffofLine_true custom indicator (.mq5 source needed for Python reimplementation)"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Two main reimplementation tasks: (1) CoeffofLine_true indicator - SMMA(period=5) based, outputs values crossing zero for trend direction; need to locate and port the indicator source code. (2) TradeAlgorithms.mqh functions - position open/close with fixed SL/TP, deposit-fraction sizing (MM negative=lot size, positive=deposit fraction), deviation check, new-bar detection. Entry is zero-line crossover on CoeffofLine_true: buy when crosses above zero, sell when crosses below zero. SignalBar=1 means signals are evaluated on the previous closed bar, so backtest should use bar[1] close price as fill assumption.",
+  "extraction_timestamp": "2026-05-20T22:23:39.012221",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 201.65,
+    "cost": 0
+  }
+}

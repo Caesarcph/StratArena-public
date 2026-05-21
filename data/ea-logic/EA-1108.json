@@ -1,0 +1,162 @@
+{
+  "ea_id": "EA-1108",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "The EA uses a custom self-learning pattern recognition system (binary pattern encoding, virtual order simulation, probability tracking with forgetting factor) rather than standard built-in indicators. The core logic (AnaliticModule) maintains 3D arrays of virtual orders and probability distributions that must be manually reimplemented in Python. No iCustom or external indicators, but the entire pattern-learning engine is custom algorithmic logic with no standard indicator equivalent.",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "true"
+  },
+  "indicators": [],
+  "derived_values": [
+    {
+      "name": "MarketPattern",
+      "formula": "Ring buffer of NN-1 recent close prices shifted by delta parameter, updated on tick when price moves beyond PatternDeltaParameter threshold",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "BinaryPattern",
+      "formula": "Binary encoding: MarketPattern[i] > MarketPattern[i+1] → 1, else 0, for i=1..NN-1",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Ncomb (pattern coded number)",
+      "formula": "Sum of BinaryPattern[i] * 2^(i-1) for i=1..NN-1, yielding a unique integer pattern ID from 0 to 2^(NN-1)-1",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Store_PowerUp",
+      "formula": "Cumulative probability-weighted count of upward moves hitting take_profit, decayed by division by 'forg' factor on each virtual close; incremented by 1 on virtual TP hit",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "Store_PowerDn",
+      "formula": "Cumulative probability-weighted count of downward moves hitting take_profit, decayed by division by 'forg' factor on each virtual close; incremented by 1 on virtual SL hit",
+      "used_by": "entry rule"
+    },
+    {
+      "name": "prob_up",
+      "formula": "Store_PowerUp[Ncomb][ip][is] / (Store_PowerUp[Ncomb][ip][is] + Store_PowerDn[Ncomb][ip][is] + 0.0001)",
+      "used_by": "entry rule (buy signal)"
+    },
+    {
+      "name": "prob_dn",
+      "formula": "Store_PowerDn[Ncomb][ip][is] / (Store_PowerUp[Ncomb][ip][is] + Store_PowerDn[Ncomb][ip][is] + 0.0001)",
+      "used_by": "entry rule (sell signal)"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "prob_up",
+        "right": "Probab",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "prob_dn",
+        "right": "Probab",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 250,
+      "params": {
+        "variable_sl": true,
+        "sl_values": "dstop * is for is=1..Nstop, default dstop=250 * Nstop=1",
+        "sl_equals_tp": true
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 250,
+      "params": {
+        "variable_tp": true,
+        "tp_values": "dstop * is for is=1..Nstop, default dstop=250 * Nstop=1",
+        "tp_equals_sl": true
+      }
+    },
+    "trailing_stop": {
+      "type": "fixed",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0,
+        "configurable_via_input": true,
+        "input_default": 0,
+        "trail_only_after_breakeven": true
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Close buy if opposite sell probability increased by >0.05 from last saved value (CheckSetBuyCloseSignal)",
+      "Close sell if opposite buy probability increased by >0.05 from last saved value (CheckSetSellCloseSignal)",
+      "Close buy if prob_dn > 0.6 AND trades_count > 10 AND position profit > dstop/2 points (CheckSetBuyCloseSignal2)",
+      "Close sell if prob_up > 0.6 AND trades_count > 10 AND position profit > dstop/2 points (CheckSetSellCloseSignal2)",
+      "ReplaceStops option: modify SL/TP on existing position when new signal in same direction occurs, only moving stops in favorable direction"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed",
+    "value": 0.1,
+    "params": {
+      "input_name": "Lots",
+      "unit": "lots"
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": false,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": false,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "current_tick_with_slippage",
+    "intrabar_signal_behavior": "every_tick"
+  },
+  "custom_logic_notes": "This is a self-learning / pattern-recognition EA with no standard indicators. Core algorithm: (1) Maintains NN-1 price ring buffers per delta parameter (Nidelt=20), each with different step sizes. (2) Converts price sequences to binary patterns (up=1, down=0). (3) Encodes binary pattern as integer (0 to 2^(NN-1)-1). (4) For each pattern/delta/stop combination, opens 'virtual orders' at pattern change times. (5) Virtual orders close when price moves by StopInPointsParameter in either direction, updating Store_PowerUp/Store_PowerDn with exponential forgetting (forg=1.05). (6) Real trades open when prob > Probab threshold AND virtual trades count > 10 AND time since last trade > 2*Period(). (7) The EA tracks up to 5000 pattern types × 30 delta parameters × 3 stop levels in 3D arrays. (8) History persistence via file I/O for probability arrays. (9) TimeToUpdate enforces minimum 2 bars between consecutive trades of same direction. The virtual order simulation is the key challenge for Python backtesting - it requires maintaining state across all pattern/delta/stop combinations and updating probabilities on every tick, which is computationally intensive for vectorized backtesting.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol, any timeframe, 730 days tick data preferred for accuracy; M1 minimum for bar-based approximation",
+  "python_conversion_notes": "Key challenges: (1) The entire virtual order simulation must be reimplemented as a stateful class maintaining the 3D arrays (Store_PowerUp, Store_PowerDn, Store_TradesCount, VO_Exists, VO_OpenPrice, VO_OpenTime). (2) Cannot use vectorized bar-by-bar backtest - must iterate tick-by-tick or use M1 with intrabar simulation. (3) The pattern recognition is per-tick: pattern changes when Ask moves beyond PatternDeltaParameter threshold from last pattern price. (4) Virtual orders open at pattern change time and close when price hits SL or TP in points. (5) Forgetting factor (forg=1.05) decays old probability data on each virtual close. (6) The SL/TP values are symmetric and variable (dstop*is for is=1..Nstop). (7) Multiple close signal mechanisms: probability delta > 0.05, probability > 0.6 with profit > dstop/2, and ReplaceStops SL/TP modification. (8) File I/O for persistence (SaveHistory/ReadHistory) can be replaced with pickle/JSON in Python. (9) The TimeToUpdate guard (2*Period()*60 seconds) must be preserved. Suggested Python architecture: a SelfLearningEngine class encapsulating all pattern/virtual-order state, called on each bar/tick, with separate BacktestEngine for position management.",
+  "extraction_timestamp": "2026-05-20T22:02:25.659178",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 223.41,
+    "cost": 0
+  }
+}

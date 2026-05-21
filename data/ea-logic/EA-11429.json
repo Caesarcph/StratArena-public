@@ -1,0 +1,160 @@
+{
+  "ea_id": "EA-11429",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom() to load 'SimpleBars' custom indicator with 2 buffers read (buffer 4 for signal detection). Also depends on external #include <TradeAlgorithms.mqh> for position management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar). Custom indicator logic must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H6",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "SimpleBars",
+      "params": {
+        "rperiod": 6,
+        "useclose": true
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 6
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Col[0] - signal buffer value at SignalBar",
+      "formula": "CopyBuffer(handle, 4, SignalBar, 2, Col) → Col[0] is current signal bar value (0 or 1), Col[1] is previous signal bar value",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "TimeShiftSec - bar period in seconds",
+      "formula": "PeriodSeconds(InpInd_Timeframe)",
+      "used_by": "order execution timestamp"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "Col[1] (previous signal bar)",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Col[0] (current signal bar)",
+        "right": "1",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "Col[1] (previous signal bar)",
+        "right": "1",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "custom",
+        "left": "Col[0] (current signal bar)",
+        "right": "0",
+        "direction": "equal",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when Col[1]==1 (sell signal appears) and BuyPosClose input is true",
+      "Short position closed when Col[1]==0 (buy signal appears) and SellPosClose input is true"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": 0.1,
+    "params": {
+      "mm_mode": "LOT",
+      "available_modes": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MMMode=LOT means fixed lot size of 0.1; other modes calculate fraction of balance/free margin"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Entry logic: Long when SimpleBars buffer 4 transitions from 0 to 1 (Col[1]==0 and Col[0]==1). Short when buffer transitions from 1 to 0 (Col[1]==1 and Col[0]==0). Signal is read at SignalBar=1 (previous completed bar). When SignalBar=0, signals are evaluated every tick. A Recount mechanism re-reads indicator values if CopyBuffer fails. BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose boolean inputs gate which directions are allowed to open/close. The CIsNewBar class from TradeAlgorithms.mqh controls new-bar detection. LoadHistory() ensures sufficient bar history is loaded before signal evaluation.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh - provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar",
+    "SimpleBars custom indicator - must be available in Indicators directory, provides buffer 4 with binary 0/1 trend direction values"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H6 730 days",
+  "python_conversion_notes": "Must reimplement SimpleBars indicator logic in Python. The indicator takes rperiod (default 6) and useclose (default true) parameters and outputs a binary 0/1 signal on buffer index 4. The signal logic appears to be a bar-counting trend filter: rperiod consecutive up-bars → 1 (bullish), rperiod consecutive down-bars → 0 (bearish), with useclose determining whether close or high/low is used for comparison. TradeAlgorithms.mqh position management must be replaced with simple market order logic. Entry: long on 0→1 transition, short on 1→0 transition, evaluated on completed bar (SignalBar=1). Fixed SL=1000 points, TP=2000 points. Position sizing supports 5 modes; default LOT mode = fixed 0.1 lot.",
+  "extraction_timestamp": "2026-05-20T22:20:17.364451",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 167.42,
+    "cost": 0
+  }
+}

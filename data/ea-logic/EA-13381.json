@@ -1,0 +1,215 @@
+{
+  "ea_id": "EA-13381",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to load 'ColorMaRsi-Trigger' custom indicator and #includes TradeAlgorithms.mqh external library. The custom indicator's buffer logic (buffer 1 returning positive/negative/zero values) must be manually reimplemented in Python. The trade management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, LoadHistory) come from the external .mqh and require manual porting.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 3,
+        "method": null,
+        "applied_to": 7,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "ColorMaRsi-Trigger",
+      "derived_period": 3
+    },
+    {
+      "type": "RSI",
+      "name": "RSI",
+      "params": {
+        "period": 13,
+        "method": null,
+        "applied_to": 4,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "ColorMaRsi-Trigger",
+      "derived_period": 13
+    },
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 5,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "ColorMaRsi-Trigger",
+      "derived_period": 5
+    },
+    {
+      "type": "MA",
+      "name": "EMA",
+      "params": {
+        "period": 10,
+        "method": 1,
+        "applied_to": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "ColorMaRsi-Trigger",
+      "derived_period": 10
+    },
+    {
+      "type": "Custom",
+      "name": "ColorMaRsi-Trigger",
+      "params": {
+        "nPeriodRsi": 3,
+        "nRSIPrice": 7,
+        "nPeriodRsiLong": 13,
+        "nRSIPriceLong": 4,
+        "nPeriodMa": 5,
+        "nMAType": 1,
+        "nMAPrice": 0,
+        "nPeriodMaLong": 10,
+        "nMATypeLong": 1,
+        "nMAPriceLong": 0,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value[1] - trigger signal (buffer 1, current bar)",
+      "formula": "iCustom(ColorMaRsi-Trigger) buffer 1 at SignalBar offset",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Value[0] - trigger signal (buffer 1, previous bar)",
+      "formula": "iCustom(ColorMaRsi-Trigger) buffer 1 at SignalBar+1 offset",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "crossover from negative/zero to positive",
+      "formula": "Value[1] > 0 AND Value[0] <= 0",
+      "used_by": "long entry rule"
+    },
+    {
+      "name": "crossover from positive/zero to negative",
+      "formula": "Value[1] < 0 AND Value[0] >= 0",
+      "used_by": "short entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "ColorMaRsi-Trigger buffer1[SignalBar]",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "ColorMaRsi-Trigger buffer1[SignalBar]",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Buy position closed when trigger signal goes negative (Value[1]<0) and BuyPosClose=true",
+      "Sell position closed when trigger signal goes positive (Value[1]>0) and SellPosClose=true"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT",
+      "modes_available": [
+        "FREEMARGIN",
+        "BALANCE",
+        "LOSSFREEMARGIN",
+        "LOSSBALANCE",
+        "LOT"
+      ]
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum selects sizing method: LOT=fixed lot 0.1, FREEMARGIN=fraction of free margin, BALANCE=fraction of balance, LOSSFREEMARGIN=fraction of free margin minus loss, LOSSBALANCE=fraction of balance minus loss"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_bar",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The core signal comes from a custom indicator 'ColorMaRsi-Trigger' loaded via iCustom. Buffer 1 returns the trigger value: positive = bullish signal, negative = bearish signal, zero = no signal. Entry requires a crossover from zero/opposite to positive (long) or negative (short). The crossover check compares Value[0] (previous signal bar) and Value[1] (current signal bar). SignalBar parameter defaults to 1 (confirmed bar). Separate boolean flags control whether each direction can open and close positions independently (BuyPosOpen, SellPosOpen, BuyPosClose, SellPosClose). TradeAlgorithms.mqh provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, CIsNewBar, and LoadHistory functions.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "ColorMaRsi-Trigger custom indicator"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement the ColorMaRsi-Trigger indicator logic in Python. Based on the parameters, it appears to compute two RSI values (period 3 on weighted close, period 13 on median price) and two MA values (EMA 5 on close, EMA 10 on close), then derive a trigger signal from the relationship between short and long RSI+MA pairs. Buffer 1 likely returns the difference or cross state between fast and slow RSI-MA combinations. The signal crossover (Value[0]<=0 to Value[1]>0 for longs, Value[0]>=0 to Value[1]<0 for shorts) is the key logic. Must also reimplement the margin-based position sizing from TradeAlgorithms.mqh or simplify to fixed lot sizing for backtesting.",
+  "extraction_timestamp": "2026-05-20T23:18:40.456640",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 233.22,
+    "cost": 0
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "ea_id": "EA-1104",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses built-in iAC indicator only and simple market orders, but includes complex position reversal logic (position flip with increased volume), stoploss adjustment when in profit, and Trade library .mqh includes that require manual Python reimplementation of the position management logic",
+  "symbol": null,
+  "timeframe_hint": null,
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "AC",
+      "params": {
+        "period": 0,
+        "method": 0,
+        "applied_to": 0,
+        "shift": 1
+      },
+      "source": "builtin",
+      "library": "iAC",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "perceptron",
+      "formula": "((x1-100)*AC[Shift] + (x2-100)*AC[Shift+7] + (x3-100)*AC[Shift+14] + (x4-100)*AC[Shift+21])",
+      "used_by": "entry rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "custom",
+        "left": "perceptron",
+        "right": "0",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "custom",
+        "left": "perceptron",
+        "right": "0",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 850,
+      "params": {
+        "unit": "points",
+        "adjustment_when_in_profit": true,
+        "adjustment_condition": "profit_exceeds_spread_plus_2x_stoploss"
+      }
+    },
+    "take_profit": {
+      "type": "none",
+      "value": 0,
+      "params": {}
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Position reversal: when in buy and sell signal triggered and price exceeds stoploss + 2*stoploss_distance + spread, open sell with increased volume (current volume + Lots) closing the buy",
+      "Position reversal: when in sell and buy signal triggered and price exceeds stoploss + 2*stoploss_distance + spread, open buy with increased volume (current volume + Lots) closing the sell",
+      "If reversal position cannot be opened due to stoploss proximity, close current position instead",
+      "When in profit by spread amount and no opposite signal, stoploss is reset to original opening level"
+    ]
+  },
+  "position_sizing": {
+    "type": "fixed",
+    "value": 0.1,
+    "params": {
+      "reversal_volume_add": true,
+      "reversal_volume_formula": "current_position_volume + Lots"
+    },
+    "max_positions": 1,
+    "conditional_logic": "On position reversal (flip), the new position volume equals the old position volume plus the base Lots value, effectively increasing exposure on each flip"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 30,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "current_tick",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Linear perceptron with 4 weighted AC indicator values at offsets Shift, Shift+7, Shift+14, Shift+21. Weights derived from input params x1-x4 as (x_n - 100). Position flip/reversal logic: when already in a position and opposite signal fires AND price has moved enough (profit exceeds 2*stoploss + spread), the EA opens a reverse position with volume = current_volume + Lots (netting closes old and opens new larger position). If the reverse cannot be placed (stoploss too close), it simply closes the position. When in profit by at least spread amount but no opposite signal, stoploss is moved back to the original opening level (locking in spread-level profit). This is not a pure martingale but the increasing volume on each flip creates pyramiding risk. The iAC (Accelerator Oscillator) is a built-in MT5 indicator derived from AO (Awesome Oscillator), itself derived from SMA(5)-SMA(34) of median price.",
+  "external_dependencies": [
+    "Trade/Trade.mqh",
+    "Trade/SymbolInfo.mqh",
+    "Trade/DealInfo.mqh",
+    "Trade/PositionInfo.mqh"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "EURUSD H1 730 days",
+  "python_conversion_notes": "The perceptron signal logic is straightforward to replicate: read AC indicator values at 4 bar offsets, apply weights, compare to zero. The complex part is the position management: (1) profit-check before reversal — need to compare current price to stoploss level with 2*SL+spread threshold; (2) volume increment on flip — new_vol = old_vol + Lots; (3) stoploss reset to opening level when in minimal profit without opposite signal. The Trade .mqh classes (CTrade, CPositionInfo, CSymbolInfo) are standard MT5 stdlib wrappers around OrderSend/PositionSelect — their functionality must be reimplemented in Python. AC indicator can be computed as: AO = SMA(median,5) - SMA(median,34); AC = AO - SMA(AO,5). The CheckBuySL/CheckSellSL functions validate stoploss against StopsLevel — include this broker minimum distance check.",
+  "extraction_timestamp": "2026-05-20T21:58:42.247773",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 175.24,
+    "cost": 0
+  }
+}

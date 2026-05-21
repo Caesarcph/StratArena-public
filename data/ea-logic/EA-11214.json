@@ -1,0 +1,146 @@
+{
+  "ea_id": "EA-11214",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom to call 'TSI_MACD' custom indicator with 9 parameters, plus includes two external .mqh libraries (TradeAlgorithms.mqh, SmoothAlgorithms.mqh) for order management and smoothing algorithms. The custom indicator and library logic must be manually reimplemented in Python.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "TSI_MACD",
+      "params": {
+        "xma_method": 1,
+        "x_fast": 8,
+        "x_slow": 21,
+        "mom_period": 1,
+        "x_length1": 5,
+        "x_length2": 8,
+        "x_length3": 5,
+        "x_phase": 15,
+        "applied_price": 1
+      },
+      "source": "custom",
+      "library": "SmoothAlgorithms.mqh",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "TSI_MACD main line (Ind buffer 0)",
+      "formula": "Custom indicator buffer 0: TSI-MACD histogram value, smoothed with XMA_Method(EMA), Fast=8, Slow=21, MomPeriod=1, Length1=5, Length2=8, Length3=5, Phase=15, AppliedPrice=Close",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "TSI_MACD signal line (Sign buffer 1)",
+      "formula": "Custom indicator buffer 1: TSI-MACD signal line, same smoothing parameters, serves as crossover trigger",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "TSI_MACD main line (Ind)",
+        "right": "TSI_MACD signal line (Sign)",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "TSI_MACD main line (Ind)",
+        "right": "TSI_MACD signal line (Sign)",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when TSI_MACD main crosses below signal line (Ind[1]<Sign[1] triggers BUY_Close if BuyPosClose=true)",
+      "Short position closed when TSI_MACD main crosses above signal line (Ind[1]>Sign[1] triggers SELL_Close if SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "mm_fraction": 0.1,
+      "mm_mode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MarginMode enum: FREEMARGIN=0 (free margin %), BALANCE=1 (balance %), LOSSFREEMARGIN=2 (loss free margin %), LOSSBALANCE=3 (loss balance %), LOT=4 (fixed lot). Default LOT means fixed lot sizing with MM=0.1 as lot size."
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The EA uses a TSI (True Strength Index) MACD custom indicator which is not a built-in MT5 indicator. The TSI calculation involves double-smoothing of momentum: first smoothing the absolute momentum and the signed momentum separately, then dividing. The MACD variant adds a signal line crossover. The SmoothAlgorithms.mqh library provides multiple smoothing methods (SMA, EMA, SMMA, LWMA, JJMA, JurX, ParMA, T3, VIDYA, AMA) - the default EMA is used here but any can be selected. The TradeAlgorithms.mqh library handles position open/close with margin mode calculation, deviation control, and global variable management. Signal logic: compares Ind[1] vs Sign[1] (previous bar) to determine trend state, then checks Ind[0] vs Sign[0] (signal bar) to detect crossover. Entry only when crossover confirmed on SignalBar=1 (previous completed bar). BuyPosOpen/SellPosOpen/SellPosClose/BuyPosClose input booleans control which directions are enabled.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "SmoothAlgorithms.mqh",
+    "TSI_MACD custom indicator (iCustom call)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "EURUSD H4 730 days",
+  "python_conversion_notes": "Must reimplement TSI_MACD indicator from scratch: 1) Calculate price series per Applied_price_ enum (default Close), 2) Compute momentum = price[t] - price[t-MomPeriod], 3) Double-smooth: first smooth momentum and |momentum| with XFast period EMA, then smooth again with XSlow period EMA, 4) TSI = 100 * double_smoothed_momentum / double_smoothed_|momentum|, 5) MACD line = TSI, Signal = EMA(TSI, XLength3) — actually the TSI_MACD likely computes as: fast TSI - slow TSI or similar MACD construction. The exact formula requires reading the TSI_MACD indicator source code. TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) must be replaced with simple market order logic with SL/TP in points. Signal detection uses 2-bar lookback: Ind[1]>Sign[1] (trend state) + Ind[0]<=Sign[0] (crossover trigger). New bar guard via CIsNewBar class must be reimplemented. Position sizing with MarginMode=LOT simplifies to fixed lot=0.1.",
+  "extraction_timestamp": "2026-05-20T22:06:05.697249",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 157.22,
+    "cost": 0
+  }
+}

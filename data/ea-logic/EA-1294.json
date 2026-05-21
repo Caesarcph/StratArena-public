@@ -1,0 +1,151 @@
+{
+  "ea_id": "EA-1294",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with 'ADX_Smoothed' - a custom indicator not available as built-in. Also includes external .mqh dependency (TradeAlgorithms.mqh) for position management. The core signal logic (DI+ vs DI- crossover) is simple enough for manual Python reimplementation once the custom ADX Smoothed indicator logic is replicated.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ADX_Smoothed",
+      "params": {
+        "period": 14,
+        "alpha1": 0.25,
+        "alpha2": 0.33
+      },
+      "source": "custom",
+      "library": null,
+      "derived_period": 14,
+      "buffers": [
+        {
+          "index": 0,
+          "name": "DI+",
+          "description": "Smoothed Positive Directional Indicator"
+        },
+        {
+          "index": 1,
+          "name": "DI-",
+          "description": "Smoothed Negative Directional Indicator"
+        }
+      ]
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "DI+ smoothed",
+      "formula": "Custom ADX_Smoothed buffer 0 with period=14, alpha1=0.25, alpha2=0.33",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "DI- smoothed",
+      "formula": "Custom ADX_Smoothed buffer 1 with period=14, alpha1=0.25, alpha2=0.33",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "DI+ smoothed",
+        "right": "DI- smoothed",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "DI+ smoothed",
+        "right": "DI- smoothed",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when DI+ crosses below DI- (signal reversal)",
+      "Short position closed when DI+ crosses above DI- (signal reversal)"
+    ]
+  },
+  "position_sizing": {
+    "type": "deposit_fraction",
+    "value": -0.1,
+    "params": {
+      "negative_means_lot_size": true,
+      "lot_when_negative": "0.1"
+    },
+    "max_positions": 1,
+    "conditional_logic": "If MM<0 then MM is treated as fixed lot size; if MM>0 then MM is share of deposit"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The entry signal uses a two-bar comparison: at bar index SignalBar=1, compares DI+/DI- on current and previous bar. BUY_Open triggers when DiPlus[1]>DiMinus[1] (current bar DI+ > DI-) AND DiPlus[0]<=DiMinus[0] (previous bar DI+ <= DI-), i.e. DI+ freshly crossed above DI-. SELL_Open triggers symmetrically. Position close on opposite signal is independent of open permission flags. The Recount flag ensures signals are recalculated if CopyBuffer fails. The custom ADX_Smoothed indicator applies double smoothing (alpha1=0.25, alpha2=0.33) to standard ADX DI+ and DI- lines; this smoothing algorithm must be reverse-engineered from the indicator source for Python conversion.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh - provides BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, LoadHistory, GlobalVariableDel_, CIsNewBar",
+    "ADX_Smoothed custom indicator - provides smoothed DI+ and DI- buffers"
+  ],
+  "estimated_difficulty": "medium",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "1. Must reimplement ADX_Smoothed custom indicator: likely applies Ehrlich multiplicator or double exponential smoothing to standard ADX DI+/DI- with alpha1=0.25 and alpha2=0.33. Source code of ADX_Smoothed indicator needed to replicate exactly. 2. TradeAlgorithms.mqh provides standard position open/close wrappers - these are straightforward market order execution with SL/TP and deviation checks, easily replicated in Python. 3. Position sizing: MM=-0.1 means fixed 0.1 lot; if positive, represents deposit fraction requiring equity-based lot calculation. 4. Entry is DI+/DI- crossover on H4 bars, evaluated once per new bar. 5. SL=1000 points, TP=2000 points (at 5-digit broker: SL=100 pips, TP=200 pips). 6. Signal reversal closes opposite positions before opening new ones. 7. The SignalBar=1 parameter means signals are read from the completed bar (index 1), avoiding repainting.",
+  "extraction_timestamp": "2026-05-20T23:04:53.074064",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 91.68,
+    "cost": 0
+  }
+}

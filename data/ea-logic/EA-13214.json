@@ -1,0 +1,153 @@
+{
+  "ea_id": "EA-13214",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom('ColorZerolagTriX') which is a custom indicator not available as a built-in MT5 indicator, plus depends on external #include <TradeAlgorithms.mqh> for position management functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory, CIsNewBar). The core signal logic (zero-lag TriX crossover) requires manual Python reimplementation of the custom indicator's 5-component weighted TriX calculation.",
+  "symbol": null,
+  "timeframe_hint": "H4",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "ColorZerolagTriX",
+      "params": {
+        "smoothing": 15,
+        "applied_price": 1,
+        "factor1": 0.05,
+        "trix_period1": 8,
+        "factor2": 0.1,
+        "trix_period2": 21,
+        "factor3": 0.16,
+        "trix_period3": 34,
+        "factor4": 0.26,
+        "trix_period4": 55,
+        "factor5": 0.43,
+        "trix_period5": 89
+      },
+      "source": "custom",
+      "library": "ColorZerolagTriX",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Osc1 - Zero-Lag TriX bullish oscillator line (buffer 0)",
+      "formula": "Weighted sum of 5 EMA-TriX components: Factor1*TriX(TriX_period1) + Factor2*TriX(TriX_period2) + Factor3*TriX(TriX_period3) + Factor4*TriX(TriX_period4) + Factor5*TriX(TriX_period5), smoothed by EMA(smoothing)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Osc2 - Zero-Lag TriX bearish signal line (buffer 1)",
+      "formula": "Signal line of the Zero-Lag TriX oscillator (likely EMA of Osc1 or a smoothed variant)",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "min_rates_total - minimum bars for indicator warmup",
+      "formula": "3 * max(TriX_period1..5) + 2 + 1 + 2 + SignalBar = 3*89 + 2 + 3 + 1 = 273",
+      "used_by": "internal guard"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "crossover",
+        "left": "Osc1",
+        "right": "Osc2",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ],
+    "short": [
+      {
+        "condition": "crossover",
+        "left": "Osc1",
+        "right": "Osc2",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "no_position"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "Long position closed when Osc1 crosses below Osc2 (if BuyPosClose=true)",
+      "Short position closed when Osc1 crosses above Osc2 (if SellPosClose=true)"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT",
+      "description": "MM=0.1 with MMMode=LOT means fixed 0.1 lot; if MMMode=PERCENT, it would be deposit fraction"
+    },
+    "max_positions": 1,
+    "conditional_logic": null
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": true,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "Zero-Lag TriX is a custom indicator combining 5 weighted Triple Exponential Moving Average rate-of-change components (TriX) with factors 0.05/0.10/0.16/0.26/0.43 (summing to 1.0) and periods 8/21/34/55/89 (Fibonacci sequence). The result is smoothed by EMA(15). Signal logic: Osc1[1]>Osc2[1] (was bullish) AND Osc1[0]<Osc2[0] (now bearish crossover from SignalBar perspective) triggers BUY_Open — note the inversion: crossover detected on bar[1] vs bar[0] at SignalBar offset. Entry is gated by BuyPosOpen/SellPosOpen flags. Exit by signal reversal gated by BuyPosClose/SellPosClose flags. Uses CIsNewBar class from TradeAlgorithms.mqh for new bar detection. LoadHistory() ensures bar data availability. GlobalVariableDel_ cleans up on deinit.",
+  "external_dependencies": [
+    "TradeAlgorithms.mqh",
+    "ColorZerolagTriX.ex5 (custom indicator binary)"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H4 730 days",
+  "python_conversion_notes": "Must reimplement the ColorZerolagTriX indicator in Python: (1) Calculate 5 TriX components - each TriX is the rate of change of a triple-smoothed EMA: TriX(n) = EMA3(EMA2(EMA1(close,n))) ROC; (2) Weight them by Factor1-5 and sum; (3) Smooth result with EMA(smoothing=15) to get Osc1; (4) Osc2 is the signal line (likely EMA of Osc1, exact period unknown without indicator source - may need to inspect ColorZerolagTriX.mq5); (5) Implement crossover detection on completed bars (SignalBar=1 means use bar[1] vs bar[0] for signal, bar[2] vs bar[1] for previous state). The TradeAlgorithms.mqh functions (BuyPositionOpen, SellPositionOpen, etc.) wrap standard CTrade with margin/lot calculation and need straightforward Python equivalents. Position sizing with MMMode=LOT is simply fixed lot size.",
+  "extraction_timestamp": "2026-05-20T23:17:06.220281",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 193.23,
+    "cost": 0
+  }
+}

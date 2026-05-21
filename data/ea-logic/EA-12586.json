@@ -1,0 +1,166 @@
+{
+  "ea_id": "EA-12586",
+  "convertibility": "manual_convert",
+  "convertibility_reason": "Uses iCustom with unknown indicator 'TrendlessAG_Hist' and includes two external .mqh libraries (SmoothAlgorithms.mqh, TradeAlgorithms.mqh) requiring manual Python reimplementation of the custom indicator logic and trade algorithms",
+  "symbol": null,
+  "timeframe_hint": "H12",
+  "platform_context": {
+    "digits": 5,
+    "point_value": 1e-05,
+    "has_digit_adjustment": "false"
+  },
+  "indicators": [
+    {
+      "type": "Custom",
+      "name": "TrendlessAG_Hist",
+      "params": {
+        "period": null,
+        "method": null,
+        "applied_to": null,
+        "shift": 0
+      },
+      "source": "custom",
+      "library": "TrendlessAG_Hist",
+      "derived_period": null
+    }
+  ],
+  "derived_values": [
+    {
+      "name": "Value[0] - TrendlessAG_Hist buffer 0 at SignalBar",
+      "formula": "CopyBuffer(InpInd_Handle, 0, SignalBar, 3, Value) - 3 consecutive values from buffer 0",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Value[1] - TrendlessAG_Hist at SignalBar+1",
+      "formula": "Previous bar histogram value",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Value[2] - TrendlessAG_Hist at SignalBar+2",
+      "formula": "Two bars ago histogram value",
+      "used_by": "entry/exit rule"
+    },
+    {
+      "name": "Trend direction via Value[1] vs Value[2]",
+      "formula": "Value[1]<Value[2] => uptrend; Value[1]>Value[2] => downtrend",
+      "used_by": "entry/exit rule"
+    }
+  ],
+  "entry_rules": {
+    "long": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1]",
+        "right": "Value[2]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossover",
+        "left": "Value[0]",
+        "right": "Value[1]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ],
+    "short": [
+      {
+        "condition": "and_combination",
+        "left": "Value[1]",
+        "right": "Value[2]",
+        "direction": "above",
+        "order_type": "market",
+        "position_gate": "any"
+      },
+      {
+        "condition": "crossunder",
+        "left": "Value[0]",
+        "right": "Value[1]",
+        "direction": "below",
+        "order_type": "market",
+        "position_gate": "any"
+      }
+    ]
+  },
+  "exit_rules": {
+    "stop_loss": {
+      "type": "fixed",
+      "value": 1000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "take_profit": {
+      "type": "fixed",
+      "value": 2000,
+      "params": {
+        "unit": "points"
+      }
+    },
+    "trailing_stop": {
+      "type": "none",
+      "value": 0,
+      "params": {
+        "trail_start_pips": 0,
+        "trail_step_pips": 0
+      }
+    },
+    "signal_reversal_close": true,
+    "other_exits": [
+      "BuyPosClose triggered when histogram changes from rising to falling (Value[1]>Value[2])",
+      "SellPosClose triggered when histogram changes from falling to rising (Value[1]<Value[2])"
+    ]
+  },
+  "position_sizing": {
+    "type": "margin_based",
+    "value": 0.1,
+    "params": {
+      "MMMode": "LOT"
+    },
+    "max_positions": 1,
+    "conditional_logic": "MM parameter (0.1) interpreted as margin fraction when MMMode=LOT, or lot size depending on MarginMode enum"
+  },
+  "risk_controls": {
+    "new_bar_check": true,
+    "position_check": false,
+    "spread_filter": {
+      "enabled": false,
+      "max_spread_pips": 0
+    },
+    "time_filter": {
+      "enabled": false,
+      "start_hour": 0,
+      "end_hour": 24
+    },
+    "margin_check": false
+  },
+  "order_execution": {
+    "type": "market",
+    "deviation": 10,
+    "filling": "FOK"
+  },
+  "trade_logic": {
+    "event_source": "on_tick",
+    "new_bar_guard": true,
+    "signal_price_basis": "bar_close",
+    "backtest_fill_assumption": "next_bar_open",
+    "intrabar_signal_behavior": "once_per_bar"
+  },
+  "custom_logic_notes": "The TrendlessAG_Hist custom indicator is the core signal source. It uses CXMA (from SmoothAlgorithms.mqh) with two smoothing passes: first smoothing with XMA_Method1/EMA, XLength1=7, XPhase1=15 applied to a custom price (IPC=PRICE_CLOSE), then a percentage normalization around +-100% (In100=90%), then second smoothing with XMA_Method2/JJMA, XLength2=5, XPhase2=100. The EA reads 3 consecutive values from buffer 0 of this indicator to detect histogram direction changes and crossovers. OnInit() always returns INIT_FAILED (line 95) which appears to be a bug - should be INIT_SUCCEEDED. Trade functions (BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose) come from TradeAlgorithms.mqh. LoadHistory() call ensures bar history is available. GlobalVariableDel_() on deinit cleans up global variables.",
+  "external_dependencies": [
+    "SmoothAlgorithms.mqh - CXMA class for multi-method smoothing (JJMA, VIDIA, AMA etc.)",
+    "TradeAlgorithms.mqh - BuyPositionOpen, SellPositionOpen, BuyPositionClose, SellPositionClose, GlobalVariableDel_, LoadHistory",
+    "TrendlessAG_Hist - Custom indicator loaded via iCustom()"
+  ],
+  "estimated_difficulty": "hard",
+  "backtest_data_needs": "Any symbol H12 730 days",
+  "python_conversion_notes": "Must reimplement the TrendlessAG_Hist indicator in Python. It requires: (1) Custom price calculation from Applied_price_ enum (9 price types including Demark and TrendFollow), (2) First smoothing pass using XMA/EMA period=7, (3) Percentage normalization to +-100% range with In100=90 threshold, (4) Second smoothing pass using JJMA period=5 phase=100. The JJMA (Jurik Moving Average) algorithm is complex and requires a dedicated implementation. Trade logic is straightforward: histogram rising (Value[1]<Value[2]) with current value above previous (Value[0]>Value[1]) = buy; histogram falling (Value[1]>Value[2]) with current value below previous (Value[0]<Value[1]) = sell. Signal reversal closes opposite positions. Fixed SL=1000 points, TP=2000 points. Note the INIT_FAILED bug in OnInit() line 95 - this EA would never actually run in MT5 as-is.",
+  "extraction_timestamp": "2026-05-20T22:57:40.582658",
+  "extraction_stats": {
+    "tokens": 0,
+    "duration": 193.93,
+    "cost": 0
+  }
+}
