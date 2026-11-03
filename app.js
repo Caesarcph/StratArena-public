@@ -2476,13 +2476,23 @@ function renderArticleCard(article) {
   `;
 }
 
+// A paragraph is a string; a bullet list is an array of strings. **bold** is supported.
+function contentInline(text) {
+  return escapeHtml(String(text ?? "")).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
+function renderContentBlock(block) {
+  if (Array.isArray(block)) return `<ul>${block.map((item) => `<li>${contentInline(item)}</li>`).join("")}</ul>`;
+  return `<p>${contentInline(block)}</p>`;
+}
+
 function renderContentSections(sections) {
   return (sections || [])
     .map(
       (section) => `
     <section class="content-section">
       <h3>${tc(section.heading)}</h3>
-      ${(tc(section.paragraphs) || []).map((text) => `<p>${text}</p>`).join("")}
+      ${(tc(section.paragraphs) || []).map(renderContentBlock).join("")}
     </section>
   `
     )

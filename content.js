@@ -393,408 +393,1431 @@ const RESEARCH_INDEX = {
 
 const RESEARCH_ARTICLES = [
   {
-    slug: "keltner-vs-bollinger",
-    title: { en: "Keltner Channel Breakout vs Bollinger Band Reversion", zh: "肯特纳通道突破 vs 布林带回归" },
-    summary: {
-      en: "Comparing two classic volatility envelopes. One rides trends using ATR, the other fades extremes using standard deviation. When to use which?",
-      zh: "比较两种经典波动率包络。一种通过 ATR 顺势而行，另一种利用标准差在极端波动中做均值回归。该如何取舍？"
+    "slug": "luck-adjusted-sharpe-72-strategies",
+    "title": {
+      "en": "We Backtested 72 Strategies. After Adjusting for Luck, None Clearly Beat the Odds.",
+      "zh": "我们回测了 72 个策略，扣除运气之后，没有一个能明确胜出"
     },
-    date: "2026-02-04",
-    readTime: "12 min read",
-    category: "Trend Following",
-    featured: false,
-    tags: ["Keltner", "Bollinger", "Breakout", "Mean Reversion"],
-    figure: {
-      title: { en: "Channel Comparison", zh: "通道对比" },
-      caption: {
-        en: "Keltner Channels (Blue) are smoother and use ATR; Bollinger Bands (Red) are reactive and use Standard Deviation.",
-        zh: "肯特纳通道（蓝色）更平滑，基于 ATR 构建；布林带（红色）反应更敏捷，基于标准差计算。"
-      },
-      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Channel comparison">
-  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
-  <path d="M40,120 Q160,80 280,120 T520,120" fill="none" stroke="#5b554d" stroke-width="2" />
-  <path d="M40,90 Q160,50 280,90 T520,90" fill="none" stroke="#1f6f78" stroke-width="2" stroke-dasharray="4" />
-  <path d="M40,150 Q160,110 280,150 T520,150" fill="none" stroke="#1f6f78" stroke-width="2" stroke-dasharray="4" />
-  <path d="M40,80 Q160,30 280,80 T520,80" fill="none" stroke="#e16b3a" stroke-width="2" />
-  <path d="M40,160 Q160,130 280,160 T520,160" fill="none" stroke="#e16b3a" stroke-width="2" />
-  <text x="540" y="90" fill="#1f6f78" font-size="10">Keltner</text>
-  <text x="540" y="80" fill="#e16b3a" font-size="10">Bollinger</text>
-</svg>`
+    "summary": {
+      "en": "104 strategy-and-market combinations look statistically convincing on their own. Once you account for the fact that we tested hundreds of them at the same time, the number drops to zero. Here is what that means for reading any leaderboard, including ours.",
+      "zh": "单独看，有 104 个“策略 × 市场”的结果在统计上很有说服力；可一旦考虑到我们同时测试了几百个，这个数字就变成了零。这对怎么看任何排行榜（包括我们自己的）都很重要。"
     },
-    sections: [
+    "date": "2026-11-03",
+    "readTime": "3 min read",
+    "category": "Methodology",
+    "featured": true,
+    "tags": [
+      "Sharpe Ratio",
+      "Overfitting",
+      "Statistics"
+    ],
+    "sections": [
       {
-        heading: { en: "Two paths to volatility", zh: "理解波动率的两条路径" },
-        paragraphs: [
+        "heading": {
+          "en": "The setup",
+          "zh": "测试方式"
+        },
+        "paragraphs": [
           {
-            en: "Volatility envelopes are among the most versatile tools in a systematic trader's kit. They adapt to market noise, expanding when risk is high and contracting when it is low. But not all envelopes are built the same. Keltner Channels and Bollinger Bands represent two fundamentally different philosophies about how price moves.",
-            zh: "波动率包络是系统化交易者工具箱中用途最广的工具之一。它们会随市场噪音变化而自适应：风险升高时扩张，风险回落时收缩。但不同包络的构造逻辑并不相同。肯特纳通道与布林带分别代表了两种对价格运动截然不同的理解框架。"
+            "en": "Quant Arena runs 72 systematic strategies on up to 10 markets — US stocks (SPY), gold, silver, oil, natural gas, agriculture, broad commodities, EUR/USD, bitcoin and ether — with the same rules, the same walk-forward optimization and the same metrics. Over the last five years of data that gives 576 strategy-and-market results.",
+            "zh": "Quant Arena 在最多 10 个市场上运行 72 个系统化策略：美股（SPY）、黄金、白银、原油、天然气、农产品、综合大宗商品、欧元/美元、比特币和以太坊。所有策略使用同样的规则、同样的滚动前推优化和同样的指标。近五年的数据一共给出 576 个“策略 × 市场”结果。"
           },
           {
-            en: "Keltner Channels use Average True Range (ATR) to define their width. ATR is an additive metric that measures absolute price movement. Bollinger Bands use Standard Deviation, which measures variance from the mean. This difference sounds academic, but in practice, it changes everything about how the strategy reacts to a breakout.",
-            zh: "肯特纳通道用平均真实波幅（ATR）定义通道宽度。ATR 是一种加法型指标，用于衡量价格的绝对波动幅度。布林带则使用标准差来刻画价格围绕均值的离散程度。这个差异听起来像学术细节，但在实盘中，它几乎决定了策略对突破信号的全部反应方式。"
+            "en": "For each one we compute two numbers that try to answer the question \"is this edge real or luck?\":",
+            "zh": "每个结果我们都算两个数，试图回答“这是真本事还是运气”："
+          },
+          {
+            "en": [
+              "The **probabilistic Sharpe ratio (PSR)**: the probability that the true Sharpe ratio is above zero, given how long and how lumpy the return history is.",
+              "The **deflated Sharpe ratio (DSR)**: the same question, but against the best Sharpe ratio you would expect from luck alone when you test many strategies at once."
+            ],
+            "zh": [
+              "**概率夏普（PSR）**：结合收益记录的长度和形状，真实夏普大于 0 的概率。",
+              "**Deflated 夏普（DSR）**：同一个问题，但比较对象换成“同时测试很多策略时，单靠运气能达到的最好夏普”。"
+            ]
           }
         ]
       },
       {
-        heading: { en: "Keltner: The steady hand", zh: "肯特纳：稳健的手" },
-        paragraphs: [
+        "heading": {
+          "en": "What the numbers say",
+          "zh": "数据怎么说"
+        },
+        "paragraphs": [
           {
-            en: "Keltner Channels are typically constructed as an Exponential Moving Average (EMA) plus or minus a multiple of ATR. Because ATR changes relatively slowly, Keltner Channels are stable. They don't flare out wildly during a single shock event. This makes them ideal for trend following.",
-            zh: "肯特纳通道通常由指数移动平均线（EMA）上下叠加若干倍 ATR 构成。由于 ATR 的变化相对平缓，肯特纳通道整体更加稳定，不会因为一次单独的冲击事件而剧烈张开。这使它非常适合用于趋势跟随。"
+            "en": "Looked at one by one, 104 of the 576 results have a PSR above 95%. That is the kind of number that ends up in a marketing deck.",
+            "zh": "逐个看，576 个结果里有 104 个的 PSR 超过 95%，这种数字很容易被写进宣传材料。"
           },
           {
-            en: "A Keltner breakout signals that price has moved significantly beyond its average daily range in a sustained way. It suggests a shift in the supply/demand balance that is likely to persist. The stability of the channel means you don't get shaken out by a momentary spike in volatility.",
-            zh: "肯特纳通道突破意味着价格以持续方式显著偏离了其平均日内波动区间，暗示供需平衡可能发生了具有延续性的变化。由于通道本身较稳定，策略不容易因短暂的波动率尖峰而被震出场。"
+            "en": "The DSR tells a different story. Not a single result clears 95%. The best is SAR-01 Parabolic SAR on EUR/USD at 91%, followed by REG-14 Volatility Regime Switch on gold (85%), MACRO-01 Cross-Asset Momentum on SPY (84%), TREND-20 Vortex Indicator on EUR/USD (83%), and MR-03 Kalman Filter Mean Reversion on broad commodities and VOL-13 Volatility Regime Strategy on gold (82% each). The median DSR across all 576 results is 23%.",
+            "zh": "DSR 给出的答案完全不同：没有一个结果超过 95%。最高的是欧元/美元上的 SAR-01 抛物线 SAR（91%），其后是黄金上的 REG-14 波动率状态切换（85%）、SPY 上的 MACRO-01 跨资产动量（84%）、欧元/美元上的 TREND-20 涡旋指标（83%），以及综合大宗商品上的 MR-03 卡尔曼滤波均值回归和黄金上的 VOL-13 波动率状态策略（都是 82%）。576 个结果的 DSR 中位数只有 23%。"
+          },
+          {
+            "en": "In plain words: if you pick the best-looking strategy after trying hundreds, a five-year Sharpe ratio of 1.2–1.5 is roughly what chance alone would hand you.",
+            "zh": "说白了：试了几百个之后挑出看起来最好的那个，五年夏普 1.2 到 1.5，差不多就是运气本身能给你的水平。"
           }
         ]
       },
       {
-        heading: { en: "Bollinger: The rubber band", zh: "布林带：橡皮筋效应" },
-        paragraphs: [
+        "heading": {
+          "en": "Why this happens",
+          "zh": "为什么会这样"
+        },
+        "paragraphs": [
           {
-            en: "Bollinger Bands use standard deviation. Because standard deviation squares the errors, it is highly sensitive to outliers. A sudden price spike causes Bollinger Bands to expand rapidly. This 'ballooning' effect is why Bollinger Bands are often preferred for mean reversion.",
-            zh: "布林带使用标准差。由于标准差会对偏离值进行平方处理，因此对异常波动极为敏感。价格一旦突然急冲，布林带会迅速扩张。正是这种“膨胀”效应，使布林带常被用于均值回归策略。"
+            "en": "Every extra strategy you test is another lottery ticket. With 60 strategies on the same market, the luckiest one will usually show a Sharpe ratio well above its true value. The DSR, introduced by Bailey and López de Prado, estimates how high that \"luckiest ticket\" should be from the spread of all the results, and only gives credit for the part above it.",
+            "zh": "每多测试一个策略，就多买了一张彩票。同一个市场上有 60 个策略时，最幸运的那个，夏普通常会明显高于它的真实水平。Bailey 和 López de Prado 提出的 DSR，用所有结果的离散程度估计“最幸运的那张彩票”该有多高，只把超过这条线的部分算作真本事。"
           },
           {
-            en: "When price hits the upper Bollinger Band, it is statistically extended (e.g., 2 sigma moves occur less than 5% of the time in a normal distribution). The rapid expansion of the bands often captures the price action, suggesting the move is overextended and due to snap back—like a stretched rubber band.",
-            zh: "当价格触及布林带上轨时，从统计意义上看往往已经处于扩张状态（例如在正态分布下，2 个标准差之外的波动发生概率不到 5%）。布林带的快速扩张通常能捕捉到这种价格拉伸，并提示行情可能已经过度延伸，随后存在像被拉长的橡皮筋一样回弹的可能。"
+            "en": "Two details in our setup make the bar higher, not lower. First, the same strategy appears on many correlated markets. Second, walk-forward optimization picks parameters from a small grid every six months, which is itself a form of testing. We count only the strategies, not the parameter sets, so if anything our DSR is still generous.",
+            "zh": "我们的设置里有两点会让门槛更高而不是更低：第一，同一个策略出现在多个相关的市场上；第二，滚动前推优化每六个月从一个小参数网格里挑参数，这本身也是一种“多次测试”。我们只把策略个数算作试验次数，没有算参数组合，所以我们的 DSR 其实还偏宽松。"
           }
         ]
       },
       {
-        heading: { en: "The Squeeze: When they agree", zh: "挤压形态：两者共识的时刻" },
-        paragraphs: [
+        "heading": {
+          "en": "Buy-and-hold is a hard benchmark",
+          "zh": "买入持有是个很难打败的基准"
+        },
+        "paragraphs": [
           {
-            en: "One of the most powerful signals occurs when these two indicators are compared. The 'TTM Squeeze' or similar strategies look for periods where the Bollinger Bands contract *inside* the Keltner Channels. This indicates an extremely low volatility regime—the calm before the storm.",
-            zh: "最强的信号之一来自这两个指标的对比使用。TTM Squeeze 等类似策略会寻找布林带收缩到*完全落在*肯特纳通道内部的阶段。这通常意味着市场处于极低波动率状态，也就是“风暴前的平静”。"
-          },
-          {
-            en: "When volatility compresses this tightly, a violent expansion usually follows. Traders wait for the Bollinger Bands to break out of the Keltner Channels, signaling the start of a new impulse move. In this context, they work together: Bollinger measures the compression, and Keltner provides the baseline.",
-            zh: "当波动率被压缩到如此程度后，往往会迎来剧烈的扩张。交易者会等待布林带重新突破肯特纳通道，以此视为新一轮脉冲行情的起点。在这种用法中，两者是互补关系：布林带负责度量压缩程度，肯特纳通道则提供基准框架。"
+            "en": "The same five years show how high the bar was. Buy-and-hold SPY returned about 13.2% a year with a Sharpe ratio of 0.81. Only 1 of the 62 strategies tested on SPY beat it on annual return, and 14 beat it on Sharpe ratio. Most timing strategies spend part of the time in cash, so they give up return in exchange for smaller drawdowns — a trade-off that can be worth it, but is not \"beating the market\".",
+            "zh": "同样这五年，也能看出门槛有多高：买入持有 SPY 年化约 13.2%，夏普 0.81。在 SPY 上测试的 62 个策略里，只有 1 个年化收益超过它，14 个夏普超过它。大多数择时策略有一部分时间空仓，用更小的回撤换了更低的收益——这种交换可能值得，但它不等于“跑赢市场”。"
           }
         ]
       },
       {
-        heading: { en: "Choosing the right tool", zh: "如何选择合适工具" },
-        paragraphs: [
+        "heading": {
+          "en": "How to use this when you read a leaderboard",
+          "zh": "看排行榜时可以怎么用"
+        },
+        "paragraphs": [
           {
-            en: "If you are building a trend following system, start with Keltner Channels. Their stability produces fewer false exits during the noisy start of a trend. Use a multiple like 2.0 or 2.5 ATR to filter out chop.",
-            zh: "如果你在构建趋势跟随系统，应优先从肯特纳通道开始。其稳定性能够在趋势初期的噪音阶段减少错误离场。常见做法是使用 2.0 或 2.5 倍 ATR 作为过滤参数，以排除震荡行情。"
-          },
+            "en": [
+              "Treat a high Sharpe ratio as a reason to look closer, not as a conclusion. Check the DSR on the strategy page.",
+              "Prefer strategies that hold up across markets and time windows. The Arena Score's robustness component uses the worst Sharpe across the 1-, 3-, 5-year and full windows for exactly this reason.",
+              "Look at what a strategy was designed to do. A trend filter that halves the drawdown of buy-and-hold is doing its job even if its DSR is modest.",
+              "Remember the costs. Our backtests do not subtract commissions or slippage; strategy pages show an estimate after 10 basis points."
+            ],
+            "zh": [
+              "把高夏普当成值得细看的理由，而不是结论。去策略页看看 DSR。",
+              "优先选在不同市场、不同时间窗口都站得住的策略。Arena Score 的稳健性分项用的就是 1 年、3 年、5 年和全部历史中最差的那个夏普。",
+              "看策略本来想解决什么问题。一个把买入持有的回撤砍掉一半的趋势过滤，即使 DSR 不高，也是在做它该做的事。",
+              "别忘了成本。我们的回测没有扣佣金和滑点；策略页给出了扣除 10 个基点后的估算。"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "What we changed",
+          "zh": "我们做了什么调整"
+        },
+        "paragraphs": [
           {
-            en: "If you are building a mean reversion system, start with Bollinger Bands. Their elasticity helps identify the exact moment a move has exhausted itself. Look for closes outside the bands followed by a reversal candle back inside.",
-            zh: "如果你在构建均值回归系统，则应优先考虑布林带。其“弹性”特征有助于识别行情何时真正走到衰竭边缘。可重点关注价格收盘突破带外、随后再以反转 K 线回到带内的形态。"
+            "en": "The deflated Sharpe ratio now appears on every strategy page next to the probabilistic Sharpe ratio, and the Arena Score uses PSR for its significance component. We would rather show an honest \"probably luck\" than a confident number that will not survive the next five years.",
+            "zh": "现在每个策略页都会在概率夏普旁边显示 Deflated 夏普，Arena Score 的统计可信度分项也使用 PSR。我们宁愿诚实地告诉你“很可能是运气”，也不想给出一个下一个五年就站不住的漂亮数字。"
           }
         ]
       }
     ]
   },
   {
-    slug: "ema-crossover-strategy",
-    title: { en: "EMA Crossover Strategy: Reading Trend With Two Clocks", zh: "EMA 交叉策略：用两只时钟读取趋势" },
-    summary: {
-      en: "An in depth look at why exponential moving average crossovers persist, how to interpret their backtests, and when trend signals fail.",
-      zh: "深入解析指数移动平均线交叉为何长期有效、应如何解读其回测，以及趋势信号何时会失效。"
+    "slug": "free-mt5-expert-advisors-backtested",
+    "title": {
+      "en": "We Tried to Backtest 1,063 Free MT5 Expert Advisors. Here Is What Survived.",
+      "zh": "我们试着回测了 1063 个免费 MT5 EA，最后留下了什么"
     },
-    date: "2026-01-13",
-    readTime: "12 min read",
-    category: "Trend Following",
-    featured: true,
-    tags: ["Trend", "Moving Average"],
-    figure: {
-      title: { en: "EMA crossover signal sketch", zh: "EMA 交叉信号示意图" },
-      caption: {
-        en: "A simplified illustration of price (teal) with fast and slow EMAs (orange and gray).",
-        zh: "价格（青绿色）与快、慢 EMA（橙色与灰色）的简化示意图。"
-      },
-      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="EMA crossover sketch">
-  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
-  <g stroke="#d8cbbd" stroke-width="1">
-    <line x1="40" y1="40" x2="600" y2="40" />
-    <line x1="40" y1="80" x2="600" y2="80" />
-    <line x1="40" y1="120" x2="600" y2="120" />
-    <line x1="40" y1="160" x2="600" y2="160" />
-    <line x1="40" y1="200" x2="600" y2="200" />
-  </g>
-  <polyline fill="none" stroke="#1f6f78" stroke-width="3" points="40,170 90,150 140,160 190,120 240,110 290,90 340,100 390,70 440,60 490,80 540,50 600,70" />
-  <polyline fill="none" stroke="#e16b3a" stroke-width="2.5" points="40,180 90,165 140,150 190,135 240,120 290,110 340,105 390,95 440,85 490,80 540,75 600,80" />
-  <polyline fill="none" stroke="#7c7c7c" stroke-width="2" points="40,190 90,180 140,170 190,155 240,140 290,130 340,125 390,120 440,115 490,110 540,105 600,100" />
-  <circle cx="240" cy="120" r="5" fill="#e16b3a" />
-  <circle cx="240" cy="140" r="5" fill="#7c7c7c" />
-  <text x="40" y="30" fill="#5b554d" font-size="12">Price</text>
-</svg>`
+    "summary": {
+      "en": "Free MetaTrader 5 EAs from the MQL5 CodeBase, converted automatically and tested on four markets for one year. More than half could not be converted at all. Of the 1,421 results we trust, about half made money — but on currencies the typical EA ended flat, only 40 EAs were profitable on all four markets, and one in five gold runs wiped out the account.",
+      "zh": "来自 MQL5 代码库的免费 MetaTrader 5 智能交易系统，经自动转换后在四个市场上测试了一年。一半以上根本没法转换；在 1421 个可信的结果里，大约一半赚钱——但在外汇上，典型的 EA 基本不赚不亏，只有 40 个 EA 在四个市场上都盈利，黄金上每五次回测就有一次把账户亏光。"
     },
-    sections: [
+    "date": "2026-11-03",
+    "readTime": "3 min read",
+    "category": "EA Research",
+    "featured": false,
+    "tags": [
+      "MT5",
+      "Expert Advisor",
+      "Backtest",
+      "Risk"
+    ],
+    "sections": [
       {
-        heading: { en: "Why EMA crossovers persist", zh: "为何 EMA 交叉长期存在" },
-        paragraphs: [
+        "heading": {
+          "en": "What we did",
+          "zh": "我们做了什么"
+        },
+        "paragraphs": [
           {
-            en: "The exponential moving average crossover exists because markets rarely move in straight lines. Prices drift, pause, and then continue, and traders need a simple way to decide whether a move is noise or a trend that is worth following. An EMA smooths recent prices while keeping more weight on the latest data, so it reacts faster than a simple average. By comparing a fast EMA to a slow EMA, the strategy asks a single question: is short term momentum strong enough to outrun the long term baseline? The answer is often good enough to keep traders aligned with the dominant move without overfitting to daily noise.",
-            zh: "指数移动平均线交叉之所以长期有效，是因为市场很少沿直线运行。价格会漂移、停顿，再继续推进，交易者需要一种简单方式来判断当前波动究竟只是噪音，还是值得跟随的趋势。EMA 在平滑近期价格的同时，对最新数据赋予更高权重，因此反应快于简单均线。通过比较快线与慢线，策略本质上只在回答一个问题：短期动能是否足以跑赢长期基准？很多时候，这个答案已足够让交易者跟上主导趋势，而不必对日常噪音过度拟合。"
-          },
-          {
-            en: "EMA crossovers are also popular because they are easy to explain. A two line rule can be implemented across equities, FX, or commodities with minimal changes, which makes it a natural benchmark for trend systems. The simplicity hides an important idea: the crossover is not a prediction, it is a filter. It allows a trader to say no during choppy regimes and yes during clean directional moves. That filter, not the entry precision, is what keeps the strategy alive across decades.",
-            zh: "EMA 交叉之所以广受欢迎，还因为它极易解释。一套双均线规则只需极少调整，就能应用到股票、外汇和商品市场，因此天然适合作为趋势系统的基准模型。这种简洁性背后隐藏着一个关键点：交叉不是预测工具，而是过滤器。它帮助交易者在震荡市场中选择观望，在方向清晰的行情中选择参与。真正让这一策略跨越数十年仍然存活的，不是入场精度，而是这种过滤机制。"
+            "en": "The EA Arena catalogs 1,515 Expert Advisors published on the MQL5 CodeBase. For 1,063 of them we translated the MQL5 source into Python automatically and backtested it on one year of hourly data (May 2025 to May 2026) for EUR/USD, GBP/USD, USD/JPY and gold. Every EA got the same account: $10,000, 1:100 leverage, the EA's own lot size (100,000 units per currency lot, 100 ounces per gold lot), one order at a time, the same commission, and a broker-style stop-out when equity falls below 10% of the starting balance.",
+            "zh": "EA 竞技场收录了 MQL5 代码库里公开的 1515 个智能交易系统。其中 1063 个，我们把 MQL5 源码自动翻译成 Python，在欧元/美元、英镑/美元、美元/日元和黄金一年的小时线数据（2025 年 5 月到 2026 年 5 月）上回测。所有 EA 用同样的账户条件：1 万美元本金、1:100 杠杆、按 EA 自己设定的手数下单（外汇每手 10 万单位，黄金每手 100 盎司）、同一时间只有一张挂单、相同的佣金，净值跌破初始资金 10% 时像券商一样强制平仓。"
           }
         ]
       },
       {
-        heading: { en: "Signal mechanics without the math overload", zh: "不过度数学化的信号机制" },
-        paragraphs: [
+        "heading": {
+          "en": "Most EAs could not be tested",
+          "zh": "大多数 EA 没法测试"
+        },
+        "paragraphs": [
           {
-            en: "A classic EMA crossover uses a fast window such as 20 days and a slow window such as 100 or 200 days. The fast EMA reacts to recent price changes while the slow EMA defines the longer term regime. When the fast line rises above the slow line, the strategy goes long. When it falls below, the strategy exits or goes short depending on the design. This creates a small number of trades, each one attempting to capture a multi week or multi month trend.",
-            zh: "经典 EMA 交叉通常采用 20 日等较快窗口与 100 日或 200 日等较慢窗口。快 EMA 对近期价格变化反应更快，慢 EMA 则用于界定更长期的市场状态。当快线向上穿越慢线时，策略做多；当快线跌破慢线时，则根据设计选择平仓或反手做空。这样的规则会生成较少但更聚焦的交易，每一笔都试图捕捉数周乃至数月的趋势。"
+            "en": "Automatic conversion is hard. Out of 4,252 EA-and-market runs:",
+            "zh": "自动转换很难。4252 次“EA × 市场”运行中："
           },
           {
-            en: "Because EMAs emphasize recent data, the crossover often occurs after a trend has already started. That delay is intentional. The strategy gives up the first part of a move in exchange for avoiding many false starts. In practice, the choice of windows controls the trade off between responsiveness and stability. Short windows increase turnover and whipsaws, while longer windows increase delay but may improve trend quality.",
-            zh: "由于 EMA 更重视近期数据，交叉往往发生在趋势已经启动之后。这种滞后是有意为之。策略愿意放弃一段行情起步阶段，以换取减少大量假启动信号。在实务中，窗口长度决定了“响应速度”与“稳定性”之间的权衡。较短窗口会提高换手并带来更多反复震荡，较长窗口则会增加滞后，但往往能提升趋势质量。"
+            "en": [
+              "2,348 came from EAs whose entry logic the converter could not translate (custom indicators, unusual order handling). We label them \"not convertible yet\" instead of pretending they were tested.",
+              "144 depend on a custom indicator the converter replaced with a placeholder, so they do not test the real EA.",
+              "155 converted but never traded. For 112 of them we can point to the conversion bug: the fast and slow settings of a crossover were lost, a price-based indicator was asked to cross zero, lines on different scales were compared, or no entry rule survived.",
+              "88 stopped with an error, and 96 traded too little or produced a flat curve.",
+              "1,421 results are reliable enough to rank."
+            ],
+            "zh": [
+              "2348 次来自转换器无法翻译开仓逻辑的 EA（自定义指标、特殊的下单方式等）。我们把它们标为“暂不支持转换”，而不是假装测过。",
+              "144 次依赖转换器无法翻译的自定义指标，回测里用了占位指标代替，测的并不是 EA 的真实逻辑。",
+              "155 次转换成功但从未交易。其中 112 次能找到具体的转换错误：均线交叉的快慢参数丢失、要求基于价格的指标穿越 0、拿量纲不同的两条线比较，或者开仓规则在转换中丢了。",
+              "88 次运行报错，96 次交易太少或曲线持平。",
+              "剩下 1421 个结果足够可信，可以排名。"
+            ]
           }
         ]
       },
       {
-        heading: { en: "Market fit and regime behavior", zh: "市场适配性与市场状态表现" },
-        paragraphs: [
+        "heading": {
+          "en": "The results we trust",
+          "zh": "可信的结果"
+        },
+        "paragraphs": [
           {
-            en: "EMA crossovers are most effective in markets that exhibit sustained directional moves. Equity indices and macro driven commodities often fit this profile because they trend in response to economic cycles, risk appetite, and policy shifts. The strategy can also work in FX pairs when a clear rate differential or risk regime exists, but it tends to be more sensitive to sudden reversals and central bank surprises.",
-            zh: "EMA 交叉在持续单边运行的市场中最为有效。股票指数与受宏观因素驱动的商品通常符合这一特征，因为它们会随经济周期、风险偏好和政策变化形成趋势。当汇率差异或风险环境较为明确时，该策略在外汇品种中也能发挥作用，但对突发反转和央行意外事件通常更为敏感。"
-          },
-          {
-            en: "In sideways markets the crossover struggles. Range bound regimes generate frequent cross signals with little follow through, leading to a series of small losses. That is why a crossover strategy typically looks best over long horizons that include both trends and noise. The long horizon allows a few large winners to outweigh the smaller whipsaws.",
-            zh: "在横盘市场中，交叉策略往往表现艰难。区间震荡会产生频繁交叉，但后续延续性很差，最终形成一连串小亏损。因此，交叉策略通常只有在同时覆盖趋势与噪音的长周期回测中，表现才更有说服力。拉长周期后，少数大赢家才有机会覆盖大量小幅震荡损失。"
+            "en": [
+              "About half were profitable: 736 of 1,421. The median result was +0.5% over the year, with a median maximum drawdown of 7.5%. The typical EA had a longest losing streak of 6 trades and held a position for about a day.",
+              "On the three currency pairs the typical EA went nowhere: the median result was −0.03%, and only 29 of 1,055 currency results made more than 10%.",
+              "Gold looks better than it is. Gold rose 44% over the test year, so long-leaning systems were carried by the trend: the median gold result was +14.5% — with a median drawdown of 59%. 70 of 366 gold runs (19%) lost the whole account.",
+              "Consistency was rare: of 344 EAs with reliable results on all four markets, 40 were profitable on every one.",
+              "240 results had a Sharpe ratio above 1. Over a single year that is easy to reach by chance, which is why the EA Ranking also shows the recovery factor and how many markets an EA made money on."
+            ],
+            "zh": [
+              "大约一半赚钱：1421 个里有 736 个。中位数结果一年 +0.5%，最大回撤中位数 7.5%。典型的 EA 最长连亏 6 笔，平均持仓大约一天。",
+              "在三个货币对上，典型的 EA 原地踏步：中位数结果是 −0.03%，1055 个外汇结果里只有 29 个赚了 10% 以上。",
+              "黄金的数字看起来比实际好。测试这一年黄金涨了 44%，偏多的系统是被趋势带着走的：黄金结果的中位数是 +14.5%，但回撤中位数高达 59%；366 次黄金回测里有 70 次（19%）把整个账户亏光。",
+              "稳定的很少：在四个市场都有可信结果的 344 个 EA 里，只有 40 个在每个市场都盈利。",
+              "240 个结果的夏普超过 1。只看一年，这个水平很容易靠运气达到，所以 EA 排行榜还展示了恢复因子和 EA 在几个品种上赚钱。"
+            ]
           }
         ]
       },
       {
-        heading: { en: "How to read backtests", zh: "如何解读回测" },
-        paragraphs: [
+        "heading": {
+          "en": "Categories and risk",
+          "zh": "类别与风险"
+        },
+        "paragraphs": [
           {
-            en: "Backtests for EMA crossovers often show a stair step equity curve. Long flat periods are followed by sharp gains during trend phases, then giveback during choppy markets. This is not a bug. It reflects the reality that trend following pays only when trends exist. When evaluating results, focus on the distribution of trade outcomes rather than the average trade. A small number of big winners often drives total return.",
-            zh: "EMA 交叉策略的回测净值曲线常呈现“台阶状”。长时间横盘之后，趋势阶段出现快速拉升，随后又在震荡市场中回吐部分收益。这并不是缺陷，而是趋势跟随的真实特征：只有当趋势存在时，策略才会获得报酬。评估结果时，应更多关注交易结果的分布，而不是单笔平均收益。总体回报往往由少数几笔大赢家驱动。"
-          },
-          {
-            en: "Look at drawdown depth and duration. A crossover may show acceptable long term return but still experience a multi year drawdown if the market stays range bound or reverses sharply. Also compare trade counts and turnover. If a parameter set produces too many trades, it may be too sensitive and may not survive real world costs.",
-            zh: "还应重点观察回撤深度与回撤持续时间。某一组交叉参数即便长期收益尚可，如果市场长期震荡或急剧反转，仍可能经历持续数年的回撤。同时也要比较交易次数与换手率。若某组参数产生过多交易，往往意味着系统过于敏感，未必能承受真实世界中的交易成本。"
+            "en": "The arena's risk review rates 34 of 40 martingale EAs and 14 of 33 grid EAs as \"dangerous\": they increase exposure after losses or keep opening positions against the trend. In our backtests martingale EAs did not show the usual very high win rates (median 49%), most likely because the automatic conversion trades a fixed lot size instead of reproducing the lot multiplication. Their real-world risk is therefore higher than these numbers suggest — read the risk review on each EA page, not only the backtest.",
+            "zh": "竞技场的风险评估把 40 个马丁格尔 EA 中的 34 个、33 个网格 EA 中的 14 个评为“危险”：它们在亏损后加大仓位，或者逆势不断开新仓。在我们的回测里，马丁 EA 并没有表现出通常那种很高的胜率（中位数 49%），很可能是因为自动转换用了固定手数，没有还原加倍下注的逻辑。所以它们在真实交易中的风险比这些数字显示的更高——请看每个 EA 页面上的风险评估，而不只是回测结果。"
           }
         ]
       },
       {
-        heading: { en: "Risk and failure modes", zh: "风险与失效模式" },
-        paragraphs: [
+        "heading": {
+          "en": "How to use the EA Arena",
+          "zh": "怎么用 EA 竞技场"
+        },
+        "paragraphs": [
           {
-            en: "The primary risk is whipsaw. When price oscillates around the slow EMA, the strategy flips positions and suffers a series of small losses. Another risk is gap risk. Because trades are executed on the next session, a sudden overnight gap can create a much worse entry or exit than expected. The model is also exposed to crash risk because it remains long during trends and exits only after a reversal is confirmed.",
-            zh: "核心风险是反复震荡带来的 whipsaw。当价格围绕慢 EMA 来回摆动时，策略会频繁翻转仓位并承受连续小亏损。另一个风险是跳空风险。由于交易在下一交易时段执行，隔夜跳空可能导致远差于预期的入场或出场价格。该模型还暴露于崩跌风险之下，因为它在趋势中持续持有，只有在反转被确认后才退出。"
-          },
-          {
-            en: "Parameter sensitivity is another weakness. A crossover that looks perfect on a specific historical window can fail out of sample if the chosen windows fit that period too tightly. Walk forward tests and multiple window evaluations help, but they do not eliminate the risk of overfitting. Risk overlays such as stop losses or volatility filters can reduce drawdowns, but they may also cut the biggest winners.",
-            zh: "参数敏感性也是其弱点之一。某组交叉参数在特定历史窗口中看似完美，但若窗口选择对该时期拟合过紧，样本外表现可能迅速失效。滚动前瞻测试和多窗口评估虽然有帮助，但并不能彻底消除过拟合风险。止损或波动率过滤等风险覆盖层可以降低回撤，但也可能同时截断那些最重要的大盈利交易。"
-          }
-        ]
-      },
-      {
-        heading: { en: "How it differs from other trend rules", zh: "它与其他趋势规则有何不同" },
-        paragraphs: [
-          {
-            en: "Compared to Donchian breakouts, EMA crossovers react to average price rather than to extreme highs or lows. This makes them smoother but sometimes slower to catch sudden breakouts. Compared to Keltner or Bollinger channel systems, EMA crossovers ignore volatility expansion and focus purely on direction. That makes them simpler but less adaptive to volatility regimes.",
-            zh: "与唐奇安突破相比，EMA 交叉关注的是平均价格变化，而不是极端高点或低点，因此通常更平滑，但在应对突发突破时有时会更慢。与肯特纳或布林带通道系统相比，EMA 交叉忽略波动率扩张，只聚焦方向本身。这使它更简单，但对不同波动率环境的适应性较弱。"
-          },
-          {
-            en: "Adaptive moving averages such as KAMA aim to adjust their speed based on market efficiency. They can outperform a fixed EMA in some regimes, but they are harder to interpret and tune. The EMA crossover remains a baseline because it is transparent and robust across assets. It is a useful reference point when testing more complex trend systems.",
-            zh: "像 KAMA 这样的自适应移动平均线试图根据市场效率动态调整响应速度。在某些市场状态下，它们可能优于固定 EMA，但解释和调参都更复杂。EMA 交叉之所以仍被视为基准，是因为它足够透明，并能在多类资产上保持稳健。在测试更复杂的趋势系统时，它是一个非常有价值的参考起点。"
-          }
-        ]
-      },
-      {
-        heading: { en: "Practical variations and portfolio use", zh: "实务变体与组合中的角色" },
-        paragraphs: [
-          {
-            en: "Researchers often adapt EMA lengths to the instrument. FX pairs may respond better to faster averages, while equity indices may benefit from slower settings that filter out noise. Other variations require the fast EMA to be rising, or the price to be above a longer trend filter, before entering. These small additions can reduce whipsaws without changing the core logic.",
-            zh: "研究者通常会根据标的调整 EMA 长度。外汇货币对可能更适合较快均线，而股票指数则可能更受益于能过滤噪音的较慢参数。其他常见变体包括要求快 EMA 本身正在上行，或要求价格位于更长期趋势过滤器上方后才允许入场。这些小幅调整能在不改变核心逻辑的前提下减少反复震荡。"
-          },
-          {
-            en: "In diversified portfolios, EMA crossovers are usually one sleeve among others. Trend exposure can be sized by volatility or capped by correlation so that one regime does not dominate risk. Pairing trend systems with mean reversion or carry models can smooth returns and reduce long drawdown stretches. The crossover works best when it is allowed to do one job: capture trends when they appear.",
-            zh: "在分散化投资组合中，EMA 交叉通常只是其中一个策略分层。趋势敞口可以按波动率分配，或通过相关性上限进行约束，以避免单一市场状态主导组合风险。将趋势系统与均值回归或 carry 模型配合，往往有助于平滑收益并缩短长期回撤阶段。EMA 交叉最适合承担一项清晰任务：当趋势出现时负责捕捉它。"
-          },
-          {
-            en: "A practical workflow is to treat the crossover as a regime filter and then apply more refined entries within that regime. For example, a trader might only take pullback entries when the fast EMA stays above the slow EMA. This preserves the trend bias while allowing more precise timing, and it can reduce the frustration of late entries without changing the underlying philosophy.",
-            zh: "一种实用流程是先把交叉视为市场状态过滤器，再在该状态内叠加更精细的入场规则。例如，交易者可以仅在快 EMA 位于慢 EMA 上方时做回调买入。这样既保留了趋势偏向，又能获得更精确的择时，同时减少“追得太晚”的挫败感，而无需改变策略的底层哲学。"
+            "en": [
+              "Treat \"not convertible yet\" as \"unknown\", not \"bad\".",
+              "Look for EAs that hold up on several markets, not one spectacular result. The \"Markets\" column in the EA Ranking shows this at a glance.",
+              "On gold, check the drawdown before the profit: 0.1 lot of gold on a $10,000 account is a much bigger bet than 0.1 lot of EUR/USD.",
+              "Check the risk rating and the risk points before the P&L.",
+              "Free code is a learning resource. If you trade an EA, test it yourself in the MT5 Strategy Tester with your broker's data and costs — and you can compare the result with the arena in the Strategy Lab."
+            ],
+            "zh": [
+              "把“暂不支持转换”理解为“未知”，而不是“不好”。",
+              "找在多个市场上都站得住的 EA，而不是某一次特别亮眼的结果。EA 排行榜里的“盈利品种”一栏一眼就能看出来。",
+              "看黄金 EA 时先看回撤再看收益：1 万美元的账户做 0.1 手黄金，风险比 0.1 手欧元/美元大得多。",
+              "先看风险等级和风险点，再看盈亏。",
+              "免费代码是很好的学习材料。如果要实盘，请用自己券商的数据和成本在 MT5 策略测试器里重新测试——测完可以到策略实验室和竞技场的策略比一比。"
+            ]
           }
         ]
       }
     ]
   },
   {
-    slug: "parabolic-sar-strategy",
-    title: { en: "Parabolic SAR Strategy: A Trend Exit Engine", zh: "抛物线 SAR 策略：趋势退出引擎" },
-    summary: { en: "Parabolic SAR uses a trailing stop that accelerates with trend strength. This article explains why it works, when it fails, and how to read its backtests.", zh: "抛物线 SAR 使用会随趋势强度加速的跟踪止损。本文解释它为何有效、何时失效，以及如何解读其回测。" },
-    date: "2026-01-13",
-    readTime: "11 min read",
-    category: "Trend Following",
-    featured: true,
-    tags: ["Trend", "Parabolic SAR"],
-    figure: {
-      title: { en: "Parabolic SAR stop trail", zh: "抛物线 SAR 止损轨迹" },
-      caption: { en: "Dots represent the SAR level trailing price as the trend accelerates.", zh: "圆点表示随着趋势加速而不断贴近价格的 SAR 水平。" },
-      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Parabolic SAR sketch">
-  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
-  <g stroke="#d8cbbd" stroke-width="1">
-    <line x1="40" y1="40" x2="600" y2="40" />
-    <line x1="40" y1="80" x2="600" y2="80" />
-    <line x1="40" y1="120" x2="600" y2="120" />
-    <line x1="40" y1="160" x2="600" y2="160" />
-    <line x1="40" y1="200" x2="600" y2="200" />
-  </g>
-  <polyline fill="none" stroke="#1f6f78" stroke-width="3" points="40,180 90,165 140,150 190,135 240,120 290,100 340,90 390,80 440,75 490,70 540,65 600,70" />
-  <g fill="#e16b3a">
-    <circle cx="60" cy="195" r="4" />
-    <circle cx="110" cy="185" r="4" />
-    <circle cx="160" cy="175" r="4" />
-    <circle cx="210" cy="160" r="4" />
-    <circle cx="260" cy="145" r="4" />
-    <circle cx="310" cy="125" r="4" />
-    <circle cx="360" cy="110" r="4" />
-    <circle cx="410" cy="100" r="4" />
-    <circle cx="460" cy="95" r="4" />
-    <circle cx="510" cy="90" r="4" />
-  </g>
-</svg>`
+    "slug": "which-strategies-survived-2022",
+    "title": {
+      "en": "Which Trading Strategies Survived 2022? 62 Backtests Through Three Sell-offs",
+      "zh": "哪些交易策略扛过了 2022？62 个回测在三次大跌中的表现"
     },
-    sections: []
+    "summary": {
+      "en": "In the 2022 bear market SPY fell 24.5% from peak to trough. Every one of the 62 strategies we run on SPY lost less, and ten of them made money. Mean reversion held up best, momentum worst. Here is what the COVID crash and the late-2018 sell-off add to the picture.",
+      "zh": "2022 年熊市里，SPY 从高点到低点跌了 24.5%。我们在 SPY 上运行的 62 个策略，全部亏得比它少，其中 10 个还赚了钱。均值回归最扛得住，动量最差。再加上新冠暴跌和 2018 年底那次下跌，能看到更完整的图景。"
+    },
+    "date": "2026-11-03",
+    "readTime": "3 min read",
+    "category": "Research",
+    "featured": false,
+    "tags": [
+      "Bear Market",
+      "Drawdown",
+      "Mean Reversion",
+      "Trend"
+    ],
+    "sections": [
+      {
+        "heading": {
+          "en": "The three sell-offs",
+          "zh": "三次大跌"
+        },
+        "paragraphs": [
+          {
+            "en": "We looked at three periods when US stocks fell sharply, using the same dates for every strategy:",
+            "zh": "我们选了美股三次明显下跌的时期，所有策略用同样的日期："
+          },
+          {
+            "en": [
+              "Q4 2018: 1 October to 24 December 2018 — SPY −19.2%",
+              "COVID crash: 19 February to 23 March 2020 — SPY −33.7%",
+              "2022 bear market: 3 January to 12 October 2022 — SPY −24.5%"
+            ],
+            "zh": [
+              "2018 年四季度：2018 年 10 月 1 日到 12 月 24 日，SPY 跌 19.2%",
+              "新冠暴跌：2020 年 2 月 19 日到 3 月 23 日，SPY 跌 33.7%",
+              "2022 年熊市：2022 年 1 月 3 日到 10 月 12 日，SPY 跌 24.5%"
+            ]
+          },
+          {
+            "en": "All results are from walk-forward backtests on daily data, before trading costs.",
+            "zh": "所有结果都来自日线数据的滚动前推回测，未扣交易成本。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "2022 — a slow bear favours the patient",
+          "zh": "2022 年——慢熊更奖励有耐心的策略"
+        },
+        "paragraphs": [
+          {
+            "en": "Every strategy lost less than buy-and-hold in 2022, and the median strategy lost 6.8%. Ten finished the period with a gain. The top of the list is dominated by mean reversion: RSI Mean Reversion (+8.9%), Ultimate Oscillator (+8.1%), Z-Score Mean Reversion (+6.3%), Bollinger Band Reversion (+5.7%) and Hurst-Filtered Mean Reversion (+4.1%). Linear Regression Channel (+3.9%) and Crisis Alpha (+3.6%) complete the group.",
+            "zh": "2022 年所有策略都比买入持有亏得少，中位数亏损 6.8%，有 10 个最终是赚钱的。排在前面的基本都是均值回归：RSI 均值回归（+8.9%）、终极震荡指标（+8.1%）、Z 分数均值回归（+6.3%）、布林带回归（+5.7%）和 Hurst 过滤均值回归（+4.1%），再加上线性回归通道（+3.9%）和危机 Alpha（+3.6%）。"
+          },
+          {
+            "en": "By style, the median 2022 result was −1.4% for mean reversion, −6.8% for volatility strategies, −7.1% for trend following, −8.4% for regime strategies and −11.4% for momentum. 2022 was a grinding decline with sharp bear-market rallies. Strategies that buy short-term oversold readings and exit quickly caught those rallies; momentum strategies, which need a sustained move, kept getting whipsawed.",
+            "zh": "按风格看，2022 年的中位数结果分别是：均值回归 −1.4%，波动率策略 −6.8%，趋势跟踪 −7.1%，市场状态策略 −8.4%，动量 −11.4%。2022 年是一边慢慢下跌、一边夹着猛烈反弹的熊市。买入短期超卖、很快离场的策略吃到了这些反弹；而需要持续行情的动量策略，一直被来回打脸。"
+          },
+          {
+            "en": "The weakest results came from Drawdown Control (−23.8%), Williams %R Reversion (−19.6%), Time-Series Momentum (−18.9%), Parabolic SAR (−17.2%) and 52-Week High Momentum (−16.4%).",
+            "zh": "表现最差的是回撤控制（−23.8%）、威廉指标回归（−19.6%）、时间序列动量（−18.9%）、抛物线 SAR（−17.2%）和 52 周新高动量（−16.4%）。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "2020 — a crash too fast for most rules",
+          "zh": "2020 年——跌得太快，大多数规则来不及反应"
+        },
+        "paragraphs": [
+          {
+            "en": "The COVID crash took only 23 trading days. The median strategy lost 7.6% while SPY lost a third of its value, but only three strategies made money: Linear Regression Channel (+33.9%), Crisis Alpha (+25.7%) and Connors RSI (+9.4%). Trend strategies did better than their reputation for crashes suggests: the median trend strategy lost 4.7%, and only a quarter lost more than 10%, mostly because they had already stepped aside when the market first wobbled in late February.",
+            "zh": "新冠暴跌只用了 23 个交易日。SPY 跌掉三分之一时，策略的中位数亏损是 7.6%，但只有三个策略赚了钱：线性回归通道（+33.9%）、危机 Alpha（+25.7%）和康纳斯 RSI（+9.4%）。趋势策略的表现比“遇到暴跌就失灵”的印象要好：趋势类策略的中位数只亏了 4.7%，只有四分之一亏损超过 10%，主要是因为 2 月底市场刚开始晃动时，它们大多已经离场。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Holding up in both",
+          "zh": "两次都扛住了"
+        },
+        "paragraphs": [
+          {
+            "en": "41 of the 62 strategies lost less than half of SPY's decline in both the COVID crash and the 2022 bear market. That sounds reassuring until you look at the other side of the ledger: over the last five years only one strategy beat buy-and-hold SPY on annual return. Protection in sell-offs was paid for with lower returns in the rallies in between.",
+            "zh": "在新冠暴跌和 2022 年熊市里，62 个策略中有 41 个的亏损都不到 SPY 跌幅的一半。听起来很安心，但看看另一面：近五年里，只有 1 个策略的年化收益超过买入持有 SPY。大跌中的保护，是用两次大跌之间上涨行情里的少赚换来的。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "What to take away",
+          "zh": "几点结论"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "No style protects in every kind of sell-off. Fast crashes and slow bear markets reward different behaviour.",
+              "Mean reversion did well in 2022 because the decline came with violent rallies. In a crash without rebounds it would have kept buying dips.",
+              "Read crisis results together with the full-period return. A strategy that loses little in a crash but never catches up is not necessarily better.",
+              "Every strategy page now has a \"How it held up in sell-offs\" table with these three periods and its returns above and below the 200-day moving average."
+            ],
+            "zh": [
+              "没有哪种风格能扛住所有类型的大跌。急跌和慢熊奖励的是不同的行为。",
+              "均值回归在 2022 年表现好，是因为那次下跌伴随着剧烈反弹；如果是一路下跌没有反弹，它会一直抄底抄在半山腰。",
+              "看大跌表现时要结合全周期收益。大跌中亏得少、但之后一直追不回来的策略，不一定更好。",
+              "现在每个策略页都有“大跌行情中的表现”表格，包括这三个时期，以及市场在 200 日均线上方和下方时的收益。"
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
-    slug: "volatility-breakout",
-    title: { en: "Volatility Breakout Strategy: Trading Expansion Without Overreach", zh: "波动率突破策略：参与扩张而不过度追价" },
-    summary: { en: "Volatility breakouts focus on price moves that escape a recent range. This guide explains the logic, the regimes where it works, and the traps to avoid.", zh: "波动率突破聚焦于价格脱离近期区间的走势。本文解释其逻辑、适用的市场环境以及需要避免的陷阱。" },
-    date: "2026-01-13",
-    readTime: "13 min read",
-    category: "Trend Following",
-    featured: true,
-    tags: ["Breakout", "Volatility"],
-    figure: {
-      title: { en: "Volatility breakout channel", zh: "波动率突破通道" },
-      caption: { en: "A simplified channel shows how price expansion can trigger a breakout entry.", zh: "简化通道示意价格扩张如何触发突破入场。" },
-      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Volatility breakout sketch">
-  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
-  <rect x="60" y="70" width="520" height="100" fill="none" stroke="#7c7c7c" stroke-width="2" stroke-dasharray="6 6" />
-  <polyline fill="none" stroke="#1f6f78" stroke-width="3" points="60,160 120,150 180,145 240,140 300,135 360,130 420,120 480,90 540,60 600,70" />
-  <circle cx="540" cy="60" r="6" fill="#e16b3a" />
-</svg>`
+    "slug": "why-martingale-and-grid-eas-blow-up",
+    "title": {
+      "en": "Why Martingale and Grid EAs Blow Up: What 1,515 Free MT5 Expert Advisors and Their Losing Streaks Show",
+      "zh": "马丁格尔和网格 EA 为什么会爆仓：1515 个免费 MT5 EA 和它们的连亏记录告诉你"
     },
-    sections: []
+    "summary": {
+      "en": "Martingale and grid EAs make up 5% of the free MT5 Expert Advisors we review, but more than half of the ones we rate \"dangerous\". The reason is arithmetic: losing streaks of six to eight trades are normal — and that is exactly where doubling the position runs out of money.",
+      "zh": "在我们评估的免费 MT5 智能交易系统里，马丁格尔和网格 EA 只占 5%，却占了被评为“危险”的一半以上。原因是一道算术题：连亏 6 到 8 笔很正常，而这恰恰是加倍下注的资金耗尽的地方。"
+    },
+    "date": "2026-11-03",
+    "readTime": "3 min read",
+    "category": "EA Research",
+    "featured": false,
+    "tags": [
+      "Martingale",
+      "Grid",
+      "Expert Advisor",
+      "Risk"
+    ],
+    "sections": [
+      {
+        "heading": {
+          "en": "Where the danger is concentrated",
+          "zh": "危险集中在哪里"
+        },
+        "paragraphs": [
+          {
+            "en": "Our risk review covers all 1,515 EAs in the EA Arena. 88 of them are rated \"dangerous\". Most of those come from two small categories:",
+            "zh": "我们的风险评估覆盖了 EA 竞技场里全部 1515 个 EA，其中 88 个被评为“危险”。它们大多来自两个很小的类别："
+          },
+          {
+            "en": [
+              "Martingale: 34 of 40 EAs (85%) rated dangerous.",
+              "Grid: 14 of 33 (42%).",
+              "Trend following, momentum, breakout and mean reversion: 2–4% each."
+            ],
+            "zh": [
+              "马丁格尔：40 个里 34 个（85%）被评为危险。",
+              "网格：33 个里 14 个（42%）。",
+              "趋势跟踪、动量、突破和均值回归：各自只有 2%–4%。"
+            ]
+          },
+          {
+            "en": "Martingale and grid EAs are 73 of 1,515 EAs (5%) but 48 of the 88 dangerous ones (55%).",
+            "zh": "马丁格尔和网格 EA 合计只占 1515 个里的 73 个（5%），却占了 88 个危险 EA 里的 48 个（55%）。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "How a martingale works — and fails",
+          "zh": "马丁格尔怎么运作，又怎么失败"
+        },
+        "paragraphs": [
+          {
+            "en": "A martingale EA increases the position after every loss, usually doubling it, so that one win recovers everything lost before. Most of the time this works, which is why these EAs show high win rates and smooth equity curves. The problem is the losing streak. If the first trade risks 0.5% of the account and every loss doubles the next position:",
+            "zh": "马丁格尔 EA 每亏一次就加大仓位，通常是翻倍，指望赢一次就把之前亏的全部赚回来。大多数时候这确实管用，所以这类 EA 胜率很高、权益曲线很平滑。问题出在连续亏损上。假设第一笔交易承担账户 0.5% 的风险，每亏一次下一笔仓位翻倍："
+          },
+          {
+            "en": [
+              "after 4 losses in a row the account is down 7.5%;",
+              "after 6 losses, 31.5%;",
+              "after 7 losses, 63.5%;",
+              "the eighth trade alone would then risk 64% of the starting balance, with only 36.5% left. One more loss and the account is gone."
+            ],
+            "zh": [
+              "连亏 4 笔，账户亏 7.5%；",
+              "连亏 6 笔，亏 31.5%；",
+              "连亏 7 笔，亏 63.5%；",
+              "这时第八笔单子本身就要承担初始资金 64% 的风险，而账户只剩 36.5%。再亏一次，账户就没了。"
+            ]
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "How common are long losing streaks?",
+          "zh": "连亏有多常见？"
+        },
+        "paragraphs": [
+          {
+            "en": "We looked at the longest losing streak in 1,393 reliable EA backtests that made at least 20 trades over one year of hourly data. The median longest streak was 6 losses. A quarter of them (24%) had 8 or more losses in a row, and 4.6% had 10 or more. These are ordinary EAs, not martingales — they simply show how often a run of losses happens. For a doubling martingale, a streak that is unremarkable for a normal EA is fatal.",
+            "zh": "我们统计了 1393 个可信的 EA 回测（一年小时线数据、至少 20 笔交易）里的最长连亏。中位数是 6 笔；四分之一（24%）的回测出现过连亏 8 笔或更多，4.6% 出现过 10 笔或更多。这些都是普通 EA，不是马丁格尔——它们只是说明连续亏损有多常见。对普通 EA 来说平平无奇的一段连亏，对翻倍加仓的马丁格尔就是致命的。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Grids: the same problem in a trend",
+          "zh": "网格：遇到趋势是同一个问题"
+        },
+        "paragraphs": [
+          {
+            "en": "A grid EA places orders at fixed price steps and adds positions as price moves against it, expecting it to come back. In a range that works. In a trend the positions pile up: over our test year gold rose from about $3,280 to $4,730, so a grid adding one short position every $20 would have opened more than 70 of them, all losing at once. Grids without a maximum number of positions or a stop for the whole basket are the ones our review marks as dangerous.",
+            "zh": "网格 EA 按固定价格间隔挂单，价格逆向移动时不断加仓，等着价格回来。在震荡行情里这行得通；遇到趋势，仓位就会越堆越多。我们测试的这一年里，黄金从大约 3280 美元涨到 4730 美元，一个每涨 20 美元加一张空单的网格，会开出 70 多张空单，而且全部同时亏损。没有最大仓位数、也没有整体止损的网格，就是我们评估里标为危险的那一类。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Why our backtests understate the risk",
+          "zh": "为什么我们的回测低估了风险"
+        },
+        "paragraphs": [
+          {
+            "en": "Our automatic conversion trades a fixed lot size, so it does not reproduce lot doubling or unlimited grid levels. That is why martingale EAs in our backtests show ordinary results (median win rate 49%) instead of the typical \"95% wins, then a wipe-out\". Treat their backtest numbers as a lower bound on risk and read the risk review on each EA page.",
+            "zh": "我们的自动转换按固定手数交易，没有还原加倍下注和无限加网格的逻辑。所以马丁格尔 EA 在我们的回测里表现得很普通（胜率中位数 49%），而不是典型的“95% 都赢，然后一次爆仓”。请把它们的回测数字当作风险的下限，并且一定要看每个 EA 页面上的风险评估。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Before you run one",
+          "zh": "真要用之前"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "Check the maximum lot multiplier and the maximum number of grid levels. If there is no cap, the worst case is the whole account.",
+              "Work out how many losses in a row your account can absorb at the EA's settings, and compare it with the losing streaks above.",
+              "Look for a stop for the whole basket of positions, not just per trade.",
+              "Test in the MT5 Strategy Tester over several years, including fast trends — one quiet year will make almost any martingale look good."
+            ],
+            "zh": [
+              "查清楚最大加倍倍数和最多加几层网格。如果没有上限，最坏情况就是整个账户。",
+              "按 EA 的参数算一算，你的账户能扛住连亏几笔，再和上面的连亏数据比一比。",
+              "看有没有针对整组持仓的止损，而不只是单笔止损。",
+              "在 MT5 策略测试器里测好几年的数据，一定要包含快速单边行情——只测一年平静的行情，几乎任何马丁都会看起来不错。"
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
-    slug: "donchian-turtle-breakout",
-    title: { en: "Donchian Channel and Turtle Breakout: Trading the 20/10 Rule", zh: "唐奇安通道与海龟突破：交易 20/10 规则" },
-    summary: { en: "The Turtle system uses Donchian breakouts and risk based sizing to capture sustained trends. This research note explains the logic, market fit, and failure modes.", zh: "海龟系统通过唐奇安突破与基于风险的头寸规模来捕捉持续趋势。本文说明其逻辑、市场适配性与失效模式。" },
-    date: "2026-01-20",
-    readTime: "14 min read",
-    category: "Trend Following",
-    featured: false,
-    tags: ["Breakout", "Donchian", "Turtle"],
-    figure: {
-      title: { en: "Donchian breakout channel", zh: "唐奇安突破通道" },
-      caption: { en: "Price pushes above the recent channel to trigger a breakout entry.", zh: "价格向上突破近期通道，从而触发突破入场。" },
-      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Donchian breakout sketch">
-  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
-  <rect x="70" y="70" width="500" height="100" fill="none" stroke="#7c7c7c" stroke-width="2" stroke-dasharray="6 6" />
-  <polyline fill="none" stroke="#1f6f78" stroke-width="3" points="70,160 120,150 170,140 220,145 270,130 320,120 370,110 420,95 470,85 520,70 570,60" />
-  <circle cx="520" cy="70" r="6" fill="#e16b3a" />
-</svg>`
+    "slug": "moving-average-strategies-bitcoin",
+    "title": {
+      "en": "Do Moving-Average Strategies Still Work on Bitcoin? Nine Systems, Five Years",
+      "zh": "均线策略在比特币上还管用吗？9 个系统、5 年数据"
     },
-    sections: []
+    "summary": {
+      "en": "Over the last five years buy-and-hold bitcoin returned 7.2% a year with a 77% drawdown. Five of nine moving-average-style systems beat that return, and every one of them cut the worst drawdown. Over the full history the picture flips: almost nothing beats simply holding.",
+      "zh": "近五年，买入持有比特币年化 7.2%，最大回撤 77%。9 个均线类系统里有 5 个年化收益超过它，而且每一个都把最大回撤压低了。但放到全部历史里看，结果反过来：几乎没有策略能跑赢直接持有。"
+    },
+    "date": "2026-11-03",
+    "readTime": "3 min read",
+    "category": "Trend Following",
+    "featured": false,
+    "tags": [
+      "Bitcoin",
+      "Moving Average",
+      "Trend"
+    ],
+    "sections": [
+      {
+        "heading": {
+          "en": "What we tested",
+          "zh": "测了什么"
+        },
+        "paragraphs": [
+          {
+            "en": "Nine trend systems from the arena that are built on moving averages or close relatives: the 50/200 Dual Moving Average, Triple Moving Average, Kaufman Adaptive MA, Hull MA crossover, MACD, MACD with an RSI filter, Ichimoku Cloud, Supertrend, and a dual-MA trend with a macro-event blackout. All run long-only on daily BTC-USD data with walk-forward optimization, before trading costs.",
+            "zh": "竞技场里 9 个基于均线或类似原理的趋势系统：50/200 双均线、三均线、考夫曼自适应均线、赫尔均线交叉、MACD、MACD + RSI 过滤、一目均衡表、超级趋势，以及带宏观事件过滤的双均线。全部只做多，在 BTC-USD 日线上用滚动前推优化回测，未扣交易成本。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "The last five years",
+          "zh": "近五年"
+        },
+        "paragraphs": [
+          {
+            "en": "Buy-and-hold bitcoin: 7.2% a year, Sharpe ratio 0.33, maximum drawdown −76.6%.",
+            "zh": "买入持有比特币：年化 7.2%，夏普 0.33，最大回撤 −76.6%。"
+          },
+          {
+            "en": "Five systems beat that annual return: Trend + Macro Filter (19.4%), Ichimoku Cloud (11.9%), Dual Moving Average (10.9%), MACD (8.1%) and Supertrend (7.8%). The other four lagged: Triple MA (6.3%), Hull MA (4.3%), MACD + RSI (2.6%) and Kaufman Adaptive MA (2.3%).",
+            "zh": "5 个系统的年化收益超过了它：趋势 + 宏观事件过滤（19.4%）、一目均衡表（11.9%）、双均线（10.9%）、MACD（8.1%）和超级趋势（7.8%）。另外 4 个落后：三均线（6.3%）、赫尔均线（4.3%）、MACD + RSI（2.6%）和考夫曼自适应均线（2.3%）。"
+          },
+          {
+            "en": "The more consistent result is risk. Every system had a smaller maximum drawdown than holding, between −33% (Trend + Macro Filter) and −58% (Hull MA). They achieved it the simple way: they were in the market only 34–53% of the time.",
+            "zh": "更一致的结果在风险上：每个系统的最大回撤都比持有小，在 −33%（趋势 + 宏观过滤）到 −58%（赫尔均线）之间。做法也很朴素：它们只有 34%–53% 的时间持仓。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "The full history tells a different story",
+          "zh": "全部历史讲的是另一个故事"
+        },
+        "paragraphs": [
+          {
+            "en": "Since our bitcoin data begins in September 2014, buy-and-hold compounded at about 51% a year. Most moving-average systems landed between 43% and 60%: Ichimoku (60.0%) and MACD (58.2%) a bit ahead, Supertrend (42.8%) and the macro-filter version (46.8%) behind, and the MACD + RSI filter far behind (15.5%). Drawdowns were still lower (−46% to −74% vs −83%), but in the explosive early years, being out of the market for half the time was expensive.",
+            "zh": "从我们的比特币数据起点（2014 年 9 月）算，买入持有年化约 51%。大多数均线系统在 43% 到 60% 之间：一目均衡表（60.0%）和 MACD（58.2%）略好，超级趋势（42.8%）和宏观过滤版（46.8%）落后，MACD + RSI 过滤则远远落后（15.5%）。回撤依然更小（−46% 到 −74%，持有是 −83%），但在早期爆发式上涨的那几年，一半时间不在场的代价很大。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Costs matter more than usual",
+          "zh": "成本比平时更重要"
+        },
+        "paragraphs": [
+          {
+            "en": "The fast systems trade a lot: the Hull MA crossover made 266 trades in five years and the Kaufman Adaptive MA 187, against 10–12 for the dual and triple MA. Crypto trading costs are higher than for ETFs, so the strategy pages' cost slider is worth a look before drawing conclusions about the fast systems.",
+            "zh": "快速系统交易很频繁：赫尔均线交叉五年交易 266 次，考夫曼自适应均线 187 次，而双均线和三均线只有 10–12 次。加密货币的交易成本比 ETF 高，下结论之前，不妨用策略页的成本滑块看看快速系统扣成本后的样子。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Takeaways",
+          "zh": "几点结论"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "On bitcoin, simple slow trend filters did their main job in the last five years: similar or better returns with roughly a third less drawdown.",
+              "They do not reliably beat holding in a strong bull market; their value is surviving the bear markets.",
+              "Filters on top of filters (MACD + RSI) cut returns more than risk here.",
+              "Faster systems need a realistic cost assumption."
+            ],
+            "zh": [
+              "在比特币上，简单的慢速趋势过滤在近五年完成了它的主要任务：收益相近甚至更好，回撤少了大约三分之一。",
+              "在强牛市里，它们并不能稳定跑赢持有；它们的价值在于熬过熊市。",
+              "过滤再叠加过滤（MACD + RSI），在这里减掉的收益比减掉的风险更多。",
+              "快速系统一定要用符合实际的成本假设。"
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
-    slug: "supertrend-atr-trailing-stop",
-    title: { en: "Supertrend and ATR Trailing Stop: Volatility Adjusted Trend Control", zh: "Supertrend 与 ATR 跟踪止损：波动率调整后的趋势控制" },
-    summary: { en: "Supertrend uses ATR based bands to define trend flips and stops. This research note explains the signal mechanics, regime fit, and the risks of whipsaw.", zh: "Supertrend 使用基于 ATR 的带状结构定义趋势翻转与止损。本文解释其信号机制、适用环境与反复震荡风险。" },
-    date: "2026-01-20",
-    readTime: "13 min read",
-    category: "Trend Following",
-    featured: false,
-    tags: ["Supertrend", "ATR", "Trailing Stop"],
-    figure: {
-      title: { en: "Supertrend band and flip", zh: "Supertrend 带与翻转" },
-      caption: { en: "ATR based bands trail price and flip when the trend changes.", zh: "基于 ATR 的带状结构跟随价格，并在趋势变化时翻转。" },
-      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Supertrend sketch">
-  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
-  <polyline fill="none" stroke="#7c7c7c" stroke-width="2" points="60,170 120,155 180,150 240,140 300,130 360,120 420,115 480,120 540,110 600,100" />
-  <polyline fill="none" stroke="#1f6f78" stroke-width="2.5" points="60,150 120,135 180,128 240,118 300,108 360,100 420,98 480,105 540,95 600,88" />
-  <polyline fill="none" stroke="#e16b3a" stroke-width="2.5" points="60,190 120,175 180,170 240,160 300,150 360,140 420,138 480,145 540,135 600,125" />
-  <circle cx="480" cy="120" r="6" fill="#e16b3a" />
-</svg>`
+    "slug": "turtle-trading-2021-2026",
+    "title": {
+      "en": "Does Turtle Trading Still Work? Ten Markets, 2021–2026",
+      "zh": "海龟交易法还管用吗？10 个市场、2021–2026"
     },
-    sections: []
+    "summary": {
+      "en": "Two breakout systems, ten markets, five years. Neither beat buy-and-hold on most markets, but the slower Donchian version had a smaller drawdown on nine of ten, and both made money on commodities in the 2022 bear market when stocks fell 25%.",
+      "zh": "两套突破系统，10 个市场，5 年数据。在大多数市场上，它们都没跑赢买入持有；但较慢的唐奇安版本在 10 个市场中的 9 个回撤更小，而且在 2022 年股市跌 25% 的熊市里，两套系统都在大宗商品上赚到了钱。"
+    },
+    "date": "2026-11-03",
+    "readTime": "3 min read",
+    "category": "Trend Following",
+    "featured": false,
+    "tags": [
+      "Turtle Trading",
+      "Donchian",
+      "Breakout",
+      "Trend"
+    ],
+    "sections": [
+      {
+        "heading": {
+          "en": "The two systems",
+          "zh": "两套系统"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "**Turtle Trading (TURTLE-01):** long when price breaks a 20-day high, out on a 10-day low — the faster original rule.",
+              "**Donchian Breakout (TREND-02):** long on a 55-day high, out on a 20-day low, ATR position sizing — the slower variant."
+            ],
+            "zh": [
+              "**海龟交易法（TURTLE-01）**：突破 20 日高点做多，跌破 10 日低点离场，是较快的原版规则。",
+              "**唐奇安通道突破（TREND-02）**：突破 55 日高点做多，跌破 20 日低点离场，按 ATR 调整仓位，是较慢的版本。"
+            ]
+          },
+          {
+            "en": "Unlike the original Turtle rules, both versions here trade long only and do not add to winning positions. Both run on daily data for US stocks, gold, silver, oil, natural gas, agriculture, broad commodities, EUR/USD, bitcoin and ether, with walk-forward optimization and no trading costs.",
+            "zh": "和原版海龟规则不同，这里的两个版本都只做多、不加仓。两者都在美股、黄金、白银、原油、天然气、农产品、综合大宗商品、欧元/美元、比特币和以太坊的日线上回测，使用滚动前推优化，未扣交易成本。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Returns: hard to beat holding",
+          "zh": "收益：很难跑赢持有"
+        },
+        "paragraphs": [
+          {
+            "en": "Over the last five years each system beat buy-and-hold on annual return on four of ten markets: EUR/USD, natural gas, bitcoin and ether. Bitcoin stands out — Turtle 20.3% a year and Donchian 12.7% vs 7.2% for holding — but on US stocks (8.5% and 4.5% vs 13.2%), gold, silver and oil, staying invested won.",
+            "zh": "近五年，两套系统各自在 10 个市场中的 4 个跑赢了买入持有的年化收益：欧元/美元、天然气、比特币和以太坊。比特币最突出——海龟年化 20.3%、唐奇安 12.7%，持有只有 7.2%——但在美股（8.5% 和 4.5%，持有 13.2%）、黄金、白银和原油上，一直持有更好。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Risk: where breakouts earn their keep",
+          "zh": "风险：突破系统的价值所在"
+        },
+        "paragraphs": [
+          {
+            "en": "Drawdowns tell the other half. The 55/20 Donchian system had a smaller maximum drawdown than holding on nine of ten markets — for example −17.8% vs −24.5% on SPY, −38.0% vs −76.6% on bitcoin. The faster Turtle rule did so on seven, and on SPY its drawdown was only −8.5% with a Sharpe ratio of 0.92, above buy-and-hold's 0.81.",
+            "zh": "回撤是另一半故事。55/20 唐奇安系统在 10 个市场中的 9 个，最大回撤都比持有小，比如 SPY 上 −17.8% 对 −24.5%，比特币上 −38.0% 对 −76.6%。较快的海龟规则在 7 个市场做到了这一点；在 SPY 上它的回撤只有 −8.5%，夏普 0.92，高于买入持有的 0.81。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "2022: the commodity trend",
+          "zh": "2022 年：大宗商品的趋势"
+        },
+        "paragraphs": [
+          {
+            "en": "When stocks fell 24.5% between January and October 2022, the breakout systems found the trend elsewhere: Donchian gained 37.3% on oil and 28.9% on broad commodities, and Turtle gained 64.5% on natural gas and 13.1% on broad commodities. On bitcoin, both lost 26–30% in the same period — breakouts follow trends, they do not avoid every fall.",
+            "zh": "2022 年 1 月到 10 月，美股跌了 24.5%，突破系统在别的地方找到了趋势：唐奇安在原油上赚了 37.3%，在综合大宗商品上赚了 28.9%；海龟在天然气上赚了 64.5%，在综合大宗商品上赚了 13.1%。同一时期在比特币上，两者都亏了 26%–30%——突破系统跟随趋势，但并不能躲开每一次下跌。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Takeaways",
+          "zh": "几点结论"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "On a single market, breakout trend following rarely beats buy-and-hold on return; its job is cutting the drawdown.",
+              "Its strength is diversification across markets: in 2022 the commodity breakouts paid while equities fell.",
+              "Slower rules (55/20) were steadier than faster ones (20/10) on most markets.",
+              "Choppy, range-bound markets (EUR/USD, agriculture) are where breakouts struggle."
+            ],
+            "zh": [
+              "在单一市场上，突破型趋势跟踪很少在收益上跑赢持有；它的任务是压低回撤。",
+              "它真正的长处是跨市场分散：2022 年股票下跌时，大宗商品上的突破信号赚到了钱。",
+              "在大多数市场上，较慢的规则（55/20）比较快的规则（20/10）更稳。",
+              "区间震荡的市场（欧元/美元、农产品）是突破系统最难做的地方。"
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
-    slug: "ichimoku-cloud-strategy",
-    title: { en: "Ichimoku Cloud Strategy: Regime, Momentum, and Support in One System", zh: "一目均衡表策略：将市场状态、动能与支撑整合于一体" },
-    summary: { en: "Ichimoku combines trend, momentum, and support into a single framework. This research note breaks down the components, signals, and common traps.", zh: "一目均衡表将趋势、动能与支撑阻力整合为单一框架。本文拆解其组成、信号与常见陷阱。" },
-    date: "2026-01-20",
-    readTime: "14 min read",
-    category: "Trend Following",
-    featured: false,
-    tags: ["Ichimoku", "Cloud", "Regime"],
-    figure: {
-      title: { en: "Ichimoku cloud regime", zh: "一目云图的市场状态" },
-      caption: { en: "The cloud highlights support and resistance zones while price signals trend direction.", zh: "云层突出显示支撑与阻力区间，而价格位置则指示趋势方向。" },
-      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Ichimoku cloud sketch">
-  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
-  <polygon points="60,140 160,130 260,135 360,125 460,115 560,120 560,160 460,170 360,165 260,175 160,170 60,180" fill="#d9e7d0" />
-  <polyline fill="none" stroke="#1f6f78" stroke-width="3" points="60,160 120,150 180,145 240,135 300,120 360,110 420,105 480,100 540,95 600,90" />
-  <polyline fill="none" stroke="#e16b3a" stroke-width="2" points="60,130 120,125 180,120 240,118 300,115 360,112 420,110 480,108 540,106 600,104" />
-</svg>`
+    "slug": "macd-vs-macd-rsi-filter",
+    "title": {
+      "en": "Does an RSI Filter Make MACD Better? A Ten-Market Test",
+      "zh": "给 MACD 加上 RSI 过滤会更好吗？10 个市场实测"
     },
-    sections: []
+    "summary": {
+      "en": "Adding an RSI filter to a MACD crossover cut the maximum drawdown on nine of ten markets and reduced trading by 10–30%. It improved the Sharpe ratio on only five, and gave up return on the strongest trends — silver, bitcoin and ether.",
+      "zh": "给 MACD 交叉加上 RSI 过滤后，10 个市场中有 9 个的最大回撤变小了，交易次数减少了 10%–30%；但夏普只在 5 个市场上变好，而且在趋势最强的市场——白银、比特币和以太坊——上明显少赚了。"
+    },
+    "date": "2026-11-03",
+    "readTime": "3 min read",
+    "category": "Trend Following",
+    "featured": false,
+    "tags": [
+      "MACD",
+      "RSI",
+      "Filter",
+      "Trend"
+    ],
+    "sections": [
+      {
+        "heading": {
+          "en": "The two versions",
+          "zh": "两个版本"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "**MACD Strategy (TREND-12):** long when the MACD line crosses above its signal line, out on the opposite cross.",
+              "**MACD + RSI Filter (COMBO-02):** the same crossover, but buy signals are ignored when RSI is overbought and sell signals when it is oversold."
+            ],
+            "zh": [
+              "**MACD 策略（TREND-12）**：MACD 线上穿信号线做多，反向交叉离场。",
+              "**MACD + RSI 过滤（COMBO-02）**：同样的交叉，但 RSI 超买时忽略买入信号，超卖时忽略卖出信号。"
+            ]
+          },
+          {
+            "en": "Both are tested over the last five years on ten markets with daily data, walk-forward optimization and no trading costs.",
+            "zh": "两者都在 10 个市场近五年的日线数据上回测，使用滚动前推优化，未扣交易成本。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Risk went down almost everywhere",
+          "zh": "风险几乎全面下降"
+        },
+        "paragraphs": [
+          {
+            "en": "The filter reduced the maximum drawdown on nine of ten markets. The biggest changes were on silver (−46.7% to −28.1%), broad commodities (−30.7% to −17.0%) and gold (−21.9% to −12.2%). The only exception was EUR/USD (−10.9% to −12.0%). It also traded less on every market — on bitcoin, 106 trades instead of 140.",
+            "zh": "加了过滤之后，10 个市场中有 9 个的最大回撤变小。变化最大的是白银（−46.7% 降到 −28.1%）、综合大宗商品（−30.7% 降到 −17.0%）和黄金（−21.9% 降到 −12.2%）。唯一的例外是欧元/美元（−10.9% 变成 −12.0%）。所有市场的交易都变少了——比特币上从 140 次降到 106 次。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Risk-adjusted returns: a coin flip",
+          "zh": "风险调整后收益：一半一半"
+        },
+        "paragraphs": [
+          {
+            "en": "The Sharpe ratio improved on five markets: gold (0.70 → 0.84), broad commodities (0.46 → 0.63), agriculture (0.14 → 0.41), EUR/USD (−0.16 → 0.05) and natural gas (−0.44 → −0.24). It got worse on the other five: US stocks, oil, silver, bitcoin and ether.",
+            "zh": "夏普在 5 个市场变好：黄金（0.70 → 0.84）、综合大宗商品（0.46 → 0.63）、农产品（0.14 → 0.41）、欧元/美元（−0.16 → 0.05）和天然气（−0.44 → −0.24）；在另外 5 个市场变差：美股、原油、白银、比特币和以太坊。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Where the filter hurts",
+          "zh": "过滤在哪里帮倒忙"
+        },
+        "paragraphs": [
+          {
+            "en": "The filter's logic — \"don't buy when RSI is already high\" — is exactly wrong at the start of a strong trend, when RSI stays high for weeks. That is where it lost the most return: silver (12.2% → 6.8% a year), bitcoin (8.1% → 2.6%) and ether (8.4% → 3.4%).",
+            "zh": "过滤的逻辑是“RSI 已经很高就别买”，而这恰恰在强趋势刚开始时是错的——那时 RSI 会连续好几周保持高位。所以它在这些市场上损失的收益最多：白银（年化 12.2% 降到 6.8%）、比特币（8.1% 降到 2.6%）和以太坊（8.4% 降到 3.4%）。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Takeaways",
+          "zh": "几点结论"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "An RSI filter on MACD works as a risk reducer, not a return booster.",
+              "It helps most on slow, mean-reverting markets (gold, commodities, agriculture) and hurts most on fast trending ones (crypto, silver).",
+              "Fewer trades also means lower costs, which the backtest numbers above do not include yet; try the cost slider on both strategy pages."
+            ],
+            "zh": [
+              "给 MACD 加 RSI 过滤，作用是降风险，而不是提收益。",
+              "它在节奏慢、带均值回归特征的市场（黄金、大宗商品、农产品）上帮助最大，在快速趋势的市场（加密货币、白银）上伤害最大。",
+              "交易更少也意味着成本更低，而上面的回测数字还没扣成本；可以在两个策略页上用成本滑块对比一下。"
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
-    slug: "rsi-mean-reversion",
-    title: { en: "RSI Mean Reversion Strategy: Buying Weakness Inside Ranges", zh: "RSI 均值回归策略：在区间中买入弱势" },
-    summary: { en: "RSI mean reversion looks for short term exhaustion and then fades the move. This research note covers the signal logic, market fit, and risk traps.", zh: "RSI 均值回归寻找短期衰竭后的反向机会。本文涵盖其信号逻辑、市场适配性与风险陷阱。" },
-    date: "2026-01-19",
-    readTime: "13 min read",
-    category: "Mean Reversion",
-    featured: false,
-    tags: ["RSI", "Mean Reversion", "Oscillator"],
-    figure: {
-      title: { en: "RSI band with mean reversion zones", zh: "带有均值回归区间的 RSI 波段" },
-      caption: { en: "A simplified view of RSI oscillating between oversold and overbought bands.", zh: "RSI 在超卖与超买区间之间摆动的简化示意图。" },
-      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="RSI mean reversion sketch">
-  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
-  <rect x="60" y="50" width="520" height="140" fill="none" stroke="#d8cbbd" stroke-width="2" />
-  <line x1="60" y1="90" x2="580" y2="90" stroke="#e16b3a" stroke-width="2" stroke-dasharray="6 6" />
-  <line x1="60" y1="150" x2="580" y2="150" stroke="#1f6f78" stroke-width="2" stroke-dasharray="6 6" />
-  <polyline fill="none" stroke="#4b4e6d" stroke-width="3" points="60,140 110,160 160,170 210,150 260,130 310,110 360,95 410,120 460,145 510,155 560,135 580,120" />
-  <text x="60" y="40" fill="#5b554d" font-size="12">RSI</text>
-  <text x="590" y="95" fill="#e16b3a" font-size="12">70</text>
-  <text x="590" y="155" fill="#1f6f78" font-size="12">30</text>
-</svg>`
+    "slug": "how-to-read-drawdown-ulcer-index-rolling-sharpe",
+    "title": {
+      "en": "Two Strategies, the Same 10% Drawdown, Very Different Pain: How to Read Drawdown, the Ulcer Index and Rolling Sharpe",
+      "zh": "回撤都是 10%，难受程度却差很多：怎么看最大回撤、Ulcer 指数和滚动夏普"
     },
-    sections: []
+    "summary": {
+      "en": "Maximum drawdown tells you how deep the worst fall was, not how long you spent underwater or how often it happened. Two strategies on the S&P 500 with almost identical 10% drawdowns show why the Ulcer index and drawdown duration are worth a look — and why a single Sharpe ratio can mislead as much as a single drawdown.",
+      "zh": "最大回撤只告诉你最深的一次跌了多少，不告诉你在水下待了多久、跌了几次。标普 500 上两个最大回撤几乎一样（约 10%）的策略，说明了为什么值得看一看 Ulcer 指数和回撤持续时间——也说明了只看一个夏普比率，和只看一个回撤数字一样容易被误导。"
+    },
+    "date": "2026-11-03",
+    "readTime": "3 min read",
+    "category": "Methodology",
+    "featured": false,
+    "tags": [
+      "Drawdown",
+      "Ulcer Index",
+      "Sharpe Ratio",
+      "Risk"
+    ],
+    "sections": [
+      {
+        "heading": {
+          "en": "Maximum drawdown: the depth of the worst hole",
+          "zh": "最大回撤：最深的那个坑"
+        },
+        "paragraphs": [
+          {
+            "en": "Maximum drawdown is the largest fall from a peak to a later low. It is the number most people look at first, and for good reason: it is roughly the worst loss you would have had to sit through. But it is one number from one episode. It says nothing about how long the strategy took to recover, or whether it spent most of its life a few percent below its high.",
+            "zh": "最大回撤是从高点到之后低点的最大跌幅。大多数人第一眼就看它，这有道理：它大致就是你需要熬过的最大亏损。但它只是一次事件里的一个数字，既不说明策略花了多久才回到高点，也不说明它是不是大部分时间都在高点下方几个百分点徘徊。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Same depth, different experience",
+          "zh": "坑一样深，感受完全不同"
+        },
+        "paragraphs": [
+          {
+            "en": "Over the last five years on SPY, Z-Score Mean Reversion and Volatility Breakout both had a maximum drawdown of about 10% (−10.4% and −10.1%). On a leaderboard sorted by drawdown they look alike. They were not:",
+            "zh": "近五年在 SPY 上，Z 分数均值回归和波动率突破的最大回撤都在 10% 左右（−10.4% 和 −10.1%）。在按回撤排序的排行榜上，它们看起来差不多，实际上却不是："
+          },
+          {
+            "en": [
+              "Z-Score Mean Reversion was below its previous high on 32% of days; its longest drawdown lasted 224 days. Ulcer index: 1.2%.",
+              "Volatility Breakout was below its previous high on 98% of days (including long stretches out of the market while still below an earlier peak); its longest drawdown lasted 1,006 days — almost three years without a new high. Ulcer index: 5.3%."
+            ],
+            "zh": [
+              "Z 分数均值回归有 32% 的交易日低于前高，最长一次回撤持续 224 天，Ulcer 指数 1.2%。",
+              "波动率突破有 98% 的交易日低于前高（其中包括低于前高时长期空仓的日子），最长一次回撤持续 1006 天——将近三年没有创新高，Ulcer 指数 5.3%。"
+            ]
+          },
+          {
+            "en": "The first strategy had one sharp dip and recovered. The second spent nearly the whole period slightly underwater. Annual returns followed the same pattern: 8.0% against 2.5%.",
+            "zh": "前者是一次急跌然后很快恢复，后者几乎整段时间都在水下一点点的位置。年化收益也是同样的规律：8.0% 对 2.5%。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "The Ulcer index: depth and duration in one number",
+          "zh": "Ulcer 指数：把深度和时长合成一个数"
+        },
+        "paragraphs": [
+          {
+            "en": "The Ulcer index is the root mean square of the daily drawdown: every day below the previous peak counts, and deeper days count more. A strategy that falls 10% once and recovers quickly gets a low value; one that hovers 3–5% below its high for years gets a high value, even with a smaller maximum drawdown. That matches how drawdowns feel to the person running the strategy — long stretches without progress are what make people give up. On Quant Arena you find it in the risk tab of every strategy page, next to the longest drawdown in days and the share of time underwater.",
+            "zh": "Ulcer 指数是每天回撤幅度的均方根：每一个低于前高的交易日都算进去，跌得越深权重越大。一次跌 10% 但很快恢复的策略，Ulcer 指数很低；常年在高点下方 3%–5% 徘徊的策略，即使最大回撤更小，Ulcer 指数也会更高。这和实际执行策略时的感受是一致的——长时间没有进展，才是让人放弃的原因。在 Quant Arena 每个策略页的风险标签里都能找到它，旁边还有最长回撤天数和水下时间占比。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Rolling Sharpe: one ratio, many periods",
+          "zh": "滚动夏普：同一个比率，不同的时间段"
+        },
+        "paragraphs": [
+          {
+            "en": "A Sharpe ratio averages return per unit of risk over a whole period, and the period matters a lot. On SPY:",
+            "zh": "夏普比率是整段时间里单位风险的平均收益，而“整段时间”取多长影响很大。以 SPY 为例："
+          },
+          {
+            "en": [
+              "Volatility Breakout: Sharpe 2.49 over the last year, 1.07 over three years, 0.47 over five, 0.14 over its full history.",
+              "Ichimoku Cloud: −0.24 over the last year, but 1.00 over three years and 0.70 over its full history."
+            ],
+            "zh": [
+              "波动率突破：近一年夏普 2.49，近三年 1.07，近五年 0.47，全部历史只有 0.14。",
+              "一目均衡表：近一年 −0.24，但近三年 1.00，全部历史 0.70。"
+            ]
+          },
+          {
+            "en": "Judged on the last year alone, you would pick the first and drop the second — the opposite of what the longer record suggests. The rolling Sharpe chart on each strategy page shows the ratio over a moving one-year window, so you can see whether a good number is typical or a recent streak.",
+            "zh": "如果只看近一年，你会选前者、放弃后者——和更长期的记录给出的结论正好相反。每个策略页上的滚动夏普图展示的是一年滚动窗口的夏普，可以看出一个好数字是常态，还是最近刚好走运。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "A simple checklist",
+          "zh": "一份简单的检查清单"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "Read maximum drawdown together with the longest drawdown in days and the Ulcer index.",
+              "Prefer strategies whose Sharpe ratio is reasonable across 1, 3 and 5 years over ones with one spectacular window.",
+              "Check the 90% bootstrap range for the drawdown: the worst case you live through can be deeper than the one the backtest happened to produce.",
+              "Ask yourself how long you could watch a strategy go nowhere before switching it off — then compare that with its longest drawdown."
+            ],
+            "zh": [
+              "看最大回撤时，同时看最长回撤天数和 Ulcer 指数。",
+              "优先选 1 年、3 年、5 年夏普都说得过去的策略，而不是只有某一个时间窗口特别亮眼的。",
+              "看一看回撤的 90% Bootstrap 区间：你实际经历的最坏情况，可能比回测碰巧给出的更深。",
+              "问问自己：一个策略原地踏步多久，你就会把它关掉？再拿这个时间和它的最长回撤比一比。"
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
-    slug: "how-quantarenas-ranks-strategies",
-    title: { en: "How QuantArenas Ranks Strategies", zh: "QuantArenas 如何对策略进行排名" },
-    summary: { en: "A full methodology essay on why the Arena Score blends multiple metrics, how stability is measured, and how to read results without overfitting.", zh: "一篇完整的方法论文章，解释 Arena Score 为何融合多项指标、如何衡量稳定性，以及如何在避免过拟合的前提下解读结果。" },
-    date: "2026-01-13",
-    readTime: "14 min read",
-    category: "Methodology",
-    featured: false,
-    tags: ["Methodology", "Scoring"],
-    figure: {
-      title: { en: "Arena Score components", zh: "Arena Score 的组成" },
-      caption: { en: "The score balances return and risk to avoid single metric bias.", zh: "该评分在收益与风险之间取得平衡，以避免单一指标偏差。" },
-      svg: `<svg viewBox="0 0 640 240" role="img" aria-label="Arena score components">
-  <rect x="0" y="0" width="640" height="240" fill="#f8f1e8" />
-  <rect x="80" y="60" width="80" height="120" fill="#1f6f78" />
-  <rect x="200" y="90" width="80" height="90" fill="#e16b3a" />
-  <rect x="320" y="80" width="80" height="100" fill="#3d6e4e" />
-  <rect x="440" y="70" width="80" height="110" fill="#7c7c7c" />
-  <text x="90" y="200" fill="#5b554d" font-size="12">CAGR</text>
-  <text x="205" y="200" fill="#5b554d" font-size="12">Sharpe</text>
-  <text x="325" y="200" fill="#5b554d" font-size="12">Sortino</text>
-  <text x="445" y="200" fill="#5b554d" font-size="12">Calmar</text>
-</svg>`
+    "slug": "keltner-vs-bollinger",
+    "title": {
+      "en": "Keltner Breakout or Bollinger Reversion? Ten Markets Split Down the Middle",
+      "zh": "肯特纳突破还是布林带回归？10 个市场正好一半对一半"
     },
-    sections: []
+    "summary": {
+      "en": "Two volatility-band strategies that do opposite things: one buys when price breaks out of a Keltner Channel, the other buys when price falls to the lower Bollinger Band. Over the last five years each had the better Sharpe ratio on exactly five of ten markets — and the split follows a clear pattern: breakouts won where prices trended, reversion won where they went back and forth.",
+      "zh": "两个基于波动率通道、做法正好相反的策略：一个在价格突破肯特纳通道时买入，一个在价格跌到布林带下轨时买入。近五年，它们各自在 10 个市场中的 5 个夏普更高——而且分界很清楚：价格走趋势的市场突破赢，来回震荡的市场回归赢。"
+    },
+    "date": "2026-11-03",
+    "readTime": "3 min read",
+    "category": "Trend Following",
+    "featured": false,
+    "tags": [
+      "Keltner Channel",
+      "Bollinger Bands",
+      "Breakout",
+      "Mean Reversion"
+    ],
+    "sections": [
+      {
+        "heading": {
+          "en": "The strategies",
+          "zh": "三个策略"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "**Keltner Channel Breakout (KC-01):** a 20-day EMA midline with bands at 2× the 20-day ATR; goes long when price closes above the upper band and exits when it falls back below the midline.",
+              "**Bollinger Band Reversion (MR-02):** goes long when price touches the lower Bollinger Band and exits at the middle band, with a bandwidth filter.",
+              "**Bollinger-Keltner Squeeze (COMBO-01):** waits until the Bollinger Bands contract inside the Keltner Channel, then trades in the direction of the move when the squeeze releases."
+            ],
+            "zh": [
+              "**肯特纳通道突破（KC-01）**：以 20 日 EMA 为中线、上下轨距中线 2 倍 20 日 ATR，收盘突破上轨时做多，跌回中线下方离场。",
+              "**布林带回归（MR-02）**：价格触及布林带下轨时做多，回到中轨离场，带宽度过滤。",
+              "**布林-肯特纳挤压（COMBO-01）**：等布林带收窄到肯特纳通道里面，挤压释放时顺着方向交易。"
+            ]
+          },
+          {
+            "en": "All three run long-only on daily data with walk-forward optimization and no trading costs; the figures below cover the last five years.",
+            "zh": "三个策略都只做多，在日线上用滚动前推优化回测，未扣交易成本；下面的数字都是近五年。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Where breakouts won",
+          "zh": "突破赢在哪里"
+        },
+        "paragraphs": [
+          {
+            "en": "The Keltner breakout had the higher Sharpe ratio on US stocks, gold, silver, bitcoin and ether. Crypto stands out: 14.7% a year on bitcoin (buy-and-hold 7.2%) and 13.3% on ether, where holding lost 8.8% a year. On SPY it made 4.9% a year with a −8.5% maximum drawdown and a Sharpe ratio of 0.75 — far less return than holding (13.2%), but a third of the drawdown.",
+            "zh": "肯特纳突破在美股、黄金、白银、比特币和以太坊上夏普更高。加密货币最明显：比特币年化 14.7%（持有 7.2%），以太坊年化 13.3%，而同期持有以太坊每年亏 8.8%。在 SPY 上它年化 4.9%，最大回撤 −8.5%，夏普 0.75——收益远低于持有（13.2%），但回撤只有三分之一。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Where reversion won",
+          "zh": "回归赢在哪里"
+        },
+        "paragraphs": [
+          {
+            "en": "Bollinger reversion had the higher Sharpe ratio on oil, broad commodities, agriculture, EUR/USD and natural gas — markets that spent much of the period moving sideways. Its best result was oil: 11.5% a year with a Sharpe ratio of 0.91 and a −13% drawdown, while being in the market only 12% of the time. On EUR/USD it was the only one of the three that made money (1.3% a year, maximum drawdown −2.6%).",
+            "zh": "布林带回归在原油、综合大宗商品、农产品、欧元/美元和天然气上夏普更高——这些市场这几年大部分时间都在横盘。它最好的结果是原油：年化 11.5%，夏普 0.91，回撤 −13%，而持仓时间只有 12%。在欧元/美元上，它是三个策略里唯一赚钱的（年化 1.3%，最大回撤 −2.6%）。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "The squeeze: one good market",
+          "zh": "挤压策略：只有一个好市场"
+        },
+        "paragraphs": [
+          {
+            "en": "Combining both ideas did not combine their strengths. The squeeze strategy traded about twice as often as the other two and had the best Sharpe ratio of the three on only one market, gold (10.6% a year, Sharpe 0.99). On US stocks it lost 1.4% a year.",
+            "zh": "把两种思路合在一起，并没有把优点也合在一起。挤压策略的交易次数大约是另外两个的两倍，只在一个市场上夏普排第一——黄金（年化 10.6%，夏普 0.99）。在美股上它每年亏 1.4%。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "How sure can we be?",
+          "zh": "结论有多可靠？"
+        },
+        "paragraphs": [
+          {
+            "en": "Not very. The 90% bootstrap ranges are wide: on SPY, for example, the breakout's annual return ranges from 0.5% to 10.8% and the reversion strategy's from −1.7% to 8.1%. After adjusting for the number of strategies we test, none of the 30 results reaches a Deflated Sharpe of 95%; the best is the squeeze on gold at 63%. The market split is the more useful finding than any single number.",
+            "zh": "不太可靠。90% 的 Bootstrap 区间很宽：比如在 SPY 上，突破策略的年化收益区间是 0.5% 到 10.8%，回归策略是 −1.7% 到 8.1%。考虑到我们测试的策略数量，30 个结果里没有一个的 Deflated 夏普达到 95%，最高的是黄金上的挤压策略，63%。比起任何一个具体数字，“按市场分界”这个规律更有参考价值。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Takeaways",
+          "zh": "几点结论"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "Breakout and reversion are not better or worse — they suit different markets. Trending assets (stocks, metals, crypto) favored the breakout; range-bound ones (oil, agriculture, currencies) favored reversion.",
+              "Mean reversion with Bollinger Bands is in the market rarely (6–15% of days), so its returns are small even when its Sharpe ratio is good.",
+              "Neither beat buy-and-hold on return in the strong bull markets; their value is lower drawdowns.",
+              "Check the market before picking the strategy, and use the heatmap page to see this pattern across all strategies."
+            ],
+            "zh": [
+              "突破和回归没有绝对的好坏，而是适合不同的市场：走趋势的资产（股票、贵金属、加密货币）更适合突破，区间震荡的资产（原油、农产品、外汇）更适合回归。",
+              "布林带回归很少持仓（6%–15% 的交易日），所以即使夏普不错，收益也不高。",
+              "在强牛市里，两者的收益都跑不赢持有；它们的价值在于回撤更小。",
+              "先看市场再选策略；可以到热力图页面看看所有策略是不是都有这种规律。"
+            ]
+          }
+        ]
+      }
+    ],
+    "figure": {
+      "title": {
+        "en": "Channel Comparison",
+        "zh": "通道对比"
+      },
+      "caption": {
+        "en": "Keltner Channels (Blue) are smoother and use ATR; Bollinger Bands (Red) are reactive and use Standard Deviation.",
+        "zh": "肯特纳通道（蓝色）更平滑，基于 ATR 构建；布林带（红色）反应更敏捷，基于标准差计算。"
+      },
+      "svg": "<svg viewBox=\"0 0 640 240\" role=\"img\" aria-label=\"Channel comparison\">\n  <rect x=\"0\" y=\"0\" width=\"640\" height=\"240\" fill=\"#f8f1e8\" />\n  <path d=\"M40,120 Q160,80 280,120 T520,120\" fill=\"none\" stroke=\"#5b554d\" stroke-width=\"2\" />\n  <path d=\"M40,90 Q160,50 280,90 T520,90\" fill=\"none\" stroke=\"#1f6f78\" stroke-width=\"2\" stroke-dasharray=\"4\" />\n  <path d=\"M40,150 Q160,110 280,150 T520,150\" fill=\"none\" stroke=\"#1f6f78\" stroke-width=\"2\" stroke-dasharray=\"4\" />\n  <path d=\"M40,80 Q160,30 280,80 T520,80\" fill=\"none\" stroke=\"#e16b3a\" stroke-width=\"2\" />\n  <path d=\"M40,160 Q160,130 280,160 T520,160\" fill=\"none\" stroke=\"#e16b3a\" stroke-width=\"2\" />\n  <text x=\"540\" y=\"90\" fill=\"#1f6f78\" font-size=\"10\">Keltner</text>\n  <text x=\"540\" y=\"80\" fill=\"#e16b3a\" font-size=\"10\">Bollinger</text>\n</svg>"
+    }
+  },
+  {
+    "slug": "ema-crossover-strategy",
+    "title": {
+      "en": "EMA Crossover Strategy: Reading Trend With Two Clocks",
+      "zh": "EMA 交叉策略：用两只时钟读取趋势"
+    },
+    "summary": {
+      "en": "An in depth look at why exponential moving average crossovers persist, how to interpret their backtests, and when trend signals fail.",
+      "zh": "深入解析指数移动平均线交叉为何长期有效、应如何解读其回测，以及趋势信号何时会失效。"
+    },
+    "date": "2026-01-13",
+    "readTime": "12 min read",
+    "category": "Trend Following",
+    "featured": true,
+    "tags": [
+      "Trend",
+      "Moving Average"
+    ],
+    "figure": {
+      "title": {
+        "en": "EMA crossover signal sketch",
+        "zh": "EMA 交叉信号示意图"
+      },
+      "caption": {
+        "en": "A simplified illustration of price (teal) with fast and slow EMAs (orange and gray).",
+        "zh": "价格（青绿色）与快、慢 EMA（橙色与灰色）的简化示意图。"
+      },
+      "svg": "<svg viewBox=\"0 0 640 240\" role=\"img\" aria-label=\"EMA crossover sketch\">\n  <rect x=\"0\" y=\"0\" width=\"640\" height=\"240\" fill=\"#f8f1e8\" />\n  <g stroke=\"#d8cbbd\" stroke-width=\"1\">\n    <line x1=\"40\" y1=\"40\" x2=\"600\" y2=\"40\" />\n    <line x1=\"40\" y1=\"80\" x2=\"600\" y2=\"80\" />\n    <line x1=\"40\" y1=\"120\" x2=\"600\" y2=\"120\" />\n    <line x1=\"40\" y1=\"160\" x2=\"600\" y2=\"160\" />\n    <line x1=\"40\" y1=\"200\" x2=\"600\" y2=\"200\" />\n  </g>\n  <polyline fill=\"none\" stroke=\"#1f6f78\" stroke-width=\"3\" points=\"40,170 90,150 140,160 190,120 240,110 290,90 340,100 390,70 440,60 490,80 540,50 600,70\" />\n  <polyline fill=\"none\" stroke=\"#e16b3a\" stroke-width=\"2.5\" points=\"40,180 90,165 140,150 190,135 240,120 290,110 340,105 390,95 440,85 490,80 540,75 600,80\" />\n  <polyline fill=\"none\" stroke=\"#7c7c7c\" stroke-width=\"2\" points=\"40,190 90,180 140,170 190,155 240,140 290,130 340,125 390,120 440,115 490,110 540,105 600,100\" />\n  <circle cx=\"240\" cy=\"120\" r=\"5\" fill=\"#e16b3a\" />\n  <circle cx=\"240\" cy=\"140\" r=\"5\" fill=\"#7c7c7c\" />\n  <text x=\"40\" y=\"30\" fill=\"#5b554d\" font-size=\"12\">Price</text>\n</svg>"
+    },
+    "sections": [
+      {
+        "heading": {
+          "en": "Why EMA crossovers persist",
+          "zh": "为何 EMA 交叉长期存在"
+        },
+        "paragraphs": [
+          {
+            "en": "The exponential moving average crossover exists because markets rarely move in straight lines. Prices drift, pause, and then continue, and traders need a simple way to decide whether a move is noise or a trend that is worth following. An EMA smooths recent prices while keeping more weight on the latest data, so it reacts faster than a simple average. By comparing a fast EMA to a slow EMA, the strategy asks a single question: is short term momentum strong enough to outrun the long term baseline? The answer is often good enough to keep traders aligned with the dominant move without overfitting to daily noise.",
+            "zh": "指数移动平均线交叉之所以长期有效，是因为市场很少沿直线运行。价格会漂移、停顿，再继续推进，交易者需要一种简单方式来判断当前波动究竟只是噪音，还是值得跟随的趋势。EMA 在平滑近期价格的同时，对最新数据赋予更高权重，因此反应快于简单均线。通过比较快线与慢线，策略本质上只在回答一个问题：短期动能是否足以跑赢长期基准？很多时候，这个答案已足够让交易者跟上主导趋势，而不必对日常噪音过度拟合。"
+          },
+          {
+            "en": "EMA crossovers are also popular because they are easy to explain. A two line rule can be implemented across equities, FX, or commodities with minimal changes, which makes it a natural benchmark for trend systems. The simplicity hides an important idea: the crossover is not a prediction, it is a filter. It allows a trader to say no during choppy regimes and yes during clean directional moves. That filter, not the entry precision, is what keeps the strategy alive across decades.",
+            "zh": "EMA 交叉之所以广受欢迎，还因为它极易解释。一套双均线规则只需极少调整，就能应用到股票、外汇和商品市场，因此天然适合作为趋势系统的基准模型。这种简洁性背后隐藏着一个关键点：交叉不是预测工具，而是过滤器。它帮助交易者在震荡市场中选择观望，在方向清晰的行情中选择参与。真正让这一策略跨越数十年仍然存活的，不是入场精度，而是这种过滤机制。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Signal mechanics without the math overload",
+          "zh": "不过度数学化的信号机制"
+        },
+        "paragraphs": [
+          {
+            "en": "A classic EMA crossover uses a fast window such as 20 days and a slow window such as 100 or 200 days. The fast EMA reacts to recent price changes while the slow EMA defines the longer term regime. When the fast line rises above the slow line, the strategy goes long. When it falls below, the strategy exits or goes short depending on the design. This creates a small number of trades, each one attempting to capture a multi week or multi month trend.",
+            "zh": "经典 EMA 交叉通常采用 20 日等较快窗口与 100 日或 200 日等较慢窗口。快 EMA 对近期价格变化反应更快，慢 EMA 则用于界定更长期的市场状态。当快线向上穿越慢线时，策略做多；当快线跌破慢线时，则根据设计选择平仓或反手做空。这样的规则会生成较少但更聚焦的交易，每一笔都试图捕捉数周乃至数月的趋势。"
+          },
+          {
+            "en": "Because EMAs emphasize recent data, the crossover often occurs after a trend has already started. That delay is intentional. The strategy gives up the first part of a move in exchange for avoiding many false starts. In practice, the choice of windows controls the trade off between responsiveness and stability. Short windows increase turnover and whipsaws, while longer windows increase delay but may improve trend quality.",
+            "zh": "由于 EMA 更重视近期数据，交叉往往发生在趋势已经启动之后。这种滞后是有意为之。策略愿意放弃一段行情起步阶段，以换取减少大量假启动信号。在实务中，窗口长度决定了“响应速度”与“稳定性”之间的权衡。较短窗口会提高换手并带来更多反复震荡，较长窗口则会增加滞后，但往往能提升趋势质量。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Market fit and regime behavior",
+          "zh": "市场适配性与市场状态表现"
+        },
+        "paragraphs": [
+          {
+            "en": "EMA crossovers are most effective in markets that exhibit sustained directional moves. Equity indices and macro driven commodities often fit this profile because they trend in response to economic cycles, risk appetite, and policy shifts. The strategy can also work in FX pairs when a clear rate differential or risk regime exists, but it tends to be more sensitive to sudden reversals and central bank surprises.",
+            "zh": "EMA 交叉在持续单边运行的市场中最为有效。股票指数与受宏观因素驱动的商品通常符合这一特征，因为它们会随经济周期、风险偏好和政策变化形成趋势。当汇率差异或风险环境较为明确时，该策略在外汇品种中也能发挥作用，但对突发反转和央行意外事件通常更为敏感。"
+          },
+          {
+            "en": "In sideways markets the crossover struggles. Range bound regimes generate frequent cross signals with little follow through, leading to a series of small losses. That is why a crossover strategy typically looks best over long horizons that include both trends and noise. The long horizon allows a few large winners to outweigh the smaller whipsaws.",
+            "zh": "在横盘市场中，交叉策略往往表现艰难。区间震荡会产生频繁交叉，但后续延续性很差，最终形成一连串小亏损。因此，交叉策略通常只有在同时覆盖趋势与噪音的长周期回测中，表现才更有说服力。拉长周期后，少数大赢家才有机会覆盖大量小幅震荡损失。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "How to read backtests",
+          "zh": "如何解读回测"
+        },
+        "paragraphs": [
+          {
+            "en": "Backtests for EMA crossovers often show a stair step equity curve. Long flat periods are followed by sharp gains during trend phases, then giveback during choppy markets. This is not a bug. It reflects the reality that trend following pays only when trends exist. When evaluating results, focus on the distribution of trade outcomes rather than the average trade. A small number of big winners often drives total return.",
+            "zh": "EMA 交叉策略的回测净值曲线常呈现“台阶状”。长时间横盘之后，趋势阶段出现快速拉升，随后又在震荡市场中回吐部分收益。这并不是缺陷，而是趋势跟随的真实特征：只有当趋势存在时，策略才会获得报酬。评估结果时，应更多关注交易结果的分布，而不是单笔平均收益。总体回报往往由少数几笔大赢家驱动。"
+          },
+          {
+            "en": "Look at drawdown depth and duration. A crossover may show acceptable long term return but still experience a multi year drawdown if the market stays range bound or reverses sharply. Also compare trade counts and turnover. If a parameter set produces too many trades, it may be too sensitive and may not survive real world costs.",
+            "zh": "还应重点观察回撤深度与回撤持续时间。某一组交叉参数即便长期收益尚可，如果市场长期震荡或急剧反转，仍可能经历持续数年的回撤。同时也要比较交易次数与换手率。若某组参数产生过多交易，往往意味着系统过于敏感，未必能承受真实世界中的交易成本。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Risk and failure modes",
+          "zh": "风险与失效模式"
+        },
+        "paragraphs": [
+          {
+            "en": "The primary risk is whipsaw. When price oscillates around the slow EMA, the strategy flips positions and suffers a series of small losses. Another risk is gap risk. Because trades are executed on the next session, a sudden overnight gap can create a much worse entry or exit than expected. The model is also exposed to crash risk because it remains long during trends and exits only after a reversal is confirmed.",
+            "zh": "核心风险是反复震荡带来的 whipsaw。当价格围绕慢 EMA 来回摆动时，策略会频繁翻转仓位并承受连续小亏损。另一个风险是跳空风险。由于交易在下一交易时段执行，隔夜跳空可能导致远差于预期的入场或出场价格。该模型还暴露于崩跌风险之下，因为它在趋势中持续持有，只有在反转被确认后才退出。"
+          },
+          {
+            "en": "Parameter sensitivity is another weakness. A crossover that looks perfect on a specific historical window can fail out of sample if the chosen windows fit that period too tightly. Walk forward tests and multiple window evaluations help, but they do not eliminate the risk of overfitting. Risk overlays such as stop losses or volatility filters can reduce drawdowns, but they may also cut the biggest winners.",
+            "zh": "参数敏感性也是其弱点之一。某组交叉参数在特定历史窗口中看似完美，但若窗口选择对该时期拟合过紧，样本外表现可能迅速失效。滚动前瞻测试和多窗口评估虽然有帮助，但并不能彻底消除过拟合风险。止损或波动率过滤等风险覆盖层可以降低回撤，但也可能同时截断那些最重要的大盈利交易。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "How it differs from other trend rules",
+          "zh": "它与其他趋势规则有何不同"
+        },
+        "paragraphs": [
+          {
+            "en": "Compared to Donchian breakouts, EMA crossovers react to average price rather than to extreme highs or lows. This makes them smoother but sometimes slower to catch sudden breakouts. Compared to Keltner or Bollinger channel systems, EMA crossovers ignore volatility expansion and focus purely on direction. That makes them simpler but less adaptive to volatility regimes.",
+            "zh": "与唐奇安突破相比，EMA 交叉关注的是平均价格变化，而不是极端高点或低点，因此通常更平滑，但在应对突发突破时有时会更慢。与肯特纳或布林带通道系统相比，EMA 交叉忽略波动率扩张，只聚焦方向本身。这使它更简单，但对不同波动率环境的适应性较弱。"
+          },
+          {
+            "en": "Adaptive moving averages such as KAMA aim to adjust their speed based on market efficiency. They can outperform a fixed EMA in some regimes, but they are harder to interpret and tune. The EMA crossover remains a baseline because it is transparent and robust across assets. It is a useful reference point when testing more complex trend systems.",
+            "zh": "像 KAMA 这样的自适应移动平均线试图根据市场效率动态调整响应速度。在某些市场状态下，它们可能优于固定 EMA，但解释和调参都更复杂。EMA 交叉之所以仍被视为基准，是因为它足够透明，并能在多类资产上保持稳健。在测试更复杂的趋势系统时，它是一个非常有价值的参考起点。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Practical variations and portfolio use",
+          "zh": "实务变体与组合中的角色"
+        },
+        "paragraphs": [
+          {
+            "en": "Researchers often adapt EMA lengths to the instrument. FX pairs may respond better to faster averages, while equity indices may benefit from slower settings that filter out noise. Other variations require the fast EMA to be rising, or the price to be above a longer trend filter, before entering. These small additions can reduce whipsaws without changing the core logic.",
+            "zh": "研究者通常会根据标的调整 EMA 长度。外汇货币对可能更适合较快均线，而股票指数则可能更受益于能过滤噪音的较慢参数。其他常见变体包括要求快 EMA 本身正在上行，或要求价格位于更长期趋势过滤器上方后才允许入场。这些小幅调整能在不改变核心逻辑的前提下减少反复震荡。"
+          },
+          {
+            "en": "In diversified portfolios, EMA crossovers are usually one sleeve among others. Trend exposure can be sized by volatility or capped by correlation so that one regime does not dominate risk. Pairing trend systems with mean reversion or carry models can smooth returns and reduce long drawdown stretches. The crossover works best when it is allowed to do one job: capture trends when they appear.",
+            "zh": "在分散化投资组合中，EMA 交叉通常只是其中一个策略分层。趋势敞口可以按波动率分配，或通过相关性上限进行约束，以避免单一市场状态主导组合风险。将趋势系统与均值回归或 carry 模型配合，往往有助于平滑收益并缩短长期回撤阶段。EMA 交叉最适合承担一项清晰任务：当趋势出现时负责捕捉它。"
+          },
+          {
+            "en": "A practical workflow is to treat the crossover as a regime filter and then apply more refined entries within that regime. For example, a trader might only take pullback entries when the fast EMA stays above the slow EMA. This preserves the trend bias while allowing more precise timing, and it can reduce the frustration of late entries without changing the underlying philosophy.",
+            "zh": "一种实用流程是先把交叉视为市场状态过滤器，再在该状态内叠加更精细的入场规则。例如，交易者可以仅在快 EMA 位于慢 EMA 上方时做回调买入。这样既保留了趋势偏向，又能获得更精确的择时，同时减少“追得太晚”的挫败感，而无需改变策略的底层哲学。"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "parabolic-sar-strategy",
+    "title": {
+      "en": "Parabolic SAR Strategy: A Trend Exit Engine",
+      "zh": "抛物线 SAR 策略：趋势退出引擎"
+    },
+    "summary": {
+      "en": "Parabolic SAR uses a trailing stop that accelerates with trend strength. This article explains why it works, when it fails, and how to read its backtests.",
+      "zh": "抛物线 SAR 使用会随趋势强度加速的跟踪止损。本文解释它为何有效、何时失效，以及如何解读其回测。"
+    },
+    "date": "2026-01-13",
+    "readTime": "11 min read",
+    "category": "Trend Following",
+    "featured": true,
+    "tags": [
+      "Trend",
+      "Parabolic SAR"
+    ],
+    "figure": {
+      "title": {
+        "en": "Parabolic SAR stop trail",
+        "zh": "抛物线 SAR 止损轨迹"
+      },
+      "caption": {
+        "en": "Dots represent the SAR level trailing price as the trend accelerates.",
+        "zh": "圆点表示随着趋势加速而不断贴近价格的 SAR 水平。"
+      },
+      "svg": "<svg viewBox=\"0 0 640 240\" role=\"img\" aria-label=\"Parabolic SAR sketch\">\n  <rect x=\"0\" y=\"0\" width=\"640\" height=\"240\" fill=\"#f8f1e8\" />\n  <g stroke=\"#d8cbbd\" stroke-width=\"1\">\n    <line x1=\"40\" y1=\"40\" x2=\"600\" y2=\"40\" />\n    <line x1=\"40\" y1=\"80\" x2=\"600\" y2=\"80\" />\n    <line x1=\"40\" y1=\"120\" x2=\"600\" y2=\"120\" />\n    <line x1=\"40\" y1=\"160\" x2=\"600\" y2=\"160\" />\n    <line x1=\"40\" y1=\"200\" x2=\"600\" y2=\"200\" />\n  </g>\n  <polyline fill=\"none\" stroke=\"#1f6f78\" stroke-width=\"3\" points=\"40,180 90,165 140,150 190,135 240,120 290,100 340,90 390,80 440,75 490,70 540,65 600,70\" />\n  <g fill=\"#e16b3a\">\n    <circle cx=\"60\" cy=\"195\" r=\"4\" />\n    <circle cx=\"110\" cy=\"185\" r=\"4\" />\n    <circle cx=\"160\" cy=\"175\" r=\"4\" />\n    <circle cx=\"210\" cy=\"160\" r=\"4\" />\n    <circle cx=\"260\" cy=\"145\" r=\"4\" />\n    <circle cx=\"310\" cy=\"125\" r=\"4\" />\n    <circle cx=\"360\" cy=\"110\" r=\"4\" />\n    <circle cx=\"410\" cy=\"100\" r=\"4\" />\n    <circle cx=\"460\" cy=\"95\" r=\"4\" />\n    <circle cx=\"510\" cy=\"90\" r=\"4\" />\n  </g>\n</svg>"
+    },
+    "sections": []
+  },
+  {
+    "slug": "volatility-breakout",
+    "title": {
+      "en": "Volatility Breakout Strategy: Trading Expansion Without Overreach",
+      "zh": "波动率突破策略：参与扩张而不过度追价"
+    },
+    "summary": {
+      "en": "Volatility breakouts focus on price moves that escape a recent range. This guide explains the logic, the regimes where it works, and the traps to avoid.",
+      "zh": "波动率突破聚焦于价格脱离近期区间的走势。本文解释其逻辑、适用的市场环境以及需要避免的陷阱。"
+    },
+    "date": "2026-01-13",
+    "readTime": "13 min read",
+    "category": "Trend Following",
+    "featured": true,
+    "tags": [
+      "Breakout",
+      "Volatility"
+    ],
+    "figure": {
+      "title": {
+        "en": "Volatility breakout channel",
+        "zh": "波动率突破通道"
+      },
+      "caption": {
+        "en": "A simplified channel shows how price expansion can trigger a breakout entry.",
+        "zh": "简化通道示意价格扩张如何触发突破入场。"
+      },
+      "svg": "<svg viewBox=\"0 0 640 240\" role=\"img\" aria-label=\"Volatility breakout sketch\">\n  <rect x=\"0\" y=\"0\" width=\"640\" height=\"240\" fill=\"#f8f1e8\" />\n  <rect x=\"60\" y=\"70\" width=\"520\" height=\"100\" fill=\"none\" stroke=\"#7c7c7c\" stroke-width=\"2\" stroke-dasharray=\"6 6\" />\n  <polyline fill=\"none\" stroke=\"#1f6f78\" stroke-width=\"3\" points=\"60,160 120,150 180,145 240,140 300,135 360,130 420,120 480,90 540,60 600,70\" />\n  <circle cx=\"540\" cy=\"60\" r=\"6\" fill=\"#e16b3a\" />\n</svg>"
+    },
+    "sections": []
+  },
+  {
+    "slug": "donchian-turtle-breakout",
+    "title": {
+      "en": "Donchian Channel and Turtle Breakout: Trading the 20/10 Rule",
+      "zh": "唐奇安通道与海龟突破：交易 20/10 规则"
+    },
+    "summary": {
+      "en": "The Turtle system uses Donchian breakouts and risk based sizing to capture sustained trends. This research note explains the logic, market fit, and failure modes.",
+      "zh": "海龟系统通过唐奇安突破与基于风险的头寸规模来捕捉持续趋势。本文说明其逻辑、市场适配性与失效模式。"
+    },
+    "date": "2026-01-20",
+    "readTime": "14 min read",
+    "category": "Trend Following",
+    "featured": false,
+    "tags": [
+      "Breakout",
+      "Donchian",
+      "Turtle"
+    ],
+    "figure": {
+      "title": {
+        "en": "Donchian breakout channel",
+        "zh": "唐奇安突破通道"
+      },
+      "caption": {
+        "en": "Price pushes above the recent channel to trigger a breakout entry.",
+        "zh": "价格向上突破近期通道，从而触发突破入场。"
+      },
+      "svg": "<svg viewBox=\"0 0 640 240\" role=\"img\" aria-label=\"Donchian breakout sketch\">\n  <rect x=\"0\" y=\"0\" width=\"640\" height=\"240\" fill=\"#f8f1e8\" />\n  <rect x=\"70\" y=\"70\" width=\"500\" height=\"100\" fill=\"none\" stroke=\"#7c7c7c\" stroke-width=\"2\" stroke-dasharray=\"6 6\" />\n  <polyline fill=\"none\" stroke=\"#1f6f78\" stroke-width=\"3\" points=\"70,160 120,150 170,140 220,145 270,130 320,120 370,110 420,95 470,85 520,70 570,60\" />\n  <circle cx=\"520\" cy=\"70\" r=\"6\" fill=\"#e16b3a\" />\n</svg>"
+    },
+    "sections": []
+  },
+  {
+    "slug": "supertrend-atr-trailing-stop",
+    "title": {
+      "en": "Supertrend and ATR Trailing Stop: Volatility Adjusted Trend Control",
+      "zh": "Supertrend 与 ATR 跟踪止损：波动率调整后的趋势控制"
+    },
+    "summary": {
+      "en": "Supertrend uses ATR based bands to define trend flips and stops. This research note explains the signal mechanics, regime fit, and the risks of whipsaw.",
+      "zh": "Supertrend 使用基于 ATR 的带状结构定义趋势翻转与止损。本文解释其信号机制、适用环境与反复震荡风险。"
+    },
+    "date": "2026-01-20",
+    "readTime": "13 min read",
+    "category": "Trend Following",
+    "featured": false,
+    "tags": [
+      "Supertrend",
+      "ATR",
+      "Trailing Stop"
+    ],
+    "figure": {
+      "title": {
+        "en": "Supertrend band and flip",
+        "zh": "Supertrend 带与翻转"
+      },
+      "caption": {
+        "en": "ATR based bands trail price and flip when the trend changes.",
+        "zh": "基于 ATR 的带状结构跟随价格，并在趋势变化时翻转。"
+      },
+      "svg": "<svg viewBox=\"0 0 640 240\" role=\"img\" aria-label=\"Supertrend sketch\">\n  <rect x=\"0\" y=\"0\" width=\"640\" height=\"240\" fill=\"#f8f1e8\" />\n  <polyline fill=\"none\" stroke=\"#7c7c7c\" stroke-width=\"2\" points=\"60,170 120,155 180,150 240,140 300,130 360,120 420,115 480,120 540,110 600,100\" />\n  <polyline fill=\"none\" stroke=\"#1f6f78\" stroke-width=\"2.5\" points=\"60,150 120,135 180,128 240,118 300,108 360,100 420,98 480,105 540,95 600,88\" />\n  <polyline fill=\"none\" stroke=\"#e16b3a\" stroke-width=\"2.5\" points=\"60,190 120,175 180,170 240,160 300,150 360,140 420,138 480,145 540,135 600,125\" />\n  <circle cx=\"480\" cy=\"120\" r=\"6\" fill=\"#e16b3a\" />\n</svg>"
+    },
+    "sections": []
+  },
+  {
+    "slug": "ichimoku-cloud-strategy",
+    "title": {
+      "en": "Ichimoku Cloud Strategy: Regime, Momentum, and Support in One System",
+      "zh": "一目均衡表策略：将市场状态、动能与支撑整合于一体"
+    },
+    "summary": {
+      "en": "Ichimoku combines trend, momentum, and support into a single framework. This research note breaks down the components, signals, and common traps.",
+      "zh": "一目均衡表将趋势、动能与支撑阻力整合为单一框架。本文拆解其组成、信号与常见陷阱。"
+    },
+    "date": "2026-01-20",
+    "readTime": "14 min read",
+    "category": "Trend Following",
+    "featured": false,
+    "tags": [
+      "Ichimoku",
+      "Cloud",
+      "Regime"
+    ],
+    "figure": {
+      "title": {
+        "en": "Ichimoku cloud regime",
+        "zh": "一目云图的市场状态"
+      },
+      "caption": {
+        "en": "The cloud highlights support and resistance zones while price signals trend direction.",
+        "zh": "云层突出显示支撑与阻力区间，而价格位置则指示趋势方向。"
+      },
+      "svg": "<svg viewBox=\"0 0 640 240\" role=\"img\" aria-label=\"Ichimoku cloud sketch\">\n  <rect x=\"0\" y=\"0\" width=\"640\" height=\"240\" fill=\"#f8f1e8\" />\n  <polygon points=\"60,140 160,130 260,135 360,125 460,115 560,120 560,160 460,170 360,165 260,175 160,170 60,180\" fill=\"#d9e7d0\" />\n  <polyline fill=\"none\" stroke=\"#1f6f78\" stroke-width=\"3\" points=\"60,160 120,150 180,145 240,135 300,120 360,110 420,105 480,100 540,95 600,90\" />\n  <polyline fill=\"none\" stroke=\"#e16b3a\" stroke-width=\"2\" points=\"60,130 120,125 180,120 240,118 300,115 360,112 420,110 480,108 540,106 600,104\" />\n</svg>"
+    },
+    "sections": []
+  },
+  {
+    "slug": "rsi-mean-reversion",
+    "title": {
+      "en": "RSI Mean Reversion Strategy: Buying Weakness Inside Ranges",
+      "zh": "RSI 均值回归策略：在区间中买入弱势"
+    },
+    "summary": {
+      "en": "RSI mean reversion looks for short term exhaustion and then fades the move. This research note covers the signal logic, market fit, and risk traps.",
+      "zh": "RSI 均值回归寻找短期衰竭后的反向机会。本文涵盖其信号逻辑、市场适配性与风险陷阱。"
+    },
+    "date": "2026-01-19",
+    "readTime": "13 min read",
+    "category": "Mean Reversion",
+    "featured": false,
+    "tags": [
+      "RSI",
+      "Mean Reversion",
+      "Oscillator"
+    ],
+    "figure": {
+      "title": {
+        "en": "RSI band with mean reversion zones",
+        "zh": "带有均值回归区间的 RSI 波段"
+      },
+      "caption": {
+        "en": "A simplified view of RSI oscillating between oversold and overbought bands.",
+        "zh": "RSI 在超卖与超买区间之间摆动的简化示意图。"
+      },
+      "svg": "<svg viewBox=\"0 0 640 240\" role=\"img\" aria-label=\"RSI mean reversion sketch\">\n  <rect x=\"0\" y=\"0\" width=\"640\" height=\"240\" fill=\"#f8f1e8\" />\n  <rect x=\"60\" y=\"50\" width=\"520\" height=\"140\" fill=\"none\" stroke=\"#d8cbbd\" stroke-width=\"2\" />\n  <line x1=\"60\" y1=\"90\" x2=\"580\" y2=\"90\" stroke=\"#e16b3a\" stroke-width=\"2\" stroke-dasharray=\"6 6\" />\n  <line x1=\"60\" y1=\"150\" x2=\"580\" y2=\"150\" stroke=\"#1f6f78\" stroke-width=\"2\" stroke-dasharray=\"6 6\" />\n  <polyline fill=\"none\" stroke=\"#4b4e6d\" stroke-width=\"3\" points=\"60,140 110,160 160,170 210,150 260,130 310,110 360,95 410,120 460,145 510,155 560,135 580,120\" />\n  <text x=\"60\" y=\"40\" fill=\"#5b554d\" font-size=\"12\">RSI</text>\n  <text x=\"590\" y=\"95\" fill=\"#e16b3a\" font-size=\"12\">70</text>\n  <text x=\"590\" y=\"155\" fill=\"#1f6f78\" font-size=\"12\">30</text>\n</svg>"
+    },
+    "sections": []
+  },
+  {
+    "slug": "how-quantarenas-ranks-strategies",
+    "title": {
+      "en": "How QuantArenas Ranks Strategies",
+      "zh": "QuantArenas 如何对策略进行排名"
+    },
+    "summary": {
+      "en": "A full methodology essay on why the Arena Score blends multiple metrics, how stability is measured, and how to read results without overfitting.",
+      "zh": "一篇完整的方法论文章，解释 Arena Score 为何融合多项指标、如何衡量稳定性，以及如何在避免过拟合的前提下解读结果。"
+    },
+    "date": "2026-01-13",
+    "readTime": "14 min read",
+    "category": "Methodology",
+    "featured": false,
+    "tags": [
+      "Methodology",
+      "Scoring"
+    ],
+    "figure": {
+      "title": {
+        "en": "Arena Score components",
+        "zh": "Arena Score 的组成"
+      },
+      "caption": {
+        "en": "The score balances return and risk to avoid single metric bias.",
+        "zh": "该评分在收益与风险之间取得平衡，以避免单一指标偏差。"
+      },
+      "svg": "<svg viewBox=\"0 0 640 240\" role=\"img\" aria-label=\"Arena score components\">\n  <rect x=\"0\" y=\"0\" width=\"640\" height=\"240\" fill=\"#f8f1e8\" />\n  <rect x=\"80\" y=\"60\" width=\"80\" height=\"120\" fill=\"#1f6f78\" />\n  <rect x=\"200\" y=\"90\" width=\"80\" height=\"90\" fill=\"#e16b3a\" />\n  <rect x=\"320\" y=\"80\" width=\"80\" height=\"100\" fill=\"#3d6e4e\" />\n  <rect x=\"440\" y=\"70\" width=\"80\" height=\"110\" fill=\"#7c7c7c\" />\n  <text x=\"90\" y=\"200\" fill=\"#5b554d\" font-size=\"12\">CAGR</text>\n  <text x=\"205\" y=\"200\" fill=\"#5b554d\" font-size=\"12\">Sharpe</text>\n  <text x=\"325\" y=\"200\" fill=\"#5b554d\" font-size=\"12\">Sortino</text>\n  <text x=\"445\" y=\"200\" fill=\"#5b554d\" font-size=\"12\">Calmar</text>\n</svg>"
+    },
+    "sections": []
   }
 ];
 
