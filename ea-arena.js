@@ -700,6 +700,8 @@ const EA_MIN_TRADES = 10;
 const BACKTEST_QUALITY_TEXT = {
   no_trades: { en: "This backtest produced no trades, so the numbers below say nothing about the strategy. The automatic MQL5-to-Python conversion most likely missed its entry logic.", zh: "这次回测没有产生任何交易，下面的数字不能说明策略好坏，多半是 MQL5 自动转换时漏掉了开仓逻辑。" },
   error: { en: "The backtest stopped with an error, so these numbers are not usable.", zh: "回测运行时报错，这些数字不可用。" },
+  unsupported: { en: "This EA could not be converted automatically: its entry logic uses features the MQL5-to-Python converter does not support yet, so there is nothing meaningful to test.", zh: "这个 EA 暂时无法自动转换：它的开仓逻辑用到了 MQL5 转 Python 转换器还不支持的功能，所以没有可以测试的内容。" },
+  open_position: { en: "The EA opened one position and held it until the end of the test, so there are no closed trades to evaluate; treat the P&L as a single buy-and-hold-like bet.", zh: "这个 EA 开了一笔仓位并一直持有到测试结束，没有已平仓的交易可以评估；盈亏只相当于一笔类似买入持有的单次押注。" },
   few_trades: { en: `Fewer than ${10} trades — too few to judge the strategy.`, zh: `交易少于 ${10} 笔，样本太少，不足以判断策略好坏。` },
   flat: { en: "The equity curve is essentially flat (no real P&L or drawdown); treat these numbers with caution.", zh: "权益曲线几乎是平的（没有实际盈亏和回撤），这些数字请谨慎参考。" }
 };

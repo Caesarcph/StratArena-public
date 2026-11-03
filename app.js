@@ -805,6 +805,7 @@ function render() {
     case "strategy":
       app.innerHTML = renderStrategyDetail(route);
       bindStrategyDetail(route);
+      bindCostSlider();
       break;
     case "compare":
       app.innerHTML = renderCompare(route);
@@ -2439,6 +2440,7 @@ function renderStrategyDetail(route) {
         <button class="tab-button" data-tab="benchmark">${t("metric.vs_benchmark")}</button>
       </div>
       ${renderMetricTabs(metrics)}
+      ${renderCostSlider(metrics)}
       ${renderScoreBreakdown(metrics)}
 
       <div class="section pseudocode">
@@ -2525,6 +2527,39 @@ function optionalTile(label, value, kind) {
     return metricTile(label, t("metric.days_value", { days: Math.round(value) }));
   }
   return metricTile(label, formatMetric(value, kind));
+}
+
+// Rough cost model: every unit of turnover pays `bp` basis points.
+function cagrAfterCost(metrics, bp) {
+  if (!Number.isFinite(metrics.cagr) || !Number.isFinite(metrics.turnover)) return NaN;
+  return metrics.cagr - metrics.turnover * 252 * (bp / 10000);
+}
+
+function renderCostSlider(metrics) {
+  if (!Number.isFinite(metrics.turnover)) return "";
+  const bp = 10;
+  return `
+    <div class="cost-slider card" data-cagr="${metrics.cagr}" data-turnover="${metrics.turnover}">
+      <label for="cost-bp"><strong>${t("cost.title")}</strong> <span class="muted">${t("cost.desc")}</span></label>
+      <div class="cost-row">
+        <input id="cost-bp" type="range" min="0" max="50" step="1" value="${bp}" />
+        <span class="cost-bp" data-cost-bp>${t("cost.bp", { bp })}</span>
+        <span>${t("metric.cagr")}: <strong>${formatMetric(metrics.cagr, "cagr")}</strong> → <strong data-cost-cagr>${formatMetric(cagrAfterCost(metrics, bp), "cagr")}</strong></span>
+      </div>
+      <p class="muted small-note">${t("cost.note", { turnover: formatMetric(metrics.turnover * 252, "ratio") })}</p>
+    </div>`;
+}
+
+function bindCostSlider() {
+  const box = document.querySelector(".cost-slider");
+  const input = document.getElementById("cost-bp");
+  if (!box || !input) return;
+  const metrics = { cagr: parseFloat(box.dataset.cagr), turnover: parseFloat(box.dataset.turnover) };
+  input.addEventListener("input", () => {
+    const bp = Number(input.value);
+    box.querySelector("[data-cost-bp]").textContent = t("cost.bp", { bp });
+    box.querySelector("[data-cost-cagr]").textContent = formatMetric(cagrAfterCost(metrics, bp), "cagr");
+  });
 }
 
 const SCORE_PART_KEYS = ["quality", "drawdown", "consistency", "robustness", "significance"];
