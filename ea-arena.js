@@ -527,6 +527,10 @@ function renderEADetail(route) {
      <span class="ea-bt-value ea-bt-loss">${activeBt.max_drawdown_pct !== undefined ? activeBt.max_drawdown_pct.toFixed(2) : "—"}%</span>
     </div>
     <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "恢复因子" : "Recovery Factor"}</span>
+     <span class="ea-bt-value">${activeBt.max_drawdown_pct ? eaRecoveryFactor(activeBt).toFixed(2) : "—"}</span>
+    </div>
+    <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "年化收益" : "Annual Return"}</span>
      <span class="ea-bt-value ${activeBt.annual_return > 0 ? "ea-bt-profit" : activeBt.annual_return < 0 ? "ea-bt-loss" : ""}">${activeBt.annual_return !== undefined ? activeBt.annual_return.toFixed(2) : "—"}%</span>
     </div>
@@ -648,6 +652,10 @@ function bindEADetail(route) {
      <span class="ea-bt-value ea-bt-loss">${bt.max_drawdown_pct !== undefined ? bt.max_drawdown_pct.toFixed(2) : "—"}%</span>
     </div>
     <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "恢复因子" : "Recovery Factor"}</span>
+     <span class="ea-bt-value">${bt.max_drawdown_pct ? eaRecoveryFactor(bt).toFixed(2) : "—"}</span>
+    </div>
+    <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "年化收益" : "Annual Return"}</span>
      <span class="ea-bt-value ${bt.annual_return > 0 ? "ea-bt-profit" : bt.annual_return < 0 ? "ea-bt-loss" : ""}">${bt.annual_return !== undefined ? bt.annual_return.toFixed(2) : "—"}%</span>
     </div>
@@ -708,6 +716,11 @@ const BACKTEST_QUALITY_TEXT = {
 
 function renderBacktestQualityNote(result, isZh) {
   const quality = result && result.quality;
+  if (quality === "ok" && (result.pnl_pct || 0) <= -89) {
+    return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "账户爆仓：" : "Account stopped out:"}</strong> <span>${isZh
+      ? "净值跌破初始资金的 10%，回测按券商强平处理，之后不再交易。"
+      : "Equity fell below 10% of the starting balance, so the backtest closed the account the way a broker would and stopped trading."}</span></div></div>`;
+  }
   const text = quality && BACKTEST_QUALITY_TEXT[quality];
   if (!text) return "";
   return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "结果不可靠：" : "Unreliable result:"}</strong> <span>${isZh ? text.zh : text.en}</span></div></div>`;
@@ -720,6 +733,26 @@ function isReliableBacktest(result) {
   if (result.quality) return result.quality === "ok";
   const trades = result.total_trades || 0;
   return trades >= EA_MIN_TRADES && Math.abs(result.pnl_pct || 0) >= 0.01 && (result.max_drawdown_pct || 0) > 0;
+}
+
+// Net return divided by the maximum drawdown (both in %).
+function eaRecoveryFactor(result) {
+  if (!result) return 0;
+  if (Number.isFinite(result.recovery_factor)) return result.recovery_factor;
+  const dd = Math.abs(result.max_drawdown_pct || 0);
+  return dd > 0 ? (result.pnl_pct || 0) / dd : 0;
+}
+
+// How many markets with a reliable result made money.
+function eaMarketConsistency(entry) {
+  let reliable = 0;
+  let profitable = 0;
+  Object.values(entry || {}).forEach(result => {
+    if (!result || typeof result !== "object" || !isReliableBacktest(result)) return;
+    reliable += 1;
+    if ((result.pnl_pct || 0) > 0) profitable += 1;
+  });
+  return { reliable, profitable };
 }
 
 function renderEARanking(route) {
@@ -737,6 +770,8 @@ function renderEARanking(route) {
     { key: "win_rate", labelEn: "Win Rate", labelZh: "胜率" },
     { key: "annual_return", labelEn: "Annual Ret", labelZh: "年化" },
     { key: "max_drawdown_pct", labelEn: "Max DD%", labelZh: "最大回撤" },
+    { key: "recovery_factor", labelEn: "Recovery factor", labelZh: "恢复因子" },
+    { key: "markets_profitable", labelEn: "Profitable markets", labelZh: "盈利品种数" },
     { key: "total_trades", labelEn: "Trades", labelZh: "交易数" }
   ];
 
@@ -755,6 +790,7 @@ function renderEARanking(route) {
       return;
     }
     const ea = catalogMap[eaId] || {};
+    const markets = eaMarketConsistency(data);
     rows.push({
       id: eaId,
       name: ea.name || eaId,
@@ -767,6 +803,9 @@ function renderEARanking(route) {
       annual_return: symData.annual_return || 0,
       max_drawdown_pct: symData.max_drawdown_pct || 0,
       total_trades: symData.total_trades || 0,
+      recovery_factor: eaRecoveryFactor(symData),
+      markets_profitable: markets.profitable + markets.reliable / 100,
+      markets,
       won: symData.won || 0,
       lost: symData.lost || 0
     });
@@ -813,6 +852,8 @@ function renderEARanking(route) {
       <td class="ea-rank-metric ${wrClass}">${r.win_rate.toFixed(1)}%</td>
       <td class="ea-rank-metric">${r.annual_return.toFixed(2)}%</td>
       <td class="ea-rank-metric ${ddClass}">${r.max_drawdown_pct.toFixed(2)}%</td>
+      <td class="ea-rank-metric ${r.recovery_factor > 0 ? "ea-bt-profit" : "ea-bt-loss"}">${r.recovery_factor.toFixed(2)}</td>
+      <td class="ea-rank-metric" title="${isZh ? "可信结果中盈利的品种数" : "Profitable markets out of markets with reliable results"}">${r.markets.profitable}/${r.markets.reliable}</td>
       <td class="ea-rank-metric">${r.total_trades}</td>
     </tr>`;
   }).join("");
@@ -870,9 +911,11 @@ function renderEARanking(route) {
           ${th("win_rate", isZh ? "胜率" : "Win%")}
           ${th("annual_return", isZh ? "年化" : "Annual%")}
           ${th("max_drawdown_pct", isZh ? "回撤%" : "DD%")}
+          ${th("recovery_factor", isZh ? "恢复因子" : "Recovery")}
+          ${th("markets_profitable", isZh ? "盈利品种" : "Markets")}
           ${th("total_trades", isZh ? "交易数" : "Trades")}
         </tr></thead>
-        <tbody>${tableRows || `<tr><td colspan="10" class="ea-rank-empty">${isZh ? "暂无交易策略数据" : "No trading strategies found"}</td></tr>`}</tbody>
+        <tbody>${tableRows || `<tr><td colspan="12" class="ea-rank-empty">${isZh ? "暂无交易策略数据" : "No trading strategies found"}</td></tr>`}</tbody>
       </table>
     </div>
 

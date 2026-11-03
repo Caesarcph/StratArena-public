@@ -2471,6 +2471,8 @@ function renderMetricTabs(metrics) {
         ${metricTile(t("metric.best_month"), formatMetric(metrics.bestMonth, "totalReturn"))}
         ${metricTile(t("metric.worst_month"), formatMetric(metrics.worstMonth, "totalReturn"))}
         ${optionalTile(t("metric.positive_months"), metrics.posMonths, "totalReturn")}
+        ${rangeTile(t("metric.cagr_range"), metrics.cagrLo, metrics.cagrHi)}
+        ${optionalTile(t("metric.prob_loss"), metrics.probLoss, "totalReturn")}
       </div>
     </div>
     <div class="tab-content" data-panel="risk">
@@ -2482,6 +2484,7 @@ function renderMetricTabs(metrics) {
         ${optionalTile(t("metric.underwater"), metrics.underwater, "totalReturn")}
         ${optionalTile(t("metric.var95"), metrics.var95, "totalReturn")}
         ${optionalTile(t("metric.cvar95"), metrics.cvar95, "totalReturn")}
+        ${rangeTile(t("metric.max_dd_range"), metrics.maxDDLo, metrics.maxDDHi)}
       </div>
     </div>
     <div class="tab-content" data-panel="efficiency">
@@ -2517,6 +2520,12 @@ function renderMetricTabs(metrics) {
       </div>
     </div>
   `;
+}
+
+// Bootstrap interval, e.g. "-3.10% to 12.40%".
+function rangeTile(label, lo, hi) {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return metricTile(label, "—");
+  return metricTile(label, t("metric.range_value", { lo: formatPercent(lo, 1), hi: formatPercent(hi, 1) }));
 }
 
 function optionalTile(label, value, kind) {
