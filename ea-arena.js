@@ -723,7 +723,9 @@ const NO_TRADE_REASON_TEXT = {
   impossible_level: { en: "the entry waits for a price-based indicator to cross zero, which never happens", zh: "开仓条件要求一个基于价格的指标穿越 0，这不可能发生" },
   no_entry_rule: { en: "no entry rule survived the conversion", zh: "转换后没有留下任何开仓规则" },
   zero_period: { en: "an indicator ended up with a period of 0", zh: "有指标的周期被转换成了 0" },
-  contradictory_filter: { en: "two entry conditions contradict each other", zh: "两个开仓条件互相矛盾" }
+  contradictory_filter: { en: "two entry conditions contradict each other", zh: "两个开仓条件互相矛盾" },
+  scale_mismatch: { en: "it compares lines on different scales (an oscillator against a price level), so they never cross", zh: "比较的是两条量纲不同的线（比如震荡指标对价格），永远不会交叉" },
+  rare_filter: { en: "its entry needs a signal and an extreme oscillator reading on the same bar, which did not happen on one year of hourly data", zh: "开仓要求同一根 K 线上既出现信号、又出现极端的震荡指标读数，一年的小时线里一次都没碰上" }
 };
 
 function renderBacktestQualityNote(result, isZh) {
@@ -742,6 +744,12 @@ function renderBacktestQualityNote(result, isZh) {
   }
   const text = quality && BACKTEST_QUALITY_TEXT[quality];
   if (!text) return "";
+  if (quality === "no_trades" && result.reason === "rare_filter") {
+    const reason = NO_TRADE_REASON_TEXT.rare_filter;
+    return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "没有交易：" : "No trades:"}</strong> <span>${isZh
+      ? `这个 EA 在回测里从未交易，因为${reason.zh}。条件可能本身就很苛刻，也可能转换时丢了参数。`
+      : `This EA never traded because ${reason.en}. The rules may simply be very strict, or the conversion lost a setting.`}</span></div></div>`;
+  }
   return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "结果不可靠：" : "Unreliable result:"}</strong> <span>${isZh ? text.zh : text.en}</span></div></div>`;
 }
 
