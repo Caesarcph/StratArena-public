@@ -711,11 +711,27 @@ const BACKTEST_QUALITY_TEXT = {
   unsupported: { en: "This EA could not be converted automatically: its entry logic uses features the MQL5-to-Python converter does not support yet, so there is nothing meaningful to test.", zh: "这个 EA 暂时无法自动转换：它的开仓逻辑用到了 MQL5 转 Python 转换器还不支持的功能，所以没有可以测试的内容。" },
   open_position: { en: "The EA opened one position and held it until the end of the test, so there are no closed trades to evaluate; treat the P&L as a single buy-and-hold-like bet.", zh: "这个 EA 开了一笔仓位并一直持有到测试结束，没有已平仓的交易可以评估；盈亏只相当于一笔类似买入持有的单次押注。" },
   few_trades: { en: `Fewer than ${10} trades — too few to judge the strategy.`, zh: `交易少于 ${10} 笔，样本太少，不足以判断策略好坏。` },
+  approximated: { en: "This EA relies on a custom indicator the converter could not translate, so the backtest used a placeholder in its place. The numbers below do not reflect the EA's real logic.", zh: "这个 EA 依赖一个转换器无法翻译的自定义指标，回测里用了占位指标代替，下面的数字不代表 EA 的真实逻辑。" },
   flat: { en: "The equity curve is essentially flat (no real P&L or drawdown); treat these numbers with caution.", zh: "权益曲线几乎是平的（没有实际盈亏和回撤），这些数字请谨慎参考。" }
+};
+
+const NO_TRADE_REASON_TEXT = {
+  identical_crossover: { en: "the conversion compares two identical indicators (the fast and slow settings were lost), so they can never cross", zh: "转换后比较的是两条完全相同的指标线（快慢参数丢失了），永远不会交叉" },
+  impossible_level: { en: "the entry waits for a price-based indicator to cross zero, which never happens", zh: "开仓条件要求一个基于价格的指标穿越 0，这不可能发生" },
+  no_entry_rule: { en: "no entry rule survived the conversion", zh: "转换后没有留下任何开仓规则" },
+  zero_period: { en: "an indicator ended up with a period of 0", zh: "有指标的周期被转换成了 0" },
+  contradictory_filter: { en: "two entry conditions contradict each other", zh: "两个开仓条件互相矛盾" }
 };
 
 function renderBacktestQualityNote(result, isZh) {
   const quality = result && result.quality;
+  if (quality === "conversion_issue") {
+    const reason = NO_TRADE_REASON_TEXT[result.reason];
+    const detail = reason ? (isZh ? reason.zh : reason.en) : "";
+    return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "转换有误：" : "Conversion problem:"}</strong> <span>${isZh
+      ? `这个 EA 在回测里从未交易，原因是${detail}。问题出在自动转换，不代表 EA 本身。`
+      : `This EA never traded in the backtest because ${detail}. That is a flaw in the automatic conversion, not in the EA itself.`}</span></div></div>`;
+  }
   if (quality === "ok" && (result.pnl_pct || 0) <= -89) {
     return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "账户爆仓：" : "Account stopped out:"}</strong> <span>${isZh
       ? "净值跌破初始资金的 10%，回测按券商强平处理，之后不再交易。"
