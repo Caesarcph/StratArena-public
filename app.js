@@ -361,8 +361,10 @@ function requiredEquitySymbols(route) {
       // Pre-computed home charts make the full equity files unnecessary.
       return store.homeCharts && store.homeCharts.length ? [] : [defaultInstrument(), "SPY", "GLD", "EURUSD=X"];
     case "arena":
-    case "compare":
     case "favorites":
+      // Leaderboards only need the pre-computed metrics.
+      return hasLivePerformanceData() ? [] : [instrument || defaultInstrument()];
+    case "compare":
       return [instrument || defaultInstrument()];
     case "lab":
       return [instrument || "SPY"];
@@ -370,7 +372,7 @@ function requiredEquitySymbols(route) {
       const strategyId = params.get("id") || store.strategies[0]?.id;
       const strategy = store.strategies.find((item) => item.id === strategyId);
       const symbols = [
-        instrument || strategy?.instruments?.[0] || defaultInstrument(),
+        instrument || (strategy ? dataInstruments(strategy)[0] : null) || defaultInstrument(),
         "SPY",
         "GLD"
       ];
@@ -1580,7 +1582,7 @@ function renderCategoryView(strategies, state) {
     const groupStrategies = strategies.filter(
       (strategy) =>
         matchesCategory(strategy, group) &&
-        strategy.instruments.includes(instrument)
+        dataInstruments(strategy).includes(instrument)
     );
     if (!groupStrategies.length) return "";
     const scored = groupStrategies
@@ -2143,13 +2145,13 @@ function renderStrategyDetail(route) {
   }
 
   const instrument =
-    route.params.get("instrument") || strategy.instruments[0] || defaultInstrument();
+    route.params.get("instrument") || dataInstruments(strategy)[0] || defaultInstrument();
   const window = route.params.get("window") || defaultWindow();
   const benchmarkKey = route.params.get("benchmark") || "buy-hold";
   const benchmarkLabel = getBenchmarkLabel(benchmarkKey);
   const compareParam = route.params.get("compare");
   const compare = compareParam ? compareParam.split(",").filter(Boolean) : [];
-  const compareList = compare.length ? compare : strategy.recommendedCompare;
+  const compareList = (compare.length ? compare : strategy.recommendedCompare || []).filter((item) => dataInstruments(strategy).includes(item));
   const scale = route.params.get("scale") || "linear";
   const metrics = getMetricsFor(strategy.id, instrument, window);
   const returnTo = route.params.get("return");
@@ -2202,7 +2204,7 @@ function renderStrategyDetail(route) {
           <div class="control-group">
             <label>${t("common.instrument")}</label>
             <select id="detail-instrument">
-              ${strategy.instruments
+              ${dataInstruments(strategy)
                 .map(
                   (item) => `
                 <option value="${item}" ${
@@ -2247,7 +2249,7 @@ function renderStrategyDetail(route) {
         <div class="compare-panel">
           <strong>${t("strategy.cross_asset_compare")}</strong>
           <div class="compare-options">
-            ${strategy.instruments
+            ${dataInstruments(strategy)
               .map(
                 (item) => `
               <label>
@@ -2582,7 +2584,7 @@ function getSimilarStrategies(baseStrategy, instrument, window, limit) {
   const baseTags = baseStrategy.tags || [];
   const candidates = store.strategies.filter(
     (strategy) =>
-      strategy.id !== baseStrategy.id && strategy.instruments.includes(instrument)
+      strategy.id !== baseStrategy.id && dataInstruments(strategy).includes(instrument)
   );
   const scored = candidates.map((candidate) => {
     const tagScore = getTagSimilarity(baseTags, candidate.tags || []);
@@ -3607,11 +3609,11 @@ function drawStrategyCharts(route) {
   if (!strategy) return;
 
   const instrument =
-    route.params.get("instrument") || strategy.instruments[0] || defaultInstrument();
+    route.params.get("instrument") || dataInstruments(strategy)[0] || defaultInstrument();
   const window = route.params.get("window") || defaultWindow();
   const compareParam = route.params.get("compare");
   const compare = compareParam ? compareParam.split(",").filter(Boolean) : [];
-  const compareList = compare.length ? compare : strategy.recommendedCompare;
+  const compareList = (compare.length ? compare : strategy.recommendedCompare || []).filter((item) => dataInstruments(strategy).includes(item));
   const scale = route.params.get("scale") || "linear";
   const benchmarkKey = route.params.get("benchmark") || "buy-hold";
 
@@ -4149,9 +4151,10 @@ function favoritesState(params) {
 
 function buildLeaderboard(instrument, window) {
   return store.strategies
-    .filter((strategy) => strategy.instruments.includes(instrument))
-    .map((strategy) => {
-      const metrics = getMetricsFor(strategy.id, instrument, window);
+    .filter((strategy) => dataInstruments(strategy).includes(instrument))
+    .map((strategy) => ({ strategy, metrics: getMetricsFor(strategy.id, instrument, window) }))
+    .filter((row) => !row.metrics.missing)
+    .map(({ strategy, metrics }) => {
       // Only fall back to the local formula when the data has no score at all;
       // 0 is a real score (unranked strategies get 0 and scoreEligible=false).
       const arenaScore = metrics.arenaScore ?? calcArenaScore(metrics);
@@ -4179,12 +4182,42 @@ function valueForSort(metrics, key) {
   return metrics[key] ?? 0;
 }
 
+// Markets a strategy actually has backtest results for. With live data we
+// never fall back to generated placeholder series.
+function dataInstruments(strategy) {
+  const metrics = store.performance.strategies?.[strategy.id]?.metrics;
+  if (!hasLivePerformanceData() || !metrics) return strategy.instruments;
+  const withData = strategy.instruments.filter((item) => metrics[item]);
+  const extra = Object.keys(metrics).filter((item) => !withData.includes(item));
+  return [...withData, ...extra];
+}
+
+const MISSING_METRICS = Object.freeze({
+  missing: true,
+  totalReturn: NaN,
+  cagr: NaN,
+  sharpe: NaN,
+  sortino: NaN,
+  calmar: NaN,
+  maxDrawdown: NaN,
+  volatility: NaN,
+  winRate: NaN,
+  profitFactor: NaN,
+  trades: NaN,
+  turnover: NaN,
+  arenaScore: 0,
+  scoreEligible: false
+});
+
 function getMetricsFor(strategyId, instrument, window) {
   const perf = store.performance.strategies?.[strategyId] || {};
   const metrics = perf.metrics?.[instrument]?.[window];
   if (metrics) {
     const ext = store.metricsExt?.[strategyId]?.[instrument]?.[window];
     return ext ? { ...metrics, ...ext } : metrics;
+  }
+  if (hasLivePerformanceData()) {
+    return MISSING_METRICS;
   }
   const series = getSeries(strategyId, instrument);
   const windowed = sliceSeries(series, window);
