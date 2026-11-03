@@ -3,23 +3,29 @@
 # without a Bing Webmaster account. The key file eb5705b902437f617771f2c39101b998.txt
 # at the site root proves ownership; it is published from the source repo.
 #
-# Runs after every publish that changes the sitemaps, and on demand.
+# Runs after every push to main. A `paths:` filter cannot be used here: GitHub
+# only looks at the first 300 changed files, and a publish changes thousands,
+# so the sitemaps were never among them and the workflow was skipped. Instead
+# the job compares the sitemaps with the previous commit and submits only URLs
+# that are new or whose <lastmod> changed. A manual run submits every URL.
 name: indexnow
 
 on:
   push:
     branches: [main]
-    paths:
-      - "sitemap.xml"
-      - "sitemaps/**"
   workflow_dispatch:
+    inputs:
+      all:
+        description: "Submit every URL in the sitemaps, not only new or changed ones"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
   group: indexnow
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   submit:
@@ -28,36 +34,99 @@ jobs:
     env:
       HOST: quantarenas.com
       KEY: eb5705b902437f617771f2c39101b998
+      SUBMIT_ALL: ${{ github.event_name == 'workflow_dispatch' && inputs.all }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
-      - name: Wait for the key file to be live
-        run: |
-          for i in $(seq 1 40); do
-            if [ "$(curl -fsS "https://$HOST/$KEY.txt" 2>/dev/null)" = "$KEY" ]; then
-              echo "Key file is live."; exit 0
-            fi
-            sleep 15
-          done
-          echo "::error::https://$HOST/$KEY.txt is not reachable yet"; exit 1
-
-      - name: Submit sitemap URLs
+      - name: Find new or changed URLs
+        id: urls
         run: |
           python3 - <<'EOF'
-          import glob, json, os, re, urllib.request
-          host, key = os.environ["HOST"], os.environ["KEY"]
-          urls = []
+          import glob, json, os, re, subprocess
+
+          host = os.environ["HOST"]
+
+          def parse(text):
+              found = {}
+              for block in re.findall(r"<url>(.*?)</url>", text or "", re.S):
+                  loc = re.search(r"<loc>([^<]+)</loc>", block)
+                  if not loc:
+                      continue
+                  mod = re.search(r"<lastmod>([^<]+)</lastmod>", block)
+                  found[loc.group(1).strip()] = mod.group(1).strip() if mod else ""
+              return found
+
+          def git(*args):
+              result = subprocess.run(["git", *args], capture_output=True, text=True)
+              return result.stdout if result.returncode == 0 else None
+
+          current = {}
           for path in ["sitemap.xml"] + sorted(glob.glob("sitemaps/*.xml")):
-              for loc in re.findall(r"<loc>([^<]+)</loc>", open(path, encoding="utf-8").read()):
-                  if loc.startswith(f"https://{host}/") and not loc.endswith(".xml"):
-                      urls.append(loc)
-          urls = sorted(set(urls))
-          print(f"{len(urls)} URLs")
+              with open(path, encoding="utf-8") as handle:
+                  current.update(parse(handle.read()))
+          current = {loc: mod for loc, mod in current.items() if loc.startswith(f"https://{host}/")}
+
+          previous = None
+          if os.environ.get("SUBMIT_ALL") != "true" and git("rev-parse", "--verify", "HEAD^") is not None:
+              previous = {}
+              for path in ["sitemap.xml"] + (git("ls-tree", "--name-only", "HEAD^", "sitemaps/") or "").split():
+                  previous.update(parse(git("show", f"HEAD^:{path}")))
+
+          if previous is None:
+              urls = sorted(current)
+              new = []
+              print(f"Submitting all {len(urls)} URLs")
+          else:
+              urls = sorted(loc for loc, mod in current.items() if previous.get(loc) != mod)
+              new = [loc for loc in urls if loc not in previous]
+              print(f"{len(urls)} new or changed URLs ({len(new)} new) out of {len(current)}")
+          with open("indexnow-urls.json", "w", encoding="utf-8") as handle:
+              json.dump({"urls": urls, "new": new[:5]}, handle)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"count={len(urls)}\n")
+          EOF
+
+      - name: Wait for the key file and the new pages to be live
+        if: steps.urls.outputs.count != '0'
+        run: |
+          python3 - <<'EOF'
+          import json, os, time, urllib.request
+
+          host, key = os.environ["HOST"], os.environ["KEY"]
+          checks = [(f"https://{host}/{key}.txt", key)] + [(url, None) for url in json.load(open("indexnow-urls.json"))["new"]]
+
+          def ok(url, expected):
+              try:
+                  with urllib.request.urlopen(url, timeout=20) as resp:
+                      return resp.status == 200 and (expected is None or resp.read().decode().strip() == expected)
+              except Exception:
+                  return False
+
+          for attempt in range(40):
+              pending = [url for url, expected in checks if not ok(url, expected)]
+              if not pending:
+                  print("Key file and new pages are live.")
+                  break
+              time.sleep(15)
+          else:
+              raise SystemExit(f"::error::still not reachable: {pending}")
+          EOF
+
+      - name: Submit to IndexNow
+        if: steps.urls.outputs.count != '0'
+        run: |
+          python3 - <<'EOF'
+          import json, os, urllib.request
+
+          host, key = os.environ["HOST"], os.environ["KEY"]
+          urls = json.load(open("indexnow-urls.json"))["urls"]
           for start in range(0, len(urls), 10000):
               body = json.dumps({"host": host, "key": key, "keyLocation": f"https://{host}/{key}.txt",
                                  "urlList": urls[start:start + 10000]}).encode()
               req = urllib.request.Request("https://api.indexnow.org/indexnow", data=body,
                                            headers={"Content-Type": "application/json; charset=utf-8"})
               with urllib.request.urlopen(req, timeout=60) as resp:
-                  print(f"batch {start // 10000 + 1}: HTTP {resp.status}")
+                  print(f"batch {start // 10000 + 1}: {len(urls[start:start + 10000])} URLs, HTTP {resp.status}")
           EOF
