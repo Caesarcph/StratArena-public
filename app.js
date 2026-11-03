@@ -9,7 +9,8 @@ const DATA_FILES = {
   eaAnalysis: "data/ea_analysis.json",
   eaAnalysisDir: "data/ea-analysis",
   eaBacktestIndex: "data/backtest_results_index.json",
-  home: "data/home.json"
+  home: "data/home.json",
+  metricsExt: "data/metrics_ext.json"
 };
 const FAVORITES_KEY = "favorites";
 const CATEGORY_TOP_COUNT = 5;
@@ -255,6 +256,30 @@ function missingEAData(route) {
 
 function ensureEAData(route) {
   return Promise.all(missingEAData(route).map(loadEAKey));
+}
+
+// Extended metrics (curve statistics, score components) live in a separate
+// file that only detail and compare pages need.
+const EXT_METRIC_PAGES = new Set(["strategy", "compare"]);
+let metricsExtState = "idle";
+
+function needsMetricsExt(route) {
+  return EXT_METRIC_PAGES.has(route.page) && Boolean(store.performance?.extendedMetricsFile) && metricsExtState !== "done";
+}
+
+function ensureMetricsExt() {
+  if (metricsExtState !== "idle") return Promise.resolve();
+  metricsExtState = "loading";
+  return fetchJson(store.performance.extendedMetricsFile || DATA_FILES.metricsExt)
+    .then((ext) => {
+      store.metricsExt = ext && typeof ext === "object" ? ext : {};
+    })
+    .catch(() => {
+      store.metricsExt = {};
+    })
+    .then(() => {
+      metricsExtState = "done";
+    });
 }
 
 // Home charts use a small pre-computed file (scripts/build_light_data.py)
@@ -719,6 +744,15 @@ function render() {
     const pendingHref = window.location.href;
     app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
     ensureHomeCharts().then(() => {
+      if (window.location.href === pendingHref) render();
+    });
+    return;
+  }
+
+  if (needsMetricsExt(route)) {
+    const pendingHref = window.location.href;
+    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    ensureMetricsExt().then(() => {
       if (window.location.href === pendingHref) render();
     });
     return;
@@ -1383,7 +1417,9 @@ function renderArena(route) {
               .map((row, index) => {
                 const metricValue =
                   state.metric === "score"
-                    ? row.metrics.arenaScore
+                    ? row.metrics.scoreEligible === false
+                      ? null
+                      : row.metrics.arenaScore
                     : row.metrics[state.metric];
                 const returnTo = encodeURIComponent(
                   new URLSearchParams(window.location.search).toString()
@@ -2354,8 +2390,10 @@ function renderStrategyDetail(route) {
         <button class="tab-button" data-tab="risk">${t("common.risk")}</button>
         <button class="tab-button" data-tab="efficiency">${t("common.efficiency")}</button>
         <button class="tab-button" data-tab="trades">${t("common.trades")}</button>
+        <button class="tab-button" data-tab="benchmark">${t("metric.vs_benchmark")}</button>
       </div>
       ${renderMetricTabs(metrics)}
+      ${renderScoreBreakdown(metrics)}
 
       <div class="section pseudocode">
         <details open>
@@ -2384,13 +2422,18 @@ function renderMetricTabs(metrics) {
         ${metricTile(t("metric.cagr"), formatMetric(metrics.cagr, "cagr"))}
         ${metricTile(t("metric.best_month"), formatMetric(metrics.bestMonth, "totalReturn"))}
         ${metricTile(t("metric.worst_month"), formatMetric(metrics.worstMonth, "totalReturn"))}
+        ${optionalTile(t("metric.positive_months"), metrics.posMonths, "totalReturn")}
       </div>
     </div>
     <div class="tab-content" data-panel="risk">
       <div class="metric-grid">
         ${metricTile(t("metric.max_drawdown"), formatMetric(metrics.maxDrawdown, "maxDrawdown"))}
         ${metricTile(t("metric.volatility"), formatMetric(metrics.volatility, "cagr"))}
-        ${metricTile(t("metric.ulcer_index"), formatMetric(metrics.ulcer, "ratio"))}
+        ${optionalTile(t("metric.ulcer_index"), metrics.ulcer, "totalReturn")}
+        ${optionalTile(t("metric.max_dd_days"), metrics.maxDDDays, "days")}
+        ${optionalTile(t("metric.underwater"), metrics.underwater, "totalReturn")}
+        ${optionalTile(t("metric.var95"), metrics.var95, "totalReturn")}
+        ${optionalTile(t("metric.cvar95"), metrics.cvar95, "totalReturn")}
       </div>
     </div>
     <div class="tab-content" data-panel="efficiency">
@@ -2398,6 +2441,8 @@ function renderMetricTabs(metrics) {
         ${metricTile(t("metric.sharpe"), formatMetric(metrics.sharpe, "ratio"))}
         ${metricTile(t("metric.sortino"), formatMetric(metrics.sortino, "ratio"))}
         ${metricTile(t("metric.calmar"), formatMetric(metrics.calmar, "ratio"))}
+        ${optionalTile(t("metric.martin"), metrics.martin, "ratio")}
+        ${optionalTile(t("metric.psr"), metrics.psr, "totalReturn")}
       </div>
     </div>
     <div class="tab-content" data-panel="trades">
@@ -2406,9 +2451,55 @@ function renderMetricTabs(metrics) {
         ${metricTile(t("metric.turnover_avg_daily"), formatMetric(metrics.turnover, "turnover"))}
         ${metricTile(t("metric.win_rate"), formatMetric(metrics.winRate, "totalReturn"))}
         ${metricTile(t("metric.profit_factor"), formatMetric(metrics.profitFactor, "ratio"))}
+        ${optionalTile(t("metric.exposure"), metrics.exposure, "totalReturn")}
+      </div>
+    </div>
+    <div class="tab-content" data-panel="benchmark">
+      <div class="metric-grid">
+        ${optionalTile(t("metric.bench_cagr"), metrics.benchCagr, "totalReturn")}
+        ${optionalTile(t("metric.bench_max_dd"), metrics.benchMaxDrawdown, "totalReturn")}
+        ${optionalTile(t("metric.alpha"), metrics.alpha, "totalReturn")}
+        ${optionalTile(t("metric.beta"), metrics.beta, "ratio")}
+        ${optionalTile(t("metric.correlation"), metrics.correlation, "ratio")}
+        ${optionalTile(t("metric.info_ratio"), metrics.infoRatio, "ratio")}
+        ${optionalTile(t("metric.up_capture"), metrics.upCapture, "totalReturn")}
+        ${optionalTile(t("metric.down_capture"), metrics.downCapture, "totalReturn")}
       </div>
     </div>
   `;
+}
+
+function optionalTile(label, value, kind) {
+  if (value === undefined || value === null || Number.isNaN(value)) {
+    return metricTile(label, "—");
+  }
+  if (kind === "days") {
+    return metricTile(label, t("metric.days_value", { days: Math.round(value) }));
+  }
+  return metricTile(label, formatMetric(value, kind));
+}
+
+const SCORE_PART_KEYS = ["quality", "drawdown", "consistency", "robustness", "significance"];
+
+function renderScoreBreakdown(metrics) {
+  if (metrics.scoreEligible === false) {
+    return `<div class="score-breakdown card"><strong>${t("score.title")}: —</strong><p class="muted">${t("score.ineligible")}</p></div>`;
+  }
+  const parts = metrics.scoreParts;
+  if (!parts) return "";
+  return `
+    <div class="score-breakdown card">
+      <div class="score-breakdown-head">
+        <strong>${t("score.title")}: ${formatMetric(metrics.arenaScore, "score")}</strong>
+        <a class="link small-link" href="/${getLang() === "zh" ? "zh/" : ""}glossary/arena-score/">${t("score.how")}</a>
+      </div>
+      ${SCORE_PART_KEYS.map((key) => {
+        const value = parts[key];
+        const width = value === null || value === undefined ? 0 : Math.max(0, Math.min(100, value));
+        return `<div class="score-line" title="${t(`score.${key}_desc`)}"><span>${t(`score.${key}`)}</span><span class="score-track"><span style="width:${width}%"></span></span><strong>${value === null || value === undefined ? "—" : Math.round(value)}</strong></div>`;
+      }).join("")}
+      <p class="muted small-note">${t("score.note")}</p>
+    </div>`;
 }
 
 function metricTile(label, value) {
@@ -4049,8 +4140,10 @@ function buildLeaderboard(instrument, window) {
     .filter((strategy) => strategy.instruments.includes(instrument))
     .map((strategy) => {
       const metrics = getMetricsFor(strategy.id, instrument, window);
-      metrics.arenaScore = metrics.arenaScore || calcArenaScore(metrics);
-      return { strategy, metrics };
+      // Only fall back to the local formula when the data has no score at all;
+      // 0 is a real score (unranked strategies get 0 and scoreEligible=false).
+      const arenaScore = metrics.arenaScore ?? calcArenaScore(metrics);
+      return { strategy, metrics: arenaScore === metrics.arenaScore ? metrics : { ...metrics, arenaScore } };
     });
 }
 
@@ -4078,7 +4171,8 @@ function getMetricsFor(strategyId, instrument, window) {
   const perf = store.performance.strategies?.[strategyId] || {};
   const metrics = perf.metrics?.[instrument]?.[window];
   if (metrics) {
-    return metrics;
+    const ext = store.metricsExt?.[strategyId]?.[instrument]?.[window];
+    return ext ? { ...metrics, ...ext } : metrics;
   }
   const series = getSeries(strategyId, instrument);
   const windowed = sliceSeries(series, window);
