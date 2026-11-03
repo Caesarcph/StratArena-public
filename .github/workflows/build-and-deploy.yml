@@ -1,0 +1,91 @@
+# Optional: build the site on GitHub and deploy it to Pages without committing
+# the generated data. This stops the repositories from growing by ~9 MB a day
+# (see ROADMAP.md, section 7, "仓库体积").
+#
+# Manual trigger only until you switch over. Setup (once):
+#   1. Create a fine-grained personal access token with "Contents: read" on
+#      Caesarcph/StratArena and add it to THIS repository as the secret
+#      SOURCE_REPO_TOKEN.
+#   2. (Optional) add STRATARENA_WEBHOOK_URL as a secret for failure alerts.
+#   3. Run it once by hand (Actions → build-and-deploy → Run workflow). It
+#      builds and uploads the site but only deploys after step 4.
+#   4. Settings → Pages → Build and deployment → Source: "GitHub Actions".
+#      The custom domain (quantarenas.com) stays as it is.
+#   5. If runs succeed for a few days, uncomment the schedule below and stop
+#      the cron job on the home machine.
+#
+# The build is the normal daily job (scripts/daily_update.py) with --no-commit:
+# same download, validation and rollback, then the result is uploaded instead
+# of pushed. If validation fails, nothing is deployed and the live site keeps
+# the previous version.
+name: build-and-deploy
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "41 10 * * 2-6"   # 10:41 UTC, Tue–Sat, after the US close
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out the source repository
+        uses: actions/checkout@v4
+        with:
+          repository: Caesarcph/StratArena
+          ref: main
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+
+      - name: Check out this site (publish target)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: public-site
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Build, validate and publish into public-site
+        env:
+          STRATARENA_WEBHOOK_URL: ${{ secrets.STRATARENA_WEBHOOK_URL }}
+        run: python scripts/daily_update.py --public public-site --no-sync --no-commit
+
+      - name: Keep the run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: |
+            logs/daily_update_*.log
+            logs/last_run.json
+          retention-days: 14
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public-site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
