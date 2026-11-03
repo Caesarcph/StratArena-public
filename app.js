@@ -3383,7 +3383,11 @@ function sortRows(rows, sort, dir, metric) {
   return [...rows].sort((a, b) => {
     const valueA = valueForSort(a.metrics, key);
     const valueB = valueForSort(b.metrics, key);
-    return (valueA - valueB) * direction;
+    if (valueA !== valueB) return (valueA - valueB) * direction;
+    // Equal scores: higher Sharpe first, then id, so the order never depends on data order.
+    const sharpeDiff = (b.metrics.sharpe ?? -Infinity) - (a.metrics.sharpe ?? -Infinity);
+    if (sharpeDiff) return sharpeDiff;
+    return String(a.strategy?.id || "").localeCompare(String(b.strategy?.id || ""));
   });
 }
 
