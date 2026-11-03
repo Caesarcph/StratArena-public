@@ -1050,6 +1050,17 @@ function renderHome() {
       </div>
     </section>
 
+    <section class="section">
+      <div class="quick-links">
+        <span class="quick-links-label">${t("home.new_tools")}</span>
+        <a class="quick-link" href="?page=lab">${t("nav.lab")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}signals/">${t("nav.signals")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}heatmap/">${t("nav.heatmap")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}reports/">${t("nav.reports")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}glossary/">${t("nav.glossary")}</a>
+      </div>
+    </section>
+
     <section class="section split">
       <div class="card">
         <div class="card-head">
@@ -1713,7 +1724,29 @@ function renderCorrelationMatrix(strategies, instrument, window) {
   `;
 }
 
+// Weights travel in the URL as w=ID:weight,ID:weight so a portfolio can be shared.
+function weightsFromUrl() {
+  const raw = new URLSearchParams(window.location.search).get("w") || "";
+  const map = new Map();
+  raw.split(",").forEach((pair) => {
+    const [id, value] = pair.split(":");
+    const number = parseFloat(value);
+    if (id && Number.isFinite(number)) map.set(id, Math.max(0, Math.min(100, number)));
+  });
+  return map;
+}
+
+function portfolioShareUrl(strategyIds, weights) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("w", strategyIds.map((id, i) => `${id}:${Math.round(weights[i] * 10) / 10}`).join(","));
+  return url.toString();
+}
+
 function getPortfolioWeights(strategyIds) {
+  const fromUrl = weightsFromUrl();
+  strategyIds.forEach((id) => {
+    if (!portfolioWeights.has(id) && fromUrl.has(id)) portfolioWeights.set(id, fromUrl.get(id));
+  });
   if (!strategyIds.length) return [];
   const fallback = 100 / strategyIds.length;
   return strategyIds.map((id) => {
@@ -1930,6 +1963,7 @@ function renderPortfolioSection(strategies, instrument, window) {
         <div class="chip-group">
           <button class="chip" data-portfolio-preset="equal">${t("portfolio.equal_weight")}</button>
           <button class="chip" data-portfolio-preset="risk">${t("portfolio.risk_parity")}</button>
+          <button class="chip" data-portfolio-share>${t("portfolio.copy_link")}</button>
         </div>
       </div>
       <div class="portfolio-grid">
@@ -3252,6 +3286,25 @@ function bindPortfolioBuilder(route) {
   weightInputs.forEach((input) => {
     input.addEventListener("input", updateFromInputs);
   });
+
+  const shareButton = document.querySelector("[data-portfolio-share]");
+  if (shareButton) {
+    shareButton.addEventListener("click", async () => {
+      const weights = weightInputs.map((input) => parseFloat(input.value) || 0);
+      const link = portfolioShareUrl(strategyIds, weights);
+      history.replaceState(history.state, "", link);
+      try {
+        await navigator.clipboard.writeText(link);
+        shareButton.textContent = t("portfolio.link_copied");
+      } catch (err) {
+        window.prompt(t("portfolio.copy_link"), link);
+      }
+      if (typeof trackEvent === "function") trackEvent("share_portfolio", { n: strategyIds.length });
+      setTimeout(() => {
+        shareButton.textContent = t("portfolio.copy_link");
+      }, 2000);
+    });
+  }
 
   updateFromInputs();
 }
