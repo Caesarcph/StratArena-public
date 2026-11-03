@@ -531,6 +531,7 @@ function renderEADetail(route) {
      <span class="ea-bt-label">${isZh ? "恢复因子" : "Recovery Factor"}</span>
      <span class="ea-bt-value">${activeBt.max_drawdown_pct ? eaRecoveryFactor(activeBt).toFixed(2) : "—"}</span>
     </div>
+    ${eaTradeStatTiles(activeBt, isZh)}
     <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "年化收益" : "Annual Return"}</span>
      <span class="ea-bt-value ${activeBt.annual_return > 0 ? "ea-bt-profit" : activeBt.annual_return < 0 ? "ea-bt-loss" : ""}">${activeBt.annual_return !== undefined ? activeBt.annual_return.toFixed(2) : "—"}%</span>
@@ -656,6 +657,7 @@ function bindEADetail(route) {
      <span class="ea-bt-label">${isZh ? "恢复因子" : "Recovery Factor"}</span>
      <span class="ea-bt-value">${bt.max_drawdown_pct ? eaRecoveryFactor(bt).toFixed(2) : "—"}</span>
     </div>
+    ${eaTradeStatTiles(bt, isZh)}
     <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "年化收益" : "Annual Return"}</span>
      <span class="ea-bt-value ${bt.annual_return > 0 ? "ea-bt-profit" : bt.annual_return < 0 ? "ea-bt-loss" : ""}">${bt.annual_return !== undefined ? bt.annual_return.toFixed(2) : "—"}%</span>
@@ -750,6 +752,18 @@ function isReliableBacktest(result) {
   if (result.quality) return result.quality === "ok";
   const trades = result.total_trades || 0;
   return trades >= EA_MIN_TRADES && Math.abs(result.pnl_pct || 0) >= 0.01 && (result.max_drawdown_pct || 0) > 0;
+}
+
+// Longest losing streak, average holding time and average P&L per trade.
+function eaTradeStatTiles(bt, isZh) {
+  if (!bt || !bt.total_trades || bt.max_consec_losses === undefined || bt.max_consec_losses === null) return "";
+  const hours = Number.isFinite(bt.avg_bars_held) ? bt.avg_bars_held : null;
+  const held = hours === null ? "—" : hours >= 48 ? `${(hours / 24).toFixed(1)} ${isZh ? "天" : "days"}` : `${hours.toFixed(0)} ${isZh ? "小时" : "h"}`;
+  const exp = Number.isFinite(bt.expectancy) ? bt.expectancy : null;
+  const tile = (label, value, cls = "") => `<div class="ea-bt-metric"><span class="ea-bt-label">${label}</span><span class="ea-bt-value ${cls}">${value}</span></div>`;
+  return tile(isZh ? "最长连亏" : "Longest losing streak", `${bt.max_consec_losses}${isZh ? " 笔" : ""}`)
+    + tile(isZh ? "平均持仓" : "Avg holding time", held)
+    + tile(isZh ? "每笔期望" : "Expectancy per trade", exp === null ? "—" : `${exp >= 0 ? "+" : "−"}$${Math.abs(exp).toFixed(2)}`, exp > 0 ? "ea-bt-profit" : exp < 0 ? "ea-bt-loss" : "");
 }
 
 // Net return divided by the maximum drawdown (both in %).
