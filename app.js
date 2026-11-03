@@ -168,9 +168,23 @@ function ensureChartLib() {
   };
 }
 
+// Chart.js loads async so it never blocks the app scripts; wait for it (or
+// give up after a few seconds) before the first render.
+function waitForChartLib(timeoutMs = 8000) {
+  if (typeof window.Chart !== "undefined") return Promise.resolve();
+  const tag = document.getElementById("chartjs");
+  if (!tag || window.__chartFailed) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => resolve();
+    tag.addEventListener("load", done, { once: true });
+    tag.addEventListener("error", done, { once: true });
+    setTimeout(done, timeoutMs);
+  });
+}
+
 async function init() {
+  await Promise.all([loadData(), waitForChartLib()]);
   ensureChartLib();
-  await loadData();
   initFavorites();
   bindGlobal();
   render();
