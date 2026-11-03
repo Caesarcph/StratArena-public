@@ -4,9 +4,12 @@ const DATA_FILES = {
   strategies: "data/strategies.json",
   performance: "data/performance.json",
   changelog: "data/changelog.json",
+  eaIndex: "data/ea_index.json",
   eaCatalog: "data/ea_catalog.json",
   eaAnalysis: "data/ea_analysis.json",
-  eaBacktestIndex: "data/backtest_results_index.json"
+  eaAnalysisDir: "data/ea-analysis",
+  eaBacktestIndex: "data/backtest_results_index.json",
+  home: "data/home.json"
 };
 const FAVORITES_KEY = "favorites";
 const CATEGORY_TOP_COUNT = 5;
@@ -170,38 +173,114 @@ async function init() {
 }
 
 async function loadData() {
-  const [strategies, performance, changelog, eaCatalog] = await Promise.all([
+  const [strategies, performance, changelog, eaIndex] = await Promise.all([
     fetchJson(DATA_FILES.strategies),
     fetchJson(DATA_FILES.performance),
     fetchJson(DATA_FILES.changelog),
-    fetchJson(DATA_FILES.eaCatalog).catch(() => [])
+    // Slim EA list (ids, names, categories, ratings); the full catalog with
+    // descriptions is only fetched on EA detail pages.
+    fetchJson(DATA_FILES.eaIndex).catch(() => fetchJson(DATA_FILES.eaCatalog).catch(() => []))
   ]);
 
   store.strategies = strategies.strategies || [];
   store.performance = performance || { instruments: [], windows: [] };
   store.changelog = changelog.entries || [];
-  if (Array.isArray(eaCatalog)) store.eaCatalog = eaCatalog;
+  if (Array.isArray(eaIndex)) store.eaCatalog = eaIndex;
 }
 
-// The EA analysis + backtest index are large (~14MB), so only fetch them
-// when an EA page actually needs them.
+// EA pages load only what they need:
+//   ea-arena   nothing extra (the slim index carries the "analyzed" flag)
+//   ea-ranking backtest index (~120 KB gzip)
+//   ea-detail  full catalog + backtest index + that one EA's analysis file
 const EA_DATA_PAGES = new Set(["ea-arena", "ea-detail", "ea-ranking"]);
-let eaDataPromise = null;
-let eaDataLoaded = false;
+const eaLoads = new Map();
+const eaLoaded = new Set();
 
-function ensureEAData() {
-  if (eaDataLoaded) return Promise.resolve();
-  if (!eaDataPromise) {
-    eaDataPromise = Promise.all([
-      fetchJson(DATA_FILES.eaAnalysis).catch(() => ({})),
-      fetchJson(DATA_FILES.eaBacktestIndex).catch(() => ({}))
-    ]).then(([eaAnalysis, eaBacktestIndex]) => {
-      if (eaAnalysis && typeof eaAnalysis === "object" && !Array.isArray(eaAnalysis)) store.eaAnalysis = eaAnalysis;
-      if (eaBacktestIndex && typeof eaBacktestIndex === "object" && !Array.isArray(eaBacktestIndex)) store.eaBacktestIndex = eaBacktestIndex;
-      eaDataLoaded = true;
-    });
+function loadOnce(key, loader) {
+  if (eaLoaded.has(key)) return Promise.resolve();
+  if (!eaLoads.has(key)) {
+    eaLoads.set(
+      key,
+      loader()
+        .catch((err) => console.warn(`EA data unavailable: ${key}`, err))
+        .then(() => {
+          eaLoaded.add(key);
+        })
+    );
   }
-  return eaDataPromise;
+  return eaLoads.get(key);
+}
+
+function eaDataKeys(route) {
+  if (route.page === "ea-ranking") return ["backtests"];
+  if (route.page === "ea-detail") {
+    const id = route.params.get("id") || "";
+    return ["catalog", "backtests", `analysis:${id}`];
+  }
+  return [];
+}
+
+function loadEAKey(key) {
+  if (key === "backtests") {
+    return loadOnce(key, () =>
+      fetchJson(DATA_FILES.eaBacktestIndex).then((index) => {
+        if (index && typeof index === "object" && !Array.isArray(index)) store.eaBacktestIndex = index;
+      })
+    );
+  }
+  if (key === "catalog") {
+    return loadOnce(key, () =>
+      fetchJson(DATA_FILES.eaCatalog).then((catalog) => {
+        if (!Array.isArray(catalog)) return;
+        const flags = new Map(store.eaCatalog.map((ea) => [ea.id, ea.analyzed]));
+        store.eaCatalog = catalog.map((ea) => (flags.get(ea.id) ? { ...ea, analyzed: true } : ea));
+      })
+    );
+  }
+  if (key.startsWith("analysis:")) {
+    const id = key.slice("analysis:".length);
+    if (!/^EA-\d+$/.test(id)) return Promise.resolve();
+    return loadOnce(key, () =>
+      fetchJson(`${DATA_FILES.eaAnalysisDir}/${id}.json`).then((analysis) => {
+        if (analysis && typeof analysis === "object") store.eaAnalysis[id] = analysis;
+      })
+    );
+  }
+  return Promise.resolve();
+}
+
+function missingEAData(route) {
+  return eaDataKeys(route).filter((key) => !eaLoaded.has(key));
+}
+
+function ensureEAData(route) {
+  return Promise.all(missingEAData(route).map(loadEAKey));
+}
+
+// Home charts use a small pre-computed file (scripts/build_light_data.py)
+// instead of three full equity files.
+let homeChartsState = "idle";
+
+function ensureHomeCharts() {
+  if (homeChartsState !== "idle") return Promise.resolve();
+  homeChartsState = "loading";
+  return fetchJson(DATA_FILES.home)
+    .then((payload) => {
+      store.homeCharts = Array.isArray(payload?.charts) ? payload.charts : null;
+    })
+    .catch(() => {
+      store.homeCharts = null;
+    })
+    .then(() => {
+      homeChartsState = "done";
+    });
+}
+
+function hasLivePerformanceData() {
+  const strategies = store.performance?.strategies || {};
+  return Object.values(strategies).some(
+    (entry) => entry && entry.metrics && Object.keys(entry.metrics).length
+  );
 }
 
 // Equity curves live in per-instrument files (data/equity/*.json) so a page
@@ -250,7 +329,8 @@ function requiredEquitySymbols(route) {
   const instrument = params.get("instrument");
   switch (route.page) {
     case "home":
-      return [defaultInstrument(), "SPY", "GLD", "EURUSD=X"];
+      // Pre-computed home charts make the full equity files unnecessary.
+      return store.homeCharts && store.homeCharts.length ? [] : [defaultInstrument(), "SPY", "GLD", "EURUSD=X"];
     case "arena":
     case "compare":
     case "favorites":
@@ -286,12 +366,6 @@ function queueRenderAfterEquity(symbol) {
   });
 }
 
-function hasLivePerformanceData() {
-  const strategies = store.performance?.strategies || {};
-  return Object.values(strategies).some(
-    (entry) => entry && entry.metrics && Object.keys(entry.metrics).length
-  );
-}
 
 async function fetchJson(path) {
   // "no-cache" revalidates with the server (ETag) instead of re-downloading
@@ -641,6 +715,15 @@ function render() {
     return;
   }
 
+  if (route.page === "home" && homeChartsState !== "done") {
+    const pendingHref = window.location.href;
+    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    ensureHomeCharts().then(() => {
+      if (window.location.href === pendingHref) render();
+    });
+    return;
+  }
+
   const missingEquity = [...new Set(requiredEquitySymbols(route))].filter(isEquityPending);
   if (missingEquity.length) {
     const pendingHref = window.location.href;
@@ -651,11 +734,11 @@ function render() {
     return;
   }
 
-  if (EA_DATA_PAGES.has(route.page) && !eaDataLoaded) {
-    const pendingPage = route.page;
+  if (EA_DATA_PAGES.has(route.page) && missingEAData(route).length) {
+    const pendingHref = window.location.href;
     app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
-    ensureEAData().then(() => {
-      if (getRoute().page === pendingPage) render();
+    ensureEAData(route).then(() => {
+      if (window.location.href === pendingHref) render();
     });
     return;
   }
@@ -1107,24 +1190,38 @@ function drawHomeCharts() {
   });
 }
 
-function drawHomeChart(canvasId, instrument, window) {
+function homeChartData(canvasId, instrument, window) {
+  const precomputed = (store.homeCharts || []).find((chart) => chart.id === canvasId);
+  if (precomputed) {
+    return {
+      labels: precomputed.dates,
+      series: precomputed.series.map((item) => ({ id: item.id, values: item.values }))
+    };
+  }
   const leaderboard = buildLeaderboard(instrument, window)
     .sort((a, b) => b.metrics.arenaScore - a.metrics.arenaScore)
     .slice(0, 5);
-  const ctx = document.getElementById(canvasId);
-  if (!ctx || !leaderboard.length) return;
+  if (!leaderboard.length) return null;
+  const baseSeries = sliceSeries(getSeries(leaderboard[0].strategy.id, instrument), window);
+  return {
+    labels: baseSeries.dates,
+    series: leaderboard.map((row) => ({
+      id: row.strategy.id,
+      values: normalizeSeries(sliceSeries(getSeries(row.strategy.id, instrument), window)).strategy
+    }))
+  };
+}
 
-  const baseSeries = sliceSeries(
-    getSeries(leaderboard[0].strategy.id, instrument),
-    window
-  );
-  const labels = baseSeries.dates;
-  const datasets = leaderboard.map((row, index) => {
-    const series = sliceSeries(getSeries(row.strategy.id, instrument), window);
-    const normalized = normalizeSeries(series).strategy;
+function drawHomeChart(canvasId, instrument, window) {
+  const ctx = document.getElementById(canvasId);
+  const chartData = ctx ? homeChartData(canvasId, instrument, window) : null;
+  if (!chartData || !chartData.series.length) return;
+
+  const labels = chartData.labels;
+  const datasets = chartData.series.map((item, index) => {
     return {
-      label: row.strategy.id,
-      data: normalized,
+      label: item.id,
+      data: item.values,
       borderColor: palette(index),
       backgroundColor: "transparent",
       borderWidth: 2,

@@ -102,6 +102,12 @@ function eaCategoryBadge(cat) {
   return `<span class="ea-category-badge" style="--cat-color:${color}">${getEACategoryLabel(value)}</span>`;
 }
 
+// The slim EA index (data/ea_index.json) flags analysed EAs; the full
+// analysis is only loaded on detail pages.
+function isEAAnalyzed(ea) {
+  return Boolean(ea && (ea.analyzed || store.eaAnalysis[ea.id]));
+}
+
 function renderEAArena(route) {
   const s = eaArenaState(route);
   const all = store.eaCatalog || [];
@@ -119,7 +125,7 @@ function renderEAArena(route) {
   if (s.category) items = items.filter((ea) => ea.category === s.category);
   if (s.risk) items = items.filter((ea) => ea.overall_risk === s.risk);
   if (s.rating) items = items.filter((ea) => String(ea.rating) === s.rating);
-  if (s.analyzed) items = items.filter((ea) => store.eaAnalysis[ea.id]);
+  if (s.analyzed) items = items.filter(isEAAnalyzed);
 
   items.sort((a, b) => {
     switch (s.sort) {
@@ -154,7 +160,7 @@ function renderEAArena(route) {
     const value = ea.rating || 0;
     ratingCounts[value] = (ratingCounts[value] || 0) + 1;
   });
-  const analyzedCount = all.filter((ea) => store.eaAnalysis[ea.id]).length;
+  const analyzedCount = all.filter(isEAAnalyzed).length;
 
   const catChips = EA_CATEGORIES.filter((c) => catCounts[c.value])
     .map(
@@ -196,7 +202,7 @@ let eaCurrentItems = [];
 let eaRefocusSearch = false;
 
 function renderEACard(ea) {
-      const analysis = store.eaAnalysis[ea.id];
+      const analysis = isEAAnalyzed(ea);
       return `
       <a class="ea-card" href="?page=ea-detail&id=${ea.id}" data-ea-id="${ea.id}">
         <div class="ea-card-header">
