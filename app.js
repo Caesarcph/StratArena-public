@@ -469,6 +469,7 @@ function strategySlug(strategy) {
 const NOINDEX_PAGES = new Set(["favorites", "compare", "ea-ranking", "lab"]);
 // App views with a static, fully rendered version (scripts/generate_static_pages.py).
 const STATIC_TWINS = {
+  arena: "arena/",
   strategies: "strategies/",
   about: "about/",
   methodology: "methodology/",
@@ -484,6 +485,17 @@ const CANONICAL_PARAMS = {
   research: ["slug"],
   strategy: ["id"]
 };
+
+// index.html ships a pre-rendered summary of the home page (crawlers, first
+// paint). Keep it on screen while the home page loads; drop it as soon as
+// anything else is shown.
+function showLoading(app, route, html) {
+  if (app.dataset.prerender) {
+    if (app.dataset.prerender === route.page) return;
+    delete app.dataset.prerender;
+  }
+  app.innerHTML = html;
+}
 
 function buildCanonicalUrl(route) {
   if (window.location.origin === "null") {
@@ -776,13 +788,13 @@ function render() {
 
   const app = document.getElementById("app");
   if (!store.strategies.length) {
-    app.innerHTML = `<section class="section"><h2>${t("common.loading")}</h2></section>`;
+    showLoading(app, route, `<section class="section"><h2>${t("common.loading")}</h2></section>`);
     return;
   }
 
   if (route.page === "home" && homeChartsState !== "done") {
     const pendingHref = window.location.href;
-    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    showLoading(app, route, `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`);
     ensureHomeCharts().then(() => {
       if (window.location.href === pendingHref) render();
     });
@@ -791,7 +803,7 @@ function render() {
 
   if (needsMetricsExt(route)) {
     const pendingHref = window.location.href;
-    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    showLoading(app, route, `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`);
     ensureMetricsExt().then(() => {
       if (window.location.href === pendingHref) render();
     });
@@ -801,7 +813,7 @@ function render() {
   const missingEquity = [...new Set(requiredEquitySymbols(route))].filter(isEquityPending);
   if (missingEquity.length) {
     const pendingHref = window.location.href;
-    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    showLoading(app, route, `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`);
     Promise.all(missingEquity.map(loadEquity)).then(() => {
       if (window.location.href === pendingHref) render();
     });
@@ -810,13 +822,14 @@ function render() {
 
   if (EA_DATA_PAGES.has(route.page) && missingEAData(route).length) {
     const pendingHref = window.location.href;
-    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    showLoading(app, route, `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`);
     ensureEAData(route).then(() => {
       if (window.location.href === pendingHref) render();
     });
     return;
   }
 
+  delete app.dataset.prerender;
   switch (route.page) {
     case "home":
       app.innerHTML = renderHome();
