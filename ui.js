@@ -595,6 +595,9 @@ function bindAnalytics() {
     else if (target.matches(".search-option")) trackEvent("search_select", { href: target.getAttribute("href") || "" });
     else if (target.tagName === "A" && /mql5\.com/.test(target.getAttribute("href") || "")) trackEvent("outbound_mql5", { page });
   });
+  document.addEventListener("submit", (event) => {
+    if (event.target.matches(".newsletter-form")) trackEvent("newsletter_subscribe", { path: location.pathname });
+  });
 }
 
 /* ---------- Hooks called by app.js render() ---------- */
