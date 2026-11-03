@@ -4,9 +4,13 @@ const DATA_FILES = {
   strategies: "data/strategies.json",
   performance: "data/performance.json",
   changelog: "data/changelog.json",
+  eaIndex: "data/ea_index.json",
   eaCatalog: "data/ea_catalog.json",
   eaAnalysis: "data/ea_analysis.json",
-  eaBacktestIndex: "data/backtest_results_index.json"
+  eaAnalysisDir: "data/ea-analysis",
+  eaBacktestIndex: "data/backtest_results_index.json",
+  home: "data/home.json",
+  metricsExt: "data/metrics_ext.json"
 };
 const FAVORITES_KEY = "favorites";
 const CATEGORY_TOP_COUNT = 5;
@@ -111,6 +115,10 @@ const PAGE_META = {
   "ea-ranking": {
     titleKey: "meta.ea_ranking_title",
     descriptionKey: "meta.ea_ranking_desc"
+  },
+  lab: {
+    titleKey: "meta.lab_title",
+    descriptionKey: "meta.lab_desc"
   }
 };
 
@@ -138,8 +146,45 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+function ensureChartLib() {
+  if (typeof window.Chart !== "undefined") return;
+  // CDN blocked or offline: keep the page usable without charts.
+  console.warn("Chart.js failed to load; charts are disabled.");
+  window.Chart = class ChartUnavailable {
+    constructor(ctx, config) {
+      this.data = config?.data || { labels: [], datasets: [] };
+      this.options = config?.options || {};
+      const canvas = ctx && ctx.canvas ? ctx.canvas : ctx;
+      if (canvas && canvas.parentElement && !canvas.parentElement.querySelector(".chart-unavailable")) {
+        canvas.insertAdjacentHTML("afterend", `<div class="chart-unavailable">${t("common.chart_unavailable")}</div>`);
+      }
+    }
+    destroy() {}
+    update() {}
+    resize() {}
+    toBase64Image() {
+      return "";
+    }
+  };
+}
+
+// Chart.js loads async so it never blocks the app scripts; wait for it (or
+// give up after a few seconds) before the first render.
+function waitForChartLib(timeoutMs = 8000) {
+  if (typeof window.Chart !== "undefined") return Promise.resolve();
+  const tag = document.getElementById("chartjs");
+  if (!tag || window.__chartFailed) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => resolve();
+    tag.addEventListener("load", done, { once: true });
+    tag.addEventListener("error", done, { once: true });
+    setTimeout(done, timeoutMs);
+  });
+}
+
 async function init() {
-  await loadData();
+  await Promise.all([loadData(), waitForChartLib()]);
+  ensureChartLib();
   initFavorites();
   bindGlobal();
   render();
@@ -147,25 +192,231 @@ async function init() {
 }
 
 async function loadData() {
-  const [strategies, performance, changelog, eaCatalog, eaAnalysis, eaBacktestIndex] = await Promise.all([
+  const [strategies, performance, changelog, eaIndex] = await Promise.all([
     fetchJson(DATA_FILES.strategies),
     fetchJson(DATA_FILES.performance),
     fetchJson(DATA_FILES.changelog),
-    fetchJson(DATA_FILES.eaCatalog).catch(() => []),
-    fetchJson(DATA_FILES.eaAnalysis).catch(() => ({})),
-    fetchJson(DATA_FILES.eaBacktestIndex).catch(() => ({}))
+    // Slim EA list (ids, names, categories, ratings); the full catalog with
+    // descriptions is only fetched on EA detail pages.
+    fetchJson(DATA_FILES.eaIndex).catch(() => fetchJson(DATA_FILES.eaCatalog).catch(() => []))
   ]);
 
   store.strategies = strategies.strategies || [];
   store.performance = performance || { instruments: [], windows: [] };
   store.changelog = changelog.entries || [];
-  if (Array.isArray(eaCatalog)) store.eaCatalog = eaCatalog;
-  if (eaAnalysis && typeof eaAnalysis === "object" && !Array.isArray(eaAnalysis)) store.eaAnalysis = eaAnalysis;
-  if (eaBacktestIndex && typeof eaBacktestIndex === "object" && !Array.isArray(eaBacktestIndex)) store.eaBacktestIndex = eaBacktestIndex;
+  if (Array.isArray(eaIndex)) store.eaCatalog = eaIndex;
+}
+
+// EA pages load only what they need:
+//   ea-arena   nothing extra (the slim index carries the "analyzed" flag)
+//   ea-ranking backtest index (~120 KB gzip)
+//   ea-detail  full catalog + backtest index + that one EA's analysis file
+const EA_DATA_PAGES = new Set(["ea-arena", "ea-detail", "ea-ranking"]);
+const eaLoads = new Map();
+const eaLoaded = new Set();
+
+function loadOnce(key, loader) {
+  if (eaLoaded.has(key)) return Promise.resolve();
+  if (!eaLoads.has(key)) {
+    eaLoads.set(
+      key,
+      loader()
+        .catch((err) => console.warn(`EA data unavailable: ${key}`, err))
+        .then(() => {
+          eaLoaded.add(key);
+        })
+    );
+  }
+  return eaLoads.get(key);
+}
+
+function eaDataKeys(route) {
+  if (route.page === "ea-ranking") return ["backtests"];
+  if (route.page === "ea-detail") {
+    const id = route.params.get("id") || "";
+    return ["catalog", "backtests", `analysis:${id}`];
+  }
+  return [];
+}
+
+function loadEAKey(key) {
+  if (key === "backtests") {
+    return loadOnce(key, () =>
+      fetchJson(DATA_FILES.eaBacktestIndex).then((index) => {
+        if (index && typeof index === "object" && !Array.isArray(index)) store.eaBacktestIndex = index;
+      })
+    );
+  }
+  if (key === "catalog") {
+    return loadOnce(key, () =>
+      fetchJson(DATA_FILES.eaCatalog).then((catalog) => {
+        if (!Array.isArray(catalog)) return;
+        const flags = new Map(store.eaCatalog.map((ea) => [ea.id, ea.analyzed]));
+        store.eaCatalog = catalog.map((ea) => (flags.get(ea.id) ? { ...ea, analyzed: true } : ea));
+      })
+    );
+  }
+  if (key.startsWith("analysis:")) {
+    const id = key.slice("analysis:".length);
+    if (!/^EA-\d+$/.test(id)) return Promise.resolve();
+    return loadOnce(key, () =>
+      fetchJson(`${DATA_FILES.eaAnalysisDir}/${id}.json`).then((analysis) => {
+        if (analysis && typeof analysis === "object") store.eaAnalysis[id] = analysis;
+      })
+    );
+  }
+  return Promise.resolve();
+}
+
+function missingEAData(route) {
+  return eaDataKeys(route).filter((key) => !eaLoaded.has(key));
+}
+
+function ensureEAData(route) {
+  return Promise.all(missingEAData(route).map(loadEAKey));
+}
+
+// Extended metrics (curve statistics, score components) live in a separate
+// file that only detail and compare pages need.
+const EXT_METRIC_PAGES = new Set(["strategy", "compare"]);
+let metricsExtState = "idle";
+
+function needsMetricsExt(route) {
+  return EXT_METRIC_PAGES.has(route.page) && Boolean(store.performance?.extendedMetricsFile) && metricsExtState !== "done";
+}
+
+function ensureMetricsExt() {
+  if (metricsExtState !== "idle") return Promise.resolve();
+  metricsExtState = "loading";
+  return fetchJson(store.performance.extendedMetricsFile || DATA_FILES.metricsExt)
+    .then((ext) => {
+      store.metricsExt = ext && typeof ext === "object" ? ext : {};
+    })
+    .catch(() => {
+      store.metricsExt = {};
+    })
+    .then(() => {
+      metricsExtState = "done";
+    });
+}
+
+// Home charts use a small pre-computed file (scripts/build_light_data.py)
+// instead of three full equity files.
+let homeChartsState = "idle";
+
+function ensureHomeCharts() {
+  if (homeChartsState !== "idle") return Promise.resolve();
+  homeChartsState = "loading";
+  return fetchJson(DATA_FILES.home)
+    .then((payload) => {
+      store.homeCharts = Array.isArray(payload?.charts) ? payload.charts : null;
+    })
+    .catch(() => {
+      store.homeCharts = null;
+    })
+    .then(() => {
+      homeChartsState = "done";
+    });
+}
+
+function hasLivePerformanceData() {
+  const strategies = store.performance?.strategies || {};
+  return Object.values(strategies).some(
+    (entry) => entry && entry.metrics && Object.keys(entry.metrics).length
+  );
+}
+
+// Equity curves live in per-instrument files (data/equity/*.json) so a page
+// only downloads the series it actually draws.
+const equityLoaded = new Set();
+const equityPending = new Map();
+
+function equityFileFor(symbol) {
+  const files = store.performance?.equityFiles;
+  return files && symbol ? files[symbol] || null : null;
+}
+
+function isEquityPending(symbol) {
+  return Boolean(equityFileFor(symbol)) && !equityLoaded.has(symbol);
+}
+
+function loadEquity(symbol) {
+  if (equityPending.has(symbol)) return equityPending.get(symbol);
+  const promise = fetchJson(equityFileFor(symbol))
+    .then((file) => {
+      const sharedDates = file.dates || [];
+      const strategies = store.performance.strategies || (store.performance.strategies = {});
+      Object.entries(file.strategies || {}).forEach(([strategyId, entry]) => {
+        const perf = strategies[strategyId] || (strategies[strategyId] = {});
+        if (!perf.equity) perf.equity = {};
+        perf.equity[symbol] = {
+          dates: entry.dates || sharedDates,
+          strategy: entry.strategy,
+          benchmark: entry.benchmark
+        };
+      });
+    })
+    .catch((err) => {
+      console.warn(`Equity data unavailable for ${symbol}`, err);
+    })
+    .then(() => {
+      equityLoaded.add(symbol);
+      seriesCache.clear();
+    });
+  equityPending.set(symbol, promise);
+  return promise;
+}
+
+function requiredEquitySymbols(route) {
+  const params = route.params;
+  const instrument = params.get("instrument");
+  switch (route.page) {
+    case "home":
+      // Pre-computed home charts make the full equity files unnecessary.
+      return store.homeCharts && store.homeCharts.length ? [] : [defaultInstrument(), "SPY", "GLD", "EURUSD=X"];
+    case "arena":
+    case "favorites":
+      // Leaderboards only need the pre-computed metrics.
+      return hasLivePerformanceData() ? [] : [instrument || defaultInstrument()];
+    case "compare":
+      return [instrument || defaultInstrument()];
+    case "lab":
+      return [instrument || "SPY"];
+    case "strategy": {
+      const strategyId = params.get("id") || store.strategies[0]?.id;
+      const strategy = store.strategies.find((item) => item.id === strategyId);
+      const symbols = [
+        instrument || (strategy ? dataInstruments(strategy)[0] : null) || defaultInstrument(),
+        "SPY",
+        "GLD"
+      ];
+      const compare = (params.get("compare") || "").split(",").filter(Boolean);
+      symbols.push(...(compare.length ? compare : strategy?.recommendedCompare || []));
+      if (params.get("benchmark") === "risk-parity") symbols.push("RISK-PARITY");
+      return symbols;
+    }
+    default:
+      return [];
+  }
+}
+
+let equityRerenderQueued = false;
+
+function queueRenderAfterEquity(symbol) {
+  loadEquity(symbol).then(() => {
+    if (equityRerenderQueued) return;
+    equityRerenderQueued = true;
+    requestAnimationFrame(() => {
+      equityRerenderQueued = false;
+      render();
+    });
+  });
 }
 
 async function fetchJson(path) {
-  const res = await fetch(path, { cache: "no-store" });
+  // "no-cache" revalidates with the server (ETag) instead of re-downloading
+  // unchanged files on every visit.
+  const res = await fetch(path, { cache: "no-cache" });
   if (!res.ok) {
     throw new Error(`Failed to load ${path}`);
   }
@@ -203,23 +454,61 @@ function getBasePath() {
   return "/";
 }
 
+// Keep in sync with strategy_slug() in scripts/static_site.py.
+function strategySlug(strategy) {
+  return `${strategy.id}-${strategy.name || ""}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+// Pages whose content depends on the visitor (local storage / ad-hoc
+// selections) and should not be indexed.
+const NOINDEX_PAGES = new Set(["favorites", "compare"]);
+// Query params that identify a page; everything else (filters, windows,
+// sort orders) is a view of the same page and is dropped from the canonical.
+const CANONICAL_PARAMS = {
+  research: ["slug"],
+  strategy: ["id"]
+};
+
 function buildCanonicalUrl(route) {
   if (window.location.origin === "null") {
     return null;
   }
-  if (!CONTENT_ROUTES.has(route.page) && route.page !== "home") {
-    return window.location.href;
-  }
   const base = new URL(getBasePath(), window.location.origin);
-  if (route.page !== "home") {
-    base.searchParams.set("page", route.page);
+  if (route.page === "home") {
+    return base.toString();
+  }
+  // Pre-rendered pages carry the full content in their raw HTML, so they are
+  // the versions search engines should index (see scripts/generate_static_pages.py).
+  const zhPrefix = getLang() === "zh" ? "zh/" : "";
+  if (route.page === "strategy") {
+    const strategy = store.strategies.find((item) => item.id === route.params.get("id"));
+    if (strategy) {
+      return new URL(`${zhPrefix}strategy/${strategySlug(strategy)}/`, base).toString();
+    }
   }
   if (route.page === "research") {
     const slug = route.params.get("slug");
-    if (slug) {
-      base.searchParams.set("slug", slug);
+    const known = !slug || (typeof getResearchArticle === "function" && getResearchArticle(slug));
+    if (known) {
+      return new URL(`${zhPrefix}research/${slug ? `${encodeURIComponent(slug)}/` : ""}`, base).toString();
     }
   }
+  if (route.page === "ea-detail") {
+    const id = route.params.get("id") || "";
+    if (/^EA-\d+$/.test(id)) {
+      return new URL(`ea-pages/${id}.html`, base).toString();
+    }
+  }
+  base.searchParams.set("page", route.page);
+  (CANONICAL_PARAMS[route.page] || []).forEach((key) => {
+    const value = route.params.get(key);
+    if (value) {
+      base.searchParams.set(key, value);
+    }
+  });
   return base.toString();
 }
 
@@ -292,6 +581,8 @@ function updatePageMeta(route, canonicalUrl) {
   descriptionTag.setAttribute("content", meta.description);
   const canonicalTag = ensureCanonicalLink();
   canonicalTag.setAttribute("href", canonicalUrl || window.location.href);
+  const robotsTag = ensureMetaTag("robots");
+  robotsTag.setAttribute("content", NOINDEX_PAGES.has(route.page) ? "noindex, follow" : "index, follow");
 }
 
 function ensureAdSense(route) {
@@ -313,7 +604,12 @@ function forceAdFreeReload(route) {
 }
 
 function initTheme() {
-  const savedTheme = localStorage.getItem("theme");
+  let savedTheme = null;
+  try {
+    savedTheme = localStorage.getItem("theme");
+  } catch (err) {
+    savedTheme = null;
+  }
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const theme = savedTheme || (prefersDark ? "dark" : "light");
   setTheme(theme);
@@ -323,7 +619,11 @@ function toggleTheme() {
   const current = document.documentElement.getAttribute("data-theme");
   const next = current === "dark" ? "light" : "dark";
   setTheme(next);
-  localStorage.setItem("theme", next);
+  try {
+    localStorage.setItem("theme", next);
+  } catch (err) {
+    // Ignore storage failures (private mode).
+  }
 }
 
 function setTheme(theme) {
@@ -331,12 +631,17 @@ function setTheme(theme) {
   const icon = document.getElementById("theme-icon");
   const label = document.getElementById("theme-label");
   if (icon && label) {
-    if (theme === "dark") {
-      icon.textContent = "☀️";
-      label.textContent = t("nav.theme_light");
+    if (typeof window.themeIconSvg === "function") {
+      icon.innerHTML = window.themeIconSvg(theme);
     } else {
-      icon.textContent = "🌙";
-      label.textContent = t("nav.theme_dark");
+      icon.textContent = theme === "dark" ? "☀️" : "🌙";
+    }
+    label.textContent = theme === "dark" ? t("nav.theme_light") : t("nav.theme_dark");
+    const toggle = document.getElementById("theme-toggle");
+    if (toggle) {
+      const hint = theme === "dark" ? t("nav.switch_to_light") : t("nav.switch_to_dark");
+      toggle.setAttribute("aria-label", hint);
+      toggle.setAttribute("title", hint);
     }
   }
 }
@@ -456,6 +761,43 @@ function render() {
     return;
   }
 
+  if (route.page === "home" && homeChartsState !== "done") {
+    const pendingHref = window.location.href;
+    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    ensureHomeCharts().then(() => {
+      if (window.location.href === pendingHref) render();
+    });
+    return;
+  }
+
+  if (needsMetricsExt(route)) {
+    const pendingHref = window.location.href;
+    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    ensureMetricsExt().then(() => {
+      if (window.location.href === pendingHref) render();
+    });
+    return;
+  }
+
+  const missingEquity = [...new Set(requiredEquitySymbols(route))].filter(isEquityPending);
+  if (missingEquity.length) {
+    const pendingHref = window.location.href;
+    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    Promise.all(missingEquity.map(loadEquity)).then(() => {
+      if (window.location.href === pendingHref) render();
+    });
+    return;
+  }
+
+  if (EA_DATA_PAGES.has(route.page) && missingEAData(route).length) {
+    const pendingHref = window.location.href;
+    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    ensureEAData(route).then(() => {
+      if (window.location.href === pendingHref) render();
+    });
+    return;
+  }
+
   switch (route.page) {
     case "home":
       app.innerHTML = renderHome();
@@ -476,6 +818,7 @@ function render() {
     case "strategy":
       app.innerHTML = renderStrategyDetail(route);
       bindStrategyDetail(route);
+      bindCostSlider();
       break;
     case "compare":
       app.innerHTML = renderCompare(route);
@@ -504,6 +847,10 @@ function render() {
     app.innerHTML = renderEARanking(route);
     bindEARanking(route);
     break;
+  case "lab":
+    app.innerHTML = renderLab(route);
+    bindLab(route);
+    break;
   case "about":
       app.innerHTML = renderAbout();
       break;
@@ -519,6 +866,9 @@ function render() {
     default:
       app.innerHTML = renderHome();
       bindHome();
+  }
+  if (typeof window.afterRender === "function") {
+    window.afterRender(route);
   }
 }
 
@@ -620,6 +970,26 @@ function defaultWindow() {
   return "1Y";
 }
 
+const HOME_ICONS = {
+  arena: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V10M10 19V5M16 19v-7M22 19H2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  ea: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3v4M9 13h.01M15 13h.01M9 16.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  ranking: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  compare: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 3 4-6 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
+};
+
+const HOME_ROADMAP = [
+  { key: "home.roadmap_item_heatmaps", done: true },
+  { key: "home.roadmap_item_attribution", done: true },
+  { key: "home.roadmap_item_search", done: true },
+  { key: "home.roadmap_item_uploads", done: false },
+  { key: "home.roadmap_item_intraday", done: false },
+  { key: "home.roadmap_item_regime", done: false }
+];
+
+function formatScore(value) {
+  return Number.isFinite(value) ? value.toFixed(1) : "—";
+}
+
 function renderHome() {
   const instrument = defaultInstrument();
   const window = defaultWindow();
@@ -628,14 +998,26 @@ function renderHome() {
     .slice(0, 5);
   const updates = store.changelog.slice(0, 5);
   const researchArticles = sortResearchArticles(getResearchArticles());
-  const latestArticles = researchArticles.slice(0, 3);
-  const featuredArticles = researchArticles
-    .filter((article) => article.featured)
-    .slice(0, 3);
+  const featuredArticles = researchArticles.filter((article) => article.featured);
+  const homeArticles = [
+    ...featuredArticles.slice(0, 1),
+    ...researchArticles.filter((article) => !featuredArticles.slice(0, 1).includes(article))
+  ].slice(0, 3);
+  const marketCount = (store.performance.instruments || []).filter(
+    (item) => !store.strategies.some((s) => s.portfolioSymbol === item.symbol)
+  ).length;
+  const updated = store.performance.updated;
+  const recentHtml = typeof renderRecentlyViewed === "function" ? renderRecentlyViewed() : "";
+  const explore = [
+    { href: "?page=arena", icon: HOME_ICONS.arena, title: t("nav.arena"), desc: t("home.explore_arena_desc") },
+    { href: "?page=ea-arena", icon: HOME_ICONS.ea, title: t("nav.ea_arena"), desc: t("home.ea_promo_desc", { count: store.eaCatalog.length }) },
+    { href: "?page=ea-ranking", icon: HOME_ICONS.ranking, title: t("nav.ea_ranking"), desc: t("home.explore_ranking_desc") },
+    { href: "?page=compare", icon: HOME_ICONS.compare, title: t("nav.compare"), desc: t("home.explore_compare_desc") }
+  ];
 
   return `
     <section class="hero">
-      <div>
+      <div class="hero-copy">
         <div class="eyebrow">${t("home.hero_eyebrow")}</div>
         <h1>${t("meta.site_name")}</h1>
         <p>${t("home.hero_desc")}</p>
@@ -643,175 +1025,94 @@ function renderHome() {
           <a class="button primary" href="?page=arena">${t("home.explore_arena")}</a>
           <a class="button ghost" href="?page=strategies">${t("home.browse_strategies")}</a>
         </div>
+        <button class="hero-search" type="button" onclick="openSearch()">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.2 13.2 L17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>${t("search.hero_placeholder")}</span>
+          <kbd>/</kbd>
+        </button>
       </div>
       <div class="hero-panel">
-        <h3>${t("home.daily_refresh_workflow")}</h3>
-        <div class="stat-grid">
-          <div class="stat"><span>${t("home.data_source")}</span><span>yfinance</span></div>
-          <div class="stat"><span>${t("home.refresh_cadence")}</span><span>${t("home.daily_backtest")}</span></div>
-          <div class="stat"><span>${t("home.coverage")}</span><span>${t("home.strategy_count", { count: store.strategies.length })}</span></div>
+        <h3>${t("home.at_a_glance")}</h3>
+        <div class="hero-stats">
+          <a class="hero-stat" href="?page=strategies"><strong>${store.strategies.length}</strong><span>${t("home.stat_strategies")}</span></a>
+          <a class="hero-stat" href="?page=ea-arena"><strong>${store.eaCatalog.length.toLocaleString()}</strong><span>${t("home.stat_eas")}</span></a>
+          <a class="hero-stat" href="?page=arena"><strong>${marketCount}</strong><span>${t("home.stat_markets")}</span></a>
+          <a class="hero-stat" href="?page=research"><strong>${researchArticles.length}</strong><span>${t("home.stat_articles")}</span></a>
         </div>
-      </div>
-  </section>
-
-  <section class="section">
-    <div class="ea-promo">
-      <div class="ea-promo-icon">🤖</div>
-      <div>
-        <h3>${t("home.ea_promo_title")}</h3>
-        <p>${t("home.ea_promo_desc", { count: store.eaCatalog.length })}</p>
-        <div class="ea-promo-stats">
-          <span><strong>${store.eaCatalog.length}</strong> ${t("home.ea_count")}</span>
-          <span><strong>${Object.keys(store.eaAnalysis).length}</strong> ${t("common.analyzed")}</span>
+        <div class="hero-panel-foot">
+          <span class="status-dot ${!hasLivePerformanceData() ? "warn" : typeof isPerformanceStale === "function" && isPerformanceStale() ? "stale" : "ok"}" aria-hidden="true"></span>
+          ${updated ? t("home.data_as_of", { date: updated }) : t("home.daily_backtest")}
+          <span class="muted">· ${t("home.data_source")}: yfinance</span>
         </div>
-        <a class="button primary small" href="?page=ea-arena" style="margin-top:0.75rem">${t("home.explore_ea_arena")}</a>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("home.core_features_title")}</h2>
-          <p>${t("home.core_features_desc")}</p>
-         </div>
-       </div>
-       <div class="card-grid">
-         <div class="card">
-           <div class="eyebrow">${t("home.feature_leaderboard_eyebrow")}</div>
-           <h3>${t("home.feature_leaderboard_title")}</h3>
-           <p>${t("home.feature_leaderboard_desc")}</p>
-         </div>
-         <div class="card">
-           <div class="eyebrow">${t("home.feature_details_eyebrow")}</div>
-           <h3>${t("home.feature_details_title")}</h3>
-           <p>${t("home.feature_details_desc")}</p>
-         </div>
-         <div class="card">
-           <div class="eyebrow">${t("nav.methodology")}</div>
-           <h3>${t("home.feature_methodology_title")}</h3>
-           <p>${t("home.feature_methodology_desc")}</p>
-         </div>
-       </div>
-     </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("home.latest_research_title")}</h2>
-          <p>${t("home.latest_research_desc")}</p>
-        </div>
-        <a class="button ghost small" href="?page=research">${t("common.view_all")}</a>
-      </div>
-      <div class="card-grid article-grid">
-        ${latestArticles.map(renderArticleCard).join("")}
       </div>
     </section>
 
+    ${recentHtml}
+
     <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("home.featured_articles_title")}</h2>
-          <p>${t("home.featured_articles_desc")}</p>
-        </div>
-      </div>
-      <div class="card-grid article-grid">
-        ${(featuredArticles.length ? featuredArticles : latestArticles)
-          .map(renderArticleCard)
+      <div class="explore-grid">
+        ${explore
+          .map(
+            (item) => `
+          <a class="explore-card" href="${item.href}">
+            <span class="explore-icon">${item.icon}</span>
+            <span class="explore-title">${item.title}<span class="explore-arrow" aria-hidden="true">→</span></span>
+            <span class="explore-desc">${item.desc}</span>
+          </a>`
+          )
           .join("")}
       </div>
     </section>
 
     <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("home.learn_method_title")}</h2>
-          <p>${t("home.learn_method_desc")}</p>
-        </div>
-      </div>
-      <div class="card-grid">
-        <a class="card link-card" href="?page=methodology">
-          <div class="eyebrow">${t("nav.methodology")}</div>
-          <h3>${t("home.methodology_card_title")}</h3>
-          <p>${t("home.methodology_card_desc")}</p>
-        </a>
-        <a class="card link-card" href="?page=about">
-          <div class="eyebrow">${t("nav.about")}</div>
-          <h3>${t("home.about_card_title")}</h3>
-          <p>${t("home.about_card_desc")}</p>
-        </a>
-        <a class="card link-card" href="?page=faq">
-          <div class="eyebrow">${t("nav.faq")}</div>
-          <h3>${t("home.faq_card_title")}</h3>
-          <p>${t("home.faq_card_desc")}</p>
-        </a>
+      <div class="quick-links">
+        <span class="quick-links-label">${t("home.new_tools")}</span>
+        <a class="quick-link" href="?page=lab">${t("nav.lab")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}signals/">${t("nav.signals")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}heatmap/">${t("nav.heatmap")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}reports/">${t("nav.reports")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}glossary/">${t("nav.glossary")}</a>
       </div>
     </section>
 
     <section class="section split">
       <div class="card">
-        <h3>${t("home.top_strategies_title", { window, instrument })}</h3>
-        <div class="list">
+        <div class="card-head">
+          <h3>${t("home.top_strategies_title", { window, instrument })}</h3>
+          <a class="link small-link" href="?page=arena&instrument=${encodeURIComponent(instrument)}&window=${window}">${t("common.view_all")} →</a>
+        </div>
+        <ol class="rank-list">
           ${topRows
             .map(
               (row, index) => `
-            <div>
-              <span class="tag">#${index + 1}</span>
-              <a class="link" href="?page=strategy&id=${row.strategy.id}&instrument=${instrument}&window=${window}">
-                ${row.strategy.id} ${row.strategy.name}
+            <li>
+              <span class="rank-badge rank-${index + 1}">${index + 1}</span>
+              <a class="rank-name" href="?page=strategy&id=${row.strategy.id}&instrument=${encodeURIComponent(instrument)}&window=${window}">
+                <strong>${row.strategy.id}</strong> ${row.strategy.name}
               </a>
-            </div>`
+              <span class="rank-score" title="${t("arena.score")}">${formatScore(row.metrics.arenaScore)}</span>
+              <span class="rank-return ${row.metrics.totalReturn >= 0 ? "pos" : "neg"}">${formatPercent(row.metrics.totalReturn)}</span>
+            </li>`
             )
             .join("")}
-        </div>
+        </ol>
       </div>
       <div class="card">
-        <h3>${t("home.latest_updates_title")}</h3>
-        <div class="list">
+        <div class="card-head">
+          <h3>${t("home.latest_updates_title")}</h3>
+          <a class="link small-link" href="?page=changelog">${t("common.view_all")} →</a>
+        </div>
+        <ul class="update-list">
           ${updates
             .map(
               (entry) => `
-            <div>
-              <strong>${entry.date}</strong>
-              <div>${entry.title}</div>
-            </div>`
+            <li>
+              <time>${entry.date}</time>
+              <span>${tc(entry.title)}</span>
+            </li>`
             )
             .join("")}
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("home.future_updates_title")}</h2>
-          <p>${t("home.future_updates_desc")}</p>
-        </div>
-      </div>
-      <div class="card-grid">
-        <div class="card">
-          <div class="eyebrow">${t("home.membership_planned")}</div>
-          <h3>${t("home.research_membership_title")}</h3>
-          <p>${t("home.research_membership_desc")}</p>
-          <div class="list">
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_exports")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_downloads")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_watchlists")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_early_access")}</div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="eyebrow">${t("home.roadmap_eyebrow")}</div>
-          <h3>${t("home.priority_upgrades_title")}</h3>
-          <p>${t("home.priority_upgrades_desc")}</p>
-          <div class="list">
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_heatmaps")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_uploads")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_intraday")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_attribution")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_regime")}</div>
-          </div>
-        </div>
+        </ul>
       </div>
     </section>
 
@@ -869,6 +1170,77 @@ function renderHome() {
         </div>
       </div>
     </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>${t("home.latest_research_title")}</h2>
+          <p>${t("home.latest_research_desc")}</p>
+        </div>
+        <a class="button ghost small" href="?page=research">${t("common.view_all")}</a>
+      </div>
+      <div class="card-grid article-grid">
+        ${homeArticles.map(renderArticleCard).join("")}
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>${t("home.learn_method_title")}</h2>
+          <p>${t("home.learn_method_desc")}</p>
+        </div>
+      </div>
+      <div class="card-grid">
+        <a class="card link-card" href="?page=methodology">
+          <div class="eyebrow">${t("nav.methodology")}</div>
+          <h3>${t("home.methodology_card_title")}</h3>
+          <p>${t("home.methodology_card_desc")}</p>
+        </a>
+        <a class="card link-card" href="?page=about">
+          <div class="eyebrow">${t("nav.about")}</div>
+          <h3>${t("home.about_card_title")}</h3>
+          <p>${t("home.about_card_desc")}</p>
+        </a>
+        <a class="card link-card" href="?page=faq">
+          <div class="eyebrow">${t("nav.faq")}</div>
+          <h3>${t("home.faq_card_title")}</h3>
+          <p>${t("home.faq_card_desc")}</p>
+        </a>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>${t("home.future_updates_title")}</h2>
+          <p>${t("home.future_updates_desc")}</p>
+        </div>
+      </div>
+      <div class="card-grid two-col">
+        <div class="card">
+          <div class="eyebrow">${t("home.roadmap_eyebrow")}</div>
+          <h3>${t("home.priority_upgrades_title")}</h3>
+          <p>${t("home.priority_upgrades_desc")}</p>
+          <ul class="roadmap-list">
+            ${HOME_ROADMAP.map(
+              (item) => `<li class="${item.done ? "done" : ""}"><span class="roadmap-status">${item.done ? t("home.roadmap_shipped") : t("home.roadmap_planned")}</span>${t(item.key)}</li>`
+            ).join("")}
+          </ul>
+        </div>
+        <div class="card">
+          <div class="eyebrow">${t("home.membership_planned")}</div>
+          <h3>${t("home.research_membership_title")}</h3>
+          <p>${t("home.research_membership_desc")}</p>
+          <ul class="roadmap-list">
+            <li><span class="roadmap-status">${t("home.roadmap_planned")}</span>${t("home.membership_item_exports")}</li>
+            <li><span class="roadmap-status">${t("home.roadmap_planned")}</span>${t("home.membership_item_downloads")}</li>
+            <li><span class="roadmap-status">${t("home.roadmap_planned")}</span>${t("home.membership_item_watchlists")}</li>
+            <li><span class="roadmap-status">${t("home.roadmap_planned")}</span>${t("home.membership_item_early_access")}</li>
+          </ul>
+        </div>
+      </div>
+    </section>
   `;
 }
 
@@ -889,24 +1261,38 @@ function drawHomeCharts() {
   });
 }
 
-function drawHomeChart(canvasId, instrument, window) {
+function homeChartData(canvasId, instrument, window) {
+  const precomputed = (store.homeCharts || []).find((chart) => chart.id === canvasId);
+  if (precomputed) {
+    return {
+      labels: precomputed.dates,
+      series: precomputed.series.map((item) => ({ id: item.id, values: item.values }))
+    };
+  }
   const leaderboard = buildLeaderboard(instrument, window)
     .sort((a, b) => b.metrics.arenaScore - a.metrics.arenaScore)
     .slice(0, 5);
-  const ctx = document.getElementById(canvasId);
-  if (!ctx || !leaderboard.length) return;
+  if (!leaderboard.length) return null;
+  const baseSeries = sliceSeries(getSeries(leaderboard[0].strategy.id, instrument), window);
+  return {
+    labels: baseSeries.dates,
+    series: leaderboard.map((row) => ({
+      id: row.strategy.id,
+      values: normalizeSeries(sliceSeries(getSeries(row.strategy.id, instrument), window)).strategy
+    }))
+  };
+}
 
-  const baseSeries = sliceSeries(
-    getSeries(leaderboard[0].strategy.id, instrument),
-    window
-  );
-  const labels = baseSeries.dates;
-  const datasets = leaderboard.map((row, index) => {
-    const series = sliceSeries(getSeries(row.strategy.id, instrument), window);
-    const normalized = normalizeSeries(series).strategy;
+function drawHomeChart(canvasId, instrument, window) {
+  const ctx = document.getElementById(canvasId);
+  const chartData = ctx ? homeChartData(canvasId, instrument, window) : null;
+  if (!chartData || !chartData.series.length) return;
+
+  const labels = chartData.labels;
+  const datasets = chartData.series.map((item, index) => {
     return {
-      label: row.strategy.id,
-      data: normalized,
+      label: item.id,
+      data: item.values,
       borderColor: palette(index),
       backgroundColor: "transparent",
       borderWidth: 2,
@@ -1068,7 +1454,9 @@ function renderArena(route) {
               .map((row, index) => {
                 const metricValue =
                   state.metric === "score"
-                    ? row.metrics.arenaScore
+                    ? row.metrics.scoreEligible === false
+                      ? null
+                      : row.metrics.arenaScore
                     : row.metrics[state.metric];
                 const returnTo = encodeURIComponent(
                   new URLSearchParams(window.location.search).toString()
@@ -1219,7 +1607,7 @@ function renderCategoryView(strategies, state) {
     const groupStrategies = strategies.filter(
       (strategy) =>
         matchesCategory(strategy, group) &&
-        strategy.instruments.includes(instrument)
+        dataInstruments(strategy).includes(instrument)
     );
     if (!groupStrategies.length) return "";
     const scored = groupStrategies
@@ -1350,289 +1738,6 @@ function renderCorrelationMatrix(strategies, instrument, window) {
   `;
 }
 
-function getPortfolioWeights(strategyIds) {
-  if (!strategyIds.length) return [];
-  const fallback = 100 / strategyIds.length;
-  return strategyIds.map((id) => {
-    const stored = portfolioWeights.get(id);
-    return Number.isFinite(stored) ? stored : fallback;
-  });
-}
-
-function setPortfolioWeights(strategyIds, weights) {
-  strategyIds.forEach((id, index) => {
-    portfolioWeights.set(id, weights[index]);
-  });
-}
-
-function normalizeWeights(weights) {
-  const cleaned = weights.map((value) =>
-    Number.isFinite(value) ? Math.max(0, value) : 0
-  );
-  const total = cleaned.reduce((sum, value) => sum + value, 0);
-  if (!total) {
-    const equal = cleaned.length ? 1 / cleaned.length : 0;
-    return { weights: cleaned.map(() => equal), total };
-  }
-  return { weights: cleaned.map((value) => value / total), total };
-}
-
-function alignPortfolioSeries(strategyIds, instrument, window) {
-  const seriesList = strategyIds.map((id) =>
-    sliceSeries(getSeries(id, instrument), window)
-  );
-  const minLen = Math.min(...seriesList.map((series) => series.strategy.length));
-  if (!minLen || minLen < 2) return null;
-  return {
-    dates: seriesList[0].dates.slice(-minLen),
-    series: seriesList.map((series) => series.strategy.slice(-minLen))
-  };
-}
-
-function buildPortfolio(strategyIds, weights, instrument, window) {
-  const normalized = normalizeWeights(weights);
-  const aligned = alignPortfolioSeries(strategyIds, instrument, window);        
-  if (!aligned) {
-    return { series: null, metrics: null, total: normalized.total };
-  }
-  const returnsList = aligned.series.map((values) => pctChange(values));
-  const minReturns = Math.min(...returnsList.map((returns) => returns.length));
-  const trimmedReturns = returnsList.map((returns) => returns.slice(-minReturns));
-  const portfolioReturns = trimmedReturns[0].map((_, index) =>
-    trimmedReturns.reduce(
-      (sum, returns, idx) => sum + normalized.weights[idx] * returns[index],
-      0
-    )
-  );
-  const values = [1];
-  portfolioReturns.forEach((ret) => {
-    values.push(round(values[values.length - 1] * (1 + ret), 4));
-  });
-  const dates = aligned.dates.slice(aligned.dates.length - values.length);
-  const series = { dates, strategy: values };
-  const metrics = calcMetrics(series);
-  return { series, metrics, total: normalized.total };
-}
-
-function calcRiskContribution(strategyIds, weights, instrument, window) {
-  const normalized = normalizeWeights(weights);
-  const aligned = alignPortfolioSeries(strategyIds, instrument, window);
-  if (!aligned) return null;
-  const returnsList = aligned.series.map((values) => pctChange(values));
-  const minReturns = Math.min(...returnsList.map((returns) => returns.length));
-  if (!minReturns || minReturns < 2) return null;
-  const trimmed = returnsList.map((returns) => returns.slice(-minReturns));
-  const covMatrix = trimmed.map((row) =>
-    trimmed.map((col) => covariance(row, col))
-  );
-  const weightsNorm = normalized.weights;
-  const portfolioVar = weightsNorm.reduce((sum, weight, i) => {
-    const covRow = covMatrix[i].reduce(
-      (rowSum, cov, j) => rowSum + cov * weightsNorm[j],
-      0
-    );
-    return sum + weight * covRow;
-  }, 0);
-  const portfolioVol = portfolioVar > 0 ? Math.sqrt(portfolioVar) : 0;
-  const contributions = weightsNorm.map((weight, i) => {
-    const covWithPortfolio = covMatrix[i].reduce(
-      (rowSum, cov, j) => rowSum + cov * weightsNorm[j],
-      0
-    );
-    const marginal = portfolioVol > 0 ? covWithPortfolio / portfolioVol : 0;
-    const component = weight * marginal;
-    const percent = portfolioVol > 0 ? component / portfolioVol : 0;
-    return { weight, marginal, component, percent };
-  });
-  return {
-    contributions,
-    portfolioVol,
-    annualizedVol: portfolioVol * Math.sqrt(TRADING_DAYS)
-  };
-}
-
-function renderPortfolioMetrics(metrics) {
-  if (!metrics) {
-    return `<div class="muted">${t("common.not_enough_data")}</div>`;
-  }
-  return `
-    <div class="metric-grid">
-      <div class="metric-tile">
-        <span>${t("metric.total_return")}</span>
-        <strong>${formatMetric(metrics.totalReturn, "totalReturn")}</strong>
-      </div>
-      <div class="metric-tile">
-        <span>${t("metric.cagr")}</span>
-        <strong>${formatMetric(metrics.cagr, "cagr")}</strong>
-      </div>
-      <div class="metric-tile">
-        <span>${t("metric.sharpe_ratio")}</span>
-        <strong>${formatMetric(metrics.sharpe, "ratio")}</strong>
-      </div>
-      <div class="metric-tile">
-        <span>${t("metric.max_drawdown")}</span>
-        <strong>${formatMetric(metrics.maxDrawdown, "maxDrawdown")}</strong>
-      </div>
-      <div class="metric-tile">
-        <span>${t("metric.volatility")}</span>
-        <strong>${formatMetric(metrics.volatility, "volatility")}</strong>
-      </div>
-    </div>
-  `;
-}
-
-function renderRiskContributionTable(strategies, risk) {
-  if (!risk) {
-    return `<div class="muted">${t("common.not_enough_risk_data")}</div>`;
-  }
-  const rows = strategies
-    .map((strategy, index) => {
-      const entry = risk.contributions[index] || {};
-      const weightLabel = formatPercent(entry.weight, 1);
-      const marginalLabel = formatPercent(
-        (entry.marginal || 0) * Math.sqrt(TRADING_DAYS),
-        2
-      );
-      const contributionLabel = formatPercent(entry.percent, 1);
-      const contributionClass =
-        entry.percent < 0 ? "negative" : entry.percent > 0 ? "positive" : "";
-      return `
-        <tr>
-          <td class="risk-label">${strategy.id}</td>
-          <td>${weightLabel}</td>
-          <td>${marginalLabel}</td>
-          <td class="${contributionClass}">${contributionLabel}</td>
-        </tr>
-      `;
-    })
-    .join("");
-  return `
-    <div class="table-scroll">
-      <table class="risk-table">
-        <thead>
-          <tr>
-            <th>${t("common.strategy")}</th>
-            <th>${t("common.weight")}</th>
-            <th>${t("portfolio.marginal_ann")}</th>
-            <th>${t("common.contribution")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function calcRiskParityWeights(strategyIds, instrument, window) {
-  const raw = strategyIds.map((id) => {
-    const metrics = getMetricsFor(id, instrument, window);
-    const vol = metrics.volatility || 0;
-    return vol > 0 ? 1 / vol : 0;
-  });
-  const normalized = normalizeWeights(raw);
-  return normalized.weights.map((weight) => round(weight * 100, 1));
-}
-
-function renderPortfolioSection(strategies, instrument, window) {
-  const strategyIds = strategies.map((strategy) => strategy.id);
-  if (!strategyIds.length) {
-    return `
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <h2>${t("portfolio.title")}</h2>
-            <p>${t("portfolio.desc")}</p>
-          </div>
-        </div>
-        <div class="card">
-          <h3>${t("portfolio.none_selected_title")}</h3>
-          <p>${t("portfolio.none_selected_desc")}</p>
-        </div>
-      </section>
-    `;
-  }
-
-  const weights = getPortfolioWeights(strategyIds);
-  const portfolio = buildPortfolio(strategyIds, weights, instrument, window);   
-  const risk = calcRiskContribution(strategyIds, weights, instrument, window);
-  return `
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("portfolio.title")}</h2>
-          <p>${t("portfolio.desc")}</p>
-        </div>
-        <div class="chip-group">
-          <button class="chip" data-portfolio-preset="equal">${t("portfolio.equal_weight")}</button>
-          <button class="chip" data-portfolio-preset="risk">${t("portfolio.risk_parity")}</button>
-        </div>
-      </div>
-      <div class="portfolio-grid">
-        <div class="card portfolio-weights-card">
-          <div class="portfolio-weights">
-            ${strategies
-              .map((strategy, index) => {
-                const value = Number.isFinite(weights[index])
-                  ? weights[index].toFixed(1)
-                  : "0";
-                return `
-              <div class="portfolio-row">
-                <div>
-                  <strong>${strategy.id}</strong>
-                  <div class="muted">${strategy.name}</div>
-                </div>
-                <input class="portfolio-input" type="number" min="0" max="100" step="0.5" value="${value}" data-portfolio-weight="${strategy.id}" />
-              </div>
-            `;
-              })
-              .join("")}
-          </div>
-          <div class="portfolio-total">
-            <span>${t("portfolio.total_weight")}</span>
-            <strong id="portfolio-total">${portfolio.total.toFixed(1)}%</strong>
-          </div>
-          <div class="muted" id="portfolio-note">
-            ${t("portfolio.weights_normalize")}
-          </div>
-        </div>
-        <div class="chart-card portfolio-chart-card">
-          <div class="chart-header">
-            <div>
-              <strong>${t("portfolio.equity_curve")}</strong>
-              <div class="muted">${instrument} - ${window}</div>
-            </div>
-          </div>
-          <div class="chart-body">
-            <canvas id="portfolio-chart"></canvas>
-          </div>
-        </div>
-        <div class="card portfolio-metrics-card" id="portfolio-metrics">        
-          <h3>${t("portfolio.metrics")}</h3>
-          ${renderPortfolioMetrics(portfolio.metrics)}
-        </div>
-        <div class="chart-card portfolio-risk-card">
-          <div class="chart-header">
-            <div>
-              <strong>${t("portfolio.risk_contribution")}</strong>
-              <div class="muted" id="portfolio-risk-note">
-                ${risk ? t("portfolio.vol_ann", { value: formatPercent(risk.annualizedVol, 2) }) : t("common.not_enough_risk_data")}
-              </div>
-            </div>
-          </div>
-          <div class="chart-body portfolio-risk-body">
-            <canvas id="portfolio-risk-chart"></canvas>
-          </div>
-          <div class="risk-table-wrap" id="portfolio-risk-list">
-            ${renderRiskContributionTable(strategies, risk)}
-          </div>
-        </div>
-      </div>
-    </section>
-  `;
-}
-
 function renderStrategies(route) {
   const state = strategiesState(route.params);
   const tags = uniqueTags(store.strategies);
@@ -1661,10 +1766,10 @@ function renderStrategies(route) {
         </div>
       </div>
 
-      <div class="filter-bar">
+      <div class="filter-bar strategy-filter-bar">
         <div class="filter-group">
-          <label>${t("common.search")}</label>
-          <input id="strategy-search" type="text" placeholder="${t("strategy.search_placeholder")}" value="${escapeHtml(
+          <label for="strategy-search">${t("common.search")}</label>
+          <input id="strategy-search" type="search" placeholder="${t("strategy.search_placeholder")}" value="${escapeHtml(
             state.query || ""
           )}" />
         </div>
@@ -1782,13 +1887,13 @@ function renderStrategyDetail(route) {
   }
 
   const instrument =
-    route.params.get("instrument") || strategy.instruments[0] || defaultInstrument();
+    route.params.get("instrument") || dataInstruments(strategy)[0] || defaultInstrument();
   const window = route.params.get("window") || defaultWindow();
   const benchmarkKey = route.params.get("benchmark") || "buy-hold";
   const benchmarkLabel = getBenchmarkLabel(benchmarkKey);
   const compareParam = route.params.get("compare");
   const compare = compareParam ? compareParam.split(",").filter(Boolean) : [];
-  const compareList = compare.length ? compare : strategy.recommendedCompare;
+  const compareList = (compare.length ? compare : strategy.recommendedCompare || []).filter((item) => dataInstruments(strategy).includes(item));
   const scale = route.params.get("scale") || "linear";
   const metrics = getMetricsFor(strategy.id, instrument, window);
   const returnTo = route.params.get("return");
@@ -1841,7 +1946,7 @@ function renderStrategyDetail(route) {
           <div class="control-group">
             <label>${t("common.instrument")}</label>
             <select id="detail-instrument">
-              ${strategy.instruments
+              ${dataInstruments(strategy)
                 .map(
                   (item) => `
                 <option value="${item}" ${
@@ -1886,7 +1991,7 @@ function renderStrategyDetail(route) {
         <div class="compare-panel">
           <strong>${t("strategy.cross_asset_compare")}</strong>
           <div class="compare-options">
-            ${strategy.instruments
+            ${dataInstruments(strategy)
               .map(
                 (item) => `
               <label>
@@ -2039,8 +2144,11 @@ function renderStrategyDetail(route) {
         <button class="tab-button" data-tab="risk">${t("common.risk")}</button>
         <button class="tab-button" data-tab="efficiency">${t("common.efficiency")}</button>
         <button class="tab-button" data-tab="trades">${t("common.trades")}</button>
+        <button class="tab-button" data-tab="benchmark">${t("metric.vs_benchmark")}</button>
       </div>
       ${renderMetricTabs(metrics)}
+      ${renderCostSlider(metrics)}
+      ${renderScoreBreakdown(metrics)}
 
       <div class="section pseudocode">
         <details open>
@@ -2069,13 +2177,21 @@ function renderMetricTabs(metrics) {
         ${metricTile(t("metric.cagr"), formatMetric(metrics.cagr, "cagr"))}
         ${metricTile(t("metric.best_month"), formatMetric(metrics.bestMonth, "totalReturn"))}
         ${metricTile(t("metric.worst_month"), formatMetric(metrics.worstMonth, "totalReturn"))}
+        ${optionalTile(t("metric.positive_months"), metrics.posMonths, "totalReturn")}
+        ${rangeTile(t("metric.cagr_range"), metrics.cagrLo, metrics.cagrHi)}
+        ${optionalTile(t("metric.prob_loss"), metrics.probLoss, "totalReturn")}
       </div>
     </div>
     <div class="tab-content" data-panel="risk">
       <div class="metric-grid">
         ${metricTile(t("metric.max_drawdown"), formatMetric(metrics.maxDrawdown, "maxDrawdown"))}
         ${metricTile(t("metric.volatility"), formatMetric(metrics.volatility, "cagr"))}
-        ${metricTile(t("metric.ulcer_index"), formatMetric(metrics.ulcer, "ratio"))}
+        ${optionalTile(t("metric.ulcer_index"), metrics.ulcer, "totalReturn")}
+        ${optionalTile(t("metric.max_dd_days"), metrics.maxDDDays, "days")}
+        ${optionalTile(t("metric.underwater"), metrics.underwater, "totalReturn")}
+        ${optionalTile(t("metric.var95"), metrics.var95, "totalReturn")}
+        ${optionalTile(t("metric.cvar95"), metrics.cvar95, "totalReturn")}
+        ${rangeTile(t("metric.max_dd_range"), metrics.maxDDLo, metrics.maxDDHi)}
       </div>
     </div>
     <div class="tab-content" data-panel="efficiency">
@@ -2083,6 +2199,8 @@ function renderMetricTabs(metrics) {
         ${metricTile(t("metric.sharpe"), formatMetric(metrics.sharpe, "ratio"))}
         ${metricTile(t("metric.sortino"), formatMetric(metrics.sortino, "ratio"))}
         ${metricTile(t("metric.calmar"), formatMetric(metrics.calmar, "ratio"))}
+        ${optionalTile(t("metric.martin"), metrics.martin, "ratio")}
+        ${optionalTile(t("metric.psr"), metrics.psr, "totalReturn")}
       </div>
     </div>
     <div class="tab-content" data-panel="trades">
@@ -2091,9 +2209,96 @@ function renderMetricTabs(metrics) {
         ${metricTile(t("metric.turnover_avg_daily"), formatMetric(metrics.turnover, "turnover"))}
         ${metricTile(t("metric.win_rate"), formatMetric(metrics.winRate, "totalReturn"))}
         ${metricTile(t("metric.profit_factor"), formatMetric(metrics.profitFactor, "ratio"))}
+        ${optionalTile(t("metric.exposure"), metrics.exposure, "totalReturn")}
+      </div>
+    </div>
+    <div class="tab-content" data-panel="benchmark">
+      <div class="metric-grid">
+        ${optionalTile(t("metric.bench_cagr"), metrics.benchCagr, "totalReturn")}
+        ${optionalTile(t("metric.bench_max_dd"), metrics.benchMaxDrawdown, "totalReturn")}
+        ${optionalTile(t("metric.alpha"), metrics.alpha, "totalReturn")}
+        ${optionalTile(t("metric.beta"), metrics.beta, "ratio")}
+        ${optionalTile(t("metric.correlation"), metrics.correlation, "ratio")}
+        ${optionalTile(t("metric.info_ratio"), metrics.infoRatio, "ratio")}
+        ${optionalTile(t("metric.up_capture"), metrics.upCapture, "totalReturn")}
+        ${optionalTile(t("metric.down_capture"), metrics.downCapture, "totalReturn")}
+        ${optionalTile(t("metric.cagr_after_costs"), metrics.costDrag === undefined || metrics.costDrag === null ? null : (metrics.cagr || 0) - metrics.costDrag, "totalReturn")}
+        ${optionalTile(t("metric.dsr"), metrics.dsr, "totalReturn")}
       </div>
     </div>
   `;
+}
+
+// Bootstrap interval, e.g. "-3.10% to 12.40%".
+function rangeTile(label, lo, hi) {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return metricTile(label, "—");
+  return metricTile(label, t("metric.range_value", { lo: formatPercent(lo, 1), hi: formatPercent(hi, 1) }));
+}
+
+function optionalTile(label, value, kind) {
+  if (value === undefined || value === null || Number.isNaN(value)) {
+    return metricTile(label, "—");
+  }
+  if (kind === "days") {
+    return metricTile(label, t("metric.days_value", { days: Math.round(value) }));
+  }
+  return metricTile(label, formatMetric(value, kind));
+}
+
+// Rough cost model: every unit of turnover pays `bp` basis points.
+function cagrAfterCost(metrics, bp) {
+  if (!Number.isFinite(metrics.cagr) || !Number.isFinite(metrics.turnover)) return NaN;
+  return metrics.cagr - metrics.turnover * 252 * (bp / 10000);
+}
+
+function renderCostSlider(metrics) {
+  if (!Number.isFinite(metrics.turnover)) return "";
+  const bp = 10;
+  return `
+    <div class="cost-slider card" data-cagr="${metrics.cagr}" data-turnover="${metrics.turnover}">
+      <label for="cost-bp"><strong>${t("cost.title")}</strong> <span class="muted">${t("cost.desc")}</span></label>
+      <div class="cost-row">
+        <input id="cost-bp" type="range" min="0" max="50" step="1" value="${bp}" />
+        <span class="cost-bp" data-cost-bp>${t("cost.bp", { bp })}</span>
+        <span>${t("metric.cagr")}: <strong>${formatMetric(metrics.cagr, "cagr")}</strong> → <strong data-cost-cagr>${formatMetric(cagrAfterCost(metrics, bp), "cagr")}</strong></span>
+      </div>
+      <p class="muted small-note">${t("cost.note", { turnover: formatMetric(metrics.turnover * 252, "ratio") })}</p>
+    </div>`;
+}
+
+function bindCostSlider() {
+  const box = document.querySelector(".cost-slider");
+  const input = document.getElementById("cost-bp");
+  if (!box || !input) return;
+  const metrics = { cagr: parseFloat(box.dataset.cagr), turnover: parseFloat(box.dataset.turnover) };
+  input.addEventListener("input", () => {
+    const bp = Number(input.value);
+    box.querySelector("[data-cost-bp]").textContent = t("cost.bp", { bp });
+    box.querySelector("[data-cost-cagr]").textContent = formatMetric(cagrAfterCost(metrics, bp), "cagr");
+  });
+}
+
+const SCORE_PART_KEYS = ["quality", "drawdown", "consistency", "robustness", "significance"];
+
+function renderScoreBreakdown(metrics) {
+  if (metrics.scoreEligible === false) {
+    return `<div class="score-breakdown card"><strong>${t("score.title")}: —</strong><p class="muted">${t("score.ineligible")}</p></div>`;
+  }
+  const parts = metrics.scoreParts;
+  if (!parts) return "";
+  return `
+    <div class="score-breakdown card">
+      <div class="score-breakdown-head">
+        <strong>${t("score.title")}: ${formatMetric(metrics.arenaScore, "score")}</strong>
+        <a class="link small-link" href="/${getLang() === "zh" ? "zh/" : ""}glossary/arena-score/">${t("score.how")}</a>
+      </div>
+      ${SCORE_PART_KEYS.map((key) => {
+        const value = parts[key];
+        const width = value === null || value === undefined ? 0 : Math.max(0, Math.min(100, value));
+        return `<div class="score-line" title="${t(`score.${key}_desc`)}"><span>${t(`score.${key}`)}</span><span class="score-track"><span style="width:${width}%"></span></span><strong>${value === null || value === undefined ? "—" : Math.round(value)}</strong></div>`;
+      }).join("")}
+      <p class="muted small-note">${t("score.note")}</p>
+    </div>`;
 }
 
 function metricTile(label, value) {
@@ -2164,7 +2369,7 @@ function getSimilarStrategies(baseStrategy, instrument, window, limit) {
   const baseTags = baseStrategy.tags || [];
   const candidates = store.strategies.filter(
     (strategy) =>
-      strategy.id !== baseStrategy.id && strategy.instruments.includes(instrument)
+      strategy.id !== baseStrategy.id && dataInstruments(strategy).includes(instrument)
   );
   const scored = candidates.map((candidate) => {
     const tagScore = getTagSimilarity(baseTags, candidate.tags || []);
@@ -2258,7 +2463,7 @@ function renderArticleCard(article) {
     ? `<span class="badge">${t("common.featured")}</span>`
     : "";
   return `
-    <div class="card article-card">
+    <a class="card article-card" href="${buildResearchUrl(article.slug)}">
       <div class="article-card-header">
         ${featuredBadge}
         ${renderArticleMeta(article)}
@@ -2266,9 +2471,19 @@ function renderArticleCard(article) {
       <h3>${tc(article.title)}</h3>
       <p>${tc(article.summary)}</p>
       ${renderTagRow(article.tags)}
-      <a class="link" href="${buildResearchUrl(article.slug)}">${t("common.read_article")}</a>
-    </div>
+      <span class="read-more">${t("common.read_article")} <span aria-hidden="true">→</span></span>
+    </a>
   `;
+}
+
+// A paragraph is a string; a bullet list is an array of strings. **bold** is supported.
+function contentInline(text) {
+  return escapeHtml(String(text ?? "")).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
+function renderContentBlock(block) {
+  if (Array.isArray(block)) return `<ul>${block.map((item) => `<li>${contentInline(item)}</li>`).join("")}</ul>`;
+  return `<p>${contentInline(block)}</p>`;
 }
 
 function renderContentSections(sections) {
@@ -2277,7 +2492,7 @@ function renderContentSections(sections) {
       (section) => `
     <section class="content-section">
       <h3>${tc(section.heading)}</h3>
-      ${(tc(section.paragraphs) || []).map((text) => `<p>${text}</p>`).join("")}
+      ${(tc(section.paragraphs) || []).map(renderContentBlock).join("")}
     </section>
   `
     )
@@ -2438,14 +2653,14 @@ function renderChangelog() {
           <p>${t("changelog.desc")}</p>
         </div>
       </div>
-      <div class="list">
+      <div class="timeline">
         ${store.changelog
           .map(
             (entry) => `
-          <div class="card">
-            <strong>${entry.date}</strong>
-            <h3>${entry.title}</h3>
-            <p>${entry.details}</p>
+          <div class="card timeline-item">
+            <time class="timeline-date">${entry.date}</time>
+            <h3>${tc(entry.title)}</h3>
+            <p>${tc(entry.details)}</p>
             ${
               entry.strategyId
                 ? `<a class="link" href="?page=strategy&id=${entry.strategyId}">${t("common.view_strategy")}</a>`
@@ -2785,209 +3000,6 @@ function drawCompareChart(strategyIds, instrument, window) {
   );
 }
 
-function bindPortfolioBuilder(route) {
-  const selectedParam = route.params.get("strategies") || "";
-  const selected = selectedParam ? selectedParam.split(",").filter(Boolean) : [];
-  if (!selected.length) return;
-
-  const instrument = route.params.get("instrument") || defaultInstrument();
-  const window = route.params.get("window") || defaultWindow();
-  const weightInputs = Array.from(
-    document.querySelectorAll("[data-portfolio-weight]")
-  );
-  if (!weightInputs.length) return;
-
-  const strategyIds = weightInputs.map((input) => input.dataset.portfolioWeight);
-
-  const applyWeights = (weights) => {
-    const cleaned = weights.map((value) =>
-      Number.isFinite(value) ? Math.max(0, value) : 0
-    );
-    setPortfolioWeights(strategyIds, cleaned);
-    weightInputs.forEach((input, index) => {
-      input.value = cleaned[index].toFixed(1);
-    });
-    updatePortfolioDisplay(strategyIds, cleaned, instrument, window);
-  };
-
-  const updateFromInputs = () => {
-    const weights = weightInputs.map((input) => {
-      const value = parseFloat(input.value);
-      return Number.isFinite(value) ? value : 0;
-    });
-    setPortfolioWeights(strategyIds, weights);
-    updatePortfolioDisplay(strategyIds, weights, instrument, window);
-  };
-
-  document.querySelectorAll("[data-portfolio-preset]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (button.dataset.portfolioPreset === "risk") {
-        applyWeights(calcRiskParityWeights(strategyIds, instrument, window));
-        return;
-      }
-      applyWeights(strategyIds.map(() => 100 / strategyIds.length));
-    });
-  });
-
-  weightInputs.forEach((input) => {
-    input.addEventListener("input", updateFromInputs);
-  });
-
-  updateFromInputs();
-}
-
-function updatePortfolioDisplay(strategyIds, weights, instrument, window) {     
-  const portfolio = buildPortfolio(strategyIds, weights, instrument, window);   
-  updatePortfolioTotals(portfolio.total);
-  updatePortfolioMetrics(portfolio.metrics);
-  updatePortfolioChart(portfolio.series);
-  updatePortfolioRisk(strategyIds, weights, instrument, window);
-}
-
-function updatePortfolioTotals(total) {
-  const totalEl = document.getElementById("portfolio-total");
-  if (totalEl) {
-    totalEl.textContent = `${total.toFixed(1)}%`;
-  }
-  const note = document.getElementById("portfolio-note");
-  if (note) {
-    const normalized = Math.abs(total - 100) < 0.1;
-    note.textContent = normalized
-      ? t("portfolio.weights_sum")
-      : t("portfolio.weights_normalize");
-  }
-}
-
-function updatePortfolioMetrics(metrics) {
-  const container = document.getElementById("portfolio-metrics");
-  if (!container) return;
-  container.innerHTML = `
-    <h3>${t("portfolio.metrics")}</h3>
-    ${renderPortfolioMetrics(metrics)}
-  `;
-}
-
-function updatePortfolioChart(series) {
-  const ctx = document.getElementById("portfolio-chart");
-  if (!ctx) return;
-  if (!series) {
-    if (portfolioChart) {
-      portfolioChart.destroy();
-      portfolioChart = null;
-    }
-    return;
-  }
-
-  const data = {
-    labels: series.dates,
-    datasets: [
-      {
-        label: t("portfolio.portfolio_label"),
-        data: series.strategy,
-        borderColor: palette(0),
-        backgroundColor: "rgba(31, 111, 120, 0.2)",
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0.25
-      }
-    ]
-  };
-
-  if (portfolioChart) {
-    portfolioChart.data = data;
-    portfolioChart.update();
-    return;
-  }
-
-  portfolioChart = new Chart(ctx, {
-    type: "line",
-    data,
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: { legend: { position: "bottom" } },
-      scales: { y: { type: "linear" } }
-    }
-  });
-  registerChart(portfolioChart);
-}
-
-function updatePortfolioRisk(strategyIds, weights, instrument, window) {
-  const chartEl = document.getElementById("portfolio-risk-chart");
-  const listEl = document.getElementById("portfolio-risk-list");
-  const noteEl = document.getElementById("portfolio-risk-note");
-  if (!chartEl || !listEl || !noteEl) return;
-
-  const strategies = strategyIds
-    .map((id) => store.strategies.find((strategy) => strategy.id === id))
-    .filter(Boolean);
-  const risk = calcRiskContribution(strategyIds, weights, instrument, window);
-
-  if (!risk || !risk.contributions.length) {
-    noteEl.textContent = t("common.not_enough_risk_data");
-    listEl.innerHTML =
-      `<div class="muted">${t("common.not_enough_risk_data")}</div>`;
-    if (portfolioRiskChart) {
-      portfolioRiskChart.destroy();
-      portfolioRiskChart = null;
-    }
-    return;
-  }
-
-  noteEl.textContent = t("portfolio.vol_ann", {
-    value: formatPercent(risk.annualizedVol, 2)
-  });
-  listEl.innerHTML = renderRiskContributionTable(strategies, risk);
-
-  const labels = strategies.map((strategy) => strategy.id);
-  const data = risk.contributions.map((entry) =>
-    round((entry.percent || 0) * 100, 2)
-  );
-  if (portfolioRiskChart) {
-    portfolioRiskChart.data.labels = labels;
-    portfolioRiskChart.data.datasets[0].data = data;
-    portfolioRiskChart.data.datasets[0].backgroundColor = labels.map(
-      (_, index) => palette(index)
-    );
-    portfolioRiskChart.update();
-    return;
-  }
-
-  portfolioRiskChart = new Chart(chartEl, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: t("portfolio.risk_contribution_pct"),
-          data,
-          backgroundColor: labels.map((_, index) => palette(index))
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      indexAxis: "y",
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `${ctx.parsed.x.toFixed(2)}%`
-          }
-        }
-      },
-      scales: {
-        x: {
-          ticks: { callback: (value) => `${value}%` }
-        }
-      }
-    }
-  });
-  registerChart(portfolioRiskChart);
-}
-
 function bindArena(route) {
   const state = arenaState(route.params);
   const instrumentSelect = document.getElementById("arena-instrument");
@@ -3189,11 +3201,11 @@ function drawStrategyCharts(route) {
   if (!strategy) return;
 
   const instrument =
-    route.params.get("instrument") || strategy.instruments[0] || defaultInstrument();
+    route.params.get("instrument") || dataInstruments(strategy)[0] || defaultInstrument();
   const window = route.params.get("window") || defaultWindow();
   const compareParam = route.params.get("compare");
   const compare = compareParam ? compareParam.split(",").filter(Boolean) : [];
-  const compareList = compare.length ? compare : strategy.recommendedCompare;
+  const compareList = (compare.length ? compare : strategy.recommendedCompare || []).filter((item) => dataInstruments(strategy).includes(item));
   const scale = route.params.get("scale") || "linear";
   const benchmarkKey = route.params.get("benchmark") || "buy-hold";
 
@@ -3334,373 +3346,6 @@ function drawStrategyCharts(route) {
   drawRollingMetrics(windowed);
 }
 
-function calcDrawdownSeries(values) {
-  let peak = values[0] || 1;
-  return values.map((value) => {
-    if (value > peak) peak = value;
-    return value / peak - 1;
-  });
-}
-
-function renderMonthlyHeatmap(container, series) {
-  const monthlyData = calcMonthlyReturnsMatrix(series.dates, series.strategy);  
-
-  if (!monthlyData.years.length) {
-    container.innerHTML = `<div class='muted'>${t("common.no_data")}</div>`;
-    return;
-  }
-
-  const months = [
-    t("heatmap.jan"),
-    t("heatmap.feb"),
-    t("heatmap.mar"),
-    t("heatmap.apr"),
-    t("heatmap.may"),
-    t("heatmap.jun"),
-    t("heatmap.jul"),
-    t("heatmap.aug"),
-    t("heatmap.sep"),
-    t("heatmap.oct"),
-    t("heatmap.nov"),
-    t("heatmap.dec")
-  ];
-
-  let html = `<table class='heatmap-table'><thead><tr><th>${t("common.year")}</th>`;
-  months.forEach((m) => {
-    html += `<th>${m}</th>`;
-  });
-  html += `<th>${t("common.annual")}</th></tr></thead><tbody>`;
-
-  monthlyData.years.forEach((year) => {
-    html += `<tr><td class="year-cell">${year}</td>`;
-    let yearTotal = 1;
-    months.forEach((_, monthIndex) => {
-      const value = monthlyData.matrix[year]?.[monthIndex];
-      if (value !== undefined) {
-        yearTotal *= (1 + value);
-        const color = getHeatmapColor(value);
-        const displayValue = (value * 100).toFixed(1);
-        html += `<td class="heatmap-cell" style="background:${color}">${displayValue}%</td>`;
-      } else {
-        html += `<td class="heatmap-cell empty">-</td>`;
-      }
-    });
-    const annualReturn = yearTotal - 1;
-    const annualColor = getHeatmapColor(annualReturn);
-    html += `<td class="heatmap-cell annual" style="background:${annualColor}">${(annualReturn * 100).toFixed(1)}%</td>`;
-    html += "</tr>";
-  });
-
-  html += "</tbody></table>";
-  container.innerHTML = html;
-}
-
-function renderParamSensitivity(strategyId, instrument) {
-  const container = document.getElementById("param-sensitivity");
-  if (!container) return;
-
-  const sensitivity =
-    store.performance.strategies?.[strategyId]?.sensitivity?.[instrument];
-  if (!sensitivity || !sensitivity.scores) {
-    container.innerHTML = `<div class='muted'>${t("strategy.no_sensitivity")}</div>`;
-    return;
-  }
-
-  const xKey = sensitivity.xKey;
-  const yKey = sensitivity.yKey;
-  const xValues = sensitivity.xValues || [];
-  const yValues = sensitivity.yValues || [];
-  const scores = sensitivity.scores || [];
-  const hasY = Boolean(yKey);
-  const xLabel = formatParamLabel(xKey);
-  const yLabel = hasY ? formatParamLabel(yKey) : xLabel;
-
-  let html = "<table class='sensitivity-table'><thead><tr>";
-  html += `<th>${yLabel}</th>`;
-  xValues.forEach((value) => {
-    html += `<th>${value}</th>`;
-  });
-  html += "</tr></thead><tbody>";
-
-  yValues.forEach((yValue, rowIndex) => {
-    html += "<tr>";
-    html += `<td class="param-label">${hasY ? yValue : xLabel}</td>`;
-    xValues.forEach((_, colIndex) => {
-      const value = scores[rowIndex]?.[colIndex];
-      const display = Number.isFinite(value) ? value.toFixed(1) : "-";
-      const color = Number.isFinite(value) ? getScoreColor(value) : "transparent";
-      html += `<td class="sensitivity-cell" style="background:${color}">${display}</td>`;
-    });
-    html += "</tr>";
-  });
-
-  html += "</tbody></table>";
-  container.innerHTML = html;
-}
-
-function drawAttribution(series) {
-  const attributionCtx = document.getElementById("attribution-chart");
-  const attributionSummary = document.getElementById("attribution-summary");
-  if (!attributionCtx && !attributionSummary) return;
-
-  const attribution = calcAttribution(series);
-  if (!attribution) {
-    if (attributionSummary) {
-      attributionSummary.innerHTML =
-        `<div class="muted">${t("strategy.not_enough_attribution")}</div>`;
-    }
-    return;
-  }
-
-  if (attributionSummary) {
-    attributionSummary.innerHTML = `
-      <div class="metric-tile">
-        <span>${t("metric.beta")}</span>
-        <strong>${attribution.beta.toFixed(2)}</strong>
-      </div>
-      <div class="metric-tile">
-        <span>${t("metric.alpha_ann")}</span>
-        <strong>${formatPercent(attribution.alphaAnnual, 2)}</strong>
-      </div>
-      <div class="metric-tile">
-        <span>${t("metric.beta_contrib_ann")}</span>
-        <strong>${formatPercent(attribution.betaContribution, 2)}</strong>
-      </div>
-      <div class="metric-tile">
-        <span>${t("metric.r_squared")}</span>
-        <strong>${attribution.rSquared.toFixed(2)}</strong>
-      </div>
-    `;
-  }
-
-  if (attributionCtx) {
-    registerChart(
-      new Chart(attributionCtx, {
-        type: "line",
-        data: {
-          labels: attribution.labels,
-          datasets: [
-            {
-              label: t("common.strategy"),
-              data: attribution.strategyCurve,
-              borderColor: "#1f6f78",
-              borderWidth: 2,
-              pointRadius: 0,
-              tension: 0.25
-            },
-            {
-              label: t("strategy.beta_contribution_curve"),
-              data: attribution.betaCurve,
-              borderColor: "#e16b3a",
-              borderWidth: 2,
-              pointRadius: 0,
-              tension: 0.25
-            },
-            {
-              label: t("strategy.alpha_contribution_curve"),
-              data: attribution.alphaCurve,
-              borderColor: "#2f6fa5",
-              borderWidth: 2,
-              pointRadius: 0,
-              tension: 0.25,
-              borderDash: [6, 4]
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: "index", intersect: false },
-          plugins: { legend: { position: "bottom" } },
-          scales: { y: { type: "linear" } }
-        }
-      })
-    );
-  }
-}
-
-function drawRollingMetrics(series) {
-  const sharpeCtx = document.getElementById("rolling-sharpe");
-  const volCtx = document.getElementById("rolling-vol");
-  const betaCtx = document.getElementById("rolling-beta");
-  if (!sharpeCtx && !volCtx && !betaCtx) return;
-
-  const rolling = calcRollingMetrics(series, ROLLING_WINDOW);
-  const labels = rolling.labels;
-  const baseOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: "index", intersect: false },
-    plugins: { legend: { display: false } },
-    scales: { y: { type: "linear" } }
-  };
-
-  if (sharpeCtx) {
-    registerChart(
-      new Chart(sharpeCtx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: t("strategy.rolling_sharpe"),
-              data: rolling.sharpe,
-              borderColor: palette(0),
-              borderWidth: 2,
-              pointRadius: 0,
-              tension: 0.25,
-              spanGaps: true
-            }
-          ]
-        },
-        options: baseOptions
-      })
-    );
-  }
-
-  if (volCtx) {
-    registerChart(
-      new Chart(volCtx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: t("strategy.rolling_volatility"),
-              data: rolling.volatility,
-              borderColor: palette(1),
-              borderWidth: 2,
-              pointRadius: 0,
-              tension: 0.25,
-              spanGaps: true
-            }
-          ]
-        },
-        options: {
-          ...baseOptions,
-          scales: {
-            y: {
-              type: "linear",
-              ticks: {
-                callback: (value) => `${(value * 100).toFixed(0)}%`
-              }
-            }
-          }
-        }
-      })
-    );
-  }
-
-  if (betaCtx) {
-    registerChart(
-      new Chart(betaCtx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: t("strategy.rolling_beta"),
-              data: rolling.beta,
-              borderColor: palette(2),
-              borderWidth: 2,
-              pointRadius: 0,
-              tension: 0.25,
-              spanGaps: true
-            }
-          ]
-        },
-        options: baseOptions
-      })
-    );
-  }
-}
-
-function calcMonthlyReturnsMatrix(dates, values) {
-  const matrix = {};
-  const yearsSet = new Set();
-
-  for (let i = 1; i < dates.length; i++) {
-    const prevDate = dates[i - 1];
-    const currDate = dates[i];
-    const prevYM = prevDate.slice(0, 7);
-    const currYM = currDate.slice(0, 7);
-
-    if (prevYM !== currYM) {
-      const year = parseInt(currDate.slice(0, 4));
-      const month = parseInt(currDate.slice(5, 7)) - 1;
-
-      // Find last value of previous month and first value of current month
-      let prevMonthEnd = values[i - 1];
-      let currMonthStart = values[i - 1];
-
-      // Calculate return for the ending month
-      const prevYear = parseInt(prevDate.slice(0, 4));
-      const prevMonth = parseInt(prevDate.slice(5, 7)) - 1;
-
-      if (!matrix[prevYear]) matrix[prevYear] = {};
-      yearsSet.add(prevYear);
-    }
-  }
-
-  // Recalculate using bucket approach
-  const buckets = {};
-  for (let i = 0; i < dates.length; i++) {
-    const ym = dates[i].slice(0, 7);
-    if (!buckets[ym]) {
-      buckets[ym] = { start: values[i], end: values[i] };
-    } else {
-      buckets[ym].end = values[i];
-    }
-  }
-
-  Object.keys(buckets).forEach((ym) => {
-    const year = parseInt(ym.slice(0, 4));
-    const month = parseInt(ym.slice(5, 7)) - 1;
-    const ret = buckets[ym].end / buckets[ym].start - 1;
-
-    if (!matrix[year]) matrix[year] = {};
-    matrix[year][month] = ret;
-    yearsSet.add(year);
-  });
-
-  const years = Array.from(yearsSet).sort((a, b) => b - a);
-  return { years, matrix };
-}
-
-function getHeatmapColor(value) {
-  if (value === undefined || value === null) return "transparent";
-
-  const intensity = Math.min(Math.abs(value) * 5, 1);
-
-  if (value >= 0) {
-    // Green for positive
-    const r = Math.round(255 - intensity * 100);
-    const g = Math.round(255 - intensity * 30);
-    const b = Math.round(255 - intensity * 100);
-    return `rgb(${r}, ${g}, ${b})`;
-  } else {
-    // Red for negative
-    const r = Math.round(255 - intensity * 30);
-    const g = Math.round(255 - intensity * 100);
-    const b = Math.round(255 - intensity * 100);
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-}
-
-function getScoreColor(value) {
-  if (!Number.isFinite(value)) return "transparent";
-  const normalized = clamp((value - 50) / 50, -1, 1);
-  return getHeatmapColor(normalized);
-}
-
-function formatParamLabel(key) {
-  if (!key) return "";
-  return key
-    .replace(/_/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
 function arenaState(params) {
   return {
     instrument: params.get("instrument") || defaultInstrument(),
@@ -3731,11 +3376,14 @@ function favoritesState(params) {
 
 function buildLeaderboard(instrument, window) {
   return store.strategies
-    .filter((strategy) => strategy.instruments.includes(instrument))
-    .map((strategy) => {
-      const metrics = getMetricsFor(strategy.id, instrument, window);
-      metrics.arenaScore = metrics.arenaScore || calcArenaScore(metrics);
-      return { strategy, metrics };
+    .filter((strategy) => dataInstruments(strategy).includes(instrument))
+    .map((strategy) => ({ strategy, metrics: getMetricsFor(strategy.id, instrument, window) }))
+    .filter((row) => !row.metrics.missing)
+    .map(({ strategy, metrics }) => {
+      // Only fall back to the local formula when the data has no score at all;
+      // 0 is a real score (unranked strategies get 0 and scoreEligible=false).
+      const arenaScore = metrics.arenaScore ?? calcArenaScore(metrics);
+      return { strategy, metrics: arenaScore === metrics.arenaScore ? metrics : { ...metrics, arenaScore } };
     });
 }
 
@@ -3745,7 +3393,11 @@ function sortRows(rows, sort, dir, metric) {
   return [...rows].sort((a, b) => {
     const valueA = valueForSort(a.metrics, key);
     const valueB = valueForSort(b.metrics, key);
-    return (valueA - valueB) * direction;
+    if (valueA !== valueB) return (valueA - valueB) * direction;
+    // Equal scores: higher Sharpe first, then id, so the order never depends on data order.
+    const sharpeDiff = (b.metrics.sharpe ?? -Infinity) - (a.metrics.sharpe ?? -Infinity);
+    if (sharpeDiff) return sharpeDiff;
+    return String(a.strategy?.id || "").localeCompare(String(b.strategy?.id || ""));
   });
 }
 
@@ -3759,11 +3411,42 @@ function valueForSort(metrics, key) {
   return metrics[key] ?? 0;
 }
 
+// Markets a strategy actually has backtest results for. With live data we
+// never fall back to generated placeholder series.
+function dataInstruments(strategy) {
+  const metrics = store.performance.strategies?.[strategy.id]?.metrics;
+  if (!hasLivePerformanceData() || !metrics) return strategy.instruments;
+  const withData = strategy.instruments.filter((item) => metrics[item]);
+  const extra = Object.keys(metrics).filter((item) => !withData.includes(item));
+  return [...withData, ...extra];
+}
+
+const MISSING_METRICS = Object.freeze({
+  missing: true,
+  totalReturn: NaN,
+  cagr: NaN,
+  sharpe: NaN,
+  sortino: NaN,
+  calmar: NaN,
+  maxDrawdown: NaN,
+  volatility: NaN,
+  winRate: NaN,
+  profitFactor: NaN,
+  trades: NaN,
+  turnover: NaN,
+  arenaScore: 0,
+  scoreEligible: false
+});
+
 function getMetricsFor(strategyId, instrument, window) {
   const perf = store.performance.strategies?.[strategyId] || {};
   const metrics = perf.metrics?.[instrument]?.[window];
   if (metrics) {
-    return metrics;
+    const ext = store.metricsExt?.[strategyId]?.[instrument]?.[window];
+    return ext ? { ...metrics, ...ext } : metrics;
+  }
+  if (hasLivePerformanceData()) {
+    return MISSING_METRICS;
   }
   const series = getSeries(strategyId, instrument);
   const windowed = sliceSeries(series, window);
@@ -3779,6 +3462,10 @@ function getSeries(strategyId, instrument) {
   }
 
   const perf = store.performance.strategies?.[strategyId] || {};
+  if (!perf.equity?.[instrument] && isEquityPending(instrument)) {
+    // Safety net for pages that did not preload this instrument.
+    queueRenderAfterEquity(instrument);
+  }
   if (perf.equity?.[instrument]) {
     const entry = perf.equity[instrument];
     const result = {
@@ -3918,630 +3605,4 @@ function buildBenchmarkSeries(benchmarkKey, instrument, window) {
     };
   }
   return { label, series };
-}
-
-function generateSeries(seed, points, trend, vol) {
-  const rng = mulberry32(seed);
-  const dates = [];
-  const strategy = [];
-  const benchmark = [];
-  let value = 1;
-  let bench = 1;
-  const start = new Date();
-  start.setDate(start.getDate() - points);
-  const dailyTrend = trend / 252;
-  const dailyVol = vol / Math.sqrt(252);
-
-  for (let i = 0; i < points; i += 1) {
-    const date = new Date(start);
-    date.setDate(start.getDate() + i);
-    const shock = randomNormal(rng) * dailyVol;
-    let ret = dailyTrend + shock;
-    if (rng() < 0.02) {
-      ret -= dailyVol * (1 + rng());
-    }
-    value = Math.max(0.2, value * (1 + ret));
-    bench = Math.max(0.2, bench * (1 + dailyTrend * 0.6 + shock * 0.7));
-
-    dates.push(date.toISOString().slice(0, 10));
-    strategy.push(round(value, 4));
-    benchmark.push(round(bench, 4));
-  }
-
-  return { dates, strategy, benchmark };
-}
-
-function sliceSeries(series, window) {
-  if (window === "Max") {
-    return series;
-  }
-  const end = new Date(series.dates[series.dates.length - 1]);
-  const start = new Date(end);
-  switch (window) {
-    case "1M":
-      start.setMonth(start.getMonth() - 1);
-      break;
-    case "3M":
-      start.setMonth(start.getMonth() - 3);
-      break;
-    case "6M":
-      start.setMonth(start.getMonth() - 6);
-      break;
-    case "1Y":
-      start.setFullYear(start.getFullYear() - 1);
-      break;
-    case "3Y":
-      start.setFullYear(start.getFullYear() - 3);
-      break;
-    case "5Y":
-      start.setFullYear(start.getFullYear() - 5);
-      break;
-    default:
-      return series;
-  }
-  const startTime = start.getTime();
-  const startIndex = series.dates.findIndex(
-    (item) => new Date(item).getTime() >= startTime
-  );
-  const index = startIndex < 0 ? 0 : startIndex;
-  return {
-    dates: series.dates.slice(index),
-    strategy: series.strategy.slice(index),
-    benchmark: series.benchmark.slice(index)
-  };
-}
-
-function normalizeSeries(series) {
-  const base = series.strategy[0] || 1;
-  const normalized = series.strategy.map((value) => value / base);
-  return { ...series, strategy: normalized };
-}
-
-function calcRollingMetrics(series, windowSize) {
-  const returns = pctChange(series.strategy);
-  const benchReturns = pctChange(series.benchmark);
-  const labels = series.dates.slice(1);
-  const sharpe = [];
-  const volatility = [];
-  const beta = [];
-
-  for (let i = 0; i < returns.length; i += 1) {
-    if (i < windowSize - 1) {
-      sharpe.push(null);
-      volatility.push(null);
-      beta.push(null);
-      continue;
-    }
-    const start = i - windowSize + 1;
-    const windowReturns = returns.slice(start, i + 1);
-    const windowBench = benchReturns.slice(start, i + 1);
-    const avg = mean(windowReturns);
-    const stdDev = std(windowReturns);
-    const annualVol = stdDev * Math.sqrt(TRADING_DAYS);
-    const sharpeValue =
-      stdDev === 0 ? 0 : (avg / stdDev) * Math.sqrt(TRADING_DAYS);
-    const benchStd = std(windowBench);
-    const betaValue =
-      benchStd === 0
-        ? 0
-        : covariance(windowReturns, windowBench) / (benchStd * benchStd);
-
-    sharpe.push(round(sharpeValue, 3));
-    volatility.push(round(annualVol, 4));
-    beta.push(round(betaValue, 3));
-  }
-
-  return { labels, sharpe, volatility, beta };
-}
-
-function calcLatestSnapshot(series) {
-  if (!series?.dates?.length || series.strategy.length < 2) return null;
-  const index = series.strategy.length - 1;
-  const prev = index - 1;
-  const strategyMove = series.strategy[index] / series.strategy[prev] - 1;
-  const benchSeries = series.benchmark || [];
-  const benchmarkMove =
-    benchSeries.length > index ? benchSeries[index] / benchSeries[prev] - 1 : NaN;
-  return {
-    date: series.dates[index],
-    strategyMove,
-    benchmarkMove
-  };
-}
-
-function buildCumulativeSeries(returns) {
-  let value = 1;
-  return returns.map((ret) => {
-    value *= 1 + ret;
-    return round(value, 4);
-  });
-}
-
-function calcAttribution(series) {
-  if (!series?.strategy?.length || !series?.benchmark?.length) return null;
-  const returns = pctChange(series.strategy);
-  const benchReturns = pctChange(series.benchmark);
-  const length = Math.min(returns.length, benchReturns.length);
-  if (length < 30) return null;
-
-  const strategyReturns = returns.slice(-length);
-  const benchmarkReturns = benchReturns.slice(-length);
-  const benchStd = std(benchmarkReturns);
-  const benchVar = benchStd * benchStd;
-  const beta = benchVar === 0 ? 0 : covariance(strategyReturns, benchmarkReturns) / benchVar;
-  const alphaSeries = strategyReturns.map(
-    (value, index) => value - beta * benchmarkReturns[index]
-  );
-  const strategyAnnual = mean(strategyReturns) * TRADING_DAYS;
-  const benchmarkAnnual = mean(benchmarkReturns) * TRADING_DAYS;
-  const betaContribution = beta * benchmarkAnnual;
-  const alphaAnnual = mean(alphaSeries) * TRADING_DAYS;
-  const corr = correlation(strategyReturns, benchmarkReturns);
-  const rSquared = corr * corr;
-  const offset = series.dates.length - length;
-  const labels = series.dates.slice(offset);
-
-  return {
-    beta,
-    alphaAnnual,
-    betaContribution,
-    strategyAnnual,
-    benchmarkAnnual,
-    rSquared,
-    labels,
-    strategyCurve: buildCumulativeSeries(strategyReturns),
-    betaCurve: buildCumulativeSeries(benchmarkReturns.map((value) => beta * value)),
-    alphaCurve: buildCumulativeSeries(alphaSeries)
-  };
-}
-
-function calcMetrics(series) {
-  const returns = pctChange(series.strategy);
-  const totalReturn =
-    series.strategy.length > 1
-      ? series.strategy[series.strategy.length - 1] / series.strategy[0] - 1
-      : 0;
-  const years =
-    (new Date(series.dates[series.dates.length - 1]) -
-      new Date(series.dates[0])) /
-    (1000 * 60 * 60 * 24 * 365.25);
-  const cagr = years > 0 ? Math.pow(1 + totalReturn, 1 / years) - 1 : 0;
-  const volatility = std(returns) * Math.sqrt(252);
-  const sharpe =
-    std(returns) > 0 ? (mean(returns) / std(returns)) * Math.sqrt(252) : 0;
-  const downside = returns.filter((value) => value < 0);
-  const sortino =
-    downside.length && std(downside) > 0
-      ? (mean(returns) / std(downside)) * Math.sqrt(252)
-      : 0;
-  const maxDrawdown = calcMaxDrawdown(series.strategy);
-  const calmar = maxDrawdown !== 0 ? cagr / Math.abs(maxDrawdown) : 0;
-  const monthReturns = monthlyReturns(series.dates, series.strategy);
-  const bestMonth = monthReturns.length ? Math.max(...monthReturns) : 0;
-  const worstMonth = monthReturns.length ? Math.min(...monthReturns) : 0;
-  const ulcer = calcUlcer(series.strategy);
-  const winRate = returns.length
-    ? returns.filter((value) => value > 0).length / returns.length
-    : 0;
-  const profitFactor = profitFactorFromReturns(returns);
-  const trades = Math.max(6, Math.round(returns.length / 8));
-  const turnover = returns.length ? trades / returns.length : 0;
-
-  return {
-    totalReturn,
-    cagr,
-    sharpe,
-    sortino,
-    calmar,
-    maxDrawdown,
-    volatility,
-    bestMonth,
-    worstMonth,
-    ulcer,
-    winRate,
-    profitFactor,
-    trades,
-    turnover
-  };
-}
-
-function calcArenaScore(metrics) {
-  const raw =
-    40 * metrics.sharpe +
-    20 * metrics.sortino +
-    10 * metrics.calmar +
-    100 * metrics.cagr -
-    50 * Math.abs(metrics.maxDrawdown);
-  return clamp(raw, 0, 100);
-}
-
-function pctChange(values) {
-  const result = [];
-  for (let i = 1; i < values.length; i += 1) {
-    result.push(values[i] / values[i - 1] - 1);
-  }
-  return result;
-}
-
-function calcMaxDrawdown(values) {
-  let peak = values[0] || 1;
-  let maxDd = 0;
-  values.forEach((value) => {
-    if (value > peak) peak = value;
-    const dd = value / peak - 1;
-    if (dd < maxDd) maxDd = dd;
-  });
-  return maxDd;
-}
-
-function calcUlcer(values) {
-  let peak = values[0] || 1;
-  const squares = values.map((value) => {
-    if (value > peak) peak = value;
-    const dd = value / peak - 1;
-    return dd * dd;
-  });
-  return Math.sqrt(mean(squares));
-}
-
-function monthlyReturns(dates, values) {
-  const buckets = {};
-  for (let i = 1; i < dates.length; i += 1) {
-    const ym = dates[i].slice(0, 7);
-    if (!buckets[ym]) {
-      buckets[ym] = { start: values[i - 1], end: values[i] };
-    } else {
-      buckets[ym].end = values[i];
-    }
-  }
-  return Object.values(buckets).map((bucket) => bucket.end / bucket.start - 1);
-}
-
-function profitFactorFromReturns(returns) {
-  const gains = returns.filter((value) => value > 0).reduce((a, b) => a + b, 0);
-  const losses = returns.filter((value) => value < 0).reduce((a, b) => a + b, 0);
-  if (losses === 0) return 0;
-  return gains / Math.abs(losses);
-}
-
-function mean(values) {
-  if (!values.length) return 0;
-  return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-function std(values) {
-  if (!values.length) return 0;
-  const avg = mean(values);
-  const variance =
-    values.reduce((sum, value) => sum + Math.pow(value - avg, 2), 0) /
-    values.length;
-  return Math.sqrt(variance);
-}
-
-function covariance(valuesA, valuesB) {
-  if (!valuesA.length || valuesA.length !== valuesB.length) return 0;
-  const avgA = mean(valuesA);
-  const avgB = mean(valuesB);
-  let sum = 0;
-  for (let i = 0; i < valuesA.length; i += 1) {
-    sum += (valuesA[i] - avgA) * (valuesB[i] - avgB);
-  }
-  return sum / valuesA.length;
-}
-
-function correlation(valuesA, valuesB) {
-  if (!valuesA.length || valuesA.length !== valuesB.length) return 0;
-  const stdA = std(valuesA);
-  const stdB = std(valuesB);
-  if (stdA === 0 || stdB === 0) return 0;
-  return covariance(valuesA, valuesB) / (stdA * stdB);
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function formatMetric(value, key) {
-  if (!Number.isFinite(value)) return "--";
-  if (key === "score") {
-    return value.toFixed(1);
-  }
-  if (key === "ratio") {
-    return value.toFixed(2);
-  }
-  if (
-    key === "totalReturn" ||
-    key === "cagr" ||
-    key === "maxDrawdown" ||
-    key === "winRate" ||
-    key === "turnover"
-  ) {
-    return `${(value * 100).toFixed(2)}%`;
-  }
-  return value.toFixed(2);
-}
-
-function formatPercent(value, digits = 2) {
-  if (!Number.isFinite(value)) return "--";
-  return `${(value * 100).toFixed(digits)}%`;
-}
-
-function formatNumber(value) {
-  if (!Number.isFinite(value)) return "--";
-  return value.toFixed(0);
-}
-
-function formatCompareValue(value, format) {
-  if (!Number.isFinite(value)) return "--";
-  if (format === "percent") {
-    return `${(value * 100).toFixed(2)}%`;
-  }
-  if (format === "ratio") {
-    return value.toFixed(2);
-  }
-  return Math.round(value).toString();
-}
-
-function csvEscape(value) {
-  if (value === null || value === undefined) return "";
-  const text = String(value);
-  if (/[",\n\r]/.test(text)) {
-    return `"${text.replace(/"/g, "\"\"")}"`;
-  }
-  return text;
-}
-
-function buildCsv(rows) {
-  return rows.map((row) => row.map(csvEscape).join(",")).join("\n");
-}
-
-function downloadFile(filename, content, type = "text/plain;charset=utf-8") {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function downloadCanvasAsPng(canvasId, filename) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-  const link = document.createElement("a");
-  link.href = canvas.toDataURL("image/png");
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-}
-
-function copyToClipboard(text) {
-  if (!text) return Promise.resolve();
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    return navigator.clipboard.writeText(text).catch(() => {});
-  }
-  return new Promise((resolve) => {
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand("copy");
-    textarea.remove();
-    resolve();
-  });
-}
-
-function buildStrategyCsv(strategyId, instrument, window) {
-  const series = getSeries(strategyId, instrument);
-  const windowed = sliceSeries(series, window);
-  const rows = [[t("common.date"), t("common.strategy"), t("common.benchmark")]];
-  for (let i = 0; i < windowed.dates.length; i += 1) {
-    const strategyValue = Number.isFinite(windowed.strategy[i])
-      ? windowed.strategy[i].toFixed(6)
-      : "";
-    const benchmarkValue = Number.isFinite(windowed.benchmark[i])
-      ? windowed.benchmark[i].toFixed(6)
-      : "";
-    rows.push([windowed.dates[i], strategyValue, benchmarkValue]);
-  }
-  return buildCsv(rows);
-}
-
-function downloadStrategyCsv(strategyId, instrument, window) {
-  const csv = buildStrategyCsv(strategyId, instrument, window);
-  const filename = `${strategyId}-${instrument}-${window}-equity.csv`;
-  downloadFile(filename, csv, "text/csv;charset=utf-8");
-}
-
-function buildCompareMetricsCsv(strategies, instrument, window) {
-  const metricsData = strategies.map((s) => getMetricsFor(s.id, instrument, window));
-  const rows = [[t("common.metric"), ...strategies.map((s) => s.id)]];
-  COMPARE_METRICS.forEach((config) => {
-    const values = metricsData.map((metrics) =>
-      formatCompareValue(metrics[config.key], config.format)
-    );
-    rows.push([t(config.labelKey), ...values]);
-  });
-  return buildCsv(rows);
-}
-
-function downloadCompareCsv(strategies, instrument, window) {
-  if (!strategies.length) return;
-  const csv = buildCompareMetricsCsv(strategies, instrument, window);
-  const filename = `compare-${instrument}-${window}.csv`;
-  downloadFile(filename, csv, "text/csv;charset=utf-8");
-}
-
-function buildCompareReportHtml(strategies, instrument, window) {
-  const metricsData = strategies.map((s) => getMetricsFor(s.id, instrument, window));
-  const headerCells = strategies
-    .map((strategy) => `<th>${escapeHtml(strategy.id)}</th>`)
-    .join("");
-  const rows = COMPARE_METRICS.map((config) => {
-    const values = metricsData
-      .map((metrics) => formatCompareValue(metrics[config.key], config.format))
-      .map((value) => `<td>${escapeHtml(value)}</td>`)
-      .join("");
-    return `<tr><th>${escapeHtml(t(config.labelKey))}</th>${values}</tr>`;
-  }).join("");
-  const strategyList = strategies
-    .map((strategy) => `${strategy.id} - ${strategy.name}`)
-    .join(", ");
-  const generated = new Date().toISOString().slice(0, 19).replace("T", " ");
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>${t("compare.report_title")}</title>
-    <style>
-      body {
-        font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
-        margin: 40px;
-        color: #1f1f1f;
-      }
-      h1 {
-        margin: 0 0 0.5rem;
-      }
-      .meta {
-        color: #555;
-        margin: 0.2rem 0;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 1.5rem;
-        font-size: 0.95rem;
-      }
-      th,
-      td {
-        border: 1px solid #d9d9d9;
-        padding: 0.5rem 0.75rem;
-        text-align: left;
-      }
-      thead th {
-        background: #f5f5f5;
-      }
-      tbody tr:nth-child(odd) {
-        background: #fafafa;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>${t("compare.report_title")}</h1>
-    <p class="meta">${t("common.instrument")}: ${escapeHtml(instrument)} | ${t("common.window")}: ${escapeHtml(window)}</p>
-    <p class="meta">${t("compare.report_strategies")}: ${escapeHtml(strategyList)}</p>
-    <p class="meta">${t("common.generated")}: ${escapeHtml(generated)}</p>
-    <table>
-      <thead>
-        <tr>
-          <th>${t("common.metric")}</th>
-          ${headerCells}
-        </tr>
-      </thead>
-      <tbody>
-        ${rows}
-      </tbody>
-    </table>
-  </body>
-</html>`;
-}
-
-function downloadCompareReport(strategies, instrument, window) {
-  if (!strategies.length) return;
-  const html = buildCompareReportHtml(strategies, instrument, window);
-  const filename = `compare-${instrument}-${window}-report.html`;
-  downloadFile(filename, html, "text/html;charset=utf-8");
-}
-
-function parseList(value) {
-  if (!value) return [];
-  return value.split(",").filter(Boolean);
-}
-
-function escapeHtml(text) {
-  return text.replace(/[&<>"']/g, (match) => {
-    const map = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;"
-    };
-    return map[match];
-  });
-}
-
-function buildPseudocode(strategy) {
-  const sections = strategy.pseudocode || {};
-  return Object.keys(sections)
-    .map((title) => {
-      const lines = sections[title]
-        .map((line) => `- ${line}`)
-        .join("\n");
-      return `${title}\n${lines}`;
-    })
-    .join("\n\n");
-}
-
-function uniqueTags(strategies) {
-  const tags = new Set();
-  strategies.forEach((strategy) => {
-    strategy.tags.forEach((tag) => tags.add(tag));
-  });
-  return Array.from(tags).sort();
-}
-
-function instrumentHash(symbol) {
-  let hash = 0;
-  for (let i = 0; i < symbol.length; i += 1) {
-    hash = (hash << 5) - hash + symbol.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash % 1000);
-}
-
-function mulberry32(seed) {
-  let t = seed;
-  return function () {
-    t += 0x6d2b79f5;
-    let r = Math.imul(t ^ (t >>> 15), t | 1);
-    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function randomNormal(rng) {
-  let u = 0;
-  let v = 0;
-  while (u === 0) u = rng();
-  while (v === 0) v = rng();
-  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-}
-
-function round(value, digits) {
-  const factor = Math.pow(10, digits);
-  return Math.round(value * factor) / factor;
-}
-
-function palette(index) {
-  const colors = [
-    "#1f6f78",
-    "#e16b3a",
-    "#3d6e4e",
-    "#4b4e6d",
-    "#c94c4c",
-    "#6b4c9a",
-    "#d4a72c",
-    "#2f7bbf",
-    "#a66f2b",
-    "#2f9d6e"
-  ];
-  if (index < colors.length) {
-    return colors[index];
-  }
-  const hue = (index * 37) % 360;
-  return `hsl(${hue}, 60%, 45%)`;
 }

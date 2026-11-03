@@ -102,6 +102,12 @@ function eaCategoryBadge(cat) {
   return `<span class="ea-category-badge" style="--cat-color:${color}">${getEACategoryLabel(value)}</span>`;
 }
 
+// The slim EA index (data/ea_index.json) flags analysed EAs; the full
+// analysis is only loaded on detail pages.
+function isEAAnalyzed(ea) {
+  return Boolean(ea && (ea.analyzed || store.eaAnalysis[ea.id]));
+}
+
 function renderEAArena(route) {
   const s = eaArenaState(route);
   const all = store.eaCatalog || [];
@@ -119,12 +125,15 @@ function renderEAArena(route) {
   if (s.category) items = items.filter((ea) => ea.category === s.category);
   if (s.risk) items = items.filter((ea) => ea.overall_risk === s.risk);
   if (s.rating) items = items.filter((ea) => String(ea.rating) === s.rating);
-  if (s.analyzed) items = items.filter((ea) => store.eaAnalysis[ea.id]);
+  if (s.analyzed) items = items.filter(isEAAnalyzed);
 
   items.sort((a, b) => {
     switch (s.sort) {
-      case "name":
+      case "name": {
+        // Unnamed EAs go to the end instead of the top.
+        if (!a.name !== !b.name) return a.name ? -1 : 1;
         return (a.name || "").localeCompare(b.name || "");
+      }
       case "category":
         return (a.category || "").localeCompare(b.category || "");
       case "risk":
@@ -151,7 +160,7 @@ function renderEAArena(route) {
     const value = ea.rating || 0;
     ratingCounts[value] = (ratingCounts[value] || 0) + 1;
   });
-  const analyzedCount = all.filter((ea) => store.eaAnalysis[ea.id]).length;
+  const analyzedCount = all.filter(isEAAnalyzed).length;
 
   const catChips = EA_CATEGORIES.filter((c) => catCounts[c.value])
     .map(
@@ -170,9 +179,30 @@ function renderEAArena(route) {
     )
     .join("");
 
-  const cards = items
-    .map((ea) => {
-      const analysis = store.eaAnalysis[ea.id];
+  const filterKey = JSON.stringify([s.search, s.category, s.risk, s.rating, s.analyzed, s.sort]);
+  if (filterKey !== eaListFilterKey) {
+    eaListFilterKey = filterKey;
+    eaVisibleCount = EA_PAGE_SIZE;
+  }
+  eaCurrentItems = items;
+  const visibleItems = items.slice(0, eaVisibleCount);
+  const cards = visibleItems.map(renderEACard).join("");
+  const remaining = items.length - visibleItems.length;
+  const moreButton = remaining > 0
+    ? `<div class="ea-load-more"><button class="button ghost" type="button" data-ea-more>${getLang() === "zh" ? `加载更多（剩余 ${remaining} 个）` : `Show more (${remaining} left)`}</button></div>`
+    : "";
+
+  return renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ratingChips, cards, moreButton);
+}
+
+const EA_PAGE_SIZE = 60;
+let eaVisibleCount = EA_PAGE_SIZE;
+let eaListFilterKey = "";
+let eaCurrentItems = [];
+let eaRefocusSearch = false;
+
+function renderEACard(ea) {
+      const analysis = isEAAnalyzed(ea);
       return `
       <a class="ea-card" href="?page=ea-detail&id=${ea.id}" data-ea-id="${ea.id}">
         <div class="ea-card-header">
@@ -190,16 +220,17 @@ function renderEAArena(route) {
           <span class="ea-card-rating">${eaStars(ea.rating)}</span>
         </div>
       </a>`;
-    })
-    .join("");
+}
 
+function renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ratingChips, cards, moreButton) {
   return `
   <section class="ea-arena-page section">
     <div class="section-header">
       <div>
         <div class="eyebrow">${getLang() === "zh" ? "MQL5 智能交易系统" : "MQL5 Expert Advisors"}</div>
         <h1>${getLang() === "zh" ? "EA 竞技场" : "EA Arena"}</h1>
-        <p>${getLang() === "zh" ? `浏览、评估并比较 ${all.length} 个 MQL5 智能交易系统，其中 ${analyzedCount} 个附带详细分析。` : `Browse, evaluate, and compare ${all.length} MQL5 Expert Advisors. ${analyzedCount} with detailed analysis.`}</p>
+        <p>${getLang() === "zh" ? `浏览、评估并比较 ${all.length} 个 MQL5 智能交易系统，其中 ${analyzedCount} 个附带详细分析。` : `Browse, evaluate, and compare ${all.length} MQL5 Expert Advisors. ${analyzedCount} with detailed analysis.`}
+          <a href="/ea-pages/${getLang() === "zh" ? "zh/" : ""}category/">${getLang() === "zh" ? "按类别浏览 →" : "Browse by category →"}</a></p>
       </div>
       <div class="ea-toolbar">
         <input type="search" class="ea-search" placeholder="${getLang() === "zh" ? "按名称、ID 或作者搜索 EA…" : "Search EAs by name, ID, or author…"}" value="${s.search}" data-ea-search />
@@ -232,9 +263,10 @@ function renderEAArena(route) {
 
     <p class="ea-results-count">${getLang() === "zh" ? `显示 ${items.length} / ${all.length} 个 EA` : `${items.length} of ${all.length} EAs`}</p>
 
-    <div class="ea-${s.view} ${items.length === 0 ? "ea-empty" : ""}">
+    <div class="ea-${s.view} ${items.length === 0 ? "ea-empty" : ""}" data-ea-list>
       ${cards || `<p class="ea-no-results">${getLang() === "zh" ? "没有 EA 符合当前筛选条件。" : "No EAs match your filters."}</p>`}
     </div>
+    ${moreButton}
   </section>`;
 }
 
@@ -246,8 +278,32 @@ function bindEAArena(route) {
     searchInput.addEventListener("input", () => {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
+        eaRefocusSearch = true;
         eaNavigate({ q: searchInput.value.trim(), page: "ea-arena" });
       }, 300);
+    });
+    if (eaRefocusSearch) {
+      eaRefocusSearch = false;
+      searchInput.focus();
+      const end = searchInput.value.length;
+      searchInput.setSelectionRange(end, end);
+    }
+  }
+
+  const moreBtn = document.querySelector("[data-ea-more]");
+  if (moreBtn) {
+    moreBtn.addEventListener("click", () => {
+      const list = document.querySelector("[data-ea-list]");
+      if (!list) return;
+      const next = eaCurrentItems.slice(eaVisibleCount, eaVisibleCount + EA_PAGE_SIZE);
+      eaVisibleCount += next.length;
+      list.insertAdjacentHTML("beforeend", next.map(renderEACard).join(""));
+      const remaining = eaCurrentItems.length - eaVisibleCount;
+      if (remaining <= 0) {
+        moreBtn.parentElement.remove();
+      } else {
+        moreBtn.textContent = getLang() === "zh" ? `加载更多（剩余 ${remaining} 个）` : `Show more (${remaining} left)`;
+      }
     });
   }
 
@@ -316,7 +372,8 @@ function renderEADetail(route) {
     [getLang() === "zh" ? "时间框架" : "Timeframes", (ea.timeframes || []).join(", ") || "—"],
     [getLang() === "zh" ? "指标" : "Indicators", (ea.indicators || []).join(", ") || "—"],
     [getLang() === "zh" ? "作者" : "Author", ea.author || (getLang() === "zh" ? "未知" : "Unknown")],
-    [getLang() === "zh" ? "来源" : "Source", `<a href="${mql5Url}" target="_blank" rel="noopener">${getLang() === "zh" ? "MQL5 代码" : "MQL5 Code"}</a>`]
+    [getLang() === "zh" ? "来源" : "Source", `<a href="${mql5Url}" target="_blank" rel="noopener">${getLang() === "zh" ? "MQL5 代码" : "MQL5 Code"}</a>`],
+    [getLang() === "zh" ? "分享页" : "Shareable page", `<a href="/ea-pages/${getLang() === "zh" ? "zh/" : ""}${id}.html">${getLang() === "zh" ? "静态版（适合分享、打印）" : "Static version (share / print)"}</a>`]
   ]
     .map(
       ([k, v]) => `<div class="ea-info-item"><span class="ea-info-key">${k}</span><span class="ea-info-val">${v}</span></div>`
@@ -433,6 +490,7 @@ function renderEADetail(route) {
   <div class="ea-section ea-backtest-section" data-bt-default="${defaultSymbol}">
    <h2>${isZh ? "回测结果" : "Backtest Results"}</h2>
    ${tabsHtml}
+   ${renderBacktestQualityNote(activeBt, isZh)}
    <div class="ea-bt-summary" id="ea-bt-summary">
     <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
      <span class="ea-bt-label">${isZh ? "总盈亏" : "Total P&L"}</span>
@@ -463,12 +521,17 @@ function renderEADetail(route) {
     </div>
     <div class="ea-bt-metric ${sharpeClass}">
      <span class="ea-bt-label">${isZh ? "夏普比率" : "Sharpe Ratio"}</span>
-     <span class="ea-bt-value">${activeBt.sharpe_ratio !== undefined ? activeBt.sharpe_ratio.toFixed(3) : "—"}</span>
+     <span class="ea-bt-value">${Number.isFinite(activeBt.sharpe_ratio) ? activeBt.sharpe_ratio.toFixed(3) : "—"}</span>
     </div>
     <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "最大回撤" : "Max Drawdown"}</span>
      <span class="ea-bt-value ea-bt-loss">${activeBt.max_drawdown_pct !== undefined ? activeBt.max_drawdown_pct.toFixed(2) : "—"}%</span>
     </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "恢复因子" : "Recovery Factor"}</span>
+     <span class="ea-bt-value">${activeBt.max_drawdown_pct ? eaRecoveryFactor(activeBt).toFixed(2) : "—"}</span>
+    </div>
+    ${eaTradeStatTiles(activeBt, isZh)}
     <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "年化收益" : "Annual Return"}</span>
      <span class="ea-bt-value ${activeBt.annual_return > 0 ? "ea-bt-profit" : activeBt.annual_return < 0 ? "ea-bt-loss" : ""}">${activeBt.annual_return !== undefined ? activeBt.annual_return.toFixed(2) : "—"}%</span>
@@ -544,6 +607,13 @@ function bindEADetail(route) {
   const wrClass = hasTrades && bt.win_rate >= 50 ? "ea-bt-profit" : hasTrades ? "ea-bt-loss" : "";
   const sharpeClass = bt.sharpe_ratio > 0 ? "ea-bt-profit" : bt.sharpe_ratio < 0 ? "ea-bt-loss" : "";
   const summary = document.getElementById("ea-bt-summary");
+  const section = summary ? summary.closest(".ea-backtest-section") : null;
+  if (section) {
+   const oldNote = section.querySelector(":scope > .data-notice");
+   if (oldNote) oldNote.remove();
+   const note = renderBacktestQualityNote(bt, isZh);
+   if (note) summary.insertAdjacentHTML("beforebegin", note);
+  }
   if (summary) {
    summary.innerHTML = `
     <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
@@ -577,12 +647,17 @@ function bindEADetail(route) {
     </div>
     <div class="ea-bt-metric ${sharpeClass}">
      <span class="ea-bt-label">${isZh ? "夏普比率" : "Sharpe Ratio"}</span>
-     <span class="ea-bt-value">${bt.sharpe_ratio !== undefined ? bt.sharpe_ratio.toFixed(3) : "—"}</span>
+     <span class="ea-bt-value">${Number.isFinite(bt.sharpe_ratio) ? bt.sharpe_ratio.toFixed(3) : "—"}</span>
     </div>
     <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "最大回撤" : "Max Drawdown"}</span>
      <span class="ea-bt-value ea-bt-loss">${bt.max_drawdown_pct !== undefined ? bt.max_drawdown_pct.toFixed(2) : "—"}%</span>
     </div>
+    <div class="ea-bt-metric">
+     <span class="ea-bt-label">${isZh ? "恢复因子" : "Recovery Factor"}</span>
+     <span class="ea-bt-value">${bt.max_drawdown_pct ? eaRecoveryFactor(bt).toFixed(2) : "—"}</span>
+    </div>
+    ${eaTradeStatTiles(bt, isZh)}
     <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "年化收益" : "Annual Return"}</span>
      <span class="ea-bt-value ${bt.annual_return > 0 ? "ea-bt-profit" : bt.annual_return < 0 ? "ea-bt-loss" : ""}">${bt.annual_return !== undefined ? bt.annual_return.toFixed(2) : "—"}%</span>
@@ -631,6 +706,94 @@ function bindEADetail(route) {
  }
 }
 
+const EA_MIN_TRADES = 10;
+
+const BACKTEST_QUALITY_TEXT = {
+  no_trades: { en: "This backtest produced no trades, so the numbers below say nothing about the strategy. The automatic MQL5-to-Python conversion most likely missed its entry logic.", zh: "这次回测没有产生任何交易，下面的数字不能说明策略好坏，多半是 MQL5 自动转换时漏掉了开仓逻辑。" },
+  error: { en: "The backtest stopped with an error, so these numbers are not usable.", zh: "回测运行时报错，这些数字不可用。" },
+  unsupported: { en: "This EA could not be converted automatically: its entry logic uses features the MQL5-to-Python converter does not support yet, so there is nothing meaningful to test.", zh: "这个 EA 暂时无法自动转换：它的开仓逻辑用到了 MQL5 转 Python 转换器还不支持的功能，所以没有可以测试的内容。" },
+  open_position: { en: "The EA opened one position and held it until the end of the test, so there are no closed trades to evaluate; treat the P&L as a single buy-and-hold-like bet.", zh: "这个 EA 开了一笔仓位并一直持有到测试结束，没有已平仓的交易可以评估；盈亏只相当于一笔类似买入持有的单次押注。" },
+  few_trades: { en: `Fewer than ${10} trades — too few to judge the strategy.`, zh: `交易少于 ${10} 笔，样本太少，不足以判断策略好坏。` },
+  approximated: { en: "This EA relies on a custom indicator the converter could not translate, so the backtest used a placeholder in its place. The numbers below do not reflect the EA's real logic.", zh: "这个 EA 依赖一个转换器无法翻译的自定义指标，回测里用了占位指标代替，下面的数字不代表 EA 的真实逻辑。" },
+  flat: { en: "The equity curve is essentially flat (no real P&L or drawdown); treat these numbers with caution.", zh: "权益曲线几乎是平的（没有实际盈亏和回撤），这些数字请谨慎参考。" }
+};
+
+const NO_TRADE_REASON_TEXT = {
+  identical_crossover: { en: "the conversion compares two identical indicators (the fast and slow settings were lost), so they can never cross", zh: "转换后比较的是两条完全相同的指标线（快慢参数丢失了），永远不会交叉" },
+  impossible_level: { en: "the entry waits for a price-based indicator to cross zero, which never happens", zh: "开仓条件要求一个基于价格的指标穿越 0，这不可能发生" },
+  no_entry_rule: { en: "no entry rule survived the conversion", zh: "转换后没有留下任何开仓规则" },
+  zero_period: { en: "an indicator ended up with a period of 0", zh: "有指标的周期被转换成了 0" },
+  contradictory_filter: { en: "two entry conditions contradict each other", zh: "两个开仓条件互相矛盾" },
+  scale_mismatch: { en: "it compares lines on different scales (an oscillator against a price level), so they never cross", zh: "比较的是两条量纲不同的线（比如震荡指标对价格），永远不会交叉" },
+  rare_filter: { en: "its entry needs a signal and an extreme oscillator reading on the same bar, which did not happen on one year of hourly data", zh: "开仓要求同一根 K 线上既出现信号、又出现极端的震荡指标读数，一年的小时线里一次都没碰上" }
+};
+
+function renderBacktestQualityNote(result, isZh) {
+  const quality = result && result.quality;
+  if (quality === "conversion_issue") {
+    const reason = NO_TRADE_REASON_TEXT[result.reason];
+    const detail = reason ? (isZh ? reason.zh : reason.en) : "";
+    return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "转换有误：" : "Conversion problem:"}</strong> <span>${isZh
+      ? `这个 EA 在回测里从未交易，原因是${detail}。问题出在自动转换，不代表 EA 本身。`
+      : `This EA never traded in the backtest because ${detail}. That is a flaw in the automatic conversion, not in the EA itself.`}</span></div></div>`;
+  }
+  if (quality === "ok" && (result.pnl_pct || 0) <= -89) {
+    return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "账户爆仓：" : "Account stopped out:"}</strong> <span>${isZh
+      ? "净值跌破初始资金的 10%，回测按券商强平处理，之后不再交易。"
+      : "Equity fell below 10% of the starting balance, so the backtest closed the account the way a broker would and stopped trading."}</span></div></div>`;
+  }
+  const text = quality && BACKTEST_QUALITY_TEXT[quality];
+  if (!text) return "";
+  if (quality === "no_trades" && result.reason === "rare_filter") {
+    const reason = NO_TRADE_REASON_TEXT.rare_filter;
+    return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "没有交易：" : "No trades:"}</strong> <span>${isZh
+      ? `这个 EA 在回测里从未交易，因为${reason.zh}。条件可能本身就很苛刻，也可能转换时丢了参数。`
+      : `This EA never traded because ${reason.en}. The rules may simply be very strict, or the conversion lost a setting.`}</span></div></div>`;
+  }
+  return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "结果不可靠：" : "Unreliable result:"}</strong> <span>${isZh ? text.zh : text.en}</span></div></div>`;
+}
+
+// Backtest results carry a "quality" label from scripts/update_backtest_index.py.
+// Older index files without it fall back to the same rules.
+function isReliableBacktest(result) {
+  if (!result) return false;
+  if (result.quality) return result.quality === "ok";
+  const trades = result.total_trades || 0;
+  return trades >= EA_MIN_TRADES && Math.abs(result.pnl_pct || 0) >= 0.01 && (result.max_drawdown_pct || 0) > 0;
+}
+
+// Longest losing streak, average holding time and average P&L per trade.
+function eaTradeStatTiles(bt, isZh) {
+  if (!bt || !bt.total_trades || bt.max_consec_losses === undefined || bt.max_consec_losses === null) return "";
+  const hours = Number.isFinite(bt.avg_bars_held) ? bt.avg_bars_held : null;
+  const held = hours === null ? "—" : hours >= 48 ? `${(hours / 24).toFixed(1)} ${isZh ? "天" : "days"}` : `${hours.toFixed(0)} ${isZh ? "小时" : "h"}`;
+  const exp = Number.isFinite(bt.expectancy) ? bt.expectancy : null;
+  const tile = (label, value, cls = "") => `<div class="ea-bt-metric"><span class="ea-bt-label">${label}</span><span class="ea-bt-value ${cls}">${value}</span></div>`;
+  return tile(isZh ? "最长连亏" : "Longest losing streak", `${bt.max_consec_losses}${isZh ? " 笔" : ""}`)
+    + tile(isZh ? "平均持仓" : "Avg holding time", held)
+    + tile(isZh ? "每笔期望" : "Expectancy per trade", exp === null ? "—" : `${exp >= 0 ? "+" : "−"}$${Math.abs(exp).toFixed(2)}`, exp > 0 ? "ea-bt-profit" : exp < 0 ? "ea-bt-loss" : "");
+}
+
+// Net return divided by the maximum drawdown (both in %).
+function eaRecoveryFactor(result) {
+  if (!result) return 0;
+  if (Number.isFinite(result.recovery_factor)) return result.recovery_factor;
+  const dd = Math.abs(result.max_drawdown_pct || 0);
+  return dd > 0 ? (result.pnl_pct || 0) / dd : 0;
+}
+
+// How many markets with a reliable result made money.
+function eaMarketConsistency(entry) {
+  let reliable = 0;
+  let profitable = 0;
+  Object.values(entry || {}).forEach(result => {
+    if (!result || typeof result !== "object" || !isReliableBacktest(result)) return;
+    reliable += 1;
+    if ((result.pnl_pct || 0) > 0) profitable += 1;
+  });
+  return { reliable, profitable };
+}
+
 function renderEARanking(route) {
   const isZh = getLang() === "zh";
   const symbols = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD"];
@@ -646,6 +809,8 @@ function renderEARanking(route) {
     { key: "win_rate", labelEn: "Win Rate", labelZh: "胜率" },
     { key: "annual_return", labelEn: "Annual Ret", labelZh: "年化" },
     { key: "max_drawdown_pct", labelEn: "Max DD%", labelZh: "最大回撤" },
+    { key: "recovery_factor", labelEn: "Recovery factor", labelZh: "恢复因子" },
+    { key: "markets_profitable", labelEn: "Profitable markets", labelZh: "盈利品种数" },
     { key: "total_trades", labelEn: "Trades", labelZh: "交易数" }
   ];
 
@@ -655,10 +820,16 @@ function renderEARanking(route) {
   catalog.forEach(ea => { catalogMap[ea.id] = ea; });
 
   const rows = [];
+  let excluded = 0;
   Object.entries(btIndex).forEach(([eaId, data]) => {
     const symData = data[activeSymbol];
-    if (!symData || symData.status !== "completed" || (symData.total_trades || 0) === 0) return;
+    if (!symData || symData.status !== "completed") return;
+    if (!isReliableBacktest(symData)) {
+      excluded += 1;
+      return;
+    }
     const ea = catalogMap[eaId] || {};
+    const markets = eaMarketConsistency(data);
     rows.push({
       id: eaId,
       name: ea.name || eaId,
@@ -666,11 +837,14 @@ function renderEARanking(route) {
       risk: ea.overall_risk || "",
       rating: ea.rating || 0,
       pnl_pct: symData.pnl_pct || 0,
-      sharpe_ratio: symData.sharpe_ratio || 0,
+      sharpe_ratio: Number.isFinite(symData.sharpe_ratio) ? symData.sharpe_ratio : 0,
       win_rate: symData.win_rate || 0,
       annual_return: symData.annual_return || 0,
       max_drawdown_pct: symData.max_drawdown_pct || 0,
       total_trades: symData.total_trades || 0,
+      recovery_factor: eaRecoveryFactor(symData),
+      markets_profitable: markets.profitable + markets.reliable / 100,
+      markets,
       won: symData.won || 0,
       lost: symData.lost || 0
     });
@@ -717,6 +891,8 @@ function renderEARanking(route) {
       <td class="ea-rank-metric ${wrClass}">${r.win_rate.toFixed(1)}%</td>
       <td class="ea-rank-metric">${r.annual_return.toFixed(2)}%</td>
       <td class="ea-rank-metric ${ddClass}">${r.max_drawdown_pct.toFixed(2)}%</td>
+      <td class="ea-rank-metric ${r.recovery_factor > 0 ? "ea-bt-profit" : "ea-bt-loss"}">${r.recovery_factor.toFixed(2)}</td>
+      <td class="ea-rank-metric" title="${isZh ? "可信结果中盈利的品种数" : "Profitable markets out of markets with reliable results"}">${r.markets.profitable}/${r.markets.reliable}</td>
       <td class="ea-rank-metric">${r.total_trades}</td>
     </tr>`;
   }).join("");
@@ -739,6 +915,15 @@ function renderEARanking(route) {
         <p>${isZh
           ? `基于 H1 回测数据的 EA 性能排名。选择品种和指标，发现最佳策略。`
           : `Rank EA performance by backtest metrics on H1 data. Select symbol and metric to find top strategies.`}</p>
+      </div>
+    </div>
+    <div class="data-notice" role="note">
+      <span class="data-notice-dot" aria-hidden="true"></span>
+      <div>
+        <strong>${isZh ? "只排名有效回测。" : "Only reliable backtests are ranked."}</strong>
+        <span>${isZh
+          ? `要求至少 ${EA_MIN_TRADES} 笔交易、有实际盈亏和回撤；夏普比率按权益曲线重新计算。本品种另有 ${excluded} 个结果因零交易、运行报错或数据异常未参与排名。`
+          : `At least ${EA_MIN_TRADES} trades with real P&L and drawdown; Sharpe is recomputed from the equity curve. ${excluded} other results for this symbol were left out (no trades, run errors or flat data).`}</span>
       </div>
     </div>
 
@@ -765,9 +950,11 @@ function renderEARanking(route) {
           ${th("win_rate", isZh ? "胜率" : "Win%")}
           ${th("annual_return", isZh ? "年化" : "Annual%")}
           ${th("max_drawdown_pct", isZh ? "回撤%" : "DD%")}
+          ${th("recovery_factor", isZh ? "恢复因子" : "Recovery")}
+          ${th("markets_profitable", isZh ? "盈利品种" : "Markets")}
           ${th("total_trades", isZh ? "交易数" : "Trades")}
         </tr></thead>
-        <tbody>${tableRows || `<tr><td colspan="10" class="ea-rank-empty">${isZh ? "暂无交易策略数据" : "No trading strategies found"}</td></tr>`}</tbody>
+        <tbody>${tableRows || `<tr><td colspan="12" class="ea-rank-empty">${isZh ? "暂无交易策略数据" : "No trading strategies found"}</td></tr>`}</tbody>
       </table>
     </div>
 

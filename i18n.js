@@ -190,7 +190,7 @@ const TRANSLATIONS = {
     "arena.desc": "Rank strategies under a single rule set and compare the score drivers.",
     "arena.score": "Arena Score",
     "arena.score_note_title": "Arena Score is a composite rating",
-    "arena.score_note_desc": "We weight Sharpe, Sortino, Calmar, CAGR, and drawdown control to keep rankings stable across assets.",
+    "arena.score_note_desc": "Each strategy is compared with every other strategy on the same market and window: return quality, drawdown control, consistency, robustness and statistical significance are turned into percentiles and averaged. Strategies that were almost never in the market are not ranked.",
     "arena.ranking_metric": "Ranking Metric",
     "arena.trades_threshold": "Trades >= 20",
     "strategy.library_title": "Strategy Library",
@@ -347,7 +347,129 @@ const TRANSLATIONS = {
     "category.news_trading": "News Trading",
     "category.session_trading": "Session Trading",
     "category.utility": "Utility",
-    "category.unclassified": "Unclassified"
+    "category.unclassified": "Unclassified",
+    "nav.more": "More",
+    "nav.lab": "Strategy Lab",
+    "home.new_tools": "New:",
+    "cost.title": "Trading costs",
+    "cost.desc": "Drag to see the return after costs",
+    "cost.bp": "{bp} bp per trade",
+    "cost.note": "Estimate: the strategy turns over about {turnover}× its capital per year; each unit traded pays the chosen cost. Backtest figures above are before costs.",
+    "portfolio.copy_link": "Copy portfolio link",
+    "portfolio.link_copied": "Link copied",
+    "meta.lab_title": "Strategy Lab: Compare Your Backtest | Quant Arena",
+    "meta.lab_desc": "Upload an equity curve or an MT5 strategy tester report and see how it ranks against 70+ systematic strategies on the same market and period. Runs in your browser.",
+    "lab.eyebrow": "Strategy Lab",
+    "lab.title": "How does your strategy compare?",
+    "lab.desc": "Upload your own equity curve or a MetaTrader 5 strategy tester report. We line it up with the same market and period and rank it against every strategy in the arena, using the same metrics.",
+    "lab.drop": "Drop a file here or click to choose",
+    "lab.formats": "CSV (date + equity, balance or daily return) or an MT5/MT4 tester report saved as HTML",
+    "lab.compare_on": "Compare on market",
+    "lab.example": "Try example data",
+    "lab.clear": "Clear",
+    "lab.example_name": "Example: 60% market, 40% cash",
+    "lab.privacy": "Your file is processed in this browser only and is never uploaded.",
+    "lab.yours": "Your curve",
+    "lab.buy_hold": "Buy & hold {instrument}",
+    "lab.best_same_period": "Best arena strategies on {instrument}, same period",
+    "lab.percentile": "Your Sharpe ratio beats {pct}% of {n} arena strategies on {instrument}",
+    "lab.percentile_note": "Every strategy is measured on exactly the same trading days as your file. Different markets and periods can change the ranking a lot, so try a few.",
+    "lab.help_title": "Which files work?",
+    "lab.help_csv": "CSV: one row per day (or per trade) with a date column and either an equity/balance column or a daily return column. Dates like 2024-01-31, 2024.01.31 or 01/31/2024 all work; multiple rows per day keep the last value.",
+    "lab.help_mt5": "MetaTrader: in the Strategy Tester open the Backtest report, right-click and choose \"Save as Report\" (HTML). We read the deals table and rebuild the balance curve from it.",
+    "lab.error_title": "Couldn't read this file:",
+    "lab.error_too_large": "it is larger than 20 MB.",
+    "lab.error_too_short": "it needs at least 20 days of data.",
+    "lab.error_no_values": "no numeric equity, balance or return column was found.",
+    "lab.error_no_report_table": "no deals table with Time and Balance columns was found in the report.",
+    "lab.error_non_positive": "the equity values must all be above zero (for returns, name the column \"return\").",
+    "lab.error_parse": "the format was not recognised. Check the examples under \"Which files work?\".",
+    "lab.error_no_market": "market data for this instrument is not available.",
+    "lab.error_no_overlap": "your file does not overlap with the market data for this instrument (data available until the date shown on the home page).",
+    "metric.vs_benchmark": "vs buy & hold",
+    "metric.positive_months": "Positive months",
+    "metric.max_dd_days": "Longest drawdown",
+    "metric.underwater": "Time under water",
+    "metric.var95": "Daily VaR (95%)",
+    "metric.cvar95": "Daily CVaR (95%)",
+    "metric.martin": "Martin ratio",
+    "metric.psr": "Probability Sharpe > 0",
+    "metric.exposure": "Time in market",
+    "metric.bench_cagr": "Buy & hold CAGR",
+    "metric.bench_max_dd": "Buy & hold max drawdown",
+    "metric.alpha": "Alpha (annual)",
+    "metric.beta": "Beta",
+    "metric.correlation": "Correlation",
+    "metric.info_ratio": "Information ratio",
+    "metric.up_capture": "Up capture",
+    "metric.down_capture": "Down capture",
+    "metric.days_value": "{days} days",
+    "metric.cagr_after_costs": "CAGR after 10 bp costs",
+    "metric.dsr": "Deflated Sharpe (luck-adjusted)",
+    "metric.cagr_range": "CAGR, 90% bootstrap range",
+    "metric.max_dd_range": "Max drawdown, 90% bootstrap range",
+    "metric.prob_loss": "Chance of a loss (bootstrap)",
+    "metric.range_value": "{lo} to {hi}",
+    "score.title": "Arena Score",
+    "score.how": "How the score works",
+    "score.ineligible": "Not ranked: the strategy was in the market less than 5% of the time in this window, so there is too little to judge.",
+    "score.note": "Each bar is a percentile against all strategies on the same market and window (100 = best). The score is their weighted average.",
+    "score.quality": "Return quality",
+    "score.quality_desc": "Sharpe and Sortino ratio percentiles (30%)",
+    "score.drawdown": "Drawdown control",
+    "score.drawdown_desc": "Calmar ratio and Ulcer index percentiles (25%)",
+    "score.consistency": "Consistency",
+    "score.consistency_desc": "Share of positive months and time under water (20%)",
+    "score.robustness": "Robustness",
+    "score.robustness_desc": "Worst Sharpe across the 1Y, 3Y, 5Y and full windows (15%)",
+    "score.significance": "Significance",
+    "score.significance_desc": "Probabilistic Sharpe ratio: chance the true Sharpe is above 0 (10%)",
+    "nav.glossary": "Glossary",
+    "nav.signals": "Today's signals",
+    "nav.heatmap": "Strategy heatmap",
+    "nav.reports": "Weekly reports",
+    "nav.home": "Home",
+    "nav.skip_to_content": "Skip to content",
+    "nav.switch_to_light": "Switch to light theme",
+    "nav.switch_to_dark": "Switch to dark theme",
+    "search.trigger": "Search",
+    "search.placeholder": "Search strategies, EAs, research, pages…",
+    "search.hero_placeholder": "Search 70+ strategies, 1,500 EAs and research notes",
+    "search.group_pages": "Pages",
+    "search.group_strategies": "Strategies",
+    "search.group_research": "Research",
+    "search.group_eas": "Expert Advisors",
+    "search.no_results": "No results for “{query}”. Try an ID like TREND-10 or EA-1016.",
+    "search.hint_navigate": "to navigate",
+    "search.hint_open": "to open",
+    "search.hint_close": "to close",
+    "recent.title": "Recently viewed",
+    "recent.desc": "Pick up where you left off. Stored only in this browser.",
+    "recent.clear": "Clear",
+    "recent.kind_strategy": "Strategy",
+    "recent.kind_article": "Article",
+    "notice.sample_title": "Backtest data is being refreshed.",
+    "notice.sample_desc": "The figures below are illustrative placeholders, not real results.",
+    "notice.stale_title": "Backtest data as of {date}.",
+    "notice.stale_desc": "The daily refresh is paused, so recent market moves are not reflected yet.",
+    "footer.explore": "Explore",
+    "footer.learn": "Learn",
+    "footer.data_updated": "Data updated {date}",
+    "footer.counts": "{strategies} strategies · {eas} EAs",
+    "common.back_to_top": "Back to top",
+    "common.chart_unavailable": "Chart library failed to load. Refresh the page to try again.",
+    "home.at_a_glance": "Arena at a glance",
+    "home.stat_strategies": "Strategies",
+    "home.stat_eas": "Expert Advisors",
+    "home.stat_markets": "Markets",
+    "home.stat_articles": "Research notes",
+    "home.data_as_of": "Backtest data as of {date}",
+    "home.explore_arena_desc": "Rank every strategy by instrument and window under one scoring rule.",
+    "home.explore_ranking_desc": "See which EAs held up in backtests: P&L, Sharpe, win rate and drawdown.",
+    "home.explore_compare_desc": "Put 2–5 strategies side by side, then build and stress a portfolio.",
+    "home.roadmap_item_search": "Site-wide search and recently viewed",
+    "home.roadmap_shipped": "Shipped",
+    "home.roadmap_planned": "Planned"
   },
   zh: {
     "meta.site_name": "Quant Arena",
@@ -540,7 +662,7 @@ const TRANSLATIONS = {
     "arena.desc": "在统一规则下为策略排序，并比较评分驱动因素。",
     "arena.score": "Arena Score",
     "arena.score_note_title": "Arena Score 是综合评分",
-    "arena.score_note_desc": "我们综合考虑 Sharpe、Sortino、Calmar、CAGR 与回撤控制，使不同资产间的排名更稳定。",
+    "arena.score_note_desc": "每个策略都和同一品种、同一窗口内的其他策略比较：收益质量、回撤控制、稳定性、稳健性和统计可信度分别换算成百分位后加权平均。几乎没有持仓的策略不参与排名。",
     "arena.ranking_metric": "排名指标",
     "arena.trades_threshold": "交易次数 >= 20",
     "strategy.library_title": "策略库",
@@ -697,12 +819,154 @@ const TRANSLATIONS = {
     "category.news_trading": "新闻交易",
     "category.session_trading": "时段交易",
     "category.utility": "工具",
-    "category.unclassified": "未分类"
+    "category.unclassified": "未分类",
+    "nav.more": "更多",
+    "nav.lab": "策略实验室",
+    "home.new_tools": "新功能：",
+    "cost.title": "交易成本",
+    "cost.desc": "拖动看看扣除成本后的收益",
+    "cost.bp": "每笔 {bp} 个基点",
+    "cost.note": "估算方法：这个策略每年大约换手 {turnover} 倍本金，每换手一次按所选成本扣费。上面的回测数字都是扣成本之前的。",
+    "portfolio.copy_link": "复制组合链接",
+    "portfolio.link_copied": "已复制链接",
+    "meta.lab_title": "策略实验室：把你的回测和竞技场比一比 | Quant Arena",
+    "meta.lab_desc": "上传权益曲线或 MT5 策略测试报告，看看它和同一市场、同一时期的 70 多个系统化策略相比排在哪里。全部在浏览器本地计算。",
+    "lab.eyebrow": "策略实验室",
+    "lab.title": "你的策略排在哪里？",
+    "lab.desc": "上传你自己的权益曲线，或 MetaTrader 5 策略测试报告。我们会把它对齐到同一市场、同一时期，用同样的指标和竞技场里的每个策略比较。",
+    "lab.drop": "把文件拖到这里，或点击选择",
+    "lab.formats": "CSV（日期 + 净值、余额或日收益）或者另存为 HTML 的 MT5/MT4 测试报告",
+    "lab.compare_on": "对比市场",
+    "lab.example": "用示例数据试试",
+    "lab.clear": "清除",
+    "lab.example_name": "示例：60% 市场 + 40% 现金",
+    "lab.privacy": "文件只在当前浏览器里处理，不会上传。",
+    "lab.yours": "你的曲线",
+    "lab.buy_hold": "买入持有 {instrument}",
+    "lab.best_same_period": "同期在 {instrument} 上表现最好的竞技场策略",
+    "lab.percentile": "你的夏普比率超过了 {instrument} 上 {n} 个竞技场策略中的 {pct}%",
+    "lab.percentile_note": "所有策略都按和你的文件完全相同的交易日计算。换个市场或时期，排名可能变化很大，可以多试几个。",
+    "lab.help_title": "支持哪些文件？",
+    "lab.help_csv": "CSV：每天（或每笔交易）一行，包含日期列，以及净值/余额列或日收益列。2024-01-31、2024.01.31、01/31/2024 这样的日期都可以；同一天有多行时取最后一个值。",
+    "lab.help_mt5": "MetaTrader：在策略测试器里打开回测报告，右键选择“另存为报告”（HTML）。我们会读取成交记录表，重建余额曲线。",
+    "lab.error_title": "这个文件读不了：",
+    "lab.error_too_large": "超过了 20 MB。",
+    "lab.error_too_short": "至少需要 20 天的数据。",
+    "lab.error_no_values": "没有找到净值、余额或收益的数字列。",
+    "lab.error_no_report_table": "报告里没有找到包含“时间”和“余额”列的成交表。",
+    "lab.error_non_positive": "净值必须都大于 0（如果是收益率，请把列名写成 return）。",
+    "lab.error_parse": "格式没有识别出来，请参考“支持哪些文件？”里的示例。",
+    "lab.error_no_market": "这个品种暂时没有行情数据。",
+    "lab.error_no_overlap": "你的文件和这个品种的行情数据没有重叠（行情数据截至首页显示的日期）。",
+    "metric.vs_benchmark": "对比买入持有",
+    "metric.positive_months": "正收益月份占比",
+    "metric.max_dd_days": "最长回撤持续",
+    "metric.underwater": "水下时间占比",
+    "metric.var95": "日 VaR（95%）",
+    "metric.cvar95": "日 CVaR（95%）",
+    "metric.martin": "Martin 比率",
+    "metric.psr": "夏普为正的概率",
+    "metric.exposure": "持仓时间占比",
+    "metric.bench_cagr": "买入持有年化",
+    "metric.bench_max_dd": "买入持有最大回撤",
+    "metric.alpha": "Alpha（年化）",
+    "metric.beta": "Beta",
+    "metric.correlation": "相关系数",
+    "metric.info_ratio": "信息比率",
+    "metric.up_capture": "上行捕获率",
+    "metric.down_capture": "下行捕获率",
+    "metric.days_value": "{days} 天",
+    "metric.cagr_after_costs": "扣 10 bp 成本后年化",
+    "metric.dsr": "Deflated 夏普（扣除运气后）",
+    "metric.cagr_range": "年化收益 90% 区间（Bootstrap）",
+    "metric.max_dd_range": "最大回撤 90% 区间（Bootstrap）",
+    "metric.prob_loss": "亏损概率（Bootstrap）",
+    "metric.range_value": "{lo} 至 {hi}",
+    "score.title": "Arena Score",
+    "score.how": "评分怎么算",
+    "score.ineligible": "不参与排名：这个窗口里策略持仓时间不到 5%，样本太少，没法判断。",
+    "score.note": "每一项都是和同一品种、同一时间窗口内所有策略比较得到的百分位（100 为最好），总分是它们的加权平均。",
+    "score.quality": "收益质量",
+    "score.quality_desc": "夏普和索提诺比率的百分位（30%）",
+    "score.drawdown": "回撤控制",
+    "score.drawdown_desc": "卡玛比率和 Ulcer 指数的百分位（25%）",
+    "score.consistency": "稳定性",
+    "score.consistency_desc": "正收益月份占比和水下时间（20%）",
+    "score.robustness": "稳健性",
+    "score.robustness_desc": "1 年、3 年、5 年和全部历史中最差的夏普（15%）",
+    "score.significance": "统计可信度",
+    "score.significance_desc": "概率夏普比率：真实夏普大于 0 的可能性（10%）",
+    "nav.glossary": "指标词典",
+    "nav.signals": "今日信号",
+    "nav.heatmap": "策略热力图",
+    "nav.reports": "每周报告",
+    "nav.home": "首页",
+    "nav.skip_to_content": "跳到正文",
+    "nav.switch_to_light": "切换到浅色模式",
+    "nav.switch_to_dark": "切换到深色模式",
+    "search.trigger": "搜索",
+    "search.placeholder": "搜索策略、EA、研究文章或页面…",
+    "search.hero_placeholder": "在 70 多个策略、1500 个 EA 和研究文章里搜一搜",
+    "search.group_pages": "页面",
+    "search.group_strategies": "策略",
+    "search.group_research": "研究",
+    "search.group_eas": "EA",
+    "search.no_results": "没找到和“{query}”相关的内容。可以试试 TREND-10、EA-1016 这样的编号。",
+    "search.hint_navigate": "上下选择",
+    "search.hint_open": "打开",
+    "search.hint_close": "关闭",
+    "recent.title": "最近浏览",
+    "recent.desc": "接着上次没看完的继续看，记录只保存在当前浏览器里。",
+    "recent.clear": "清空",
+    "recent.kind_strategy": "策略",
+    "recent.kind_article": "文章",
+    "notice.sample_title": "回测数据正在更新。",
+    "notice.sample_desc": "下面的数字只是占位示例，不是真实回测结果。",
+    "notice.stale_title": "当前回测数据截至 {date}。",
+    "notice.stale_desc": "每日自动更新暂停了，最近的行情还没算进去。",
+    "footer.explore": "浏览",
+    "footer.learn": "了解",
+    "footer.data_updated": "数据更新于 {date}",
+    "footer.counts": "{strategies} 个策略 · {eas} 个 EA",
+    "common.back_to_top": "回到顶部",
+    "common.chart_unavailable": "图表组件没加载出来，刷新一下页面再试试。",
+    "home.at_a_glance": "平台概览",
+    "home.stat_strategies": "个策略",
+    "home.stat_eas": "个 EA",
+    "home.stat_markets": "个市场",
+    "home.stat_articles": "篇研究",
+    "home.data_as_of": "回测数据截至 {date}",
+    "home.explore_arena_desc": "同一套评分规则下，按品种和时间窗口给所有策略排名。",
+    "home.explore_ranking_desc": "看看哪些 EA 回测表现扛得住：盈亏、夏普、胜率、回撤一目了然。",
+    "home.explore_compare_desc": "把 2 到 5 个策略放在一起比，再组个组合试试效果。",
+    "home.roadmap_item_search": "全站搜索与最近浏览",
+    "home.roadmap_shipped": "已上线",
+    "home.roadmap_planned": "计划中"
   }
 };
 
 function getLang() {
-  const stored = localStorage.getItem('lang');
+  // ?lang=zh / ?lang=en (used by links from the static pages) wins and is remembered.
+  let fromUrl = null;
+  try {
+    fromUrl = new URLSearchParams(window.location.search).get('lang');
+  } catch (err) {
+    fromUrl = null;
+  }
+  if (fromUrl === 'zh' || fromUrl === 'en') {
+    try {
+      localStorage.setItem('lang', fromUrl);
+    } catch (err) {
+      // ignore storage failures
+    }
+    return fromUrl;
+  }
+  let stored = null;
+  try {
+    stored = localStorage.getItem('lang');
+  } catch (err) {
+    stored = null;
+  }
   return stored === 'zh' ? 'zh' : 'en';
 }
 
@@ -743,7 +1007,9 @@ function updateStaticText() {
     compare: 'nav.compare',
     methodology: 'nav.methodology',
     changelog: 'nav.changelog',
-    about: 'nav.about'
+    faq: 'nav.faq',
+    about: 'nav.about',
+    lab: 'nav.lab'
   };
   document.querySelectorAll('.site-nav a').forEach((link) => {
     const route = link.dataset.route;
@@ -757,8 +1023,23 @@ function updateStaticText() {
       link.textContent = label;
     }
   });
-  const logo = document.querySelector('.logo');
-  if (logo) logo.textContent = t('meta.site_name');
+  const logoText = document.querySelector('.logo-text');
+  if (logoText) logoText.textContent = t('meta.site_name');
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  // Static pages have Chinese versions under /zh/.
+  const staticLinks = { 'nav.glossary': 'glossary', 'nav.signals': 'signals', 'nav.heatmap': 'heatmap', 'nav.reports': 'reports' };
+  Object.entries(staticLinks).forEach(([key, path]) => {
+    document.querySelectorAll(`a[data-i18n="${key}"]`).forEach((el) => {
+      el.setAttribute('href', `/${getLang() === 'zh' ? 'zh/' : ''}${path}/`);
+    });
+  });
+  document.querySelectorAll('[data-i18n-aria]').forEach((el) => {
+    el.setAttribute('aria-label', t(el.dataset.i18nAria));
+  });
+  const searchTrigger = document.getElementById('search-trigger');
+  if (searchTrigger) searchTrigger.setAttribute('aria-label', t('search.trigger'));
   const footerBrand = document.querySelector('.footer-brand');
   if (footerBrand) footerBrand.textContent = t('footer.brand') || t('meta.site_name');
   const footerNote = document.querySelector('.footer-note');
@@ -786,7 +1067,20 @@ function bindLangToggle() {
 
 function setLang(lang) {
   const next = lang === 'zh' ? 'zh' : 'en';
-  localStorage.setItem('lang', next);
+  try {
+    localStorage.setItem('lang', next);
+  } catch (err) {
+    // ignore storage failures
+  }
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('lang')) {
+      url.searchParams.delete('lang');
+      history.replaceState(history.state, '', url.toString());
+    }
+  } catch (err) {
+    // ignore URL failures
+  }
   window.LANG = next;
   updateStaticText();
   bindLangToggle();
