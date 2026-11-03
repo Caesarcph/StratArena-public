@@ -2466,8 +2466,11 @@ function getCorrelationScore(baseId, candidateId, instrument, window) {
 }
 
 function getResearchArticles() {
-  if (typeof RESEARCH_ARTICLES === "undefined") return [];
-  return Array.isArray(RESEARCH_ARTICLES) ? RESEARCH_ARTICLES : [];
+  if (typeof RESEARCH_ARTICLES === "undefined" || !Array.isArray(RESEARCH_ARTICLES)) return [];
+  // Articles dated after the latest data build are scheduled. They appear with
+  // the build that also generates their static page (scripts/static_site.py).
+  const cutoff = (store.performance && store.performance.updated) || new Date().toISOString().slice(0, 10);
+  return RESEARCH_ARTICLES.filter((article) => !article.date || article.date <= cutoff);
 }
 
 function sortResearchArticles(articles) {

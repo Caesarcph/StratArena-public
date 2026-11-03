@@ -5,7 +5,7 @@ const CONTENT_PAGES = {
       en: "A bilingual research platform for systematic stock strategies and MQL5 Expert Advisor analysis with backtesting.",
       zh: "一个面向系统化股票策略与 MQL5 EA 分析的双语研究平台，配备回测功能。"
     },
-    updated: "2026-05-14",
+    updated: "2026-11-03",
     sections: [
       {
         heading: { en: "Two arenas, one platform", zh: "两个竞技场，一个平台" },
@@ -28,8 +28,8 @@ const CONTENT_PAGES = {
             zh: "EA 竞技场使用由 NVIDIA GLM-5.1 驱动的自动化流水线分析 MQL5 Expert Advisor。每个 EA 从 MQL5 CodeBase 提取后，经过策略逻辑解析，并生成双语（中/英）描述、参数说明与类别标签。交易型 EA 与工具型指标、脚本和面板程序分开归类，方便研究者聚焦可执行的策略。"
           },
           {
-            en: "For auto-convertible EAs, the platform generates Python backtrader code from the extracted logic, runs backtests on historical EURUSD H1 data, and publishes the results directly to each EA's detail page. Backtest metrics include total trades, win rate, net P&L, maximum drawdown, and an equity curve chart. This LLM-assisted MQ5→Python pipeline makes it possible to evaluate EAs at scale without a live MetaTrader environment.",
-            zh: "对于可自动转换的 EA，平台会从提取的逻辑生成 Python backtrader 代码，在历史 EURUSD H1 数据上运行回测，并将结果直接发布到每个 EA 的详情页。回测指标包括总交易次数、胜率、净盈亏、最大回撤和净值曲线图。这种 LLM 辅助的 MQ5→Python 流水线使得无需 MetaTrader 环境即可大规模评估 EA。"
+            en: "For auto-convertible EAs, the platform generates Python backtrader code from the extracted logic, backtests it on one year of hourly data for EUR/USD, GBP/USD, USD/JPY and gold, and publishes the results on each EA's page. Backtest metrics include total trades, win rate, net P&L, maximum drawdown and recovery factor, and every trading EA gets a blow-up risk label. This LLM-assisted MQ5→Python pipeline makes it possible to evaluate EAs at scale without a live MetaTrader environment.",
+            zh: "对于可自动转换的 EA，平台会从提取的逻辑生成 Python backtrader 代码，在 EUR/USD、GBP/USD、USD/JPY 和黄金一年的小时线数据上回测，并把结果发布到每个 EA 的页面。回测指标包括总交易次数、胜率、净盈亏、最大回撤和恢复因子，每个交易型 EA 还有爆仓风险标签。这种 LLM 辅助的 MQ5→Python 流水线使得无需 MetaTrader 环境即可大规模评估 EA。"
           }
         ]
       },
@@ -50,8 +50,8 @@ const CONTENT_PAGES = {
         heading: { en: "Data sources and transparency", zh: "数据来源与透明度" },
         paragraphs: [
           {
-            en: "Stock strategy data uses historical daily bars from public sources, collected through the yfinance interface with adjusted closes for splits and dividends. EA backtest data uses hourly (H1) EURUSD bars from yfinance spanning 730 days. All data sources are documented, and the same instrument set is applied consistently within each module so that rankings reflect strategy differences, not data inconsistencies.",
-            zh: "股票策略数据使用来自公共来源的历史日线数据，通过 yfinance 接口采集，并采用已对拆股与分红进行调整的收盘价。EA 回测数据使用来自 yfinance 的 EURUSD H1 小时线，覆盖 730 天。所有数据来源均有记录，且每个模块内使用一致的标的集合，确保排名反映策略差异，而非数据不一致。"
+            en: "Stock strategy data uses historical daily bars from public sources, collected through the yfinance interface with adjusted closes for splits and dividends. EA backtests use hourly (H1) bars for EUR/USD, GBP/USD, USD/JPY and gold (XAU/USD) from May 2025 to May 2026, downloaded from free public sources (yfinance, with Dukascopy as a fallback). All data sources are documented, and the same instrument set is applied consistently within each module so that rankings reflect strategy differences, not data inconsistencies.",
+            zh: "股票策略数据使用来自公共来源的历史日线数据，通过 yfinance 接口采集，并采用已对拆股与分红进行调整的收盘价。EA 回测使用 EUR/USD、GBP/USD、USD/JPY 和黄金（XAU/USD）2025 年 5 月至 2026 年 5 月的小时线（H1），数据来自免费的公共来源（yfinance，备用 Dukascopy）。所有数据来源均有记录，且每个模块内使用一致的标的集合，确保排名反映策略差异，而非数据不一致。"
           },
           {
             en: "Because the project is static and reproducible, both pipelines prioritize determinism. Missing sessions are left as gaps, and strategies that require data not available in public feeds are excluded. The data is not a substitute for institutional feeds and may include survivorship or proxy biases. These limitations are documented so readers can interpret results as research signals rather than trading grade performance.",
@@ -110,7 +110,7 @@ const CONTENT_PAGES = {
       en: "How QuantArenas evaluates stock strategies and MQL5 Expert Advisors using consistent, reproducible methods.",
       zh: "QuantArenas 如何使用一致、可复现的方法评估股票策略与 MQL5 Expert Advisor。"
     },
-    updated: "2026-05-14",
+    updated: "2026-11-03",
     sections: [
       {
         heading: { en: "Strategy Arena methodology", zh: "策略竞技场方法论" },
@@ -125,8 +125,8 @@ const CONTENT_PAGES = {
         heading: { en: "EA Arena methodology", zh: "EA 竞技场方法论" },
         paragraphs: [
           {
-            en: "The EA Arena uses an LLM-assisted pipeline to analyze MQL5 Expert Advisors. First, the MQ5 source code is parsed by GLM-5.1 into a structured JSON representation capturing indicators, entry/exit rules, parameters, and strategy type. Second, auto-convertible EAs are translated into Python backtrader strategies using a template-based code generator that maps MQL5 indicator calls to backtrader equivalents. Third, generated strategies are backtested on historical H1 EURUSD data (730 days) with standardized position sizing and execution logic.",
-            zh: "EA 竞技场使用 LLM 辅助流水线分析 MQL5 Expert Advisor。首先，MQ5 源代码由 GLM-5.1 解析为结构化 JSON，捕获指标、入场/出场规则、参数与策略类型。其次，可自动转换的 EA 通过基于模板的代码生成器翻译为 Python backtrader 策略，将 MQL5 指标调用映射为 backtrader 等价物。第三，生成的策略在历史 H1 EURUSD 数据（730 天）上进行回测，采用标准化的仓位管理与执行逻辑。"
+            en: "The EA Arena uses an LLM-assisted pipeline to analyze MQL5 Expert Advisors. First, the MQ5 source code is parsed by GLM-5.1 into a structured JSON representation capturing indicators, entry/exit rules, parameters, and strategy type. Second, auto-convertible EAs are translated into Python backtrader strategies using a template-based code generator that maps MQL5 indicator calls to backtrader equivalents. Third, generated strategies are backtested on one year of H1 data for EUR/USD, GBP/USD, USD/JPY and gold with the same account for every EA: $10,000, 1:100 leverage, the EA's own lot size converted to contract units (100,000 per currency lot, 100 ounces per gold lot), one order at a time, and a broker-style stop-out when equity falls to 10% of the starting balance.",
+            zh: "EA 竞技场使用 LLM 辅助流水线分析 MQL5 Expert Advisor。首先，MQ5 源代码由 GLM-5.1 解析为结构化 JSON，捕获指标、入场/出场规则、参数与策略类型。其次，可自动转换的 EA 通过基于模板的代码生成器翻译为 Python backtrader 策略，将 MQL5 指标调用映射为 backtrader 等价物。第三，生成的策略在 EUR/USD、GBP/USD、USD/JPY 和黄金一年的 H1 数据上回测，所有 EA 使用同样的账户：1 万美元、1:100 杠杆、EA 自己的手数（按合约换算：外汇每手 10 万单位，黄金每手 100 盎司）、一次只下一张单，净值跌到初始资金的 10% 时按券商规则强制平仓。"
           },
           {
             en: "EAs that rely on MT5-specific features (custom indicators, DLL calls, or MQL5-only objects) are classified as manual-convert or mt5-only and are documented without backtesting. The convertibility classification ensures that only strategies with a reliable Python translation enter the backtest pipeline, keeping results comparable and interpretable.",
@@ -160,8 +160,8 @@ const CONTENT_PAGES = {
         heading: { en: "Limitations and simplifications", zh: "局限性与简化" },
         paragraphs: [
           {
-            en: "The stock strategy pipeline assumes full allocation with no leverage and no short borrow constraints unless the strategy explicitly defines them. The EA backtest pipeline uses a single instrument (EURUSD H1) and standardized position sizing, which may not reflect the original EA's intended instrument or risk management. Both pipelines use public data sources that can differ from institutional feeds.",
-            zh: "股票策略流水线默认假设满仓配置，不使用杠杆，也不存在融券约束，除非策略本身有明确规定。EA 回测流水线使用单一品种（EURUSD H1）和标准化仓位管理，可能无法反映原始 EA 设定的交易品种或风控逻辑。两条流水线均使用可能与机构级行情存在差异的公共数据源。"
+            en: "The stock strategy pipeline assumes full allocation with no leverage and no short borrow constraints unless the strategy explicitly defines them. The EA backtest pipeline uses four instruments, one year of hourly data and a standard account, which may not match the instrument, timeframe, account size or broker settings the original EA was designed for. Both pipelines use public data sources that can differ from institutional feeds. For each strategy and market the site keeps either the walk-forward result or the default parameters, whichever scores better over the full history; because that choice sees the whole sample, the strategy results are slightly optimistic. The build now records which version is shown (data/wfo_choice.json) so the effect can be measured.",
+            zh: "股票策略流水线默认假设满仓配置，不使用杠杆，也不存在融券约束，除非策略本身有明确规定。EA 回测流水线使用四个品种、一年的小时线和统一的账户设置，可能与原 EA 设计时针对的品种、周期、资金规模或券商设置不同。两条流水线均使用可能与机构级行情存在差异的公共数据源。每个策略在每个市场上，网站保留的是滚动前推结果和默认参数结果中全时段得分更高的那个；这一步选择看过整段样本，所以策略结果会略偏乐观。现在构建时会记录展示的是哪个版本（data/wfo_choice.json），方便衡量这一影响。"
           },
           {
             en: "The MQ5→Python translation may simplify or approximate some indicator calculations. Custom indicators, multi-timeframe logic, and DLL-dependent features are intentionally excluded from auto-conversion. These constraints are part of the design and should be considered when interpreting backtest results.",
@@ -393,6 +393,186 @@ const RESEARCH_INDEX = {
 
 const RESEARCH_ARTICLES = [
   {
+    "slug": "gold-trading-strategies-backtested",
+    "title": {
+      "en": "We Backtested 56 Trading Strategies on Gold. Only 4 Beat Simply Holding It.",
+      "zh": "我们在黄金上回测了 56 个交易策略，只有 4 个跑赢了直接持有"
+    },
+    "summary": {
+      "en": "Gold more than doubled between November 2021 and November 2026, then fell 28% from its January 2026 peak. Over those five years only four of 56 rule-based strategies earned more than simply holding the gold ETF. But all 56 had smaller drawdowns, twelve had a better Sharpe ratio, and trend and volatility rules worked noticeably better on gold than on the S&P 500.",
+      "zh": "2021 年 11 月到 2026 年 11 月，黄金涨了一倍多，又从 2026 年 1 月的高点跌了 28%。这五年里，56 个规则化策略只有 4 个比直接持有黄金 ETF 赚得多。但 56 个策略的最大回撤全都更小，12 个的夏普比率更高；而且趋势和波动率类策略在黄金上的表现明显好于在标普 500 上。"
+    },
+    "date": "2026-11-17",
+    "readTime": "4 min read",
+    "category": "Market Study",
+    "featured": false,
+    "tags": [
+      "Gold",
+      "Volatility",
+      "Regime",
+      "Stop Loss"
+    ],
+    "sections": [
+      {
+        "heading": {
+          "en": "The test",
+          "zh": "测试方式"
+        },
+        "paragraphs": [
+          {
+            "en": "Every strategy on Quant Arena runs under the same rules: daily data, signals at the close executed on the next session, walk-forward optimization that re-fits parameters on past data every six months (the defaults are kept when they score better over the whole period, which makes results slightly optimistic), full allocation without leverage, and no trading costs unless stated. This study uses the 56 strategies that trade gold through GLD, the largest gold ETF, from 2 November 2021 to 2 November 2026. Buy-and-hold means owning GLD for the whole period.",
+            "zh": "Quant Arena 上的每个策略都按同一套规则回测：日线数据，收盘时出信号、下一个交易日执行，用滚动前推优化每六个月只用过去的数据重新选参数（如果默认参数全时段得分更高就保留默认参数，这会让结果略偏乐观），满仓、不加杠杆，除非特别说明都不计交易成本。这次看的是在 GLD（规模最大的黄金 ETF）上交易的 56 个策略，时间从 2021 年 11 月 2 日到 2026 年 11 月 2 日。“买入持有”就是这五年一直拿着 GLD。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Gold was hard to beat",
+          "zh": "黄金很难跑赢"
+        },
+        "paragraphs": [
+          {
+            "en": "Holding GLD returned 116% over the five years, 16.69% a year, with a Sharpe ratio of 0.91. Most of it came late: gold rose 27% in 2024 and 64% in 2025. Only four strategies earned a higher annual return, and none by more than a percentage point:",
+            "zh": "这五年直接持有 GLD 的总收益是 116%，年化 16.69%，夏普比率 0.91。大部分涨幅来得很晚：2024 年涨了 27%，2025 年涨了 64%。只有 4 个策略的年化收益更高，而且领先都不到 1 个百分点："
+          },
+          {
+            "en": [
+              "**REG-01 Regime Switch**: 17.42% a year, worst drawdown 17.7%",
+              "**RISK-01 Drawdown Control**: 16.94% a year, worst drawdown 24.4%",
+              "**RISK-03 Stop Loss Overlay**: 16.73% a year, worst drawdown 13.9%",
+              "**MOM-03 52-Week High Momentum**: 16.70% a year, worst drawdown 19.6%, with only four trades in five years"
+            ],
+            "zh": [
+              "**REG-01 市场状态切换**：年化 17.42%，最大回撤 17.7%",
+              "**RISK-01 回撤控制**：年化 16.94%，最大回撤 24.4%",
+              "**RISK-03 止损叠加**：年化 16.73%，最大回撤 13.9%",
+              "**MOM-03 52 周新高动量**：年化 16.70%，最大回撤 19.6%，五年只交易了 4 次"
+            ]
+          },
+          {
+            "en": "It is the same story as on the S&P 500, where one of 62 strategies beat buy-and-hold over the same five years. In a strong, steady rally, any rule that spends time out of the market gives up return.",
+            "zh": "这和标普 500 上的情况一样：同样五年，62 个策略里只有 1 个跑赢买入持有。在一轮又强又稳的上涨里，任何会离场的规则都要少赚一些。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Where the strategies won: risk",
+          "zh": "策略赢在风险上"
+        },
+        "paragraphs": [
+          {
+            "en": "All 56 strategies had a smaller worst drawdown than holding gold, which fell 28.3% at its worst. Most of that comes from simply not always being invested: the median strategy was in the market 47% of the time. Twelve strategies also had a higher Sharpe ratio than buy-and-hold, meaning more return for each unit of volatility.",
+            "zh": "56 个策略的最大回撤全都小于直接持有黄金（最大回撤 28.3%）。这主要是因为它们不总在场内：中位数策略只有 47% 的时间持仓。另外有 12 个策略的夏普比率高于买入持有，也就是每承担一单位波动，赚得更多。"
+          },
+          {
+            "en": "The best balance came from **VOL-13 Volatility Regime Strategy**: 11.2% a year with a Sharpe ratio of 1.20 and a worst drawdown of 10.5%, less than 40% of buy-and-hold's. **REG-01 Regime Switch** came closest to having both: 17.4% a year, Sharpe 1.19, worst drawdown 17.7%. **RISK-03 Stop Loss Overlay** matched gold's return with half its drawdown (13.9%).",
+            "zh": "平衡得最好的是 **VOL-13 波动率状态策略**：年化 11.2%，夏普 1.20，最大回撤 10.5%，还不到买入持有的 40%。**REG-01 市场状态切换** 最接近两头兼顾：年化 17.4%，夏普 1.19，最大回撤 17.7%。**RISK-03 止损叠加** 赚到了和黄金差不多的收益，回撤只有一半（13.9%）。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Gold suits trend and volatility rules",
+          "zh": "黄金更适合趋势和波动率策略"
+        },
+        "paragraphs": [
+          {
+            "en": "All 56 strategies also ran on the S&P 500 (SPY) over the same five years, so they can be compared directly. 36 of the 56 had a higher Sharpe ratio on gold. By family, the median Sharpe ratio on gold versus SPY was:",
+            "zh": "这 56 个策略同一时间段也都在标普 500（SPY）上跑过，可以直接对比。其中 36 个在黄金上的夏普比率更高。按策略类别看，黄金和 SPY 上的夏普中位数分别是："
+          },
+          {
+            "en": [
+              "Volatility strategies: 1.04 vs 0.46",
+              "Trend following: 0.80 vs 0.65",
+              "Momentum: 0.75 vs 0.62",
+              "Mean reversion: 0.37 vs 0.44"
+            ],
+            "zh": [
+              "波动率策略：1.04 对 0.46",
+              "趋势跟踪：0.80 对 0.65",
+              "动量：0.75 对 0.62",
+              "均值回归：0.37 对 0.44"
+            ]
+          },
+          {
+            "en": "Gold's gains came in long runs, the kind of market that trend and volatility-breakout rules are built for. Buying dips did not help: mean-reversion rules did slightly worse on gold than on stocks.",
+            "zh": "黄金的涨幅是一段一段持续出来的，正好是趋势和波动率突破规则擅长的行情。逢低买入就没占到便宜：均值回归策略在黄金上反而比在股票上稍差。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "The last twelve months: a 28% fall",
+          "zh": "最近 12 个月：一次 28% 的下跌"
+        },
+        "paragraphs": [
+          {
+            "en": "The last year looked very different. Gold peaked on 29 January 2026, fell 28% to its low on 30 October, and ended the twelve months 1.9% lower. 43 of the 56 strategies did better than holding, and all of them had a smaller drawdown.",
+            "zh": "最近一年完全是另一番景象。黄金在 2026 年 1 月 29 日见顶，到 10 月 30 日的低点跌了 28%，整整 12 个月下来跌了 1.9%。56 个策略里有 43 个比持有表现好，而且全部回撤更小。"
+          },
+          {
+            "en": "The one-year leader was **MR-01 RSI Mean Reversion**: +18.5% with a Sharpe ratio of 1.80, from 22 trades and only 9% of the time in the market. Over the full five years the same strategy made 4.8% a year on gold. Twenty-two trades is a small sample, and one-year leaders change often, so treat them with care.",
+            "zh": "近一年排第一的是 **MR-01 RSI 均值回归**：收益 +18.5%，夏普 1.80，只交易了 22 次，持仓时间仅占 9%。但放到完整的五年，同一个策略在黄金上的年化只有 4.8%。22 笔交易的样本很小，一年期的冠军也经常换人，看的时候要谨慎。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "How sure can we be?",
+          "zh": "这些结果有多可靠"
+        },
+        "paragraphs": [
+          {
+            "en": "On gold, 26 of the 56 strategies have a probabilistic Sharpe ratio above 95%: judged on its own, each has a 95% or higher probability that its true Sharpe ratio is above zero. On the S&P 500 the count is 12 of 62. But once you correct for testing hundreds of strategy-and-market pairs at the same time (the deflated Sharpe ratio), none reaches 95%; the best, VOL-13, gets to 80%.",
+            "zh": "在黄金上，56 个策略中有 26 个的概率夏普比率（PSR）超过 95%：单独来看，每个都有 95% 以上的把握真实夏普大于 0。在标普 500 上是 62 个中有 12 个。但如果考虑到我们同时测试了几百个“策略 × 市场”组合（Deflated Sharpe），没有一个能达到 95%，最高的 VOL-13 也只有 80%。"
+          },
+          {
+            "en": "That is the same lesson as in our luck-adjusted study of all 72 strategies: these are promising candidates, not proven edges.",
+            "zh": "这和我们对全部 72 个策略做的运气修正研究结论一样：这些是值得关注的候选，而不是被证明了的优势。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "Before costs",
+          "zh": "还没算交易成本"
+        },
+        "paragraphs": [
+          {
+            "en": "All figures are before trading costs. At an assumed 10 basis points per unit traded, the strategies above give up between 0.1 and 4.6 points of annual return: about 0.1 for MOM-03, 0.9 for REG-01, 1.7 for RISK-03 and 2.1 for VOL-13. TREND-17 Chandelier Exit, with 229 trades, drops from 13.3% to roughly 8.7% a year. Every strategy page has a cost slider to try other levels.",
+            "zh": "以上数字都没扣交易成本。按每单位成交 10 个基点的成本估算，上面这些策略每年要少赚 0.1 到 4.6 个百分点：MOM-03 约 0.1，REG-01 约 0.9，RISK-03 约 1.7，VOL-13 约 2.1。交易了 229 次的 TREND-17 吊灯止损，年化会从 13.3% 降到 8.7% 左右。每个策略页面都有成本滑块，可以试试别的成本水平。"
+          }
+        ]
+      },
+      {
+        "heading": {
+          "en": "What to take from it",
+          "zh": "结论"
+        },
+        "paragraphs": [
+          {
+            "en": [
+              "If you just wanted gold's return, holding it was hard to beat: 52 of 56 strategies earned less over five years.",
+              "If you wanted gold with less pain, several rules cut the worst drawdown by between a third and almost two-thirds while keeping much of the return, and volatility- and regime-based rules did best.",
+              "One-year winners, and any result not adjusted for multiple testing, deserve extra skepticism."
+            ],
+            "zh": [
+              "如果只是想拿到黄金的收益，直接持有很难被超越：五年下来 56 个策略里有 52 个赚得更少。",
+              "如果想少受点罪，有几个规则把最大回撤砍掉了三分之一到将近三分之二，同时保住了大部分收益，其中波动率和市场状态类策略做得最好。",
+              "一年期的冠军，以及没做多重检验修正的结果，都要多打几个问号。"
+            ]
+          },
+          {
+            "en": "The gold column of the strategy heatmap and the leaderboard show the current numbers, updated every trading day. These are backtests, not investment advice.",
+            "zh": "策略热力图的黄金一列和排行榜上有最新数字，每个交易日更新。以上都是回测结果，不构成投资建议。"
+          }
+        ]
+      }
+    ],
+    "dataAsOf": "2026-11-02"
+  },
+  {
     "slug": "luck-adjusted-sharpe-72-strategies",
     "title": {
       "en": "We Backtested 72 Strategies. After Adjusting for Luck, None Clearly Beat the Odds.",
@@ -530,8 +710,8 @@ const RESEARCH_ARTICLES = [
       "zh": "我们试着回测了 1063 个免费 MT5 EA，最后留下了什么"
     },
     "summary": {
-      "en": "Free MetaTrader 5 EAs from the MQL5 CodeBase, converted automatically and tested on four markets for one year. More than half could not be converted at all. Of the 1,421 results we trust, about half made money — but on currencies the typical EA ended flat, only 40 EAs were profitable on all four markets, and one in five gold runs wiped out the account.",
-      "zh": "来自 MQL5 代码库的免费 MetaTrader 5 智能交易系统，经自动转换后在四个市场上测试了一年。一半以上根本没法转换；在 1421 个可信的结果里，大约一半赚钱——但在外汇上，典型的 EA 基本不赚不亏，只有 40 个 EA 在四个市场上都盈利，黄金上每五次回测就有一次把账户亏光。"
+      "en": "Free MetaTrader 5 EAs from the MQL5 CodeBase, converted automatically and tested on four markets for one year. More than half could not be converted at all. Of the 1,123 results we trust, about half made money — but on currencies the typical EA ended flat, only 30 EAs were profitable on all four markets, and one in five gold runs wiped out the account.",
+      "zh": "来自 MQL5 代码库的免费 MetaTrader 5 智能交易系统，经自动转换后在四个市场上测试了一年。一半以上根本没法转换；在 1123 个可信的结果里，大约一半赚钱——但在外汇上，典型的 EA 基本不赚不亏，只有 30 个 EA 在四个市场上都盈利，黄金上每五次回测就有一次把账户亏光。"
     },
     "date": "2026-11-03",
     "readTime": "3 min read",
@@ -550,6 +730,10 @@ const RESEARCH_ARTICLES = [
           "zh": "我们做了什么"
         },
         "paragraphs": [
+          {
+            "en": "**Update, 3 November 2026:** after publishing we found 85 EAs whose converted versions produce exactly the same backtest as another EA on every market — for example 14 unrelated EAs with identical results. The conversion evidently lost what made them different, so their 298 runs are no longer counted, and the figures below have been recalculated. Most of them were profitable on gold, so the gold numbers fell the most.",
+            "zh": "**2026 年 11 月 3 日更新：** 文章发布后我们发现，有 85 个 EA 转换后的回测在每个市场上都和另一个 EA 一模一样——比如有 14 个毫不相干的 EA 结果完全相同。这说明转换丢掉了它们各自的特点，所以这 298 次运行不再计入，下面的数字都已重新计算。这些结果大多在黄金上赚钱，所以黄金相关的数字变化最大。"
+          },
           {
             "en": "The EA Arena catalogs 1,515 Expert Advisors published on the MQL5 CodeBase. For 1,063 of them we translated the MQL5 source into Python automatically and backtested it on one year of hourly data (May 2025 to May 2026) for EUR/USD, GBP/USD, USD/JPY and gold. Every EA got the same account: $10,000, 1:100 leverage, the EA's own lot size (100,000 units per currency lot, 100 ounces per gold lot), one order at a time, the same commission, and a broker-style stop-out when equity falls below 10% of the starting balance.",
             "zh": "EA 竞技场收录了 MQL5 代码库里公开的 1515 个智能交易系统。其中 1063 个，我们把 MQL5 源码自动翻译成 Python，在欧元/美元、英镑/美元、美元/日元和黄金一年的小时线数据（2025 年 5 月到 2026 年 5 月）上回测。所有 EA 用同样的账户条件：1 万美元本金、1:100 杠杆、按 EA 自己设定的手数下单（外汇每手 10 万单位，黄金每手 100 盎司）、同一时间只有一张挂单、相同的佣金，净值跌破初始资金 10% 时像券商一样强制平仓。"
@@ -572,14 +756,16 @@ const RESEARCH_ARTICLES = [
               "144 depend on a custom indicator the converter replaced with a placeholder, so they do not test the real EA.",
               "155 converted but never traded. For 112 of them we can point to the conversion bug: the fast and slow settings of a crossover were lost, a price-based indicator was asked to cross zero, lines on different scales were compared, or no entry rule survived.",
               "88 stopped with an error, and 96 traded too little or produced a flat curve.",
-              "1,421 results are reliable enough to rank."
+              "298 runs from 85 different EAs came out exactly identical to another EA's run on every market, which means the conversion lost what made them different. We no longer count them.",
+              "1,123 results are reliable enough to rank."
             ],
             "zh": [
               "2348 次来自转换器无法翻译开仓逻辑的 EA（自定义指标、特殊的下单方式等）。我们把它们标为“暂不支持转换”，而不是假装测过。",
               "144 次依赖转换器无法翻译的自定义指标，回测里用了占位指标代替，测的并不是 EA 的真实逻辑。",
               "155 次转换成功但从未交易。其中 112 次能找到具体的转换错误：均线交叉的快慢参数丢失、要求基于价格的指标穿越 0、拿量纲不同的两条线比较，或者开仓规则在转换中丢了。",
               "88 次运行报错，96 次交易太少或曲线持平。",
-              "剩下 1421 个结果足够可信，可以排名。"
+              "还有 85 个不同的 EA、共 298 次运行，在每个市场上都和另一个 EA 的结果一模一样，说明转换丢掉了它们各自的特点，这些我们不再计入。",
+              "剩下 1123 个结果足够可信，可以排名。"
             ]
           }
         ]
@@ -592,18 +778,18 @@ const RESEARCH_ARTICLES = [
         "paragraphs": [
           {
             "en": [
-              "About half were profitable: 736 of 1,421. The median result was +0.5% over the year, with a median maximum drawdown of 7.5%. The typical EA had a longest losing streak of 6 trades and held a position for about a day.",
-              "On the three currency pairs the typical EA went nowhere: the median result was −0.03%, and only 29 of 1,055 currency results made more than 10%.",
-              "Gold looks better than it is. Gold rose 44% over the test year, so long-leaning systems were carried by the trend: the median gold result was +14.5% — with a median drawdown of 59%. 70 of 366 gold runs (19%) lost the whole account.",
-              "Consistency was rare: of 344 EAs with reliable results on all four markets, 40 were profitable on every one.",
-              "240 results had a Sharpe ratio above 1. Over a single year that is easy to reach by chance, which is why the EA Ranking also shows the recovery factor and how many markets an EA made money on."
+              "About half were profitable: 562 of 1,123. The median result was roughly zero over the year, with a median maximum drawdown of 7.8%. The typical EA had a longest losing streak of 6 trades and held a position for about a day.",
+              "On the three currency pairs the typical EA went nowhere: the median result was −0.12%, and only 27 of 830 currency results made more than 10%.",
+              "Gold looks better than it is. Gold rose 44% over the test year, so long-leaning systems were carried by the trend: the median gold result was +4.5% — with a median drawdown of 60%. 61 of 293 gold runs (21%) lost the whole account.",
+              "Consistency was rare: of 271 EAs with reliable results on all four markets, 30 were profitable on every one.",
+              "187 results had a Sharpe ratio above 1. Over a single year that is easy to reach by chance, which is why the EA Ranking also shows the recovery factor and how many markets an EA made money on."
             ],
             "zh": [
-              "大约一半赚钱：1421 个里有 736 个。中位数结果一年 +0.5%，最大回撤中位数 7.5%。典型的 EA 最长连亏 6 笔，平均持仓大约一天。",
-              "在三个货币对上，典型的 EA 原地踏步：中位数结果是 −0.03%，1055 个外汇结果里只有 29 个赚了 10% 以上。",
-              "黄金的数字看起来比实际好。测试这一年黄金涨了 44%，偏多的系统是被趋势带着走的：黄金结果的中位数是 +14.5%，但回撤中位数高达 59%；366 次黄金回测里有 70 次（19%）把整个账户亏光。",
-              "稳定的很少：在四个市场都有可信结果的 344 个 EA 里，只有 40 个在每个市场都盈利。",
-              "240 个结果的夏普超过 1。只看一年，这个水平很容易靠运气达到，所以 EA 排行榜还展示了恢复因子和 EA 在几个品种上赚钱。"
+              "大约一半赚钱：1123 个里有 562 个。中位数结果一年基本是 0，最大回撤中位数 7.8%。典型的 EA 最长连亏 6 笔，平均持仓大约一天。",
+              "在三个货币对上，典型的 EA 原地踏步：中位数结果是 −0.12%，830 个外汇结果里只有 27 个赚了 10% 以上。",
+              "黄金的数字看起来比实际好。测试这一年黄金涨了 44%，偏多的系统是被趋势带着走的：黄金结果的中位数是 +4.5%，但回撤中位数高达 60%；293 次黄金回测里有 61 次（21%）把整个账户亏光。",
+              "稳定的很少：在四个市场都有可信结果的 271 个 EA 里，只有 30 个在每个市场都盈利。",
+              "187 个结果的夏普超过 1。只看一年，这个水平很容易靠运气达到，所以 EA 排行榜还展示了恢复因子和 EA 在几个品种上赚钱。"
             ]
           }
         ]
@@ -846,8 +1032,8 @@ const RESEARCH_ARTICLES = [
         },
         "paragraphs": [
           {
-            "en": "We looked at the longest losing streak in 1,393 reliable EA backtests that made at least 20 trades over one year of hourly data. The median longest streak was 6 losses. A quarter of them (24%) had 8 or more losses in a row, and 4.6% had 10 or more. These are ordinary EAs, not martingales — they simply show how often a run of losses happens. For a doubling martingale, a streak that is unremarkable for a normal EA is fatal.",
-            "zh": "我们统计了 1393 个可信的 EA 回测（一年小时线数据、至少 20 笔交易）里的最长连亏。中位数是 6 笔；四分之一（24%）的回测出现过连亏 8 笔或更多，4.6% 出现过 10 笔或更多。这些都是普通 EA，不是马丁格尔——它们只是说明连续亏损有多常见。对普通 EA 来说平平无奇的一段连亏，对翻倍加仓的马丁格尔就是致命的。"
+            "en": "We looked at the longest losing streak in 1,095 reliable EA backtests that made at least 20 trades over one year of hourly data. The median longest streak was 6 losses. More than a fifth of them (22.5%) had 8 or more losses in a row, and 5.2% had 10 or more. These are ordinary EAs, not martingales — they simply show how often a run of losses happens. For a doubling martingale, a streak that is unremarkable for a normal EA is fatal.",
+            "zh": "我们统计了 1095 个可信的 EA 回测（一年小时线数据、至少 20 笔交易）里的最长连亏。中位数是 6 笔；超过五分之一（22.5%）的回测出现过连亏 8 笔或更多，5.2% 出现过 10 笔或更多。这些都是普通 EA，不是马丁格尔——它们只是说明连续亏损有多常见。对普通 EA 来说平平无奇的一段连亏，对翻倍加仓的马丁格尔就是致命的。"
           }
         ]
       },
