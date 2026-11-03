@@ -828,6 +828,14 @@ function renderBacktestQualityNote(result, isZh) {
       ? `这个 EA 在回测里从未交易，原因是${detail}。问题出在自动转换，不代表 EA 本身。`
       : `This EA never traded in the backtest because ${detail}. That is a flaw in the automatic conversion, not in the EA itself.`}</span></div></div>`;
   }
+  if (quality === "duplicate") {
+    const twins = (result.same_as || []).slice(0, 8)
+      .map((id) => `<a href="?page=ea-detail&id=${encodeURIComponent(id)}">${id}</a>`).join(", ");
+    const more = (result.same_as || []).length > 8 ? (isZh ? " 等" : " and others") : "";
+    return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "与其他 EA 结果相同：" : "Same backtest as other EAs:"}</strong> <span>${isZh
+      ? `这个 EA 在每个品种上的回测都和 ${twins}${more} 一模一样。几乎可以肯定是自动转换丢掉了它与众不同的部分（自定义指标、过滤条件或资金管理），所以这些结果不参与排名和统计。`
+      : `On every market this EA's backtest is identical to ${twins}${more}. The automatic conversion almost certainly lost what makes it different (a custom indicator, a filter or the money management), so these results are not ranked or counted.`}</span></div></div>`;
+  }
   if (quality === "ok" && (result.pnl_pct || 0) <= -89) {
     return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "账户爆仓：" : "Account stopped out:"}</strong> <span>${isZh
       ? "净值跌破初始资金的 10%，回测按券商强平处理，之后不再交易。"
@@ -1015,8 +1023,8 @@ function renderEARanking(route) {
       <div>
         <strong>${isZh ? "只排名有效回测。" : "Only reliable backtests are ranked."}</strong>
         <span>${isZh
-          ? `要求至少 ${EA_MIN_TRADES} 笔交易、有实际盈亏和回撤；夏普比率按权益曲线重新计算。本品种另有 ${excluded} 个结果因零交易、运行报错或数据异常未参与排名。`
-          : `At least ${EA_MIN_TRADES} trades with real P&L and drawdown; Sharpe is recomputed from the equity curve. ${excluded} other results for this symbol were left out (no trades, run errors or flat data).`}</span>
+          ? `要求至少 ${EA_MIN_TRADES} 笔交易、有实际盈亏和回撤；夏普比率按权益曲线重新计算。本品种另有 ${excluded} 个结果因零交易、运行报错、数据异常或与其他 EA 结果完全相同而未参与排名。`
+          : `At least ${EA_MIN_TRADES} trades with real P&L and drawdown; Sharpe is recomputed from the equity curve. ${excluded} other results for this symbol were left out (no trades, run errors, flat data, or identical to another EA's).`}</span>
       </div>
     </div>
 
