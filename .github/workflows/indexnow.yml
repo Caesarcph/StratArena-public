@@ -1,0 +1,63 @@
+# Tell Bing (and the other IndexNow engines: Yandex, Seznam, Naver, and the
+# search tools built on Bing such as DuckDuckGo) about new and changed pages,
+# without a Bing Webmaster account. The key file eb5705b902437f617771f2c39101b998.txt
+# at the site root proves ownership; it is published from the source repo.
+#
+# Runs after every publish that changes the sitemaps, and on demand.
+name: indexnow
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sitemap.xml"
+      - "sitemaps/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: indexnow
+  cancel-in-progress: true
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HOST: quantarenas.com
+      KEY: eb5705b902437f617771f2c39101b998
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for the key file to be live
+        run: |
+          for i in $(seq 1 40); do
+            if [ "$(curl -fsS "https://$HOST/$KEY.txt" 2>/dev/null)" = "$KEY" ]; then
+              echo "Key file is live."; exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::https://$HOST/$KEY.txt is not reachable yet"; exit 1
+
+      - name: Submit sitemap URLs
+        run: |
+          python3 - <<'EOF'
+          import glob, json, os, re, urllib.request
+          host, key = os.environ["HOST"], os.environ["KEY"]
+          urls = []
+          for path in ["sitemap.xml"] + sorted(glob.glob("sitemaps/*.xml")):
+              for loc in re.findall(r"<loc>([^<]+)</loc>", open(path, encoding="utf-8").read()):
+                  if loc.startswith(f"https://{host}/") and not loc.endswith(".xml"):
+                      urls.append(loc)
+          urls = sorted(set(urls))
+          print(f"{len(urls)} URLs")
+          for start in range(0, len(urls), 10000):
+              body = json.dumps({"host": host, "key": key, "keyLocation": f"https://{host}/{key}.txt",
+                                 "urlList": urls[start:start + 10000]}).encode()
+              req = urllib.request.Request("https://api.indexnow.org/indexnow", data=body,
+                                           headers={"Content-Type": "application/json; charset=utf-8"})
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  print(f"batch {start // 10000 + 1}: HTTP {resp.status}")
+          EOF
