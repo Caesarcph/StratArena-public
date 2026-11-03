@@ -294,7 +294,9 @@ function hasLivePerformanceData() {
 }
 
 async function fetchJson(path) {
-  const res = await fetch(path, { cache: "no-store" });
+  // "no-cache" revalidates with the server (ETag) instead of re-downloading
+  // unchanged files on every visit.
+  const res = await fetch(path, { cache: "no-cache" });
   if (!res.ok) {
     throw new Error(`Failed to load ${path}`);
   }
@@ -332,23 +334,39 @@ function getBasePath() {
   return "/";
 }
 
+// Pages whose content depends on the visitor (local storage / ad-hoc
+// selections) and should not be indexed.
+const NOINDEX_PAGES = new Set(["favorites", "compare"]);
+// Query params that identify a page; everything else (filters, windows,
+// sort orders) is a view of the same page and is dropped from the canonical.
+const CANONICAL_PARAMS = {
+  research: ["slug"],
+  strategy: ["id"]
+};
+
 function buildCanonicalUrl(route) {
   if (window.location.origin === "null") {
     return null;
   }
-  if (!CONTENT_ROUTES.has(route.page) && route.page !== "home") {
-    return window.location.href;
-  }
   const base = new URL(getBasePath(), window.location.origin);
-  if (route.page !== "home") {
-    base.searchParams.set("page", route.page);
+  if (route.page === "home") {
+    return base.toString();
   }
-  if (route.page === "research") {
-    const slug = route.params.get("slug");
-    if (slug) {
-      base.searchParams.set("slug", slug);
+  if (route.page === "ea-detail") {
+    // The pre-rendered EA page carries the full analysis in its raw HTML,
+    // so it is the version search engines should index.
+    const id = route.params.get("id") || "";
+    if (/^EA-\d+$/.test(id)) {
+      return new URL(`ea-pages/${id}.html`, base).toString();
     }
   }
+  base.searchParams.set("page", route.page);
+  (CANONICAL_PARAMS[route.page] || []).forEach((key) => {
+    const value = route.params.get(key);
+    if (value) {
+      base.searchParams.set(key, value);
+    }
+  });
   return base.toString();
 }
 
@@ -421,6 +439,8 @@ function updatePageMeta(route, canonicalUrl) {
   descriptionTag.setAttribute("content", meta.description);
   const canonicalTag = ensureCanonicalLink();
   canonicalTag.setAttribute("href", canonicalUrl || window.location.href);
+  const robotsTag = ensureMetaTag("robots");
+  robotsTag.setAttribute("content", NOINDEX_PAGES.has(route.page) ? "noindex, follow" : "index, follow");
 }
 
 function ensureAdSense(route) {

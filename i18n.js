@@ -788,7 +788,27 @@ const TRANSLATIONS = {
 };
 
 function getLang() {
-  const stored = localStorage.getItem('lang');
+  // ?lang=zh / ?lang=en (used by links from the static pages) wins and is remembered.
+  let fromUrl = null;
+  try {
+    fromUrl = new URLSearchParams(window.location.search).get('lang');
+  } catch (err) {
+    fromUrl = null;
+  }
+  if (fromUrl === 'zh' || fromUrl === 'en') {
+    try {
+      localStorage.setItem('lang', fromUrl);
+    } catch (err) {
+      // ignore storage failures
+    }
+    return fromUrl;
+  }
+  let stored = null;
+  try {
+    stored = localStorage.getItem('lang');
+  } catch (err) {
+    stored = null;
+  }
   return stored === 'zh' ? 'zh' : 'en';
 }
 
@@ -881,7 +901,20 @@ function bindLangToggle() {
 
 function setLang(lang) {
   const next = lang === 'zh' ? 'zh' : 'en';
-  localStorage.setItem('lang', next);
+  try {
+    localStorage.setItem('lang', next);
+  } catch (err) {
+    // ignore storage failures
+  }
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('lang')) {
+      url.searchParams.delete('lang');
+      history.replaceState(history.state, '', url.toString());
+    }
+  } catch (err) {
+    // ignore URL failures
+  }
   window.LANG = next;
   updateStaticText();
   bindLangToggle();

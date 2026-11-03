@@ -365,7 +365,8 @@ function renderEADetail(route) {
     [getLang() === "zh" ? "时间框架" : "Timeframes", (ea.timeframes || []).join(", ") || "—"],
     [getLang() === "zh" ? "指标" : "Indicators", (ea.indicators || []).join(", ") || "—"],
     [getLang() === "zh" ? "作者" : "Author", ea.author || (getLang() === "zh" ? "未知" : "Unknown")],
-    [getLang() === "zh" ? "来源" : "Source", `<a href="${mql5Url}" target="_blank" rel="noopener">${getLang() === "zh" ? "MQL5 代码" : "MQL5 Code"}</a>`]
+    [getLang() === "zh" ? "来源" : "Source", `<a href="${mql5Url}" target="_blank" rel="noopener">${getLang() === "zh" ? "MQL5 代码" : "MQL5 Code"}</a>`],
+    [getLang() === "zh" ? "分享页" : "Shareable page", `<a href="/ea-pages/${getLang() === "zh" ? "zh/" : ""}${id}.html">${getLang() === "zh" ? "静态版（适合分享、打印）" : "Static version (share / print)"}</a>`]
   ]
     .map(
       ([k, v]) => `<div class="ea-info-item"><span class="ea-info-key">${k}</span><span class="ea-info-val">${v}</span></div>`
@@ -482,6 +483,7 @@ function renderEADetail(route) {
   <div class="ea-section ea-backtest-section" data-bt-default="${defaultSymbol}">
    <h2>${isZh ? "回测结果" : "Backtest Results"}</h2>
    ${tabsHtml}
+   ${renderBacktestQualityNote(activeBt, isZh)}
    <div class="ea-bt-summary" id="ea-bt-summary">
     <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
      <span class="ea-bt-label">${isZh ? "总盈亏" : "Total P&L"}</span>
@@ -512,7 +514,7 @@ function renderEADetail(route) {
     </div>
     <div class="ea-bt-metric ${sharpeClass}">
      <span class="ea-bt-label">${isZh ? "夏普比率" : "Sharpe Ratio"}</span>
-     <span class="ea-bt-value">${activeBt.sharpe_ratio !== undefined ? activeBt.sharpe_ratio.toFixed(3) : "—"}</span>
+     <span class="ea-bt-value">${Number.isFinite(activeBt.sharpe_ratio) ? activeBt.sharpe_ratio.toFixed(3) : "—"}</span>
     </div>
     <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "最大回撤" : "Max Drawdown"}</span>
@@ -593,6 +595,13 @@ function bindEADetail(route) {
   const wrClass = hasTrades && bt.win_rate >= 50 ? "ea-bt-profit" : hasTrades ? "ea-bt-loss" : "";
   const sharpeClass = bt.sharpe_ratio > 0 ? "ea-bt-profit" : bt.sharpe_ratio < 0 ? "ea-bt-loss" : "";
   const summary = document.getElementById("ea-bt-summary");
+  const section = summary ? summary.closest(".ea-backtest-section") : null;
+  if (section) {
+   const oldNote = section.querySelector(":scope > .data-notice");
+   if (oldNote) oldNote.remove();
+   const note = renderBacktestQualityNote(bt, isZh);
+   if (note) summary.insertAdjacentHTML("beforebegin", note);
+  }
   if (summary) {
    summary.innerHTML = `
     <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
@@ -626,7 +635,7 @@ function bindEADetail(route) {
     </div>
     <div class="ea-bt-metric ${sharpeClass}">
      <span class="ea-bt-label">${isZh ? "夏普比率" : "Sharpe Ratio"}</span>
-     <span class="ea-bt-value">${bt.sharpe_ratio !== undefined ? bt.sharpe_ratio.toFixed(3) : "—"}</span>
+     <span class="ea-bt-value">${Number.isFinite(bt.sharpe_ratio) ? bt.sharpe_ratio.toFixed(3) : "—"}</span>
     </div>
     <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "最大回撤" : "Max Drawdown"}</span>
@@ -680,6 +689,31 @@ function bindEADetail(route) {
  }
 }
 
+const EA_MIN_TRADES = 10;
+
+const BACKTEST_QUALITY_TEXT = {
+  no_trades: { en: "This backtest produced no trades, so the numbers below say nothing about the strategy. The automatic MQL5-to-Python conversion most likely missed its entry logic.", zh: "这次回测没有产生任何交易，下面的数字不能说明策略好坏，多半是 MQL5 自动转换时漏掉了开仓逻辑。" },
+  error: { en: "The backtest stopped with an error, so these numbers are not usable.", zh: "回测运行时报错，这些数字不可用。" },
+  few_trades: { en: `Fewer than ${10} trades — too few to judge the strategy.`, zh: `交易少于 ${10} 笔，样本太少，不足以判断策略好坏。` },
+  flat: { en: "The equity curve is essentially flat (no real P&L or drawdown); treat these numbers with caution.", zh: "权益曲线几乎是平的（没有实际盈亏和回撤），这些数字请谨慎参考。" }
+};
+
+function renderBacktestQualityNote(result, isZh) {
+  const quality = result && result.quality;
+  const text = quality && BACKTEST_QUALITY_TEXT[quality];
+  if (!text) return "";
+  return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "结果不可靠：" : "Unreliable result:"}</strong> <span>${isZh ? text.zh : text.en}</span></div></div>`;
+}
+
+// Backtest results carry a "quality" label from scripts/update_backtest_index.py.
+// Older index files without it fall back to the same rules.
+function isReliableBacktest(result) {
+  if (!result) return false;
+  if (result.quality) return result.quality === "ok";
+  const trades = result.total_trades || 0;
+  return trades >= EA_MIN_TRADES && Math.abs(result.pnl_pct || 0) >= 0.01 && (result.max_drawdown_pct || 0) > 0;
+}
+
 function renderEARanking(route) {
   const isZh = getLang() === "zh";
   const symbols = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD"];
@@ -704,9 +738,14 @@ function renderEARanking(route) {
   catalog.forEach(ea => { catalogMap[ea.id] = ea; });
 
   const rows = [];
+  let excluded = 0;
   Object.entries(btIndex).forEach(([eaId, data]) => {
     const symData = data[activeSymbol];
-    if (!symData || symData.status !== "completed" || (symData.total_trades || 0) === 0) return;
+    if (!symData || symData.status !== "completed") return;
+    if (!isReliableBacktest(symData)) {
+      excluded += 1;
+      return;
+    }
     const ea = catalogMap[eaId] || {};
     rows.push({
       id: eaId,
@@ -715,7 +754,7 @@ function renderEARanking(route) {
       risk: ea.overall_risk || "",
       rating: ea.rating || 0,
       pnl_pct: symData.pnl_pct || 0,
-      sharpe_ratio: symData.sharpe_ratio || 0,
+      sharpe_ratio: Number.isFinite(symData.sharpe_ratio) ? symData.sharpe_ratio : 0,
       win_rate: symData.win_rate || 0,
       annual_return: symData.annual_return || 0,
       max_drawdown_pct: symData.max_drawdown_pct || 0,
@@ -788,6 +827,15 @@ function renderEARanking(route) {
         <p>${isZh
           ? `基于 H1 回测数据的 EA 性能排名。选择品种和指标，发现最佳策略。`
           : `Rank EA performance by backtest metrics on H1 data. Select symbol and metric to find top strategies.`}</p>
+      </div>
+    </div>
+    <div class="data-notice" role="note">
+      <span class="data-notice-dot" aria-hidden="true"></span>
+      <div>
+        <strong>${isZh ? "只排名有效回测。" : "Only reliable backtests are ranked."}</strong>
+        <span>${isZh
+          ? `要求至少 ${EA_MIN_TRADES} 笔交易、有实际盈亏和回撤；夏普比率按权益曲线重新计算。本品种另有 ${excluded} 个结果因零交易、运行报错或数据异常未参与排名。`
+          : `At least ${EA_MIN_TRADES} trades with real P&L and drawdown; Sharpe is recomputed from the equity curve. ${excluded} other results for this symbol were left out (no trades, run errors or flat data).`}</span>
       </div>
     </div>
 
