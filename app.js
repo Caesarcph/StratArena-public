@@ -464,7 +464,20 @@ function strategySlug(strategy) {
 
 // Pages whose content depends on the visitor (local storage / ad-hoc
 // selections) and should not be indexed.
-const NOINDEX_PAGES = new Set(["favorites", "compare"]);
+// Tool views whose content only exists after JavaScript runs; search engines
+// saw them as empty ("soft 404"), so keep them out of the index.
+const NOINDEX_PAGES = new Set(["favorites", "compare", "ea-ranking", "lab"]);
+// App views with a static, fully rendered version (scripts/generate_static_pages.py).
+const STATIC_TWINS = {
+  strategies: "strategies/",
+  about: "about/",
+  methodology: "methodology/",
+  faq: "faq/",
+  changelog: "changelog/",
+  "privacy-policy": "privacy-policy/",
+  terms: "terms/",
+  "ea-arena": (zhPrefix) => (zhPrefix ? "ea-pages/zh/category/" : "ea-pages/category/")
+};
 // Query params that identify a page; everything else (filters, windows,
 // sort orders) is a view of the same page and is dropped from the canonical.
 const CANONICAL_PARAMS = {
@@ -495,6 +508,12 @@ function buildCanonicalUrl(route) {
     if (known) {
       return new URL(`${zhPrefix}research/${slug ? `${encodeURIComponent(slug)}/` : ""}`, base).toString();
     }
+  }
+  // App views that have a pre-rendered twin with the same content.
+  const staticPath = STATIC_TWINS[route.page];
+  if (staticPath) {
+    const path = typeof staticPath === "function" ? staticPath(zhPrefix) : `${zhPrefix}${staticPath}`;
+    return new URL(path, base).toString();
   }
   if (route.page === "ea-detail") {
     const id = route.params.get("id") || "";
