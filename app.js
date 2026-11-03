@@ -115,6 +115,10 @@ const PAGE_META = {
   "ea-ranking": {
     titleKey: "meta.ea_ranking_title",
     descriptionKey: "meta.ea_ranking_desc"
+  },
+  lab: {
+    titleKey: "meta.lab_title",
+    descriptionKey: "meta.lab_desc"
   }
 };
 
@@ -360,6 +364,8 @@ function requiredEquitySymbols(route) {
     case "compare":
     case "favorites":
       return [instrument || defaultInstrument()];
+    case "lab":
+      return [instrument || "SPY"];
     case "strategy": {
       const strategyId = params.get("id") || store.strategies[0]?.id;
       const strategy = store.strategies.find((item) => item.id === strategyId);
@@ -824,6 +830,10 @@ function render() {
   case "ea-ranking":
     app.innerHTML = renderEARanking(route);
     bindEARanking(route);
+    break;
+  case "lab":
+    app.innerHTML = renderLab(route);
+    bindLab(route);
     break;
   case "about":
       app.innerHTML = renderAbout();
@@ -2464,6 +2474,8 @@ function renderMetricTabs(metrics) {
         ${optionalTile(t("metric.info_ratio"), metrics.infoRatio, "ratio")}
         ${optionalTile(t("metric.up_capture"), metrics.upCapture, "totalReturn")}
         ${optionalTile(t("metric.down_capture"), metrics.downCapture, "totalReturn")}
+        ${optionalTile(t("metric.cagr_after_costs"), metrics.costDrag === undefined || metrics.costDrag === null ? null : (metrics.cagr || 0) - metrics.costDrag, "totalReturn")}
+        ${optionalTile(t("metric.dsr"), metrics.dsr, "totalReturn")}
       </div>
     </div>
   `;

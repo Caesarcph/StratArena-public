@@ -434,6 +434,7 @@ function syncSearchActive(scroll) {
 }
 
 function openSearch(initialQuery = "") {
+  trackEvent("search_open", { page: document.body.dataset.page || "" });
   const overlay = ensureSearchDialog();
   const input = overlay.querySelector("#search-input");
   input.placeholder = t("search.placeholder");
@@ -561,6 +562,41 @@ function bindScrollUi() {
   update();
 }
 
+/* ---------- Analytics hook ---------- */
+
+// Sends product events to whichever analytics tool is installed on the page
+// (Plausible, Umami, Cloudflare Zaraz or Google Analytics). With none of them
+// present the events only go to window.__qaEvents, so adding a tool later is a
+// one-line <script> change.
+function trackEvent(name, props = {}) {
+  try {
+    window.__qaEvents = window.__qaEvents || [];
+    window.__qaEvents.push({ name, props, at: Date.now() });
+    if (window.__qaEvents.length > 100) window.__qaEvents.shift();
+    if (typeof window.plausible === "function") window.plausible(name, { props });
+    if (window.umami && typeof window.umami.track === "function") window.umami.track(name, props);
+    if (window.zaraz && typeof window.zaraz.track === "function") window.zaraz.track(name, props);
+    if (typeof window.gtag === "function") window.gtag("event", name, props);
+  } catch (err) {
+    // Analytics must never break the page.
+  }
+}
+
+function bindAnalytics() {
+  document.addEventListener("click", (event) => {
+    const target = event.target.closest("a, button");
+    if (!target) return;
+    const page = document.body.dataset.page || "";
+    if (target.matches("[data-export-csv], [data-export-compare]")) trackEvent("export_csv", { page });
+    else if (target.matches("[data-export-chart]")) trackEvent("export_png", { page, chart: target.dataset.exportName || "" });
+    else if (target.matches("[data-compare-share]")) trackEvent("share_compare", { page });
+    else if (target.matches("[data-favorite], .favorite-action, .favorite-inline")) trackEvent("favorite_toggle", { page });
+    else if (target.id === "lang-toggle") trackEvent("language_switch", { to: getLang() === "en" ? "zh" : "en" });
+    else if (target.matches(".search-option")) trackEvent("search_select", { href: target.getAttribute("href") || "" });
+    else if (target.tagName === "A" && /mql5\.com/.test(target.getAttribute("href") || "")) trackEvent("outbound_mql5", { page });
+  });
+}
+
 /* ---------- Hooks called by app.js render() ---------- */
 
 function afterRender(route) {
@@ -586,6 +622,7 @@ function afterRender(route) {
 function initSiteUi() {
   bindHeader();
   bindScrollUi();
+  bindAnalytics();
 }
 
 document.addEventListener("DOMContentLoaded", initSiteUi);
@@ -594,4 +631,5 @@ window.afterRender = afterRender;
 window.themeIconSvg = themeIconSvg;
 window.renderRecentlyViewed = renderRecentlyViewed;
 window.openSearch = openSearch;
+window.trackEvent = trackEvent;
 window.isPerformanceStale = isPerformanceStale;
