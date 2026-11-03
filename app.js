@@ -138,7 +138,30 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+function ensureChartLib() {
+  if (typeof window.Chart !== "undefined") return;
+  // CDN blocked or offline: keep the page usable without charts.
+  console.warn("Chart.js failed to load; charts are disabled.");
+  window.Chart = class ChartUnavailable {
+    constructor(ctx, config) {
+      this.data = config?.data || { labels: [], datasets: [] };
+      this.options = config?.options || {};
+      const canvas = ctx && ctx.canvas ? ctx.canvas : ctx;
+      if (canvas && canvas.parentElement && !canvas.parentElement.querySelector(".chart-unavailable")) {
+        canvas.insertAdjacentHTML("afterend", `<div class="chart-unavailable">${t("common.chart_unavailable")}</div>`);
+      }
+    }
+    destroy() {}
+    update() {}
+    resize() {}
+    toBase64Image() {
+      return "";
+    }
+  };
+}
+
 async function init() {
+  ensureChartLib();
   await loadData();
   initFavorites();
   bindGlobal();
@@ -147,21 +170,127 @@ async function init() {
 }
 
 async function loadData() {
-  const [strategies, performance, changelog, eaCatalog, eaAnalysis, eaBacktestIndex] = await Promise.all([
+  const [strategies, performance, changelog, eaCatalog] = await Promise.all([
     fetchJson(DATA_FILES.strategies),
     fetchJson(DATA_FILES.performance),
     fetchJson(DATA_FILES.changelog),
-    fetchJson(DATA_FILES.eaCatalog).catch(() => []),
-    fetchJson(DATA_FILES.eaAnalysis).catch(() => ({})),
-    fetchJson(DATA_FILES.eaBacktestIndex).catch(() => ({}))
+    fetchJson(DATA_FILES.eaCatalog).catch(() => [])
   ]);
 
   store.strategies = strategies.strategies || [];
   store.performance = performance || { instruments: [], windows: [] };
   store.changelog = changelog.entries || [];
   if (Array.isArray(eaCatalog)) store.eaCatalog = eaCatalog;
-  if (eaAnalysis && typeof eaAnalysis === "object" && !Array.isArray(eaAnalysis)) store.eaAnalysis = eaAnalysis;
-  if (eaBacktestIndex && typeof eaBacktestIndex === "object" && !Array.isArray(eaBacktestIndex)) store.eaBacktestIndex = eaBacktestIndex;
+}
+
+// The EA analysis + backtest index are large (~14MB), so only fetch them
+// when an EA page actually needs them.
+const EA_DATA_PAGES = new Set(["ea-arena", "ea-detail", "ea-ranking"]);
+let eaDataPromise = null;
+let eaDataLoaded = false;
+
+function ensureEAData() {
+  if (eaDataLoaded) return Promise.resolve();
+  if (!eaDataPromise) {
+    eaDataPromise = Promise.all([
+      fetchJson(DATA_FILES.eaAnalysis).catch(() => ({})),
+      fetchJson(DATA_FILES.eaBacktestIndex).catch(() => ({}))
+    ]).then(([eaAnalysis, eaBacktestIndex]) => {
+      if (eaAnalysis && typeof eaAnalysis === "object" && !Array.isArray(eaAnalysis)) store.eaAnalysis = eaAnalysis;
+      if (eaBacktestIndex && typeof eaBacktestIndex === "object" && !Array.isArray(eaBacktestIndex)) store.eaBacktestIndex = eaBacktestIndex;
+      eaDataLoaded = true;
+    });
+  }
+  return eaDataPromise;
+}
+
+// Equity curves live in per-instrument files (data/equity/*.json) so a page
+// only downloads the series it actually draws.
+const equityLoaded = new Set();
+const equityPending = new Map();
+
+function equityFileFor(symbol) {
+  const files = store.performance?.equityFiles;
+  return files && symbol ? files[symbol] || null : null;
+}
+
+function isEquityPending(symbol) {
+  return Boolean(equityFileFor(symbol)) && !equityLoaded.has(symbol);
+}
+
+function loadEquity(symbol) {
+  if (equityPending.has(symbol)) return equityPending.get(symbol);
+  const promise = fetchJson(equityFileFor(symbol))
+    .then((file) => {
+      const sharedDates = file.dates || [];
+      const strategies = store.performance.strategies || (store.performance.strategies = {});
+      Object.entries(file.strategies || {}).forEach(([strategyId, entry]) => {
+        const perf = strategies[strategyId] || (strategies[strategyId] = {});
+        if (!perf.equity) perf.equity = {};
+        perf.equity[symbol] = {
+          dates: entry.dates || sharedDates,
+          strategy: entry.strategy,
+          benchmark: entry.benchmark
+        };
+      });
+    })
+    .catch((err) => {
+      console.warn(`Equity data unavailable for ${symbol}`, err);
+    })
+    .then(() => {
+      equityLoaded.add(symbol);
+      seriesCache.clear();
+    });
+  equityPending.set(symbol, promise);
+  return promise;
+}
+
+function requiredEquitySymbols(route) {
+  const params = route.params;
+  const instrument = params.get("instrument");
+  switch (route.page) {
+    case "home":
+      return [defaultInstrument(), "SPY", "GLD", "EURUSD=X"];
+    case "arena":
+    case "compare":
+    case "favorites":
+      return [instrument || defaultInstrument()];
+    case "strategy": {
+      const strategyId = params.get("id") || store.strategies[0]?.id;
+      const strategy = store.strategies.find((item) => item.id === strategyId);
+      const symbols = [
+        instrument || strategy?.instruments?.[0] || defaultInstrument(),
+        "SPY",
+        "GLD"
+      ];
+      const compare = (params.get("compare") || "").split(",").filter(Boolean);
+      symbols.push(...(compare.length ? compare : strategy?.recommendedCompare || []));
+      if (params.get("benchmark") === "risk-parity") symbols.push("RISK-PARITY");
+      return symbols;
+    }
+    default:
+      return [];
+  }
+}
+
+let equityRerenderQueued = false;
+
+function queueRenderAfterEquity(symbol) {
+  loadEquity(symbol).then(() => {
+    if (equityRerenderQueued) return;
+    equityRerenderQueued = true;
+    requestAnimationFrame(() => {
+      equityRerenderQueued = false;
+      render();
+    });
+  });
+}
+
+function hasLivePerformanceData() {
+  const strategies = store.performance?.strategies || {};
+  return Object.values(strategies).some(
+    (entry) => entry && entry.metrics && Object.keys(entry.metrics).length
+  );
 }
 
 async function fetchJson(path) {
@@ -313,7 +442,12 @@ function forceAdFreeReload(route) {
 }
 
 function initTheme() {
-  const savedTheme = localStorage.getItem("theme");
+  let savedTheme = null;
+  try {
+    savedTheme = localStorage.getItem("theme");
+  } catch (err) {
+    savedTheme = null;
+  }
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const theme = savedTheme || (prefersDark ? "dark" : "light");
   setTheme(theme);
@@ -323,7 +457,11 @@ function toggleTheme() {
   const current = document.documentElement.getAttribute("data-theme");
   const next = current === "dark" ? "light" : "dark";
   setTheme(next);
-  localStorage.setItem("theme", next);
+  try {
+    localStorage.setItem("theme", next);
+  } catch (err) {
+    // Ignore storage failures (private mode).
+  }
 }
 
 function setTheme(theme) {
@@ -331,12 +469,17 @@ function setTheme(theme) {
   const icon = document.getElementById("theme-icon");
   const label = document.getElementById("theme-label");
   if (icon && label) {
-    if (theme === "dark") {
-      icon.textContent = "☀️";
-      label.textContent = t("nav.theme_light");
+    if (typeof window.themeIconSvg === "function") {
+      icon.innerHTML = window.themeIconSvg(theme);
     } else {
-      icon.textContent = "🌙";
-      label.textContent = t("nav.theme_dark");
+      icon.textContent = theme === "dark" ? "☀️" : "🌙";
+    }
+    label.textContent = theme === "dark" ? t("nav.theme_light") : t("nav.theme_dark");
+    const toggle = document.getElementById("theme-toggle");
+    if (toggle) {
+      const hint = theme === "dark" ? t("nav.switch_to_light") : t("nav.switch_to_dark");
+      toggle.setAttribute("aria-label", hint);
+      toggle.setAttribute("title", hint);
     }
   }
 }
@@ -456,6 +599,25 @@ function render() {
     return;
   }
 
+  const missingEquity = [...new Set(requiredEquitySymbols(route))].filter(isEquityPending);
+  if (missingEquity.length) {
+    const pendingHref = window.location.href;
+    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    Promise.all(missingEquity.map(loadEquity)).then(() => {
+      if (window.location.href === pendingHref) render();
+    });
+    return;
+  }
+
+  if (EA_DATA_PAGES.has(route.page) && !eaDataLoaded) {
+    const pendingPage = route.page;
+    app.innerHTML = `<section class="section page-loading"><div class="loading-spinner" aria-hidden="true"></div><p>${t("common.loading")}</p></section>`;
+    ensureEAData().then(() => {
+      if (getRoute().page === pendingPage) render();
+    });
+    return;
+  }
+
   switch (route.page) {
     case "home":
       app.innerHTML = renderHome();
@@ -519,6 +681,9 @@ function render() {
     default:
       app.innerHTML = renderHome();
       bindHome();
+  }
+  if (typeof window.afterRender === "function") {
+    window.afterRender(route);
   }
 }
 
@@ -620,6 +785,26 @@ function defaultWindow() {
   return "1Y";
 }
 
+const HOME_ICONS = {
+  arena: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V10M10 19V5M16 19v-7M22 19H2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  ea: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3v4M9 13h.01M15 13h.01M9 16.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  ranking: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  compare: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 3 4-6 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
+};
+
+const HOME_ROADMAP = [
+  { key: "home.roadmap_item_heatmaps", done: true },
+  { key: "home.roadmap_item_attribution", done: true },
+  { key: "home.roadmap_item_search", done: true },
+  { key: "home.roadmap_item_uploads", done: false },
+  { key: "home.roadmap_item_intraday", done: false },
+  { key: "home.roadmap_item_regime", done: false }
+];
+
+function formatScore(value) {
+  return Number.isFinite(value) ? value.toFixed(1) : "—";
+}
+
 function renderHome() {
   const instrument = defaultInstrument();
   const window = defaultWindow();
@@ -628,14 +813,26 @@ function renderHome() {
     .slice(0, 5);
   const updates = store.changelog.slice(0, 5);
   const researchArticles = sortResearchArticles(getResearchArticles());
-  const latestArticles = researchArticles.slice(0, 3);
-  const featuredArticles = researchArticles
-    .filter((article) => article.featured)
-    .slice(0, 3);
+  const featuredArticles = researchArticles.filter((article) => article.featured);
+  const homeArticles = [
+    ...featuredArticles.slice(0, 1),
+    ...researchArticles.filter((article) => !featuredArticles.slice(0, 1).includes(article))
+  ].slice(0, 3);
+  const marketCount = (store.performance.instruments || []).filter(
+    (item) => !store.strategies.some((s) => s.portfolioSymbol === item.symbol)
+  ).length;
+  const updated = store.performance.updated;
+  const recentHtml = typeof renderRecentlyViewed === "function" ? renderRecentlyViewed() : "";
+  const explore = [
+    { href: "?page=arena", icon: HOME_ICONS.arena, title: t("nav.arena"), desc: t("home.explore_arena_desc") },
+    { href: "?page=ea-arena", icon: HOME_ICONS.ea, title: t("nav.ea_arena"), desc: t("home.ea_promo_desc", { count: store.eaCatalog.length }) },
+    { href: "?page=ea-ranking", icon: HOME_ICONS.ranking, title: t("nav.ea_ranking"), desc: t("home.explore_ranking_desc") },
+    { href: "?page=compare", icon: HOME_ICONS.compare, title: t("nav.compare"), desc: t("home.explore_compare_desc") }
+  ];
 
   return `
     <section class="hero">
-      <div>
+      <div class="hero-copy">
         <div class="eyebrow">${t("home.hero_eyebrow")}</div>
         <h1>${t("meta.site_name")}</h1>
         <p>${t("home.hero_desc")}</p>
@@ -643,175 +840,83 @@ function renderHome() {
           <a class="button primary" href="?page=arena">${t("home.explore_arena")}</a>
           <a class="button ghost" href="?page=strategies">${t("home.browse_strategies")}</a>
         </div>
+        <button class="hero-search" type="button" onclick="openSearch()">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.2 13.2 L17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>${t("search.hero_placeholder")}</span>
+          <kbd>/</kbd>
+        </button>
       </div>
       <div class="hero-panel">
-        <h3>${t("home.daily_refresh_workflow")}</h3>
-        <div class="stat-grid">
-          <div class="stat"><span>${t("home.data_source")}</span><span>yfinance</span></div>
-          <div class="stat"><span>${t("home.refresh_cadence")}</span><span>${t("home.daily_backtest")}</span></div>
-          <div class="stat"><span>${t("home.coverage")}</span><span>${t("home.strategy_count", { count: store.strategies.length })}</span></div>
+        <h3>${t("home.at_a_glance")}</h3>
+        <div class="hero-stats">
+          <a class="hero-stat" href="?page=strategies"><strong>${store.strategies.length}</strong><span>${t("home.stat_strategies")}</span></a>
+          <a class="hero-stat" href="?page=ea-arena"><strong>${store.eaCatalog.length.toLocaleString()}</strong><span>${t("home.stat_eas")}</span></a>
+          <a class="hero-stat" href="?page=arena"><strong>${marketCount}</strong><span>${t("home.stat_markets")}</span></a>
+          <a class="hero-stat" href="?page=research"><strong>${researchArticles.length}</strong><span>${t("home.stat_articles")}</span></a>
         </div>
-      </div>
-  </section>
-
-  <section class="section">
-    <div class="ea-promo">
-      <div class="ea-promo-icon">🤖</div>
-      <div>
-        <h3>${t("home.ea_promo_title")}</h3>
-        <p>${t("home.ea_promo_desc", { count: store.eaCatalog.length })}</p>
-        <div class="ea-promo-stats">
-          <span><strong>${store.eaCatalog.length}</strong> ${t("home.ea_count")}</span>
-          <span><strong>${Object.keys(store.eaAnalysis).length}</strong> ${t("common.analyzed")}</span>
+        <div class="hero-panel-foot">
+          <span class="status-dot ${!hasLivePerformanceData() ? "warn" : typeof isPerformanceStale === "function" && isPerformanceStale() ? "stale" : "ok"}" aria-hidden="true"></span>
+          ${updated ? t("home.data_as_of", { date: updated }) : t("home.daily_backtest")}
+          <span class="muted">· ${t("home.data_source")}: yfinance</span>
         </div>
-        <a class="button primary small" href="?page=ea-arena" style="margin-top:0.75rem">${t("home.explore_ea_arena")}</a>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("home.core_features_title")}</h2>
-          <p>${t("home.core_features_desc")}</p>
-         </div>
-       </div>
-       <div class="card-grid">
-         <div class="card">
-           <div class="eyebrow">${t("home.feature_leaderboard_eyebrow")}</div>
-           <h3>${t("home.feature_leaderboard_title")}</h3>
-           <p>${t("home.feature_leaderboard_desc")}</p>
-         </div>
-         <div class="card">
-           <div class="eyebrow">${t("home.feature_details_eyebrow")}</div>
-           <h3>${t("home.feature_details_title")}</h3>
-           <p>${t("home.feature_details_desc")}</p>
-         </div>
-         <div class="card">
-           <div class="eyebrow">${t("nav.methodology")}</div>
-           <h3>${t("home.feature_methodology_title")}</h3>
-           <p>${t("home.feature_methodology_desc")}</p>
-         </div>
-       </div>
-     </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("home.latest_research_title")}</h2>
-          <p>${t("home.latest_research_desc")}</p>
-        </div>
-        <a class="button ghost small" href="?page=research">${t("common.view_all")}</a>
-      </div>
-      <div class="card-grid article-grid">
-        ${latestArticles.map(renderArticleCard).join("")}
       </div>
     </section>
 
+    ${recentHtml}
+
     <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("home.featured_articles_title")}</h2>
-          <p>${t("home.featured_articles_desc")}</p>
-        </div>
-      </div>
-      <div class="card-grid article-grid">
-        ${(featuredArticles.length ? featuredArticles : latestArticles)
-          .map(renderArticleCard)
+      <div class="explore-grid">
+        ${explore
+          .map(
+            (item) => `
+          <a class="explore-card" href="${item.href}">
+            <span class="explore-icon">${item.icon}</span>
+            <span class="explore-title">${item.title}<span class="explore-arrow" aria-hidden="true">→</span></span>
+            <span class="explore-desc">${item.desc}</span>
+          </a>`
+          )
           .join("")}
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("home.learn_method_title")}</h2>
-          <p>${t("home.learn_method_desc")}</p>
-        </div>
-      </div>
-      <div class="card-grid">
-        <a class="card link-card" href="?page=methodology">
-          <div class="eyebrow">${t("nav.methodology")}</div>
-          <h3>${t("home.methodology_card_title")}</h3>
-          <p>${t("home.methodology_card_desc")}</p>
-        </a>
-        <a class="card link-card" href="?page=about">
-          <div class="eyebrow">${t("nav.about")}</div>
-          <h3>${t("home.about_card_title")}</h3>
-          <p>${t("home.about_card_desc")}</p>
-        </a>
-        <a class="card link-card" href="?page=faq">
-          <div class="eyebrow">${t("nav.faq")}</div>
-          <h3>${t("home.faq_card_title")}</h3>
-          <p>${t("home.faq_card_desc")}</p>
-        </a>
       </div>
     </section>
 
     <section class="section split">
       <div class="card">
-        <h3>${t("home.top_strategies_title", { window, instrument })}</h3>
-        <div class="list">
+        <div class="card-head">
+          <h3>${t("home.top_strategies_title", { window, instrument })}</h3>
+          <a class="link small-link" href="?page=arena&instrument=${encodeURIComponent(instrument)}&window=${window}">${t("common.view_all")} →</a>
+        </div>
+        <ol class="rank-list">
           ${topRows
             .map(
               (row, index) => `
-            <div>
-              <span class="tag">#${index + 1}</span>
-              <a class="link" href="?page=strategy&id=${row.strategy.id}&instrument=${instrument}&window=${window}">
-                ${row.strategy.id} ${row.strategy.name}
+            <li>
+              <span class="rank-badge rank-${index + 1}">${index + 1}</span>
+              <a class="rank-name" href="?page=strategy&id=${row.strategy.id}&instrument=${encodeURIComponent(instrument)}&window=${window}">
+                <strong>${row.strategy.id}</strong> ${row.strategy.name}
               </a>
-            </div>`
+              <span class="rank-score" title="${t("arena.score")}">${formatScore(row.metrics.arenaScore)}</span>
+              <span class="rank-return ${row.metrics.totalReturn >= 0 ? "pos" : "neg"}">${formatPercent(row.metrics.totalReturn)}</span>
+            </li>`
             )
             .join("")}
-        </div>
+        </ol>
       </div>
       <div class="card">
-        <h3>${t("home.latest_updates_title")}</h3>
-        <div class="list">
+        <div class="card-head">
+          <h3>${t("home.latest_updates_title")}</h3>
+          <a class="link small-link" href="?page=changelog">${t("common.view_all")} →</a>
+        </div>
+        <ul class="update-list">
           ${updates
             .map(
               (entry) => `
-            <div>
-              <strong>${entry.date}</strong>
-              <div>${entry.title}</div>
-            </div>`
+            <li>
+              <time>${entry.date}</time>
+              <span>${tc(entry.title)}</span>
+            </li>`
             )
             .join("")}
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("home.future_updates_title")}</h2>
-          <p>${t("home.future_updates_desc")}</p>
-        </div>
-      </div>
-      <div class="card-grid">
-        <div class="card">
-          <div class="eyebrow">${t("home.membership_planned")}</div>
-          <h3>${t("home.research_membership_title")}</h3>
-          <p>${t("home.research_membership_desc")}</p>
-          <div class="list">
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_exports")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_downloads")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_watchlists")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.membership_item_early_access")}</div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="eyebrow">${t("home.roadmap_eyebrow")}</div>
-          <h3>${t("home.priority_upgrades_title")}</h3>
-          <p>${t("home.priority_upgrades_desc")}</p>
-          <div class="list">
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_heatmaps")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_uploads")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_intraday")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_attribution")}</div>
-            <div><span class="badge">${t("common.pending")}</span> ${t("home.roadmap_item_regime")}</div>
-          </div>
-        </div>
+        </ul>
       </div>
     </section>
 
@@ -866,6 +971,77 @@ function renderHome() {
           <div class="chart-body">
             <canvas id="home-chart-eurusd-1y"></canvas>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>${t("home.latest_research_title")}</h2>
+          <p>${t("home.latest_research_desc")}</p>
+        </div>
+        <a class="button ghost small" href="?page=research">${t("common.view_all")}</a>
+      </div>
+      <div class="card-grid article-grid">
+        ${homeArticles.map(renderArticleCard).join("")}
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>${t("home.learn_method_title")}</h2>
+          <p>${t("home.learn_method_desc")}</p>
+        </div>
+      </div>
+      <div class="card-grid">
+        <a class="card link-card" href="?page=methodology">
+          <div class="eyebrow">${t("nav.methodology")}</div>
+          <h3>${t("home.methodology_card_title")}</h3>
+          <p>${t("home.methodology_card_desc")}</p>
+        </a>
+        <a class="card link-card" href="?page=about">
+          <div class="eyebrow">${t("nav.about")}</div>
+          <h3>${t("home.about_card_title")}</h3>
+          <p>${t("home.about_card_desc")}</p>
+        </a>
+        <a class="card link-card" href="?page=faq">
+          <div class="eyebrow">${t("nav.faq")}</div>
+          <h3>${t("home.faq_card_title")}</h3>
+          <p>${t("home.faq_card_desc")}</p>
+        </a>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <h2>${t("home.future_updates_title")}</h2>
+          <p>${t("home.future_updates_desc")}</p>
+        </div>
+      </div>
+      <div class="card-grid two-col">
+        <div class="card">
+          <div class="eyebrow">${t("home.roadmap_eyebrow")}</div>
+          <h3>${t("home.priority_upgrades_title")}</h3>
+          <p>${t("home.priority_upgrades_desc")}</p>
+          <ul class="roadmap-list">
+            ${HOME_ROADMAP.map(
+              (item) => `<li class="${item.done ? "done" : ""}"><span class="roadmap-status">${item.done ? t("home.roadmap_shipped") : t("home.roadmap_planned")}</span>${t(item.key)}</li>`
+            ).join("")}
+          </ul>
+        </div>
+        <div class="card">
+          <div class="eyebrow">${t("home.membership_planned")}</div>
+          <h3>${t("home.research_membership_title")}</h3>
+          <p>${t("home.research_membership_desc")}</p>
+          <ul class="roadmap-list">
+            <li><span class="roadmap-status">${t("home.roadmap_planned")}</span>${t("home.membership_item_exports")}</li>
+            <li><span class="roadmap-status">${t("home.roadmap_planned")}</span>${t("home.membership_item_downloads")}</li>
+            <li><span class="roadmap-status">${t("home.roadmap_planned")}</span>${t("home.membership_item_watchlists")}</li>
+            <li><span class="roadmap-status">${t("home.roadmap_planned")}</span>${t("home.membership_item_early_access")}</li>
+          </ul>
         </div>
       </div>
     </section>
@@ -1661,10 +1837,10 @@ function renderStrategies(route) {
         </div>
       </div>
 
-      <div class="filter-bar">
+      <div class="filter-bar strategy-filter-bar">
         <div class="filter-group">
-          <label>${t("common.search")}</label>
-          <input id="strategy-search" type="text" placeholder="${t("strategy.search_placeholder")}" value="${escapeHtml(
+          <label for="strategy-search">${t("common.search")}</label>
+          <input id="strategy-search" type="search" placeholder="${t("strategy.search_placeholder")}" value="${escapeHtml(
             state.query || ""
           )}" />
         </div>
@@ -2258,7 +2434,7 @@ function renderArticleCard(article) {
     ? `<span class="badge">${t("common.featured")}</span>`
     : "";
   return `
-    <div class="card article-card">
+    <a class="card article-card" href="${buildResearchUrl(article.slug)}">
       <div class="article-card-header">
         ${featuredBadge}
         ${renderArticleMeta(article)}
@@ -2266,8 +2442,8 @@ function renderArticleCard(article) {
       <h3>${tc(article.title)}</h3>
       <p>${tc(article.summary)}</p>
       ${renderTagRow(article.tags)}
-      <a class="link" href="${buildResearchUrl(article.slug)}">${t("common.read_article")}</a>
-    </div>
+      <span class="read-more">${t("common.read_article")} <span aria-hidden="true">→</span></span>
+    </a>
   `;
 }
 
@@ -2438,14 +2614,14 @@ function renderChangelog() {
           <p>${t("changelog.desc")}</p>
         </div>
       </div>
-      <div class="list">
+      <div class="timeline">
         ${store.changelog
           .map(
             (entry) => `
-          <div class="card">
-            <strong>${entry.date}</strong>
-            <h3>${entry.title}</h3>
-            <p>${entry.details}</p>
+          <div class="card timeline-item">
+            <time class="timeline-date">${entry.date}</time>
+            <h3>${tc(entry.title)}</h3>
+            <p>${tc(entry.details)}</p>
             ${
               entry.strategyId
                 ? `<a class="link" href="?page=strategy&id=${entry.strategyId}">${t("common.view_strategy")}</a>`
@@ -3779,6 +3955,10 @@ function getSeries(strategyId, instrument) {
   }
 
   const perf = store.performance.strategies?.[strategyId] || {};
+  if (!perf.equity?.[instrument] && isEquityPending(instrument)) {
+    // Safety net for pages that did not preload this instrument.
+    queueRenderAfterEquity(instrument);
+  }
   if (perf.equity?.[instrument]) {
     const entry = perf.equity[instrument];
     const result = {

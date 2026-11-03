@@ -123,8 +123,11 @@ function renderEAArena(route) {
 
   items.sort((a, b) => {
     switch (s.sort) {
-      case "name":
+      case "name": {
+        // Unnamed EAs go to the end instead of the top.
+        if (!a.name !== !b.name) return a.name ? -1 : 1;
         return (a.name || "").localeCompare(b.name || "");
+      }
       case "category":
         return (a.category || "").localeCompare(b.category || "");
       case "risk":
@@ -170,8 +173,29 @@ function renderEAArena(route) {
     )
     .join("");
 
-  const cards = items
-    .map((ea) => {
+  const filterKey = JSON.stringify([s.search, s.category, s.risk, s.rating, s.analyzed, s.sort]);
+  if (filterKey !== eaListFilterKey) {
+    eaListFilterKey = filterKey;
+    eaVisibleCount = EA_PAGE_SIZE;
+  }
+  eaCurrentItems = items;
+  const visibleItems = items.slice(0, eaVisibleCount);
+  const cards = visibleItems.map(renderEACard).join("");
+  const remaining = items.length - visibleItems.length;
+  const moreButton = remaining > 0
+    ? `<div class="ea-load-more"><button class="button ghost" type="button" data-ea-more>${getLang() === "zh" ? `加载更多（剩余 ${remaining} 个）` : `Show more (${remaining} left)`}</button></div>`
+    : "";
+
+  return renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ratingChips, cards, moreButton);
+}
+
+const EA_PAGE_SIZE = 60;
+let eaVisibleCount = EA_PAGE_SIZE;
+let eaListFilterKey = "";
+let eaCurrentItems = [];
+let eaRefocusSearch = false;
+
+function renderEACard(ea) {
       const analysis = store.eaAnalysis[ea.id];
       return `
       <a class="ea-card" href="?page=ea-detail&id=${ea.id}" data-ea-id="${ea.id}">
@@ -190,9 +214,9 @@ function renderEAArena(route) {
           <span class="ea-card-rating">${eaStars(ea.rating)}</span>
         </div>
       </a>`;
-    })
-    .join("");
+}
 
+function renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ratingChips, cards, moreButton) {
   return `
   <section class="ea-arena-page section">
     <div class="section-header">
@@ -232,9 +256,10 @@ function renderEAArena(route) {
 
     <p class="ea-results-count">${getLang() === "zh" ? `显示 ${items.length} / ${all.length} 个 EA` : `${items.length} of ${all.length} EAs`}</p>
 
-    <div class="ea-${s.view} ${items.length === 0 ? "ea-empty" : ""}">
+    <div class="ea-${s.view} ${items.length === 0 ? "ea-empty" : ""}" data-ea-list>
       ${cards || `<p class="ea-no-results">${getLang() === "zh" ? "没有 EA 符合当前筛选条件。" : "No EAs match your filters."}</p>`}
     </div>
+    ${moreButton}
   </section>`;
 }
 
@@ -246,8 +271,32 @@ function bindEAArena(route) {
     searchInput.addEventListener("input", () => {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
+        eaRefocusSearch = true;
         eaNavigate({ q: searchInput.value.trim(), page: "ea-arena" });
       }, 300);
+    });
+    if (eaRefocusSearch) {
+      eaRefocusSearch = false;
+      searchInput.focus();
+      const end = searchInput.value.length;
+      searchInput.setSelectionRange(end, end);
+    }
+  }
+
+  const moreBtn = document.querySelector("[data-ea-more]");
+  if (moreBtn) {
+    moreBtn.addEventListener("click", () => {
+      const list = document.querySelector("[data-ea-list]");
+      if (!list) return;
+      const next = eaCurrentItems.slice(eaVisibleCount, eaVisibleCount + EA_PAGE_SIZE);
+      eaVisibleCount += next.length;
+      list.insertAdjacentHTML("beforeend", next.map(renderEACard).join(""));
+      const remaining = eaCurrentItems.length - eaVisibleCount;
+      if (remaining <= 0) {
+        moreBtn.parentElement.remove();
+      } else {
+        moreBtn.textContent = getLang() === "zh" ? `加载更多（剩余 ${remaining} 个）` : `Show more (${remaining} left)`;
+      }
     });
   }
 

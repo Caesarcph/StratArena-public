@@ -347,7 +347,50 @@ const TRANSLATIONS = {
     "category.news_trading": "News Trading",
     "category.session_trading": "Session Trading",
     "category.utility": "Utility",
-    "category.unclassified": "Unclassified"
+    "category.unclassified": "Unclassified",
+    "nav.more": "More",
+    "nav.home": "Home",
+    "nav.skip_to_content": "Skip to content",
+    "nav.switch_to_light": "Switch to light theme",
+    "nav.switch_to_dark": "Switch to dark theme",
+    "search.trigger": "Search",
+    "search.placeholder": "Search strategies, EAs, research, pages…",
+    "search.hero_placeholder": "Search 70+ strategies, 1,500 EAs and research notes",
+    "search.group_pages": "Pages",
+    "search.group_strategies": "Strategies",
+    "search.group_research": "Research",
+    "search.group_eas": "Expert Advisors",
+    "search.no_results": "No results for “{query}”. Try an ID like TREND-10 or EA-1016.",
+    "search.hint_navigate": "to navigate",
+    "search.hint_open": "to open",
+    "search.hint_close": "to close",
+    "recent.title": "Recently viewed",
+    "recent.desc": "Pick up where you left off. Stored only in this browser.",
+    "recent.clear": "Clear",
+    "recent.kind_strategy": "Strategy",
+    "recent.kind_article": "Article",
+    "notice.sample_title": "Backtest data is being refreshed.",
+    "notice.sample_desc": "The figures below are illustrative placeholders, not real results.",
+    "notice.stale_title": "Backtest data as of {date}.",
+    "notice.stale_desc": "The daily refresh is paused, so recent market moves are not reflected yet.",
+    "footer.explore": "Explore",
+    "footer.learn": "Learn",
+    "footer.data_updated": "Data updated {date}",
+    "footer.counts": "{strategies} strategies · {eas} EAs",
+    "common.back_to_top": "Back to top",
+    "common.chart_unavailable": "Chart library failed to load. Refresh the page to try again.",
+    "home.at_a_glance": "Arena at a glance",
+    "home.stat_strategies": "Strategies",
+    "home.stat_eas": "Expert Advisors",
+    "home.stat_markets": "Markets",
+    "home.stat_articles": "Research notes",
+    "home.data_as_of": "Backtest data as of {date}",
+    "home.explore_arena_desc": "Rank every strategy by instrument and window under one scoring rule.",
+    "home.explore_ranking_desc": "See which EAs held up in backtests: P&L, Sharpe, win rate and drawdown.",
+    "home.explore_compare_desc": "Put 2–5 strategies side by side, then build and stress a portfolio.",
+    "home.roadmap_item_search": "Site-wide search and recently viewed",
+    "home.roadmap_shipped": "Shipped",
+    "home.roadmap_planned": "Planned"
   },
   zh: {
     "meta.site_name": "Quant Arena",
@@ -697,7 +740,50 @@ const TRANSLATIONS = {
     "category.news_trading": "新闻交易",
     "category.session_trading": "时段交易",
     "category.utility": "工具",
-    "category.unclassified": "未分类"
+    "category.unclassified": "未分类",
+    "nav.more": "更多",
+    "nav.home": "首页",
+    "nav.skip_to_content": "跳到正文",
+    "nav.switch_to_light": "切换到浅色模式",
+    "nav.switch_to_dark": "切换到深色模式",
+    "search.trigger": "搜索",
+    "search.placeholder": "搜索策略、EA、研究文章或页面…",
+    "search.hero_placeholder": "在 70 多个策略、1500 个 EA 和研究文章里搜一搜",
+    "search.group_pages": "页面",
+    "search.group_strategies": "策略",
+    "search.group_research": "研究",
+    "search.group_eas": "EA",
+    "search.no_results": "没找到和“{query}”相关的内容。可以试试 TREND-10、EA-1016 这样的编号。",
+    "search.hint_navigate": "上下选择",
+    "search.hint_open": "打开",
+    "search.hint_close": "关闭",
+    "recent.title": "最近浏览",
+    "recent.desc": "接着上次没看完的继续看，记录只保存在当前浏览器里。",
+    "recent.clear": "清空",
+    "recent.kind_strategy": "策略",
+    "recent.kind_article": "文章",
+    "notice.sample_title": "回测数据正在更新。",
+    "notice.sample_desc": "下面的数字只是占位示例，不是真实回测结果。",
+    "notice.stale_title": "当前回测数据截至 {date}。",
+    "notice.stale_desc": "每日自动更新暂停了，最近的行情还没算进去。",
+    "footer.explore": "浏览",
+    "footer.learn": "了解",
+    "footer.data_updated": "数据更新于 {date}",
+    "footer.counts": "{strategies} 个策略 · {eas} 个 EA",
+    "common.back_to_top": "回到顶部",
+    "common.chart_unavailable": "图表组件没加载出来，刷新一下页面再试试。",
+    "home.at_a_glance": "平台概览",
+    "home.stat_strategies": "个策略",
+    "home.stat_eas": "个 EA",
+    "home.stat_markets": "个市场",
+    "home.stat_articles": "篇研究",
+    "home.data_as_of": "回测数据截至 {date}",
+    "home.explore_arena_desc": "同一套评分规则下，按品种和时间窗口给所有策略排名。",
+    "home.explore_ranking_desc": "看看哪些 EA 回测表现扛得住：盈亏、夏普、胜率、回撤一目了然。",
+    "home.explore_compare_desc": "把 2 到 5 个策略放在一起比，再组个组合试试效果。",
+    "home.roadmap_item_search": "全站搜索与最近浏览",
+    "home.roadmap_shipped": "已上线",
+    "home.roadmap_planned": "计划中"
   }
 };
 
@@ -743,6 +829,7 @@ function updateStaticText() {
     compare: 'nav.compare',
     methodology: 'nav.methodology',
     changelog: 'nav.changelog',
+    faq: 'nav.faq',
     about: 'nav.about'
   };
   document.querySelectorAll('.site-nav a').forEach((link) => {
@@ -757,8 +844,16 @@ function updateStaticText() {
       link.textContent = label;
     }
   });
-  const logo = document.querySelector('.logo');
-  if (logo) logo.textContent = t('meta.site_name');
+  const logoText = document.querySelector('.logo-text');
+  if (logoText) logoText.textContent = t('meta.site_name');
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-aria]').forEach((el) => {
+    el.setAttribute('aria-label', t(el.dataset.i18nAria));
+  });
+  const searchTrigger = document.getElementById('search-trigger');
+  if (searchTrigger) searchTrigger.setAttribute('aria-label', t('search.trigger'));
   const footerBrand = document.querySelector('.footer-brand');
   if (footerBrand) footerBrand.textContent = t('footer.brand') || t('meta.site_name');
   const footerNote = document.querySelector('.footer-note');
