@@ -251,8 +251,19 @@ function loadEAKey(key) {
     return loadOnce(key, () =>
       fetchJson(DATA_FILES.eaCatalog).then((catalog) => {
         if (!Array.isArray(catalog)) return;
-        const flags = new Map(store.eaCatalog.map((ea) => [ea.id, ea.analyzed]));
-        store.eaCatalog = catalog.map((ea) => (flags.get(ea.id) ? { ...ea, analyzed: true } : ea));
+        // Keep the fields the slim index decides: analysed flag, category (from the
+        // code analysis, as on the static pages) and blow-up risk.
+        const slim = new Map(store.eaCatalog.map((ea) => [ea.id, ea]));
+        const indexOnly = ["analyzed", "category", "blowup", "bf", "bm", "bp"];
+        store.eaCatalog = catalog.map((ea) => {
+          const extra = slim.get(ea.id);
+          if (!extra) return ea;
+          const merged = { ...ea };
+          indexOnly.forEach((key) => {
+            if (extra[key] !== undefined) merged[key] = extra[key];
+          });
+          return merged;
+        });
       })
     );
   }
