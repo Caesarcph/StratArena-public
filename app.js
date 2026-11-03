@@ -465,7 +465,7 @@ function buildCanonicalUrl(route) {
   if (route.page === "strategy") {
     const strategy = store.strategies.find((item) => item.id === route.params.get("id"));
     if (strategy) {
-      return new URL(`strategy/${strategySlug(strategy)}/`, base).toString();
+      return new URL(`${zhPrefix}strategy/${strategySlug(strategy)}/`, base).toString();
     }
   }
   if (route.page === "research") {
