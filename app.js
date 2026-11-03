@@ -334,6 +334,14 @@ function getBasePath() {
   return "/";
 }
 
+// Keep in sync with strategy_slug() in scripts/static_site.py.
+function strategySlug(strategy) {
+  return `${strategy.id}-${strategy.name || ""}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 // Pages whose content depends on the visitor (local storage / ad-hoc
 // selections) and should not be indexed.
 const NOINDEX_PAGES = new Set(["favorites", "compare"]);
@@ -352,9 +360,23 @@ function buildCanonicalUrl(route) {
   if (route.page === "home") {
     return base.toString();
   }
+  // Pre-rendered pages carry the full content in their raw HTML, so they are
+  // the versions search engines should index (see scripts/generate_static_pages.py).
+  const zhPrefix = getLang() === "zh" ? "zh/" : "";
+  if (route.page === "strategy") {
+    const strategy = store.strategies.find((item) => item.id === route.params.get("id"));
+    if (strategy) {
+      return new URL(`strategy/${strategySlug(strategy)}/`, base).toString();
+    }
+  }
+  if (route.page === "research") {
+    const slug = route.params.get("slug");
+    const known = !slug || (typeof getResearchArticle === "function" && getResearchArticle(slug));
+    if (known) {
+      return new URL(`${zhPrefix}research/${slug ? `${encodeURIComponent(slug)}/` : ""}`, base).toString();
+    }
+  }
   if (route.page === "ea-detail") {
-    // The pre-rendered EA page carries the full analysis in its raw HTML,
-    // so it is the version search engines should index.
     const id = route.params.get("id") || "";
     if (/^EA-\d+$/.test(id)) {
       return new URL(`ea-pages/${id}.html`, base).toString();

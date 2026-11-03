@@ -349,6 +349,7 @@ const TRANSLATIONS = {
     "category.utility": "Utility",
     "category.unclassified": "Unclassified",
     "nav.more": "More",
+    "nav.glossary": "Glossary",
     "nav.home": "Home",
     "nav.skip_to_content": "Skip to content",
     "nav.switch_to_light": "Switch to light theme",
@@ -742,6 +743,7 @@ const TRANSLATIONS = {
     "category.utility": "工具",
     "category.unclassified": "未分类",
     "nav.more": "更多",
+    "nav.glossary": "指标词典",
     "nav.home": "首页",
     "nav.skip_to_content": "跳到正文",
     "nav.switch_to_light": "切换到浅色模式",
@@ -868,6 +870,9 @@ function updateStaticText() {
   if (logoText) logoText.textContent = t('meta.site_name');
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('a[data-i18n="nav.glossary"]').forEach((el) => {
+    el.setAttribute('href', getLang() === 'zh' ? '/zh/glossary/' : '/glossary/');
   });
   document.querySelectorAll('[data-i18n-aria]').forEach((el) => {
     el.setAttribute('aria-label', t(el.dataset.i18nAria));
