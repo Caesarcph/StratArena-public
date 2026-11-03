@@ -55,6 +55,7 @@ function eaArenaState(route) {
     search: route.params.get("q") || "",
     category: route.params.get("cat") || "",
     risk: route.params.get("risk") || "",
+    blowup: route.params.get("blowup") || "",
     rating: route.params.get("rating") || "",
     sort: route.params.get("sort") || "name",
     analyzed: route.params.get("analyzed") === "1",
@@ -96,6 +97,75 @@ function eaRiskBadge(risk) {
   return `<span class="ea-risk-badge" style="--risk-color:${color}">${t(`risk.${riskKey}`)}</span>`;
 }
 
+// Blow-up risk from data/ea_index.json (scripts/ea_risk.py): blowup = level,
+// bf = flags, bm = markets stopped out in our backtest, bp = max positions.
+const EA_BLOWUP_LEVELS = ["high", "elevated", "low"];
+const EA_BLOWUP_TEXT = {
+  en: {
+    title: "Blow-up risk",
+    levels: { high: "High", elevated: "Elevated", low: "No blow-up pattern found" },
+    short: { high: "High", elevated: "Elevated", low: "Low" },
+    flags: {
+      martingale: "Increases the position size after losses (martingale)",
+      grid: "Opens a grid of orders at fixed price steps",
+      no_stop_loss: "Has no stop loss or trailing stop",
+      stacking: "Can hold up to {n} positions at once",
+      stopped_out: "Hit a stop-out in our backtest (equity below 10%) on {markets}"
+    },
+    low_note: "None of the usual blow-up patterns were found in the code, and the account was not stopped out in our backtests. That is not a guarantee: any EA can lose money.",
+    low_flags_note: "On its own this is not a typical blow-up pattern, and the account was not stopped out in our backtests. That is not a guarantee: any EA can lose money.",
+    method: "High: stopped out in our backtest, or martingale/grid sizing without a stop loss. Elevated: martingale or grid sizing with a stop loss, or several positions at once without a stop loss.",
+    more: "What the label means and what we found →"
+  },
+  zh: {
+    title: "爆仓风险",
+    levels: { high: "高", elevated: "偏高", low: "未发现爆仓模式" },
+    short: { high: "高", elevated: "偏高", low: "低" },
+    flags: {
+      martingale: "亏损后加大仓位（马丁格尔）",
+      grid: "按固定价格间距挂一串网格单",
+      no_stop_loss: "没有止损，也没有移动止损",
+      stacking: "最多可同时持有 {n} 个仓位",
+      stopped_out: "在我们的回测中爆仓（净值跌破 10%）：{markets}"
+    },
+    low_note: "代码里没有发现常见的爆仓模式，回测中账户也没有爆仓。但这不是保证，任何 EA 都可能亏钱。",
+    low_flags_note: "单独这一点不算典型的爆仓模式，回测中账户也没有爆仓。但这不是保证，任何 EA 都可能亏钱。",
+    method: "高：回测中爆仓，或使用马丁/网格加仓且不设止损。偏高：马丁或网格加仓但有止损，或不设止损且可同时持有多个仓位。",
+    more: "标签的含义和我们的发现 →"
+  }
+};
+const EA_BLOWUP_COLORS = { high: "#dc2626", elevated: "#f97316", low: "#22c55e" };
+
+function eaBlowupText() {
+  return EA_BLOWUP_TEXT[getLang() === "zh" ? "zh" : "en"];
+}
+
+// mode: "card" (with the title), "cell" (level only) or "full" (long level label).
+function eaBlowupBadge(level, mode = "card") {
+  if (!level) return "";
+  const text = eaBlowupText();
+  const label = mode === "full" ? text.levels[level] : mode === "cell" ? text.short[level] : `${text.title}: ${text.short[level]}`;
+  return `<span class="ea-risk-badge ea-blowup-badge" style="--risk-color:${EA_BLOWUP_COLORS[level]}">${label}</span>`;
+}
+
+function renderEABlowup(ea) {
+  if (!ea || !ea.blowup) return "";
+  const text = eaBlowupText();
+  const reasons = (ea.bf || []).map((flag) =>
+    text.flags[flag]
+      .replace("{n}", ea.bp || "")
+      .replace("{markets}", (ea.bm || []).join(", "))
+  );
+  const note = ea.blowup === "low" ? `<p>${reasons.length ? text.low_flags_note : text.low_note}</p>` : "";
+  return `
+    <div class="ea-section ea-blowup" id="blow-up-risk">
+      <h2>${text.title}: ${eaBlowupBadge(ea.blowup, "full")}</h2>
+      ${reasons.length ? `<ul class="ea-risk-points">${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>` : ""}
+      ${note}
+      <p class="muted small-note">${text.method} <a href="/${getLang() === "zh" ? "zh/" : ""}glossary/blow-up-risk/">${text.more}</a></p>
+    </div>`;
+}
+
 function eaCategoryBadge(cat) {
   const value = cat || "Unclassified";
   const color = EA_CATEGORY_COLORS[value] || EA_CATEGORY_COLORS.Unclassified;
@@ -124,6 +194,7 @@ function renderEAArena(route) {
   }
   if (s.category) items = items.filter((ea) => ea.category === s.category);
   if (s.risk) items = items.filter((ea) => ea.overall_risk === s.risk);
+  if (s.blowup) items = items.filter((ea) => ea.blowup === s.blowup);
   if (s.rating) items = items.filter((ea) => String(ea.rating) === s.rating);
   if (s.analyzed) items = items.filter(isEAAnalyzed);
 
@@ -155,6 +226,15 @@ function renderEAArena(route) {
     const value = ea.overall_risk || "na";
     riskCounts[value] = (riskCounts[value] || 0) + 1;
   });
+  const blowupCounts = {};
+  all.forEach((ea) => {
+    if (ea.blowup) blowupCounts[ea.blowup] = (blowupCounts[ea.blowup] || 0) + 1;
+  });
+  const blowupChips = EA_BLOWUP_LEVELS.filter((level) => blowupCounts[level])
+    .map(
+      (level) => `<button class="ea-chip ${s.blowup === level ? "active" : ""}" data-ea-blowup="${level}">${eaBlowupText().short[level]} <span class="ea-chip-count">${blowupCounts[level]}</span></button>`
+    )
+    .join("");
   const ratingCounts = {};
   all.forEach((ea) => {
     const value = ea.rating || 0;
@@ -179,7 +259,7 @@ function renderEAArena(route) {
     )
     .join("");
 
-  const filterKey = JSON.stringify([s.search, s.category, s.risk, s.rating, s.analyzed, s.sort]);
+  const filterKey = JSON.stringify([s.search, s.category, s.risk, s.blowup, s.rating, s.analyzed, s.sort]);
   if (filterKey !== eaListFilterKey) {
     eaListFilterKey = filterKey;
     eaVisibleCount = EA_PAGE_SIZE;
@@ -192,7 +272,7 @@ function renderEAArena(route) {
     ? `<div class="ea-load-more"><button class="button ghost" type="button" data-ea-more>${getLang() === "zh" ? `加载更多（剩余 ${remaining} 个）` : `Show more (${remaining} left)`}</button></div>`
     : "";
 
-  return renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ratingChips, cards, moreButton);
+  return renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ratingChips, cards, moreButton, blowupChips);
 }
 
 const EA_PAGE_SIZE = 60;
@@ -214,6 +294,7 @@ function renderEACard(ea) {
         <div class="ea-card-meta">
           ${eaCategoryBadge(ea.category || "Unclassified")}
           ${eaRiskBadge(ea.overall_risk)}
+          ${ea.blowup && ea.blowup !== "low" ? eaBlowupBadge(ea.blowup) : ""}
         </div>
         <div class="ea-card-footer">
           <span class="ea-card-author">${ea.author || t("common.unknown")}</span>
@@ -222,7 +303,7 @@ function renderEACard(ea) {
       </a>`;
 }
 
-function renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ratingChips, cards, moreButton) {
+function renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ratingChips, cards, moreButton, blowupChips = "") {
   return `
   <section class="ea-arena-page section">
     <div class="section-header">
@@ -258,6 +339,7 @@ function renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ra
         <span class="ea-filter-label">${getLang() === "zh" ? "风险" : "Risk"}</span>
         <div class="ea-chips">${riskChips}</div>
       </div>
+      ${blowupChips ? `<div class="ea-filter-row"><span class="ea-filter-label">${eaBlowupText().title}</span><div class="ea-chips">${blowupChips}</div></div>` : ""}
       ${ratingChips ? `<div class="ea-filter-row"><span class="ea-filter-label">${getLang() === "zh" ? "评分" : "Rating"}</span><div class="ea-chips">${ratingChips}</div></div>` : ""}
     </div>
 
@@ -318,6 +400,13 @@ function bindEAArena(route) {
     btn.addEventListener("click", () => {
       const risk = btn.dataset.eaRisk;
       eaNavigate({ risk: s.risk === risk ? "" : risk });
+    });
+  });
+
+  document.querySelectorAll("[data-ea-blowup]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const level = btn.dataset.eaBlowup;
+      eaNavigate({ blowup: s.blowup === level ? "" : level });
     });
   });
 
@@ -566,6 +655,8 @@ function renderEADetail(route) {
       <div class="ea-info-grid">${infoItems}</div>
 
       ${backtestHtml}
+
+      ${renderEABlowup(ea)}
 
       ${analysis && analysis.summary ? `<div class="ea-section"><h2>${getLang() === "zh" ? "摘要" : "Summary"}</h2><p>${analysis.summary}</p></div>` : ""}
 
@@ -835,6 +926,7 @@ function renderEARanking(route) {
       name: ea.name || eaId,
       category: ea.category || "",
       risk: ea.overall_risk || "",
+      blowup: ea.blowup || "",
       rating: ea.rating || 0,
       pnl_pct: symData.pnl_pct || 0,
       sharpe_ratio: Number.isFinite(symData.sharpe_ratio) ? symData.sharpe_ratio : 0,
@@ -886,6 +978,7 @@ function renderEARanking(route) {
       <td class="ea-rank-id"><a href="?page=ea-detail&id=${r.id}">${r.id}</a></td>
       <td class="ea-rank-name"><a href="?page=ea-detail&id=${r.id}">${escapeHtml(r.name)}</a></td>
       <td>${eaCategoryBadge(r.category)}</td>
+      <td>${r.blowup ? `<a href="?page=ea-detail&id=${r.id}#blow-up-risk">${eaBlowupBadge(r.blowup, "cell")}</a>` : "—"}</td>
       <td class="ea-rank-metric ${pnlClass}">${r.pnl_pct > 0 ? "+" : ""}${r.pnl_pct.toFixed(2)}%</td>
       <td class="ea-rank-metric ${srClass}">${r.sharpe_ratio.toFixed(2)}</td>
       <td class="ea-rank-metric ${wrClass}">${r.win_rate.toFixed(1)}%</td>
@@ -945,6 +1038,7 @@ function renderEARanking(route) {
           ${th("id", "ID")}
           ${th("name", isZh ? "名称" : "Name")}
           ${th("category", isZh ? "分类" : "Category")}
+          <th class="ea-rank-th">${eaBlowupText().title}</th>
           ${th("pnl_pct", isZh ? "盈亏%" : "P&L%")}
           ${th("sharpe_ratio", isZh ? "夏普" : "Sharpe")}
           ${th("win_rate", isZh ? "胜率" : "Win%")}
@@ -954,7 +1048,7 @@ function renderEARanking(route) {
           ${th("markets_profitable", isZh ? "盈利品种" : "Markets")}
           ${th("total_trades", isZh ? "交易数" : "Trades")}
         </tr></thead>
-        <tbody>${tableRows || `<tr><td colspan="12" class="ea-rank-empty">${isZh ? "暂无交易策略数据" : "No trading strategies found"}</td></tr>`}</tbody>
+        <tbody>${tableRows || `<tr><td colspan="13" class="ea-rank-empty">${isZh ? "暂无交易策略数据" : "No trading strategies found"}</td></tr>`}</tbody>
       </table>
     </div>
 
