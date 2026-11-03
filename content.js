@@ -520,7 +520,8 @@ const RESEARCH_ARTICLES = [
           }
         ]
       }
-    ]
+    ],
+    "dataAsOf": "2026-08-14"
   },
   {
     "slug": "free-mt5-expert-advisors-backtested",
@@ -760,7 +761,8 @@ const RESEARCH_ARTICLES = [
           }
         ]
       }
-    ]
+    ],
+    "dataAsOf": "2026-08-14"
   },
   {
     "slug": "why-martingale-and-grid-eas-blow-up",
@@ -995,7 +997,8 @@ const RESEARCH_ARTICLES = [
           }
         ]
       }
-    ]
+    ],
+    "dataAsOf": "2026-08-14"
   },
   {
     "slug": "turtle-trading-2021-2026",
@@ -1098,7 +1101,8 @@ const RESEARCH_ARTICLES = [
           }
         ]
       }
-    ]
+    ],
+    "dataAsOf": "2026-08-14"
   },
   {
     "slug": "macd-vs-macd-rsi-filter",
@@ -1199,7 +1203,8 @@ const RESEARCH_ARTICLES = [
           }
         ]
       }
-    ]
+    ],
+    "dataAsOf": "2026-08-14"
   },
   {
     "slug": "how-to-read-drawdown-ulcer-index-rolling-sharpe",
@@ -1320,7 +1325,8 @@ const RESEARCH_ARTICLES = [
           }
         ]
       }
-    ]
+    ],
+    "dataAsOf": "2026-08-14"
   },
   {
     "slug": "keltner-vs-bollinger",
@@ -1448,7 +1454,8 @@ const RESEARCH_ARTICLES = [
         "zh": "肯特纳通道（蓝色）更平滑，基于 ATR 构建；布林带（红色）反应更敏捷，基于标准差计算。"
       },
       "svg": "<svg viewBox=\"0 0 640 240\" role=\"img\" aria-label=\"Channel comparison\">\n  <rect x=\"0\" y=\"0\" width=\"640\" height=\"240\" fill=\"#f8f1e8\" />\n  <path d=\"M40,120 Q160,80 280,120 T520,120\" fill=\"none\" stroke=\"#5b554d\" stroke-width=\"2\" />\n  <path d=\"M40,90 Q160,50 280,90 T520,90\" fill=\"none\" stroke=\"#1f6f78\" stroke-width=\"2\" stroke-dasharray=\"4\" />\n  <path d=\"M40,150 Q160,110 280,150 T520,150\" fill=\"none\" stroke=\"#1f6f78\" stroke-width=\"2\" stroke-dasharray=\"4\" />\n  <path d=\"M40,80 Q160,30 280,80 T520,80\" fill=\"none\" stroke=\"#e16b3a\" stroke-width=\"2\" />\n  <path d=\"M40,160 Q160,130 280,160 T520,160\" fill=\"none\" stroke=\"#e16b3a\" stroke-width=\"2\" />\n  <text x=\"540\" y=\"90\" fill=\"#1f6f78\" font-size=\"10\">Keltner</text>\n  <text x=\"540\" y=\"80\" fill=\"#e16b3a\" font-size=\"10\">Bollinger</text>\n</svg>"
-    }
+    },
+    "dataAsOf": "2026-08-14"
   },
   {
     "slug": "ema-crossover-strategy",

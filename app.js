@@ -2442,7 +2442,8 @@ function buildResearchUrl(slug) {
 }
 
 function renderArticleMeta(article) {
-  const parts = [article.date, article.readTime, article.category].filter(
+  const asOf = article.dataAsOf ? (getLang() === "zh" ? `数据截至 ${article.dataAsOf}` : `Data as of ${article.dataAsOf}`) : "";
+  const parts = [article.date, article.readTime, article.category, asOf].filter(
     Boolean
   );
   return parts.length ? `<div class="article-meta">${parts.join(" • ")}</div>` : "";
