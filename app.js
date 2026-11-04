@@ -2134,6 +2134,7 @@ function renderStrategyDetail(route) {
             </div>
           </div>
           <div class="heatmap-body" id="param-sensitivity"></div>
+          <div id="param-robustness"></div>
         </div>
       </div>
 
@@ -3390,6 +3391,7 @@ function drawStrategyCharts(route) {
 
   drawAttribution(aligned);
   renderParamSensitivity(strategy.id, instrument);
+  renderParamRobustness(strategy.id, instrument);
   drawRollingMetrics(windowed);
 }
 

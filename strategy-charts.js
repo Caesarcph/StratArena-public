@@ -107,6 +107,48 @@ function renderParamSensitivity(strategyId, instrument) {
   container.innerHTML = html;
 }
 
+// Out-of-sample check and parameter spread, built by scripts/build_data.py
+// (robustness_stats) and stored on the full-history window.
+function renderParamRobustness(strategyId, instrument) {
+  const container = document.getElementById("param-robustness");
+  if (!container) return;
+  const m = getMetricsFor(strategyId, instrument, "Max") || {};
+  const hasGrid = Boolean(store.performance.strategies?.[strategyId]?.sensitivity?.[instrument]);
+  const ratio = (value) => (Number.isFinite(value) ? value.toFixed(2) : "--");
+  const glossary = `/${getLang() === "zh" ? "zh/" : ""}glossary/walk-forward-optimization/`;
+  const lines = [];
+  if (Number.isFinite(m.wfoOosSharpe) && Number.isFinite(m.wfoIsSharpe)) {
+    lines.push(t("strategy.robust_wfo", {
+      start: m.wfoStart || "--",
+      folds: m.wfoFolds ?? "--",
+      is: ratio(m.wfoIsSharpe),
+      oos: ratio(m.wfoOosSharpe)
+    }));
+    if (Number.isFinite(m.wfoDefaultSharpe)) {
+      lines.push(t("strategy.robust_default", { value: ratio(m.wfoDefaultSharpe), changes: m.wfoChanges ?? 0 }));
+    }
+  }
+  if (Number.isFinite(m.paramSets) && m.paramSets > 1) {
+    lines.push(t("strategy.robust_params", {
+      positive: m.paramPositive ?? 0,
+      sets: m.paramSets,
+      median: ratio(m.paramMedianSharpe),
+      worst: ratio(m.paramWorstSharpe),
+      best: ratio(m.paramBestSharpe)
+    }));
+  }
+  if (!lines.length) {
+    container.innerHTML = hasGrid ? "" : `<p class="muted small-note">${t("strategy.robust_none")}</p>`;
+    return;
+  }
+  container.innerHTML = `
+    <div class="robustness-note">
+      <strong>${t("strategy.robust_title")}</strong>
+      ${lines.map((line) => `<p>${line}</p>`).join("")}
+      <p class="muted small-note">${t("strategy.robust_hint")} <a class="link" href="${glossary}">${t("strategy.robust_more")}</a></p>
+    </div>`;
+}
+
 function drawAttribution(series) {
   const attributionCtx = document.getElementById("attribution-chart");
   const attributionSummary = document.getElementById("attribution-summary");
