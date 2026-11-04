@@ -1115,6 +1115,7 @@ function renderHome() {
         <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}heatmap/">${t("nav.heatmap")}</a>
         <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}reports/">${t("nav.reports")}</a>
         <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}glossary/">${t("nav.glossary")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}ai-arena/">${t("nav.ai_arena")}</a>
         <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}frameworks/">${t("nav.frameworks")}</a>
       </div>
     </section>
