@@ -1049,7 +1049,10 @@ function renderHome() {
   const marketCount = (store.performance.instruments || []).filter(
     (item) => !store.strategies.some((s) => s.portfolioSymbol === item.symbol)
   ).length;
-  const updated = store.performance.updated;
+  const observedDates = Object.values(store.performance.marketData || {})
+    .map((market) => market.asOf).filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value || "")).sort();
+  const updated = observedDates.length ? (observedDates[0] === observedDates[observedDates.length - 1]
+    ? observedDates[0] : `${observedDates[0]} – ${observedDates[observedDates.length - 1]}`) : null;
   const recentHtml = typeof renderRecentlyViewed === "function" ? renderRecentlyViewed() : "";
   const explore = [
     { href: "?page=arena", icon: HOME_ICONS.arena, title: t("nav.arena"), desc: t("home.explore_arena_desc") },
