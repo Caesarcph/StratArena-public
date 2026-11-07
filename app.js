@@ -1408,6 +1408,7 @@ function renderArena(route) {
         <div>
           <h2>${t("arena.title")}</h2>
           <p>${t("arena.desc")}</p>
+          <a class="button ghost arena-cost-link" href="/${getLang() === "zh" ? "zh/" : ""}costs/">${t("arena.costs_link")}</a>
         </div>
         <details class="score-note">
           <summary>${t("arena.score_note_title")}</summary>
