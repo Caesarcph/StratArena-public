@@ -564,19 +564,24 @@ function bindScrollUi() {
 
 /* ---------- Analytics hook ---------- */
 
-// Sends product events to whichever analytics tool is installed on the page
-// (Plausible, Umami, Cloudflare Zaraz or Google Analytics). With none of them
-// present the events only go to window.__qaEvents, so adding a tool later is a
-// one-line <script> change.
+// Only the configured, before-send-sanitized Umami provider receives events.
+// Other SDKs must not inherit private URL defaults through generic fan-out.
 function trackEvent(name, props = {}) {
   try {
+    const event = qaAnalyticsEvent(name, props);
+    if (!event) return;
+    // The inline hook denies by default when its external implementation is
+    // absent or throws. Apply that gate before the local buffer as well.
+    const allowed = qaAnalyticsBeforeSend("event", { name: event.name, data: event.props, url: location.href });
+    if (!allowed || allowed.name !== event.name) return;
     window.__qaEvents = window.__qaEvents || [];
-    window.__qaEvents.push({ name, props, at: Date.now() });
+    window.__qaEvents.push({ name: event.name, props: event.props, at: Date.now() });
     if (window.__qaEvents.length > 100) window.__qaEvents.shift();
-    if (typeof window.plausible === "function") window.plausible(name, { props });
-    if (window.umami && typeof window.umami.track === "function") window.umami.track(name, props);
-    if (window.zaraz && typeof window.zaraz.track === "function") window.zaraz.track(name, props);
-    if (typeof window.gtag === "function") window.gtag("event", name, props);
+    if (window.umami && typeof window.umami.track === "function"
+        && document.querySelector('script[data-before-send="qaAnalyticsBeforeSend"]')) {
+      const pending = window.umami.track(event.name, event.props);
+      if (pending && typeof pending.catch === "function") pending.catch(() => {});
+    }
   } catch (err) {
     // Analytics must never break the page.
   }
@@ -584,19 +589,26 @@ function trackEvent(name, props = {}) {
 
 function bindAnalytics() {
   document.addEventListener("click", (event) => {
+    if (typeof qaPrivateAnalyticsTarget !== "function") return;
     const target = event.target.closest("a, button");
-    if (!target) return;
+    if (!target || qaPrivateAnalyticsTarget(target)) return;
     const page = document.body.dataset.page || "";
     if (target.matches("[data-export-csv], [data-export-compare]")) trackEvent("export_csv", { page });
     else if (target.matches("[data-export-chart]")) trackEvent("export_png", { page, chart: target.dataset.exportName || "" });
     else if (target.matches("[data-compare-share]")) trackEvent("share_compare", { page });
     else if (target.matches("[data-favorite], .favorite-action, .favorite-inline")) trackEvent("favorite_toggle", { page });
     else if (target.id === "lang-toggle") trackEvent("language_switch", { to: getLang() === "en" ? "zh" : "en" });
-    else if (target.matches(".search-option")) trackEvent("search_select", { href: target.getAttribute("href") || "" });
+    else if (target.matches(".search-option")) {
+      const destination = qaPublicAnalyticsDestination(target.getAttribute("href") || "");
+      if (destination) trackEvent("search_select", { destination });
+    }
     else if (target.tagName === "A" && /mql5\.com/.test(target.getAttribute("href") || "")) trackEvent("outbound_mql5", { page });
   });
   document.addEventListener("submit", (event) => {
-    if (event.target.matches(".newsletter-form")) trackEvent("newsletter_subscribe", { path: location.pathname });
+    if (typeof qaPrivateAnalyticsTarget !== "function") return;
+    if (!qaPrivateAnalyticsTarget(event.target) && event.target.matches(".newsletter-form")) {
+      trackEvent("newsletter_subscribe", { page: qaAnalyticsContext(location.href).page });
+    }
   });
 }
 
