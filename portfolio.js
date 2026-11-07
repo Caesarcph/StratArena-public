@@ -211,6 +211,7 @@ function calcRiskParityWeights(strategyIds, instrument, window) {
 }
 
 function renderPortfolioSection(strategies, instrument, window) {
+  const evidencePanel = globalThis.PortfolioMarginalUI?.render() || '';
   const strategyIds = strategies.map((strategy) => strategy.id);
   if (!strategyIds.length) {
     return `
@@ -225,7 +226,7 @@ function renderPortfolioSection(strategies, instrument, window) {
           <h3>${t("portfolio.none_selected_title")}</h3>
           <p>${t("portfolio.none_selected_desc")}</p>
         </div>
-      </section>
+      </section>${evidencePanel}
     `;
   }
 
@@ -305,11 +306,18 @@ function renderPortfolioSection(strategies, instrument, window) {
           </div>
         </div>
       </div>
-    </section>
+    </section>${evidencePanel}
   `;
 }
 
 function bindPortfolioBuilder(route) {
+  globalThis.PortfolioMarginalUI?.mount(() => ({
+    instrument: route.params.get('instrument') || defaultInstrument(),
+    entries: Array.from(document.querySelectorAll('[data-portfolio-weight]')).map(input => ({
+      strategyId: input.dataset.portfolioWeight,
+      weight: input.value === '' ? NaN : Number(input.value)
+    }))
+  }));
   const selectedParam = route.params.get("strategies") || "";
   const selected = selectedParam ? selectedParam.split(",").filter(Boolean) : [];
   if (!selected.length) return;
