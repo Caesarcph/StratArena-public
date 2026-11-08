@@ -129,6 +129,7 @@
     try {
       await download(button);
       status.textContent = text("Verified download ready.", "校验通过，下载已就绪。");
+      document.dispatchEvent(new CustomEvent("qa:download-ready", { detail: { anchor: button } }));
     } catch (error) {
       status.textContent = `${text("Download unavailable. No file was saved.", "下载不可用，未保存任何文件。")} ${error.message}`;
     } finally {

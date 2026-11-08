@@ -140,6 +140,7 @@
       detail.append(summary,element('pre',JSON.stringify({experimentId:result.experimentId,definition,context:result.context,allocationFees:{before:result.paths.netBefore.outerEvents,after:result.paths.netAfter.outerEvents}},null,2)));box.append(detail);
       const download=element('button',t('download'),{type:'button',id:'pm-download'});download.addEventListener('click',()=>{
         const url=URL.createObjectURL(new Blob([JSON.stringify({definition,result},null,2)],{type:'application/json'}));const a=element('a',undefined,{href:url,download:'quantarena-portfolio-'+result.experimentId.slice(0,12)+'.json'});a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+        document.dispatchEvent(new CustomEvent("qa:download-ready", { detail: { anchor: download } }));
       });box.append(download);
     }
     async function calculate() {
