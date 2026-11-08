@@ -623,6 +623,7 @@ function afterRender(route) {
   );
   highlightNavMore(page);
   updateFooterMeta();
+  if (typeof window.qaRenderSupport === "function") window.qaRenderSupport(route);
 
   const app = document.getElementById("app");
   const notice = renderDataNotice(page);

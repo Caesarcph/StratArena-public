@@ -379,6 +379,7 @@ function buildCsv(rows) {
 }
 
 function downloadFile(filename, content, type = "text/plain;charset=utf-8") {
+  const trigger = document.activeElement;
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -388,9 +389,11 @@ function downloadFile(filename, content, type = "text/plain;charset=utf-8") {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+  document.dispatchEvent(new CustomEvent("qa:download-ready", { detail: { anchor: trigger } }));
 }
 
 function downloadCanvasAsPng(canvasId, filename) {
+  const trigger = document.activeElement;
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
   const link = document.createElement("a");
@@ -399,6 +402,7 @@ function downloadCanvasAsPng(canvasId, filename) {
   document.body.appendChild(link);
   link.click();
   link.remove();
+  document.dispatchEvent(new CustomEvent("qa:download-ready", { detail: { anchor: trigger } }));
 }
 
 function copyToClipboard(text) {
