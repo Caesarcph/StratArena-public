@@ -1,0 +1,52 @@
+//@version=5
+// MR-15 Ultimate Oscillator — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("MR-15 Ultimate Oscillator", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+// Close-only approximation of BP/TR, exactly as in the Python code.
+
+shortLen  = input.int(7, "Short", minval=1)
+mediumLen = input.int(14, "Medium", minval=1)
+longLen   = input.int(28, "Long", minval=1)
+oversold  = input.float(30, "Oversold")
+exitLevel = input.float(50, "Exit level")
+maxHold   = input.int(20, "Max hold (bars)", minval=1)
+
+// pandas min/max across columns skips the missing previous close on the first bar
+prevClose = na(close[1]) ? close : close[1]
+minClose = math.min(close, prevClose)
+maxClose = math.max(close, prevClose)
+bp = close - minClose
+tr = maxClose - minClose
+
+avgShort  = math.sum(bp, shortLen) / (math.sum(tr, shortLen) + 1e-10)
+avgMedium = math.sum(bp, mediumLen) / (math.sum(tr, mediumLen) + 1e-10)
+avgLong   = math.sum(bp, longLen) / (math.sum(tr, longLen) + 1e-10)
+uo = 100 * (4 * avgShort + 2 * avgMedium + avgLong) / 7
+
+warmup = math.max(shortLen, mediumLen, longLen) + 1
+
+var float pos = 0.0
+var int entryBar = na
+if bar_index >= warmup
+    if pos == 0
+        if uo < oversold
+            pos := 1.0
+            entryBar := bar_index
+        else
+            pos := 0.0
+    else
+        holdDays = bar_index - entryBar
+        if uo > exitLevel or holdDays >= maxHold
+            pos := 0.0
+        else
+            pos := 1.0
+
+plot(uo, "Ultimate Oscillator", color=color.blue)
+hline(oversold, "Oversold", color=color.green)
+hline(exitLevel, "Exit", color=color.gray)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

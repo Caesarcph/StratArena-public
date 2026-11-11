@@ -1,0 +1,53 @@
+//@version=5
+// ADX-01 ADX Trend Filter — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("ADX-01 ADX Trend Filter", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+period = input.int(14, "Period", minval=1)
+adxThreshold = input.float(25, "ADX threshold")
+exitThreshold = input.float(20, "Exit threshold")
+allowShort = input.bool(false, "Allow short")
+
+// pandas ewm(alpha=1/n, adjust off): seeded with the first value, na inputs are skipped
+ewm(src, n) =>
+    var float r = na
+    if not na(src)
+        r := na(r) ? src : (1.0 / n) * src + (1.0 - 1.0 / n) * r
+    r
+
+upMove = ta.change(high)
+downMove = -ta.change(low)
+plusDm = (upMove > downMove and upMove > 0) ? upMove : 0.0
+minusDm = (downMove > upMove and downMove > 0) ? downMove : 0.0
+trv = ta.tr(true)
+
+atrRaw = ewm(trv, period)
+atrv = atrRaw == 0 ? na : atrRaw
+plusDi = 100 * ewm(plusDm, period) / atrv
+minusDi = 100 * ewm(minusDm, period) / atrv
+diSum = plusDi + minusDi
+denom = diSum == 0 ? na : diSum
+dx = 100 * math.abs(plusDi - minusDi) / denom
+adx = ewm(dx, period)
+
+float pos = 0.0
+if adx > adxThreshold and plusDi > minusDi
+    pos := 1.0
+if allowShort and adx > adxThreshold and minusDi > plusDi
+    pos := -1.0
+if adx < exitThreshold
+    pos := 0.0
+
+plot(adx, "ADX", color=color.blue)
+plot(plusDi, "+DI", color=color.green)
+plot(minusDi, "-DI", color=color.red)
+hline(adxThreshold, "ADX threshold", color=color.gray)
+hline(exitThreshold, "Exit threshold", color=color.silver)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else if pos < 0 and allowShort
+    strategy.entry("Short", strategy.short)
+else
+    strategy.close_all()

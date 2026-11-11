@@ -1,0 +1,47 @@
+//@version=5
+// MR-13 TRIX Reversion — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("MR-13 TRIX Reversion", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+// EMAs are computed pandas-style (ewm span, no adjustment: seeded with the first value) so that
+// TRIX matches the Python exactly from the first bar; ta.ema would seed with an SMA instead.
+
+period       = input.int(15, "TRIX period", minval=1)
+signalWindow = input.int(9, "Signal period", minval=1)
+entryLevel   = input.float(-0.5, "Entry level")
+exitLevel    = input.float(0.0, "Exit level")
+
+pdEma(src, n) =>
+    alpha = 2.0 / (n + 1)
+    float e = na
+    e := na(e[1]) ? src : alpha * src + (1 - alpha) * e[1]
+    e
+
+ema1 = pdEma(close, period)
+ema2 = pdEma(ema1, period)
+ema3 = pdEma(ema2, period)
+trix = (ema3 / ema3[1] - 1) * 100
+signalLine = pdEma(trix, signalWindow)
+
+var float pos = 0.0
+if bar_index >= 1
+    if pos == 0
+        if trix < entryLevel
+            pos := 1.0
+        else
+            pos := 0.0
+    else
+        if trix > exitLevel or trix > signalLine
+            pos := 0.0
+        else
+            pos := 1.0
+
+plot(trix, "TRIX %", color=color.blue)
+plot(signalLine, "Signal", color=color.orange)
+hline(entryLevel, "Entry level", color=color.green)
+hline(exitLevel, "Exit level", color=color.gray)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

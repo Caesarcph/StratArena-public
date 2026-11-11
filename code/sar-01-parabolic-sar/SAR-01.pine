@@ -1,0 +1,80 @@
+//@version=5
+// SAR-01 Parabolic SAR — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the SAR is computed by hand (not ta.sar) because the Python version has its own quirks: it starts
+// in an uptrend on the first bar (SAR = first low, EP = first high), and uses the prior two bars' extremes
+// as the SAR limit. The strategy is therefore long from the first bar.
+strategy("SAR-01 Parabolic SAR", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+afStart    = input.float(0.02, "AF start", step=0.01)
+afStep     = input.float(0.02, "AF step", step=0.01)
+afMax      = input.float(0.2, "AF max", step=0.01)
+allowShort = input.bool(false, "Allow short")
+
+var float sarV = na
+var float epV = na
+var float afV = na
+var float trendV = 1.0
+
+if bar_index == 0
+    trendV := 1.0
+    sarV := low
+    epV := high
+    afV := afStart
+else
+    float prevSar = sarV
+    float prevEp = epV
+    float prevAf = afV
+    float prevTrend = trendV
+    float newSar = prevSar + prevAf * (prevEp - prevSar)
+    float newEp = prevEp
+    float newAf = prevAf
+    float newTrend = prevTrend
+    if prevTrend == 1
+        float lim2 = bar_index >= 2 ? low[2] : low[1]
+        newSar := math.min(newSar, math.min(low[1], lim2))
+        if low < newSar
+            newTrend := -1
+            newSar := prevEp
+            newEp := low
+            newAf := afStart
+        else
+            newTrend := 1
+            if high > prevEp
+                newEp := high
+                newAf := math.min(prevAf + afStep, afMax)
+            else
+                newEp := prevEp
+                newAf := prevAf
+    else
+        float lim2 = bar_index >= 2 ? high[2] : high[1]
+        newSar := math.max(newSar, math.max(high[1], lim2))
+        if high > newSar
+            newTrend := 1
+            newSar := prevEp
+            newEp := high
+            newAf := afStart
+        else
+            newTrend := -1
+            if low < prevEp
+                newEp := low
+                newAf := math.min(prevAf + afStep, afMax)
+            else
+                newEp := prevEp
+                newAf := prevAf
+    sarV := newSar
+    epV := newEp
+    afV := newAf
+    trendV := newTrend
+
+pos = trendV
+
+plot(sarV, "SAR", color=trendV == 1 ? color.green : color.red, style=plot.style_circles)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else if pos < 0 and allowShort
+    strategy.entry("Short", strategy.short)
+else
+    strategy.close_all()

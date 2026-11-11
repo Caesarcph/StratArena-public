@@ -1,0 +1,79 @@
+//@version=5
+// VOL-13 Volatility Regime Strategy — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("VOL-13 Volatility Regime Strategy", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+// Position weight is 0, 0.5 or 1 (0.5 in the transition zone when in an uptrend). It is rebalanced
+// to that fraction of equity every bar with strategy.order, like the Python daily-weight backtest.
+// Order quantities are fractional; some instruments in TradingView may round them.
+// Volatility percentile = share of the last `pct_window` vol values strictly below today's vol.
+
+volLookback = input.int(20, "Vol lookback", minval=2)
+pctWindow   = input.int(252, "Vol percentile window", minval=20)
+lowVolPct   = input.float(40, "Low vol percentile")
+highVolPct  = input.float(70, "High vol percentile")
+trendMa     = input.int(50, "Trend MA", minval=1)
+rsiPeriod   = input.int(14, "RSI period", minval=1)
+rsiOversold = input.float(30, "RSI oversold")
+rsiExit     = input.float(50, "RSI exit")
+
+ret = close / close[1] - 1
+vol = ta.stdev(ret, volLookback, false) * math.sqrt(252)
+
+// full window of non-na vol values is required (pandas rolling.apply default)
+float volPct = na
+if not na(vol[pctWindow - 1])
+    int below = 0
+    for k = 0 to pctWindow - 1
+        if vol[k] < vol
+            below += 1
+    volPct := below / pctWindow * 100
+
+ma = ta.sma(close, trendMa)
+uptrend = close > ma
+
+delta = ta.change(close)
+gain = delta > 0 ? delta : 0.0
+loss = delta < 0 ? -delta : 0.0
+avgGain = ta.sma(gain, rsiPeriod)
+avgLoss = ta.sma(loss, rsiPeriod)
+rsi = 100 - (100 / (1 + avgGain / (avgLoss + 1e-10)))
+
+warmup = math.max(volLookback, pctWindow, trendMa, rsiPeriod) + 10
+
+var float w = 0.0
+var bool inMrTrade = false
+
+if bar_index >= warmup and not (na(volPct) or na(rsi))
+    if volPct < lowVolPct
+        inMrTrade := false
+        w := uptrend ? 1.0 : 0.0
+    else if volPct > highVolPct
+        if not inMrTrade
+            if rsi < rsiOversold
+                w := 1.0
+                inMrTrade := true
+            else
+                w := 0.0
+        else
+            if rsi > rsiExit
+                w := 0.0
+                inMrTrade := false
+            else
+                w := 1.0
+    else
+        inMrTrade := false
+        w := uptrend ? 0.5 : 0.0
+
+plot(volPct, "Vol percentile", color=color.blue)
+plot(w * 100, "Weight %", color=color.orange)
+hline(lowVolPct, "Low vol pct", color=color.green)
+hline(highVolPct, "High vol pct", color=color.red)
+
+targetQty = close > 0 ? strategy.equity * w / close : 0.0
+deltaQty = targetQty - strategy.position_size
+if math.abs(deltaQty) > 1e-9
+    if deltaQty > 0
+        strategy.order("Rebalance", strategy.long, qty=deltaQty)
+    else
+        strategy.order("Rebalance", strategy.short, qty=-deltaQty)

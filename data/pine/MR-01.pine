@@ -1,0 +1,32 @@
+//@version=5
+// MR-01 RSI Mean Reversion — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: RSI uses simple moving averages of gains and losses (Cutler style), not Wilder smoothing.
+// IMPORTANT: in the Python code the signal starts at 0.0 and is only set to 1 on days when RSI < 30
+// (the ffill has no gaps to fill), so the position is held ONLY on days when RSI is below the oversold
+// level, not until RSI recovers to 50 as the text description says. This script follows the code.
+strategy("MR-01 RSI Mean Reversion", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+rsiPeriod = input.int(14, "RSI period", minval=1)
+oversold  = input.float(30, "Oversold")
+exitLevel = input.float(50, "Exit level (RSI > this forces flat; redundant as in Python)")
+
+delta = ta.change(close)
+gainV = math.max(delta, 0.0)
+lossV = -math.min(delta, 0.0)
+avgGain = ta.sma(gainV, rsiPeriod)
+avgLoss = ta.sma(lossV, rsiPeriod)
+rsiV = avgLoss == 0 ? na : 100 - (100 / (1 + avgGain / avgLoss))
+
+// RSI > exitLevel also sets 0 in Python, which equals the default 0, so only the oversold test matters
+pos = rsiV < oversold ? 1.0 : 0.0
+
+plot(rsiV, "RSI (SMA)", color=color.purple)
+hline(oversold, "Oversold", color=color.green)
+hline(exitLevel, "Exit", color=color.gray)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

@@ -1,0 +1,79 @@
+//@version=5
+// MR-04 Ornstein-Uhlenbeck Mean Reversion — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the OU fit uses the previous `lookback` closes (current bar excluded). To match the Python exactly,
+// b = sample covariance (n-1) / population variance (n) of the lagged series, residual std is population.
+strategy("MR-04 Ornstein-Uhlenbeck Mean Reversion", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+lookback    = input.int(60, "Lookback", minval=12)
+entryStd    = input.float(1.5, "Entry std", step=0.1)
+exitStd     = input.float(0.5, "Exit std", step=0.1)
+minHalflife = input.float(1, "Min half-life", step=0.5)
+maxHalflife = input.float(30, "Max half-life", step=0.5)
+
+var float pos = 0.0
+float zPlot = na
+
+if bar_index >= lookback
+    // window = closes of bars i-lookback .. i-1 ; pairs (X[t], X[t-1]) -> close[k], close[k+1], k = 1 .. lookback-1
+    m = lookback - 1
+    sumX = 0.0
+    sumY = 0.0
+    for k = 1 to m
+        sumY += close[k]
+        sumX += close[k + 1]
+    meanX = sumX / m
+    meanY = sumY / m
+    covSum = 0.0
+    varSum = 0.0
+    for k = 1 to m
+        dx = close[k + 1] - meanX
+        dy = close[k] - meanY
+        covSum += dx * dy
+        varSum += dx * dx
+    covXY = covSum / (m - 1)
+    varLag = varSum / m
+
+    bool valid = false
+    float mu = na
+    float theta = na
+    float sigma = na
+    float halflife = na
+    if varLag >= 1e-10
+        b = covXY / varLag
+        a = meanY - b * meanX
+        if b > 0 and b < 1
+            res = array.new_float(0)
+            for k = 1 to m
+                array.push(res, close[k] - (a + b * close[k + 1]))
+            sigmaRes = array.stdev(res, true)
+            theta := -math.log(b)
+            mu := a / (1 - b)
+            sigma := sigmaRes * math.sqrt(-2 * math.log(b) / (1 - b * b))
+            halflife := math.log(2) / theta
+            valid := true
+
+    if not valid
+        pos := 0.0
+    else if halflife < minHalflife or halflife > maxHalflife
+        pos := 0.0
+    else
+        sigmaEq = sigma / math.sqrt(2 * theta)
+        currentZ = (close - mu) / sigmaEq
+        zPlot := currentZ
+        if pos == 0
+            pos := currentZ < -entryStd ? 1.0 : 0.0
+        else
+            pos := currentZ > -exitStd ? 0.0 : 1.0
+else
+    pos := 0.0
+
+plot(zPlot, "OU z-score", color=color.blue)
+hline(-entryStd, "Entry", color=color.green)
+hline(-exitStd, "Exit", color=color.gray)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

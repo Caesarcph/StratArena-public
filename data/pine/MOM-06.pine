@@ -1,0 +1,31 @@
+//@version=5
+// MOM-06 Residual Momentum — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the Python single-asset version does not use a market benchmark. The "residual" is just the daily
+// return minus its trailing 60-day mean; this is reproduced exactly. The beta_window input is read but unused.
+strategy("MOM-06 Residual Momentum", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+betaWindow       = input.int(252, "Beta window (unused in Python)", minval=2)
+momentumLookback = input.int(252, "Momentum lookback", minval=23)
+skipPeriod       = input.int(21, "Skip period", minval=0)
+
+ret = close / close[1] - 1
+trailingMean = ta.sma(ret, 60)
+residual = ret - trailingMean
+shifted = residual[skipPeriod]
+sumLen = momentumLookback - skipPeriod
+residualMomentum = ta.sma(shifted, sumLen) * sumLen
+
+// first bar where the rolling sum has a full window of valid residuals (60 + skip + sumLen - 1 bars in)
+firstValid = 60 + skipPeriod + sumLen - 1
+
+pos = bar_index >= momentumLookback and bar_index >= firstValid and residualMomentum > 0 ? 1.0 : 0.0
+
+plot(residualMomentum, "Residual momentum", color=color.blue)
+hline(0, "Zero", color=color.silver)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

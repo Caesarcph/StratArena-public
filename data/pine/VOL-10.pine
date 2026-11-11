@@ -1,0 +1,35 @@
+//@version=5
+// VOL-10 Volatility Risk Premium — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("VOL-10 Volatility Risk Premium", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+// "VRP" proxy = long-window realized vol minus short-window realized vol (no implied vol data).
+// The unused implied_proxy series in the Python is omitted.
+
+realizedLookback = input.int(20, "Realized lookback", minval=2)
+impliedLookback  = input.int(5, "Short (implied proxy) lookback", minval=2)
+vrpThreshold     = input.float(0.02, "VRP threshold")
+
+ret = close / close[1] - 1
+realizedVol = ta.stdev(ret, realizedLookback, false) * math.sqrt(252)
+shortVol = ta.stdev(ret, impliedLookback, false) * math.sqrt(252)
+vrp = realizedVol - shortVol
+
+warmup = realizedLookback + 5
+
+var float pos = 0.0
+if bar_index >= warmup and not (na(vrp) or na(realizedVol))
+    if vrp > vrpThreshold and realizedVol < 0.25
+        pos := 1.0
+    else if vrp < -vrpThreshold
+        pos := 0.0
+
+plot(vrp, "VRP proxy", color=color.blue)
+plot(realizedVol, "Realized vol", color=color.orange)
+hline(vrpThreshold, "+Threshold", color=color.green)
+hline(-vrpThreshold, "-Threshold", color=color.red)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

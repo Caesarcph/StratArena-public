@@ -1,0 +1,52 @@
+//@version=5
+// RISK-03 Stop Loss Overlay — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the stop is evaluated on the CLOSE (as in the Python code), measured from the entry bar's close,
+// and re-entry is blocked for `cooldown` bars after a stop.
+strategy("RISK-03 Stop Loss Overlay", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+maPeriod = input.int(50, "MA period", minval=1)
+stopPct  = input.float(0.05, "Stop pct", step=0.01)
+cooldown = input.int(5, "Cooldown (bars)", minval=0)
+
+ma = ta.sma(close, maPeriod)
+baseSignal = close > ma ? 1.0 : 0.0
+
+var float pos = 0.0
+var float entryPrice = na
+var int cooldownRemaining = 0
+
+if bar_index >= maPeriod
+    if cooldownRemaining > 0
+        cooldownRemaining -= 1
+    if pos == 0
+        if baseSignal == 1 and cooldownRemaining == 0
+            pos := 1.0
+            entryPrice := close
+        else
+            pos := 0.0
+    else
+        if not na(entryPrice)
+            drawdown = (close - entryPrice) / entryPrice
+            if drawdown < -stopPct
+                pos := 0.0
+                entryPrice := na
+                cooldownRemaining := cooldown
+            else if baseSignal == 0
+                pos := 0.0
+                entryPrice := na
+            else
+                pos := 1.0
+        else
+            pos := baseSignal
+else
+    pos := 0.0
+
+plot(ma, "MA", color=color.blue)
+plot(pos > 0 ? entryPrice * (1 - stopPct) : na, "Stop level", color=color.red, style=plot.style_linebr)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

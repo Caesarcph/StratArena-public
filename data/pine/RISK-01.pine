@@ -1,0 +1,37 @@
+//@version=5
+// RISK-01 Drawdown Control — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Fractional position: the Python returns a weight between min_position and 1.0 that shrinks as the drawdown from the rolling
+// high grows. This script resizes the long position with strategy.order to that fraction of equity whenever the target weight
+// changes (no rebalance while the weight is unchanged).
+strategy("RISK-01 Drawdown Control", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+maxDrawdown = input.float(0.10, "Max drawdown", minval=0.0001)
+scaleFactor = input.float(0.5, "Scale")
+lookback = input.int(252, "Lookback", minval=1)
+minPosition = input.float(0.1, "Min position")
+
+// rolling max with min_periods=1: window shrinks to the available history
+rollingMax = ta.highest(close, math.min(lookback, bar_index + 1))
+currentDd = math.abs((close - rollingMax) / rollingMax)
+
+float w = 1.0
+if currentDd > maxDrawdown
+    excessDd = currentDd - maxDrawdown
+    reduction = math.min(excessDd / maxDrawdown * scaleFactor, 1 - minPosition)
+    w := math.max(1.0 - reduction, minPosition)
+
+plot(w, "Target weight", color=color.orange)
+plot(currentDd, "Drawdown", color=color.red)
+
+var float lastW = 0.0
+if w != lastW
+    if w <= 0
+        strategy.close_all()
+    else
+        targetQty = strategy.equity * w / close
+        delta = targetQty - strategy.position_size
+        if math.abs(delta) > 0
+            strategy.order("Long", delta > 0 ? strategy.long : strategy.short, qty=math.abs(delta))
+    lastW := w

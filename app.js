@@ -1061,6 +1061,11 @@ function renderHome() {
     { href: "?page=compare", icon: HOME_ICONS.compare, title: t("nav.compare"), desc: t("home.explore_compare_desc") }
   ];
 
+  const zhPrefix = getLang() === "zh" ? "zh/" : "";
+  const features = ["market", "claims", "events", "famous", "code", "versus", "github"].map((key) => ({
+    href: `/${zhPrefix}${key}/`, kind: t(`home.feat_${key}_kind`), title: t(`nav.${key}`), desc: t(`home.feat_${key}_desc`)
+  }));
+
   return `
     <section class="hero">
       <div class="hero-copy">
@@ -1111,12 +1116,27 @@ function renderHome() {
     </section>
 
     <section class="section">
+      <div class="section-title">
+        <h2>${t("home.features_title")}</h2>
+        <p class="muted">${t("home.features_desc")}</p>
+      </div>
+      <div class="feature-grid">
+        ${features
+          .map(
+            (item) => `
+          <a class="feature-card" href="${item.href}">
+            <span class="feature-kind">${item.kind}</span>
+            <span class="feature-title">${item.title}<span class="explore-arrow" aria-hidden="true">→</span></span>
+            <span class="feature-desc">${item.desc}</span>
+          </a>`
+          )
+          .join("")}
+      </div>
+    </section>
+
+    <section class="section">
       <div class="quick-links">
-        <span class="quick-links-label">${t("home.new_tools")}</span>
-        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}market/">${t("nav.market")}</a>
-        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}claims/">${t("nav.claims")}</a>
-        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}events/">${t("nav.events")}</a>
-        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}famous/">${t("nav.famous")}</a>
+        <span class="quick-links-label">${t("home.more_tools")}</span>
         <a class="quick-link" href="?page=lab">${t("nav.lab")}</a>
         <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}signals/">${t("nav.signals")}</a>
         <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}heatmap/">${t("nav.heatmap")}</a>

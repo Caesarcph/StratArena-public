@@ -1,0 +1,77 @@
+//@version=5
+// MR-16 Connors RSI — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: as in the Python, the RSI uses simple moving averages (not Wilder) and returns 50 when the average loss is 0.
+strategy("MR-16 Connors RSI", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+priceRsiPeriod = input.int(3, "Price RSI period", minval=1)
+streakRsiPeriod = input.int(2, "Streak RSI period", minval=1)
+rankPeriod = input.int(100, "Rank period", minval=2)
+entryThreshold = input.float(10, "Entry threshold")
+exitThreshold = input.float(50, "Exit threshold")
+maxHold = input.int(10, "Max hold (bars)", minval=1)
+
+simpleRsi(src, p) =>
+    d = ta.change(src)
+    ag = ta.sma(math.max(d, 0), p)
+    al = ta.sma(math.max(-d, 0), p)
+    (na(ag) or na(al) or al == 0) ? 50.0 : 100.0 - 100.0 / (1.0 + ag / al)
+
+// consecutive up/down streak
+var float streak = 0.0
+if bar_index > 0
+    diff = close - close[1]
+    if diff > 0
+        streak := streak >= 0 ? streak + 1 : 1
+    else if diff < 0
+        streak := streak <= 0 ? streak - 1 : -1
+    else
+        streak := 0
+
+priceRsi = simpleRsi(close, priceRsiPeriod)
+streakRsi = simpleRsi(streak, streakRsiPeriod)
+
+// pandas rolling(n).rank(pct)*100 of the 1-bar return (average rank for ties)
+ret = nz(close / close[1] - 1)
+float rankVal = na
+if bar_index >= rankPeriod - 1
+    int less = 0
+    int eq = 0
+    for k = 0 to rankPeriod - 1
+        if ret[k] < ret
+            less += 1
+        else if ret[k] == ret
+            eq += 1
+    rankVal := (less + (eq + 1) / 2.0) / rankPeriod * 100.0
+
+crsi = nz((priceRsi + streakRsi + rankVal) / 3.0, 50.0)
+
+var bool inPosition = false
+var int holdDays = 0
+var float pos = 0.0
+if bar_index >= rankPeriod
+    if inPosition
+        holdDays += 1
+        if crsi > exitThreshold or holdDays >= maxHold
+            inPosition := false
+            holdDays := 0
+            pos := 0.0
+        else
+            pos := 1.0
+    else
+        if crsi < entryThreshold
+            inPosition := true
+            holdDays := 0
+            pos := 1.0
+        else
+            pos := 0.0
+
+plot(crsi, "Connors RSI", color=color.blue)
+hline(entryThreshold, "Entry", color=color.green)
+hline(exitThreshold, "Exit", color=color.gray)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

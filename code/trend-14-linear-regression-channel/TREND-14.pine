@@ -1,0 +1,54 @@
+//@version=5
+// TREND-14 Linear Regression Channel — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the Python code emits -1 whenever price breaks below the lower band (no allow_short check inside
+// the strategy; the site engine decides whether shorts are used). Here shorts are gated by "Allow short":
+// when off, -1 is treated as flat while the internal state machine still follows the Python logic.
+// Channel values are the regression endpoint +/- k * population residual std, compared on the NEXT bar.
+strategy("TREND-14 Linear Regression Channel", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+period     = input.int(50, "Period", minval=2)
+stdDev     = input.float(2.0, "Std dev", step=0.1)
+allowShort = input.bool(false, "Allow short")
+
+// regression line value at the last bar of the window (identical to intercept + slope * (period - 1))
+mid = ta.linreg(close, period, 0)
+slope = ta.linreg(close, period, 0) - ta.linreg(close, period, 1)
+varY = math.pow(ta.stdev(close, period, true), 2)
+varX = (math.pow(period, 2) - 1) / 12.0
+resStd = math.sqrt(math.max(varY - slope * slope * varX, 0.0))
+
+upper = mid + stdDev * resStd
+lower = mid - stdDev * resStd
+
+upperPrev = upper[1]
+lowerPrev = lower[1]
+midPrev = mid[1]
+
+var float pos = 0.0
+
+if bar_index >= 1
+    if na(upperPrev) or na(lowerPrev)
+        pos := pos
+    else if close > upperPrev
+        pos := 1.0
+    else if close < lowerPrev
+        pos := -1.0
+    else if pos > 0 and close < midPrev
+        pos := 0.0
+    else if pos < 0 and close > midPrev
+        pos := 0.0
+    else
+        pos := pos
+
+plot(mid, "Mid", color=color.blue)
+plot(upper, "Upper", color=color.green)
+plot(lower, "Lower", color=color.red)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else if pos < 0 and allowShort
+    strategy.entry("Short", strategy.short)
+else
+    strategy.close_all()

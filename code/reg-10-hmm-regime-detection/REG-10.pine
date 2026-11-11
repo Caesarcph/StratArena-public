@@ -1,0 +1,67 @@
+//@version=5
+// REG-10 HMM Regime Detection — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: despite the name, the Python code is not a real HMM. Each bar it sorts the previous `lookback`
+// daily returns (current bar excluded), takes the lower half as "bear" and the upper half as "bull",
+// and compares the Gaussian log-likelihood of the mean of the previous `smooth_window` returns.
+strategy("REG-10 HMM Regime Detection", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+lookback   = input.int(252, "Lookback", minval=60)
+nStates    = input.int(2, "N states (unused in Python)", minval=2)
+smoothWin  = input.int(20, "Smooth window", minval=1)
+
+ret = close / close[1] - 1
+
+var float pos = 0.0
+float regimeScore = na
+
+if bar_index >= lookback
+    // window = returns of bars i-lookback .. i-1 (NaN dropped)
+    arr = array.new_float(0)
+    for k = 1 to lookback
+        r = ret[k]
+        if not na(r)
+            array.push(arr, r)
+    n = array.size(arr)
+
+    int regime = 1
+    if n >= 50
+        array.sort(arr)
+        half = math.floor(n / 2)
+        lowPart = array.slice(arr, 0, half)
+        highPart = array.slice(arr, half, n)
+        mean0 = array.avg(lowPart)
+        mean1 = array.avg(highPart)
+        std0 = math.max(array.stdev(lowPart, true), 1e-6)
+        std1 = math.max(array.stdev(highPart, true), 1e-6)
+
+        // mean of returns of bars i-smooth_window .. i-1
+        recentSum = 0.0
+        recentCnt = 0
+        for k = 1 to smoothWin
+            r = ret[k]
+            if not na(r)
+                recentSum += r
+                recentCnt += 1
+        recent = recentCnt > 0 ? recentSum / recentCnt : 0.0
+
+        ll0 = -0.5 * math.pow((recent - mean0) / std0, 2) - math.log(std0)
+        ll1 = -0.5 * math.pow((recent - mean1) / std1, 2) - math.log(std1)
+        bullishState = mean1 > mean0 ? 1 : 0
+        if ll1 > ll0
+            regime := bullishState == 1 ? 1 : 0
+        else
+            regime := bullishState == 0 ? 1 : 0
+    pos := regime == 1 ? 1.0 : 0.0
+    regimeScore := pos
+else
+    pos := 0.0
+    regimeScore := 0.0
+
+plot(regimeScore, "Regime (1 = bull)", color=color.teal, style=plot.style_stepline)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

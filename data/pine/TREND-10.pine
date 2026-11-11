@@ -1,0 +1,48 @@
+//@version=5
+// TREND-10 Ichimoku Cloud — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the Python code feeds a single close series, so High and Low are both replaced by Close
+// (highest/lowest of closes). This script does the same to match it. Span A/B are plotted as the
+// values valid at the current bar (already shifted forward by Kijun bars), not projected into the future.
+strategy("TREND-10 Ichimoku Cloud", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+tenkanP = input.int(9, "Tenkan", minval=1)
+kijunP  = input.int(26, "Kijun", minval=1)
+senkouP = input.int(52, "Senkou", minval=1)
+
+tenkan = (ta.highest(close, tenkanP) + ta.lowest(close, tenkanP)) / 2
+kijun  = (ta.highest(close, kijunP) + ta.lowest(close, kijunP)) / 2
+spanA  = ((tenkan + kijun) / 2)[kijunP]
+spanB  = ((ta.highest(close, senkouP) + ta.lowest(close, senkouP)) / 2)[kijunP]
+
+cloudTop = math.max(spanA, spanB)
+cloudBottom = math.min(spanA, spanB)
+
+warmup = senkouP + kijunP
+
+var float pos = 0.0
+
+if bar_index >= warmup
+    aboveCloud = close > cloudTop
+    belowCloud = close < cloudBottom
+    tenkanAbove = tenkan > kijun
+    if aboveCloud and tenkanAbove
+        pos := 1.0
+    else if belowCloud or not tenkanAbove
+        pos := 0.0
+    else
+        pos := pos
+else
+    pos := 0.0
+
+plot(tenkan, "Tenkan", color=color.red)
+plot(kijun, "Kijun", color=color.blue)
+pA = plot(spanA, "Span A", color=color.new(color.green, 50))
+pB = plot(spanB, "Span B", color=color.new(color.red, 50))
+fill(pA, pB, color=color.new(color.gray, 85))
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

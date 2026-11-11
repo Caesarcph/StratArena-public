@@ -1,0 +1,54 @@
+//@version=5
+// MOM-11 Momentum Crash Protection — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the position weight is fractional (0 to 1). The strategy rebalances to the target weight with
+// strategy.order every bar (only when the gap exceeds 0.1% of equity, to avoid tiny orders).
+// The "momentum equity" is the drawdown tracker of a long/flat trend rule on the same instrument.
+strategy("MOM-11 Momentum Crash Protection", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+momLookback = input.int(252, "Momentum lookback", minval=2)
+ddThreshold = input.float(0.10, "Drawdown threshold", step=0.01)
+severeDd    = input.float(0.20, "Severe drawdown", step=0.01)
+scaleFactor = input.float(0.5, "Scale factor", step=0.05)
+recoveryPct = input.float(0.5, "Recovery pct (unused in Python)", step=0.05)
+
+momentum = close / close[momLookback] - 1
+ret = close / close[1] - 1
+
+// momentum-strategy equity curve: yesterday's (momentum > 0) flag times today's return
+momFlagPrev = momentum[1] > 0 ? 1.0 : 0.0
+var float momEquity = 1.0
+momEquity := momEquity * (1 + momFlagPrev * nz(ret))
+var float momPeak = 1.0
+momPeak := math.max(momPeak, momEquity)
+momDd = (momEquity - momPeak) / momPeak
+
+warmup = momLookback + 20
+
+float weight = 0.0
+if bar_index >= warmup and not na(momentum)
+    if momentum <= 0
+        weight := 0.0
+    else if momDd < -severeDd
+        weight := 0.0
+    else if momDd < -ddThreshold
+        ddRange = severeDd - ddThreshold
+        ddExcess = math.abs(momDd) - ddThreshold
+        scale = 1.0 - (1.0 - scaleFactor) * (ddExcess / ddRange)
+        weight := math.max(scaleFactor, math.min(1.0, scale))
+    else
+        weight := 1.0
+
+plot(weight, "Target weight", color=color.teal, style=plot.style_stepline)
+plot(momDd, "Momentum drawdown", color=color.red)
+
+targetQty = close > 0 ? strategy.equity * weight / close : 0.0
+gap = targetQty - strategy.position_size
+if weight == 0.0
+    strategy.close_all()
+else if math.abs(gap) * close > 0.001 * strategy.equity
+    if gap > 0
+        strategy.order("Long", strategy.long, qty=gap)
+    else
+        strategy.order("Trim", strategy.short, qty=-gap)

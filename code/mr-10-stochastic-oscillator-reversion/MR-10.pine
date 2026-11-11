@@ -1,0 +1,51 @@
+//@version=5
+// MR-10 Stochastic Oscillator Reversion — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the Python code uses the close series as proxy for high and low (highest/lowest CLOSE over the
+// window), so %K here uses closes too, not the bar highs/lows. %D is plotted but is not used by the rules.
+strategy("MR-10 Stochastic Oscillator Reversion", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+kPeriod   = input.int(14, "K period", minval=1)
+dPeriod   = input.int(3, "D period", minval=1)
+oversold  = input.float(20, "Oversold")
+exitLevel = input.float(50, "Exit level")
+maxHold   = input.int(20, "Max hold (bars)", minval=1)
+
+hh = ta.highest(close, kPeriod)
+ll = ta.lowest(close, kPeriod)
+stochK = (close - ll) / (hh - ll + 1e-10) * 100
+stochD = ta.sma(stochK, dPeriod)
+
+warmup = kPeriod + dPeriod
+
+var float pos = 0.0
+var int entryBar = na
+
+if bar_index >= warmup
+    if pos == 0
+        if stochK < oversold
+            pos := 1.0
+            entryBar := bar_index
+        else
+            pos := 0.0
+    else
+        holdDays = not na(entryBar) ? bar_index - entryBar : 0
+        if stochK > exitLevel
+            pos := 0.0
+        else if holdDays >= maxHold
+            pos := 0.0
+        else
+            pos := 1.0
+else
+    pos := 0.0
+
+plot(stochK, "%K (close-based)", color=color.blue)
+plot(stochD, "%D", color=color.orange)
+hline(oversold, "Oversold", color=color.green)
+hline(exitLevel, "Exit", color=color.gray)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

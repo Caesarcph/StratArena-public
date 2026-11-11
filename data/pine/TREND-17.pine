@@ -1,0 +1,39 @@
+//@version=5
+// TREND-17 Chandelier Exit — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the Python uses CLOSE only: ATR = SMA of |close-to-close change|, highest/lowest CLOSE (not high/low). Mirrored here.
+strategy("TREND-17 Chandelier Exit", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+atrPeriod = input.int(22, "ATR period", minval=1)
+multiplier = input.float(3.0, "Multiplier")
+
+atrC = ta.sma(math.abs(ta.change(close)), atrPeriod)
+highestClose = ta.highest(close, atrPeriod)
+lowestClose = ta.lowest(close, atrPeriod)
+longStop = highestClose - multiplier * atrC
+shortStop = lowestClose + multiplier * atrC
+
+var bool inUptrend = true
+var float pos = 0.0
+if bar_index >= atrPeriod + 1
+    if inUptrend
+        if close < longStop
+            inUptrend := false
+            pos := 0.0
+        else
+            pos := 1.0
+    else
+        if close > shortStop
+            inUptrend := true
+            pos := 1.0
+        else
+            pos := 0.0
+
+plot(longStop, "Long stop", color=color.red)
+plot(shortStop, "Short stop", color=color.green)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

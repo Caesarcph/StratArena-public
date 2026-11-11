@@ -1,0 +1,66 @@
+//@version=5
+// COMBO-02 MACD + RSI Filter — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: RSI here uses an EMA with span=period (pandas ewm(span)), NOT Wilder smoothing, so it differs
+// slightly from the built-in ta.rsi.
+strategy("COMBO-02 MACD + RSI Filter", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+macdFast   = input.int(12, "MACD fast", minval=1)
+macdSlow   = input.int(26, "MACD slow", minval=1)
+macdSignal = input.int(9, "MACD signal", minval=1)
+rsiPeriod  = input.int(14, "RSI period", minval=1)
+rsiOB      = input.float(70, "RSI overbought")
+rsiOS      = input.float(30, "RSI oversold")
+rsiExtreme = input.float(80, "RSI extreme")
+
+macdLine = ta.ema(close, macdFast) - ta.ema(close, macdSlow)
+sigLine = ta.ema(macdLine, macdSignal)
+
+delta = ta.change(close)
+gain = delta > 0 ? delta : 0.0
+loss = delta < 0 ? -delta : 0.0
+avgGain = ta.ema(gain, rsiPeriod)
+avgLoss = ta.ema(loss, rsiPeriod)
+rs = avgGain / (avgLoss + 1e-10)
+rsiV = 100 - (100 / (1 + rs))
+
+crossUp = macdLine > sigLine and macdLine[1] <= sigLine[1]
+crossDown = macdLine < sigLine and macdLine[1] >= sigLine[1]
+macdBullish = macdLine > sigLine
+
+warmup = math.max(macdSlow, rsiPeriod) + macdSignal + 5
+
+var float pos = 0.0
+
+if bar_index >= warmup
+    if na(rsiV) or na(macdLine) or na(sigLine)
+        pos := pos
+    else if pos == 0
+        if crossUp and rsiV < rsiOB
+            pos := 1.0
+        else if macdBullish and rsiV < rsiOS
+            pos := 1.0
+        else
+            pos := 0.0
+    else
+        if crossDown
+            pos := 0.0
+        else if rsiV > rsiExtreme
+            pos := 0.0
+        else if not macdBullish and rsiV > rsiOB
+            pos := 0.0
+        else
+            pos := 1.0
+else
+    pos := 0.0
+
+plot(rsiV, "RSI (EMA span)", color=color.purple)
+hline(rsiOB, "Overbought", color=color.red)
+hline(rsiOS, "Oversold", color=color.green)
+hline(rsiExtreme, "Extreme", color=color.maroon)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()
