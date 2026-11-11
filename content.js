@@ -207,7 +207,7 @@ const CONTENT_PAGES = {
       en: "How QuantArenas collects, uses, and protects information.",
       zh: "QuantArenas 如何收集、使用并保护信息。"
     },
-    updated: "2026-01-13",
+    updated: "2026-11-11",
     sections: [
       {
         heading: { en: "Overview", zh: "概述" },
@@ -240,8 +240,8 @@ const CONTENT_PAGES = {
         heading: { en: "Advertising", zh: "广告" },
         paragraphs: [
           {
-            en: "QuantArenas may display ads served by Google AdSense. AdSense may use cookies or device identifiers to show relevant ads and to measure ad performance. You can manage ad personalization in your Google account settings and opt out of interest based ads where available.",
-            zh: "QuantArenas 可能会展示由 Google AdSense 提供的广告。AdSense 可能使用 Cookie 或设备标识符来展示相关广告并衡量广告效果。你可以在 Google 账户设置中管理广告个性化，并在可用范围内选择退出基于兴趣的广告。"
+            en: "QuantArenas may display ads served by Google AdSense. AdSense may use cookies or device identifiers to show relevant ads and to measure ad performance. You can manage ad personalization in your Google account settings and opt out of interest based ads where available. Some reading pages also show one labelled ad block from Adsterra near the bottom of the page; Adsterra may use cookies or device identifiers for the same purposes. Ads are not shown on evidence, cost, AI season or legal pages.",
+            zh: "QuantArenas 可能会展示由 Google AdSense 提供的广告。AdSense 可能使用 Cookie 或设备标识符来展示相关广告并衡量广告效果。你可以在 Google 账户设置中管理广告个性化，并在可用范围内选择退出基于兴趣的广告。部分阅读类页面底部还会展示一个标注为“广告”的 Adsterra 广告位，Adsterra 可能出于同样目的使用 Cookie 或设备标识符。证据页、成本页、AI 赛季页和法律条款页不展示广告。"
           }
         ]
       },
