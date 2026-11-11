@@ -482,7 +482,7 @@ class EvidenceBuildV2:
                     changed = after[:len(before)] != before or old_manifest["sourceHashes"] != current["sourceHashes"]
                 if changed:
                     corrections.append({**item, "archive": archive,
-                        "reason": "Recorded common-history values, archived source, or the declared execution model changed; prior immutable run remains available."})
+                        "reason": "Recorded common-history values, archived source, or the declared execution model changed; the current and previous run are downloadable on the site; older runs and correction snapshots are kept in the source repository history, not on the site."})
         counts = {status: sum(item["status"] == status for item in self.statuses.values())
                   for status in ("complete", "unavailable", "failed", "unsupported")}
         index = {"schemaVersion": 2, "generatedAt": self.generated_at, "runs": self.runs,
