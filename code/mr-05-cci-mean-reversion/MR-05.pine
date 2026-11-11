@@ -1,0 +1,41 @@
+//@version=5
+// MR-05 CCI Mean Reversion — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the Python computes CCI on the CLOSE only (typical price = close), not on (H+L+C)/3. Mirrored here.
+strategy("MR-05 CCI Mean Reversion", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+period = input.int(20, "Period", minval=2)
+oversold = input.float(-100, "Oversold")
+exitLevel = input.float(0, "Exit level")
+maxHold = input.int(15, "Max hold (bars)", minval=1)
+extremeStop = input.float(-200, "Extreme stop")
+
+// ta.dev is the mean absolute deviation around the window mean, as in the Python
+cci = (close - ta.sma(close, period)) / (0.015 * ta.dev(close, period))
+
+var float pos = 0.0
+var int entryIdx = 0
+if bar_index >= period
+    if pos == 0
+        if cci < oversold
+            pos := 1.0
+            entryIdx := bar_index
+    else
+        holdDays = bar_index - entryIdx
+        if cci >= exitLevel
+            pos := 0.0
+        else if holdDays >= maxHold
+            pos := 0.0
+        else if cci < extremeStop
+            pos := 0.0
+
+plot(cci, "CCI (close)", color=color.blue)
+hline(oversold, "Oversold", color=color.green)
+hline(exitLevel, "Exit level", color=color.gray)
+hline(extremeStop, "Extreme stop", color=color.red)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

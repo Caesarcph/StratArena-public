@@ -1,0 +1,48 @@
+//@version=5
+// CAL-01 Turn of Month — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("CAL-01 Turn of Month", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+// Fixed Monday-Friday calendar (no exchange holidays), as in the Python implementation:
+//   elapsed   = weekdays from the 1st of the month up to and including today
+//   remaining = weekdays after today until the end of the month
+// Long when elapsed <= Start days, or remaining < End days.
+
+endDays   = input.int(3, "End days", minval=0)
+startDays = input.int(3, "Start days", minval=0)
+
+isLeap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+dim = switch month
+    2 => isLeap ? 29 : 28
+    4 => 30
+    6 => 30
+    9 => 30
+    11 => 30
+    => 31
+
+dom = dayofmonth
+todayIdx = dayofweek - 1   // 0 = Sunday ... 6 = Saturday
+
+int elapsed = 0
+int remaining = 0
+for k = 1 to dim
+    dIdx = ((todayIdx - (dom - k)) % 7 + 7) % 7
+    isWeekday = dIdx >= 1 and dIdx <= 5
+    if isWeekday
+        if k <= dom
+            elapsed += 1
+        else
+            remaining += 1
+
+isMonthStart = startDays > 0 and elapsed <= startDays
+isMonthEnd = endDays > 0 and remaining < endDays
+pos = (isMonthStart or isMonthEnd) ? 1 : 0
+
+plot(elapsed, "Weekdays elapsed", color=color.blue)
+plot(remaining, "Weekdays remaining", color=color.orange)
+bgcolor(pos > 0 ? color.new(color.green, 88) : na)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

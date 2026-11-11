@@ -1,0 +1,43 @@
+//@version=5
+// MR-02 Bollinger Band Reversion — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("MR-02 Bollinger Band Reversion", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+period = input.int(20, "Period", minval=2)
+numStd = input.float(2.0, "Num std")
+maxHold = input.int(10, "Max hold (bars)", minval=1)
+
+middle = ta.sma(close, period)
+sd = ta.stdev(close, period, false)
+upper = middle + numStd * sd
+lower = middle - numStd * sd
+
+bandwidth = (upper - lower) / middle
+bandwidthMa = ta.sma(bandwidth, 20)
+volExpansion = bandwidth > bandwidthMa
+
+var float pos = 0.0
+var int entryIdx = 0
+if bar_index >= period + 20
+    if pos == 0
+        if close <= lower and volExpansion
+            pos := 1.0
+            entryIdx := bar_index
+    else
+        holdDays = bar_index - entryIdx
+        if close >= middle
+            pos := 0.0
+        else if holdDays >= maxHold
+            pos := 0.0
+        else if close < lower * 0.97
+            pos := 0.0
+
+plot(middle, "Middle", color=color.orange)
+plot(upper, "Upper", color=color.gray)
+plot(lower, "Lower", color=color.gray)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

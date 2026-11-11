@@ -1,0 +1,45 @@
+//@version=5
+// TREND-11 Kaufman Adaptive Moving Average — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("TREND-11 Kaufman Adaptive Moving Average", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+erPeriod = input.int(10, "ER period", minval=1)
+fastP = input.int(2, "Fast", minval=1)
+slowP = input.int(30, "Slow", minval=1)
+slopePeriod = input.int(5, "Slope period", minval=1)
+
+fastSc = 2.0 / (fastP + 1)
+slowSc = 2.0 / (slowP + 1)
+
+chg = math.abs(close - close[erPeriod])
+volat = math.sum(math.abs(ta.change(close)), erPeriod)
+er = volat != 0 ? chg / volat : 0.0
+sc = math.pow(er * (fastSc - slowSc) + slowSc, 2)
+
+// seeded with the close at index erPeriod-1, as in the Python
+var float kama = na
+if bar_index == erPeriod - 1
+    kama := close
+else if bar_index >= erPeriod
+    kama := kama[1] + sc * (close - kama[1])
+
+kamaSlope = kama - kama[slopePeriod]
+warmup = erPeriod + slopePeriod
+
+var float pos = 0.0
+if bar_index >= warmup
+    aboveKama = close > kama
+    rising = kamaSlope > 0
+    if aboveKama and rising
+        pos := 1.0
+    else if not aboveKama
+        pos := 0.0
+    // else hold previous
+
+plot(kama, "KAMA", color=color.orange)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

@@ -1,0 +1,55 @@
+//@version=5
+// MR-07 Hurst-Filtered Mean Reversion — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the Python code does NOT compute a Hurst exponent. It buys z-score dips only when annualised
+// volatility is below its own moving average ("low volatility regime"), and exits on reversion or max hold.
+strategy("MR-07 Hurst-Filtered Mean Reversion", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+lookback    = input.int(40, "Lookback", minval=2)
+entryZ      = input.float(1.5, "Entry Z", step=0.1)
+exitZ       = input.float(0.3, "Exit Z", step=0.1)
+volLookback = input.int(20, "Vol lookback", minval=2)
+maxHold     = input.int(15, "Max hold (bars)", minval=1)
+
+ma = ta.sma(close, lookback)
+sd = ta.stdev(close, lookback, false)
+z = (close - ma) / (sd + 1e-10)
+
+ret = close / close[1] - 1
+vol = ta.stdev(ret, volLookback, false) * math.sqrt(252)
+volMa = ta.sma(vol, lookback)
+lowVol = vol < volMa
+
+warmup = math.max(lookback, volLookback) + 5
+
+var float pos = 0.0
+var int entryBar = na
+
+if bar_index >= warmup
+    if na(z)
+        pos := pos
+    else if pos == 0
+        if z < -entryZ and lowVol
+            pos := 1.0
+            entryBar := bar_index
+        else
+            pos := 0.0
+    else
+        holdDays = not na(entryBar) ? bar_index - entryBar : 0
+        if z > -exitZ or holdDays >= maxHold
+            pos := 0.0
+            entryBar := na
+        else
+            pos := 1.0
+else
+    pos := 0.0
+
+plot(z, "Z-score", color=color.blue)
+hline(-entryZ, "Entry", color=color.green)
+hline(-exitZ, "Exit", color=color.gray)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

@@ -1,0 +1,42 @@
+//@version=5
+// MR-11 Williams %R Reversion — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("MR-11 Williams %R Reversion", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+// Close-only Williams %R (rolling max/min of close), as in the Python code.
+
+period     = input.int(14, "Period", minval=1)
+oversold   = input.float(-80, "Oversold")
+overbought = input.float(-20, "Overbought")
+maxHold    = input.int(20, "Max hold (bars)", minval=1)
+
+highestHigh = ta.highest(close, period)
+lowestLow = ta.lowest(close, period)
+williamsR = (highestHigh - close) / (highestHigh - lowestLow + 1e-10) * -100
+
+var float pos = 0.0
+var int entryBar = na
+if bar_index >= period
+    if pos == 0
+        if williamsR < oversold
+            pos := 1.0
+            entryBar := bar_index
+        else
+            pos := 0.0
+    else
+        holdDays = bar_index - entryBar
+        if williamsR > overbought
+            pos := 0.0
+        else if holdDays >= maxHold
+            pos := 0.0
+        else
+            pos := 1.0
+
+plot(williamsR, "Williams %R", color=color.blue)
+hline(oversold, "Oversold", color=color.green)
+hline(overbought, "Overbought", color=color.red)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

@@ -1,0 +1,35 @@
+//@version=5
+// HMA-01 HMA Crossover — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: HMA is computed by hand because the Python uses int(sqrt(n)) (floor) for the final WMA, whereas ta.hma rounds.
+strategy("HMA-01 HMA Crossover", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+fastPeriod = input.int(9, "Fast period", minval=2)
+slowPeriod = input.int(21, "Slow period", minval=2)
+allowShort = input.bool(false, "Allow short")
+
+hmaCalc(src, n) =>
+    halfN = int(n / 2)
+    sqrtN = int(math.sqrt(n))
+    raw = 2 * ta.wma(src, halfN) - ta.wma(src, n)
+    ta.wma(raw, sqrtN)
+
+hmaFast = hmaCalc(close, fastPeriod)
+hmaSlow = hmaCalc(close, slowPeriod)
+
+float pos = 0.0
+if hmaFast > hmaSlow
+    pos := 1.0
+if allowShort and hmaFast < hmaSlow
+    pos := -1.0
+
+plot(hmaFast, "HMA fast", color=color.blue)
+plot(hmaSlow, "HMA slow", color=color.orange)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else if pos < 0 and allowShort
+    strategy.entry("Short", strategy.short)
+else
+    strategy.close_all()

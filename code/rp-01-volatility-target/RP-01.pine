@@ -1,0 +1,31 @@
+//@version=5
+// RP-01 Volatility Target — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("RP-01 Volatility Target", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true, margin_long=0, margin_short=0)
+// Fractional weight = clip(target_vol / realized_vol, 0, cap), rebalanced every bar with strategy.order.
+// The cap defaults to 1.5, i.e. up to 150% of equity, so margin_long/margin_short are set to 0
+// (no margin liquidation) to let leveraged weights be simulated; this is the only deviation from
+// the standard strategy() declaration. Order quantities are fractional; some instruments may round them.
+
+targetVol = input.float(0.1, "Target vol")
+lookback  = input.int(20, "Lookback", minval=2)
+cap       = input.float(1.5, "Weight cap")
+
+ret = nz(close / close[1] - 1)   // first bar return is 0, as in the Python fillna(0)
+realized = ta.stdev(ret, lookback, false) * math.sqrt(252)
+float w = 0.0
+if not na(realized) and realized != 0
+    w := math.max(0.0, math.min(cap, targetVol / realized))
+
+plot(w, "Weight", color=color.blue)
+plot(realized, "Realized vol", color=color.orange)
+hline(1, "100%", color=color.gray)
+
+targetQty = close > 0 ? strategy.equity * w / close : 0.0
+deltaQty = targetQty - strategy.position_size
+if math.abs(deltaQty) > 1e-9
+    if deltaQty > 0
+        strategy.order("Rebalance", strategy.long, qty=deltaQty)
+    else
+        strategy.order("Rebalance", strategy.short, qty=-deltaQty)

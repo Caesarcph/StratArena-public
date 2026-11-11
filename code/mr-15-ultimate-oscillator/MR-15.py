@@ -1,0 +1,141 @@
+import pandas as pd
+
+STRATEGY = {
+    "id": "MR-15",
+    "name": "Ultimate Oscillator",
+    "mode": "single",
+    "tags": ["Mean Reversion", "Oscillator"],
+    "summary": "Buy oversold Ultimate Oscillator, exit at neutral.",
+    "description": (
+        "Ultimate Oscillator blends three horizons of buying pressure to reduce "
+        "false signals. This implementation uses close-only data to approximate "
+        "the classic BP/TR calculation, entering on oversold readings and exiting "
+        "near neutral."
+    ),
+    "bestOn": "Range-bound markets with swings",
+    "frequency": "Daily",
+    "assetClasses": ["Index", "Commodity", "FX"],
+    "holdingPeriod": "Days",
+    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
+    "pseudocode": {
+        "Inputs": [
+            "Short = 7",
+            "Medium = 14",
+            "Long = 28",
+            "Oversold = 30",
+            "Exit = 50",
+        ],
+        "Indicators": [
+            "BP = Close - min(Close, Close[-1])",
+            "TR = max(Close, Close[-1]) - min(Close, Close[-1])",
+            "AvgShort = sum(BP, Short) / sum(TR, Short)",
+            "AvgMedium = sum(BP, Medium) / sum(TR, Medium)",
+            "AvgLong = sum(BP, Long) / sum(TR, Long)",
+            "UO = 100 * (4*AvgShort + 2*AvgMedium + AvgLong) / 7",
+        ],
+        "Entry": ["Buy when UO < 30 (oversold)"],
+        "Exit": ["Exit when UO > 50 (neutral)"],
+        "Position sizing": ["Fixed 100% allocation"],
+        "Risk controls": ["Max hold period of 20 days"],
+    },
+    "notes": [
+        "Uses three lookback windows to reduce whipsaws",
+        "Close-only approximation for BP/TR without full OHLC data",
+    ],
+    "updated": "2026-01-13",
+    "recommendedCompare": ["SPY", "GLD"],
+}
+
+
+def calculate_ultimate_oscillator(prices, short=7, medium=14, long=28):
+    close = prices.copy()
+    prev_close = close.shift(1)
+
+    min_close = pd.concat([close, prev_close], axis=1).min(axis=1)
+    max_close = pd.concat([close, prev_close], axis=1).max(axis=1)
+
+    # Close-only proxy for buying pressure and true range.
+    bp = close - min_close
+    tr = max_close - min_close
+
+    avg_short = bp.rolling(short).sum() / (tr.rolling(short).sum() + 1e-10)
+    avg_medium = bp.rolling(medium).sum() / (tr.rolling(medium).sum() + 1e-10)
+    avg_long = bp.rolling(long).sum() / (tr.rolling(long).sum() + 1e-10)
+
+    uo = 100 * (4 * avg_short + 2 * avg_medium + avg_long) / 7
+    return uo
+
+
+def generate_signals(prices, config=None):
+    config = config or {}
+    short = int(config.get("short", 7))
+    medium = int(config.get("medium", 14))
+    long = int(config.get("long", 28))
+    oversold = float(config.get("oversold", 30))
+    exit_level = float(config.get("exit_level", 50))
+    max_hold = int(config.get("max_hold", 20))
+
+    close = prices.copy()
+    uo = calculate_ultimate_oscillator(close, short, medium, long)
+
+    signal = pd.Series(0.0, index=close.index)
+    entry_idx = None
+    warmup = max(short, medium, long) + 1
+
+    for i in range(warmup, len(close)):
+        prev_signal = signal.iloc[i - 1]
+
+        if prev_signal == 0:
+            if uo.iloc[i] < oversold:
+                signal.iloc[i] = 1.0
+                entry_idx = i
+            else:
+                signal.iloc[i] = 0.0
+        else:
+            hold_days = i - entry_idx if entry_idx else 0
+            if uo.iloc[i] > exit_level or hold_days >= max_hold:
+                signal.iloc[i] = 0.0
+            else:
+                signal.iloc[i] = 1.0
+
+    return signal.fillna(0.0)
+
+
+# ---------------------------------------------------------------------------
+# Runner added by Quant Arena (https://quantarenas.com/code/) so this file works on its own.
+#
+#   pip install pandas numpy yfinance
+#   python MR-15.py SPY              # downloads daily prices with yfinance
+#   python MR-15.py prices.csv       # or a CSV with Date, Open, High, Low, Close columns
+#
+# Convention, same as the site: the position decided at the close of day t earns
+# the return of day t+1. Results are before trading costs. Not investment advice.
+# ---------------------------------------------------------------------------
+def _load_prices(source):
+    if source.lower().endswith(".csv"):
+        frame = pd.read_csv(source, index_col=0, parse_dates=True)
+    else:
+        import yfinance as yf
+        frame = yf.download(source, start="2010-01-01", auto_adjust=True, progress=False)
+        if isinstance(frame.columns, pd.MultiIndex):
+            frame.columns = frame.columns.get_level_values(0)
+    return frame.sort_index().dropna(subset=["Close"])
+
+
+if __name__ == "__main__":
+    import sys
+
+    prices = _load_prices(sys.argv[1] if len(sys.argv) > 1 else "SPY")
+    close = prices["Close"]
+    signal_input = prices if STRATEGY.get("input") == "ohlc" else close
+    position = generate_signals(signal_input).reindex(close.index).ffill().fillna(0.0)
+    daily = close.pct_change().fillna(0.0) * position.shift(1).fillna(0.0)
+    equity = (1 + daily).cumprod()
+    years = (close.index[-1] - close.index[0]).days / 365.25
+    print(STRATEGY["id"], STRATEGY["name"], "|", close.index[0].date(), "to", close.index[-1].date())
+    print("Total return   {:+.1%}".format(equity.iloc[-1] - 1))
+    print("CAGR           {:+.1%}".format(equity.iloc[-1] ** (1 / years) - 1))
+    print("Sharpe         {:.2f}".format(daily.mean() / daily.std() * 252 ** 0.5 if daily.std() else 0.0))
+    print("Max drawdown   {:.1%}".format((equity / equity.cummax() - 1).min()))
+    print("Days in market {:.0%}".format((position != 0).mean()))
+    print("Buy and hold   {:+.1%}".format(close.iloc[-1] / close.iloc[0] - 1))

@@ -1,0 +1,63 @@
+//@version=5
+// COMBO-01 Bollinger-Keltner Squeeze — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the Python does NOT use a Keltner Channel (despite the name). It flags a "squeeze" when Bollinger bandwidth is in the
+// bottom percentile of its recent history, and enters on release with positive momentum. This script mirrors the Python.
+strategy("COMBO-01 Bollinger-Keltner Squeeze", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+bbPeriod = input.int(20, "BB period", minval=2)
+bbStd = input.float(2.0, "BB std")
+momentumPeriod = input.int(12, "Momentum period", minval=1)
+squeezeLookback = input.int(50, "Squeeze lookback", minval=10)
+squeezePercentile = input.float(25, "Squeeze percentile")
+maxHold = input.int(20, "Max hold (bars)", minval=1)
+
+bbMa = ta.sma(close, bbPeriod)
+bbSd = ta.stdev(close, bbPeriod, false)
+bbUpper = bbMa + bbStd * bbSd
+bbLower = bbMa - bbStd * bbSd
+bbWidth = (bbUpper - bbLower) / (bbMa + 1e-10)
+
+// squeeze: current width <= percentile (linear interpolation, as numpy) of the last squeezeLookback widths
+pctl = ta.percentile_linear_interpolation(bbWidth, squeezeLookback, squeezePercentile)
+squeezeOn = not na(bbWidth[squeezeLookback - 1]) and bbWidth <= pctl
+
+momentum = close - ta.sma(close, momentumPeriod)
+currMomentum = nz(momentum)
+
+warmup = math.max(math.max(bbPeriod, momentumPeriod), squeezeLookback)
+
+var bool inPos = false
+var float entryPrice = 0.0
+var int barsInPos = 0
+var bool wasInSqueeze = false
+float pos = 0.0
+
+if bar_index >= warmup
+    if squeezeOn
+        wasInSqueeze := true
+    releasing = wasInSqueeze and not squeezeOn and currMomentum > 0
+    if not inPos
+        if releasing
+            pos := 1.0
+            inPos := true
+            entryPrice := close
+            barsInPos := 0
+            wasInSqueeze := false
+    else
+        barsInPos += 1
+        priceReturn = (close - entryPrice) / entryPrice
+        if currMomentum < 0 or priceReturn < -0.05 or barsInPos > maxHold
+            pos := 0.0
+            inPos := false
+        else
+            pos := 1.0
+
+plot(bbWidth, "BB width", color=color.blue)
+plot(pctl, "Width percentile", color=color.orange)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

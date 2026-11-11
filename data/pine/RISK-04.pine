@@ -1,0 +1,49 @@
+//@version=5
+// RISK-04 Trailing Stop Strategy — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("RISK-04 Trailing Stop Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+// ATR here is the Python close-to-close approximation: SMA of |close - close[1]|.
+
+atrPeriod  = input.int(14, "ATR period", minval=1)
+multiplier = input.float(2.5, "ATR multiplier")
+entryMa    = input.int(20, "Entry MA", minval=1)
+
+tr  = math.abs(close - close[1])
+atr = ta.sma(tr, atrPeriod)
+ma  = ta.sma(close, entryMa)
+
+warmup = math.max(atrPeriod, entryMa)
+
+var float pos = 0.0
+var float trailingHigh = na
+var float trailingStop = na
+
+if bar_index >= warmup and not na(atr)
+    if pos == 0
+        if close > ma
+            pos := 1.0
+            trailingHigh := close
+            trailingStop := trailingHigh - multiplier * atr
+        else
+            pos := 0.0
+    else
+        if close > trailingHigh
+            trailingHigh := close
+        newStop = trailingHigh - multiplier * atr
+        if newStop > trailingStop
+            trailingStop := newStop
+        if close < trailingStop
+            pos := 0.0
+            trailingHigh := na
+            trailingStop := na
+        else
+            pos := 1.0
+
+plot(ma, "Entry MA", color=color.orange)
+plot(pos > 0 ? trailingStop : na, "Trailing stop", color=color.red, style=plot.style_linebr)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

@@ -1,0 +1,50 @@
+//@version=5
+// SUPER-01 Supertrend — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: computed by hand (not ta.supertrend) to match the Python: ATR is an EMA (span = period) of true
+// range, bands start after a warmup of period + 3 bars, and the first direction is set by close vs hl2.
+// This uses the OHLC branch of the Python code (the close-only fallback is not reproduced).
+strategy("SUPER-01 Supertrend", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+atrPeriod  = input.int(10, "ATR period", minval=1)
+multiplier = input.float(2.5, "Multiplier", step=0.1)
+allowShort = input.bool(false, "Allow short")
+
+trv = ta.tr(true)
+atrV = ta.ema(trv, atrPeriod)
+hl2v = (high + low) / 2
+
+warmup = atrPeriod + 3
+
+var float ub = 0.0
+var float lb = 0.0
+var float trendDir = 0.0
+
+if bar_index >= warmup
+    basicUpper = hl2v + multiplier * atrV
+    basicLower = hl2v - multiplier * atrV
+    float newUb = (basicUpper < ub or close[1] > ub) ? basicUpper : ub
+    float newLb = (basicLower > lb or close[1] < lb) ? basicLower : lb
+    float newDir = na
+    if bar_index == warmup
+        newDir := close > hl2v ? 1.0 : -1.0
+    else if trendDir == 1
+        newDir := close < newLb ? -1.0 : 1.0
+    else
+        newDir := close > newUb ? 1.0 : -1.0
+    ub := newUb
+    lb := newLb
+    trendDir := newDir
+
+pos = trendDir
+
+stLine = trendDir == 1 ? lb : (trendDir == -1 ? ub : na)
+plot(stLine, "Supertrend", color=trendDir == 1 ? color.green : color.red, style=plot.style_linebr)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else if pos < 0 and allowShort
+    strategy.entry("Short", strategy.short)
+else
+    strategy.close_all()

@@ -1,0 +1,58 @@
+//@version=5
+// COMBO-04 Trend + Mean Reversion Hybrid — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+strategy("COMBO-04 Trend + Mean Reversion Hybrid", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+// RSI uses simple moving averages of gains/losses (not Wilder), as in the Python code.
+
+trendMa     = input.int(200, "Trend MA", minval=1)
+rsiPeriod   = input.int(14, "RSI period", minval=1)
+rsiOversold = input.float(35, "RSI oversold")
+rsiExit     = input.float(50, "RSI exit")
+maxHold     = input.int(20, "Max hold (bars)", minval=1)
+
+delta = ta.change(close)
+gain = delta > 0 ? delta : 0.0
+loss = delta < 0 ? -delta : 0.0
+avgGain = ta.sma(gain, rsiPeriod)
+avgLoss = ta.sma(loss, rsiPeriod)
+rs = avgGain / (avgLoss + 1e-10)
+rsi = 100 - (100 / (1 + rs))
+
+maLong = ta.sma(close, trendMa)
+uptrend = close > maLong
+
+warmup = math.max(trendMa, rsiPeriod)
+
+var float pos = 0.0
+var int entryBar = na
+
+if bar_index >= warmup and not na(rsi)
+    if pos == 0
+        if uptrend and rsi < rsiOversold
+            pos := 1.0
+            entryBar := bar_index
+        else
+            pos := 0.0
+    else
+        holdDays = bar_index - entryBar
+        if rsi > rsiExit
+            pos := 0.0
+            entryBar := na
+        else if not uptrend
+            pos := 0.0
+            entryBar := na
+        else if holdDays >= maxHold
+            pos := 0.0
+            entryBar := na
+        else
+            pos := 1.0
+
+plot(rsi, "RSI", color=color.purple)
+hline(rsiOversold, "Oversold", color=color.green)
+hline(rsiExit, "Exit", color=color.gray)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

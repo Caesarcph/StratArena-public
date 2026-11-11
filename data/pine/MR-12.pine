@@ -1,0 +1,50 @@
+//@version=5
+// MR-12 Money Flow Index Reversion — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: the Python code has no volume, so its "MFI" is really a cutler-style RSI (simple moving averages of
+// gains and losses). It is reproduced as is; it is NOT the volume-based Money Flow Index.
+strategy("MR-12 Money Flow Index Reversion", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+period    = input.int(14, "Period", minval=1)
+oversold  = input.float(30, "Oversold")
+exitLevel = input.float(50, "Exit level")
+maxHold   = input.int(15, "Max hold (bars)", minval=1)
+
+delta = ta.change(close)
+gain = delta > 0 ? delta : 0.0
+loss = delta < 0 ? -delta : 0.0
+avgGain = ta.sma(gain, period)
+avgLoss = ta.sma(loss, period)
+rs = avgGain / (avgLoss + 1e-10)
+mfiApprox = 100 - (100 / (1 + rs))
+
+var float pos = 0.0
+var int entryBar = na
+
+if bar_index >= period
+    if pos == 0
+        if mfiApprox < oversold
+            pos := 1.0
+            entryBar := bar_index
+        else
+            pos := 0.0
+    else
+        holdDays = not na(entryBar) ? bar_index - entryBar : 0
+        if mfiApprox > exitLevel
+            pos := 0.0
+        else if holdDays >= maxHold
+            pos := 0.0
+        else
+            pos := 1.0
+else
+    pos := 0.0
+
+plot(mfiApprox, "MFI approx (RSI-like)", color=color.purple)
+hline(oversold, "Oversold", color=color.green)
+hline(exitLevel, "Exit", color=color.gray)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

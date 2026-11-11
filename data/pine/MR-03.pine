@@ -1,0 +1,54 @@
+//@version=5
+// MR-03 Kalman Filter Mean Reversion — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: a 1-D random-walk Kalman filter with volatility-adaptive process noise, ported recursion for recursion.
+strategy("MR-03 Kalman Filter Mean Reversion", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+baseQ  = input.float(0.001, "Q (process noise)", step=0.0001)
+rObs   = input.float(1.0, "R (observation noise)", step=0.1)
+entryZ = input.float(2.0, "Entry Z", step=0.1)
+exitZ  = input.float(0.5, "Exit Z", step=0.1)
+volWindow = 20
+
+logRet = bar_index == 0 ? 0.0 : math.log(close + 1e-8) - math.log(close[1] + 1e-8)
+// population std of the previous 20 log returns (bars i-20 .. i-1)
+recentVol = ta.stdev(logRet, volWindow, true)[1]
+
+var float xEst = na
+var float pCov = na
+
+if bar_index == 0
+    xEst := close
+    pCov := 1.0
+else
+    qNow = bar_index > volWindow ? baseQ * (1 + 10 * recentVol) : baseQ
+    xPred = xEst
+    pPred = pCov + qNow
+    kGain = pPred / (pPred + rObs)
+    xEst := xPred + kGain * (close - xPred)
+    pCov := (1 - kGain) * pPred
+
+residual = close - xEst
+resStd = ta.stdev(residual, 20, false)
+z = residual / math.max(resStd, 1e-8)
+
+var float pos = 0.0
+
+if bar_index >= 20
+    if pos == 0
+        pos := z < -entryZ ? 1.0 : 0.0
+    else
+        pos := z > -exitZ ? 0.0 : 1.0
+else
+    pos := 0.0
+
+plot(z, "Kalman Z-score", color=color.blue)
+hline(-entryZ, "Entry", color=color.green)
+hline(-exitZ, "Exit", color=color.gray)
+hline(0, "Zero", color=color.silver)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.close_all()

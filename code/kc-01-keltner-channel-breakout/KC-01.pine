@@ -1,0 +1,42 @@
+//@version=5
+// KC-01 Keltner Channel Breakout — Quant Arena (https://quantarenas.com/code/)
+// Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
+// Converted by hand from Python and not compiled in TradingView by us: please report problems.
+// Note: ATR here is a simple moving average of true range (rolling mean), as in the Python code.
+strategy("KC-01 Keltner Channel Breakout", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
+
+emaPeriod  = input.int(20, "EMA period", minval=1)
+atrPeriod  = input.int(20, "ATR period", minval=1)
+multiplier = input.float(2.0, "Multiplier", step=0.1)
+allowShort = input.bool(false, "Allow short")
+
+middle = ta.ema(close, emaPeriod)
+trv = ta.tr(true)
+atrv = ta.sma(trv, atrPeriod)
+upper = middle + multiplier * atrv
+lower = middle - multiplier * atrv
+
+var float pos = 0.0
+
+if bar_index >= 1
+    if close > upper
+        pos := 1.0
+    else if close < lower
+        pos := allowShort ? -1.0 : 0.0
+    else if pos == 1.0 and close < middle
+        pos := 0.0
+    else if allowShort and pos == -1.0 and close > middle
+        pos := 0.0
+    else
+        pos := pos
+
+plot(middle, "Middle", color=color.blue)
+plot(upper, "Upper", color=color.green)
+plot(lower, "Lower", color=color.red)
+
+if pos > 0
+    strategy.entry("Long", strategy.long)
+else if pos < 0 and allowShort
+    strategy.entry("Short", strategy.short)
+else
+    strategy.close_all()
