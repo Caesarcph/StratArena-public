@@ -1093,6 +1093,10 @@ function updateStaticText() {
   });
   const logoText = document.querySelector('.logo-text');
   if (logoText) logoText.textContent = t('meta.site_name');
+  // Links to pre-rendered sections: point them at the /zh/ copy when the page is in Chinese.
+  document.querySelectorAll('a[data-static]').forEach((el) => {
+    el.setAttribute('href', `/${getLang() === 'zh' ? 'zh/' : ''}${el.dataset.static}`);
+  });
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     el.textContent = t(el.dataset.i18n);
   });

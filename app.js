@@ -1098,23 +1098,6 @@ function renderHome() {
       </div>
     </section>
 
-    ${recentHtml}
-
-    <section class="section">
-      <div class="explore-grid">
-        ${explore
-          .map(
-            (item) => `
-          <a class="explore-card" href="${item.href}">
-            <span class="explore-icon">${item.icon}</span>
-            <span class="explore-title">${item.title}<span class="explore-arrow" aria-hidden="true">→</span></span>
-            <span class="explore-desc">${item.desc}</span>
-          </a>`
-          )
-          .join("")}
-      </div>
-    </section>
-
     <section class="section">
       <div class="section-title">
         <h2>${t("home.features_title")}</h2>
@@ -1128,6 +1111,23 @@ function renderHome() {
             <span class="feature-kind">${item.kind}</span>
             <span class="feature-title">${item.title}<span class="explore-arrow" aria-hidden="true">→</span></span>
             <span class="feature-desc">${item.desc}</span>
+          </a>`
+          )
+          .join("")}
+      </div>
+    </section>
+
+    ${recentHtml}
+
+    <section class="section">
+      <div class="explore-grid">
+        ${explore
+          .map(
+            (item) => `
+          <a class="explore-card" href="${item.href}">
+            <span class="explore-icon">${item.icon}</span>
+            <span class="explore-title">${item.title}<span class="explore-arrow" aria-hidden="true">→</span></span>
+            <span class="explore-desc">${item.desc}</span>
           </a>`
           )
           .join("")}
