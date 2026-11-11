@@ -1113,6 +1113,10 @@ function renderHome() {
     <section class="section">
       <div class="quick-links">
         <span class="quick-links-label">${t("home.new_tools")}</span>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}market/">${t("nav.market")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}claims/">${t("nav.claims")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}events/">${t("nav.events")}</a>
+        <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}famous/">${t("nav.famous")}</a>
         <a class="quick-link" href="?page=lab">${t("nav.lab")}</a>
         <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}signals/">${t("nav.signals")}</a>
         <a class="quick-link" href="/${getLang() === "zh" ? "zh/" : ""}heatmap/">${t("nav.heatmap")}</a>
