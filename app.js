@@ -1062,7 +1062,7 @@ function renderHome() {
   ];
 
   const zhPrefix = getLang() === "zh" ? "zh/" : "";
-  const features = ["market", "claims", "events", "famous", "code", "versus", "github"].map((key) => ({
+  const features = ["market", "claims", "events", "famous", "code", "versus", "github", "tools"].map((key) => ({
     href: `/${zhPrefix}${key}/`, kind: t(`home.feat_${key}_kind`), title: t(`nav.${key}`), desc: t(`home.feat_${key}_desc`)
   }));
 
