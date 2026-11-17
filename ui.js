@@ -567,27 +567,11 @@ function bindScrollUi() {
 // Only the configured, before-send-sanitized Umami provider receives events.
 // Other SDKs must not inherit private URL defaults through generic fan-out.
 function trackEvent(name, props = {}) {
-  try {
-    const event = qaAnalyticsEvent(name, props);
-    if (!event) return;
-    // The inline hook denies by default when its external implementation is
-    // absent or throws. Apply that gate before the local buffer as well.
-    const allowed = qaAnalyticsBeforeSend("event", { name: event.name, data: event.props, url: location.href });
-    if (!allowed || allowed.name !== event.name) return;
-    window.__qaEvents = window.__qaEvents || [];
-    window.__qaEvents.push({ name: event.name, props: event.props, at: Date.now() });
-    if (window.__qaEvents.length > 100) window.__qaEvents.shift();
-    if (window.umami && typeof window.umami.track === "function"
-        && document.querySelector('script[data-before-send="qaAnalyticsBeforeSend"]')) {
-      const pending = window.umami.track(event.name, event.props);
-      if (pending && typeof pending.catch === "function") pending.catch(() => {});
-    }
-  } catch (err) {
-    // Analytics must never break the page.
-  }
+  if (typeof qaTrackAnalyticsEvent === "function") qaTrackAnalyticsEvent(name, props);
 }
 
 function bindAnalytics() {
+  if (typeof qaBindPublicAnalytics === "function") qaBindPublicAnalytics();
   document.addEventListener("click", (event) => {
     if (typeof qaPrivateAnalyticsTarget !== "function") return;
     const target = event.target.closest("a, button");
@@ -604,12 +588,6 @@ function bindAnalytics() {
     }
     else if (target.tagName === "A" && /mql5\.com/.test(target.getAttribute("href") || "")) trackEvent("outbound_mql5", { page });
   });
-  document.addEventListener("submit", (event) => {
-    if (typeof qaPrivateAnalyticsTarget !== "function") return;
-    if (!qaPrivateAnalyticsTarget(event.target) && event.target.matches(".newsletter-form")) {
-      trackEvent("newsletter_subscribe", { page: qaAnalyticsContext(location.href).page });
-    }
-  });
 }
 
 /* ---------- Hooks called by app.js render() ---------- */
@@ -624,6 +602,18 @@ function afterRender(route) {
   highlightNavMore(page);
   updateFooterMeta();
   if (typeof window.qaRenderSupport === "function") window.qaRenderSupport(route);
+  if (typeof qaSetPublicMetricContext === "function") {
+    let content = page;
+    if (page === "research" && route.params?.get("slug")) {
+      const article = getResearchArticle(route.params.get("slug"));
+      content = article ? `research/${article.slug}` : "";
+    } else if (page === "strategy") {
+      const strategy = store.strategies.find(item => item.id === route.params?.get("id"));
+      content = strategy ? `strategy/${strategySlug(strategy)}` : "";
+    }
+    qaSetPublicMetricContext(page, content, getLang());
+    qaPublicContentViewed();
+  }
 
   const app = document.getElementById("app");
   const notice = renderDataNotice(page);
