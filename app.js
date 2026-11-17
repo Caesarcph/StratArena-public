@@ -488,8 +488,31 @@ const STATIC_TWINS = {
   changelog: "changelog/",
   "privacy-policy": "privacy-policy/",
   terms: "terms/",
-  "ea-arena": (zhPrefix) => (zhPrefix ? "ea-pages/zh/category/" : "ea-pages/category/")
+  "ea-arena": (zhPrefix) => (zhPrefix ? "ea-pages/zh/category/" : "ea-pages/category/"),
+  // Static-only sections (no app view). Keep in sync with STATIC_HUBS in scripts/static_site.py.
+  evidence: "evidence/",
+  glossary: "glossary/",
+  frameworks: "frameworks/",
+  market: "market/",
+  claims: "claims/",
+  events: "events/",
+  famous: "famous/",
+  code: "code/",
+  tools: "tools/",
+  versus: "versus/",
+  github: "github/",
+  "ai-arena": "ai-arena/"
 };
+function hasStaticTwin(page) {
+  return Object.prototype.hasOwnProperty.call(STATIC_TWINS, page);
+}
+// Views the app renders itself (see render()). Any other ?page= value used to
+// fall through to the home page while its canonical pointed at itself, which
+// Google reported as "Duplicate without user-selected canonical".
+const APP_PAGES = new Set([
+  "home", "arena", "strategies", "favorites", "strategy", "compare", "research", "methodology", "changelog",
+  "ea-arena", "ea-detail", "ea-ranking", "lab", "about", "privacy-policy", "terms", "faq"
+]);
 // Query params that identify a page; everything else (filters, windows,
 // sort orders) is a view of the same page and is dropped from the canonical.
 const CANONICAL_PARAMS = {
@@ -513,7 +536,7 @@ function buildCanonicalUrl(route) {
     return null;
   }
   const base = new URL(getBasePath(), window.location.origin);
-  if (route.page === "home") {
+  if (route.page === "home" || (!APP_PAGES.has(route.page) && !hasStaticTwin(route.page))) {
     return base.toString();
   }
   // Pre-rendered pages carry the full content in their raw HTML, so they are
@@ -533,7 +556,7 @@ function buildCanonicalUrl(route) {
     }
   }
   // App views that have a pre-rendered twin with the same content.
-  const staticPath = STATIC_TWINS[route.page];
+  const staticPath = hasStaticTwin(route.page) ? STATIC_TWINS[route.page] : null;
   if (staticPath) {
     const path = typeof staticPath === "function" ? staticPath(zhPrefix) : `${zhPrefix}${staticPath}`;
     return new URL(path, base).toString();
@@ -556,9 +579,22 @@ function buildCanonicalUrl(route) {
 
 function normalizeRoute(route) {
   const canonicalUrl = buildCanonicalUrl(route);
-  const shouldRedirect = (route.fromPath || route.alias) && canonicalUrl;
+  // Pages the app does not render (static-only sections, unknown values) are
+  // sent to their static page or the home page instead of showing the home
+  // page under a different URL.
+  const shouldRedirect = (route.fromPath || route.alias || !APP_PAGES.has(route.page)) && canonicalUrl;
   if (shouldRedirect && canonicalUrl !== window.location.href) {
-    window.location.replace(canonicalUrl);
+    let target = canonicalUrl;
+    const lang = route.params.get("lang");
+    if (lang && !APP_PAGES.has(route.page) && !hasStaticTwin(route.page)) {
+      const url = new URL(canonicalUrl);
+      url.searchParams.set("lang", lang);
+      target = url.toString();
+    }
+    if (target === window.location.href) {
+      return { redirected: false, canonicalUrl };
+    }
+    window.location.replace(target);
     return { redirected: true, canonicalUrl };
   }
   return { redirected: false, canonicalUrl };
