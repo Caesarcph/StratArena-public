@@ -91,21 +91,22 @@
       <header class="static-hero">
         <div class="eyebrow">源码 · MOM-10</div>
         <h1>加速动量：Python 与 Pine 脚本源码</h1>
-        <p class="static-lead">本站 加速动量 回测背后的那份 Python 文件，另附 TradingView Pine 脚本版本。</p>
+        <p class="static-lead">加速动量 的当前 Python 实现，附使用默认参数的示例运行器，另附 TradingView Pine 脚本版本。</p>
         <div class="hero-actions"><a class="button primary" href="/code/mom-10-accelerating-momentum/MOM-10.py" download>下载 Python（.py）</a><a class="button primary" href="/code/mom-10-accelerating-momentum/MOM-10.pine" download>下载 Pine 脚本（.pine）</a><a class="button ghost" href="/zh/strategy/mom-10-accelerating-momentum/">查看回测结果</a></div>
       </header>
-      <section class="static-section"><h2>这段代码做了什么</h2><p>综合 1 个月、3 个月、6 个月、12 个月多个周期的动量，近期权重更高，捕捉短期动量和长期方向一致的加速趋势。</p><div class="code-rules"><div class="code-rule"><h3>参数</h3><ul><li>Periods = [21, 63, 126, 252]</li><li>Weights = [0.4, 0.3, 0.2, 0.1]</li></ul></div><div class="code-rule"><h3>指标</h3><ul><li>1M return (21 days)</li><li>3M return (63 days)</li><li>6M return (126 days)</li><li>12M return (252 days)</li><li>Weighted composite score</li></ul></div><div class="code-rule"><h3>入场</h3><ul><li>Composite score &gt; 0</li><li>All periods positive (confirmation)</li></ul></div><div class="code-rule"><h3>离场</h3><ul><li>Composite score &lt; 0</li><li>Or short-term momentum turns negative</li></ul></div></div></section>
+      <section class="static-section"><h2>这段代码做了什么</h2><p>综合评分更侧重近期周期。即使其中一个短周期收益率为负，综合分数仍可能支持部分仓位。</p><div class="code-rules"><div class="code-rule"><h3>参数</h3><ul><li>默认周期为 21、63、126 和 252 个交易日，对应权重为 0.4、0.3、0.2 和 0.1，强信号门槛为 0。</li></ul></div><div class="code-rule"><h3>指标</h3><ul><li>各周期收益率除以其最近 63 条观测的样本标准差加一个很小的常量，再按权重求和，并计算收益率为正的周期个数。</li></ul></div><div class="code-rule"><h3>入场</h3><ul><li>预热后，综合分数大于强信号门槛且有三个正收益周期时，目标为 75%。在同一分支中，四个周期均为正且最短周期为正时，目标为 100%。否则，当综合分数为正且至少两个周期为正时，目标为 50%。</li></ul></div><div class="code-rule"><h3>离场</h3><ul><li>两个入场条件均未满足时，若综合分数为负或正收益周期至多一个，则目标归零。其余情况沿用上次目标。</li></ul></div></div></section>
       <aside class="qa-ad" data-ad-slot="native" aria-label="广告"><span class="qa-ad-label">广告</span><div id="container-961cf17850b0984e5f4ca32744cb54b5"></div></aside>
     <script>(function(){var el=document.getElementById("container-961cf17850b0984e5f4ca32744cb54b5");if(!el)return;function load(){var s=document.createElement("script");s.async=true;s.setAttribute("data-cfasync","false");s.src="https://bauval.org/21/961cf17850b0984e5f4ca32744cb54b5";document.body.appendChild(s);if("MutationObserver" in window){var mo=new MutationObserver(function(){if(el.childNodes.length){el.parentNode.classList.add("is-filled");mo.disconnect();}});mo.observe(el,{childList:true});}else{el.parentNode.classList.add("is-filled");}}if("IntersectionObserver" in window){var io=new IntersectionObserver(function(e){if(e[0].isIntersecting){io.disconnect();load();}},{rootMargin:"600px"});io.observe(el.parentNode);}else{load();}})();</script>
       <section class="static-section"><h2 id="python">Python</h2>
-        <p class="muted small-note">共 144 行。运行方式：<code>python MOM-10.py SPY</code></p>
+        <p class="muted small-note">共 180 行。运行方式：<code>python MOM-10.py SPY</code></p>
         <pre class="code-block" tabindex="0"><code>import pandas as pd
-import numpy as np
 
 STRATEGY = {
     &quot;id&quot;: &quot;MOM-10&quot;,
     &quot;name&quot;: &quot;Accelerating Momentum&quot;,
     &quot;mode&quot;: &quot;single&quot;,
+    &quot;ruleVersion&quot;: &quot;configurable-momentum-periods-v2&quot;,
+    &quot;corrections&quot;: [&quot;use-configured-short-momentum-period&quot;],
     &quot;tags&quot;: [&quot;Momentum&quot;, &quot;Multi-Timeframe&quot;, &quot;Trend&quot;],
     &quot;summary&quot;: &quot;Multi-period momentum with short-term emphasis.&quot;,
     &quot;description&quot;: &quot;Combines momentum across multiple timeframes (1M, 3M, 6M, 12M) with higher weights on recent periods. Captures accelerating trends where short-term momentum aligns with longer-term direction.&quot;,
@@ -147,6 +148,7 @@ def generate_signals(prices, config=None):
     weights = config.get(&quot;weights&quot;, [0.4, 0.3, 0.2, 0.1])
     # Threshold for entry
     entry_threshold = float(config.get(&quot;entry_threshold&quot;, 0.0))
+    short_period = min(periods)
 
     close = prices.copy()
     n = len(close)
@@ -177,7 +179,7 @@ def generate_signals(prices, config=None):
     for i in range(warmup, n):
         score = composite.iloc[i]
         pos_cnt = positive_count.iloc[i]
-        short_ret = returns[21].iloc[i] if not pd.isna(returns[21].iloc[i]) else 0
+        short_ret = returns[short_period].iloc[i]
 
         if pd.isna(score):
             signal.iloc[i] = signal.iloc[i - 1]
@@ -210,32 +212,66 @@ def generate_signals(prices, config=None):
 #
 #   pip install pandas numpy yfinance
 #   python MOM-10.py SPY              # downloads daily prices with yfinance
-#   python MOM-10.py prices.csv       # or a CSV with Date, Open, High, Low, Close columns
+#   python MOM-10.py prices.csv       # daily Date and Close; include Open, High, Low for OHLC rules
 #
+# This default-parameter example does not replay the site&#x27;s walk-forward fits
+# or archived data. Evidence downloads replay the published run&#x27;s recorded
+# arithmetic and include archived source. Recomputing strategy decisions needs
+# the exact original inputs, which may not be public.
 # Convention, same as the site: the position decided at the close of day t earns
 # the return of day t+1. Results are before trading costs. Not investment advice.
 # ---------------------------------------------------------------------------
 def _load_prices(source):
+    import numpy as np
+
     if source.lower().endswith(&quot;.csv&quot;):
         frame = pd.read_csv(source, index_col=0, parse_dates=True)
     else:
         import yfinance as yf
-        frame = yf.download(source, start=&quot;2010-01-01&quot;, auto_adjust=True, progress=False)
+        try:
+            frame = yf.download(source, start=&quot;2010-01-01&quot;, auto_adjust=True, progress=False)
+        except Exception as error:
+            raise ValueError(&quot;Could not download daily prices: &quot; + str(error)) from error
+        if not isinstance(frame, pd.DataFrame):
+            raise ValueError(&quot;Expected a table of daily prices for one ticker.&quot;)
         if isinstance(frame.columns, pd.MultiIndex):
-            frame.columns = frame.columns.get_level_values(0)
-    return frame.sort_index().dropna(subset=[&quot;Close&quot;])
+            levels = [level for level in range(frame.columns.nlevels)
+                      if &quot;Close&quot; in frame.columns.get_level_values(level)]
+            if len(levels) != 1:
+                raise ValueError(&quot;Expected daily prices for one ticker.&quot;)
+            frame.columns = frame.columns.get_level_values(levels[0])
+    required = [&quot;Open&quot;, &quot;High&quot;, &quot;Low&quot;, &quot;Close&quot;] if STRATEGY.get(&quot;input&quot;) == &quot;ohlc&quot; else [&quot;Close&quot;]
+    if frame.columns.has_duplicates:
+        raise ValueError(&quot;Expected one column per price field for one ticker.&quot;)
+    missing = [name for name in required if name not in frame.columns]
+    if missing:
+        raise ValueError(&quot;Missing price columns: &quot; + &quot;, &quot;.join(missing))
+    if not isinstance(frame.index, pd.DatetimeIndex) or frame.index.hasnans or frame.index.normalize().has_duplicates:
+        raise ValueError(&quot;Prices need one row per valid calendar date.&quot;)
+    frame = frame.copy()
+    frame[required] = frame[required].apply(pd.to_numeric, errors=&quot;raise&quot;)
+    frame = frame.sort_index().dropna(subset=required)
+    prices = frame[required].to_numpy(dtype=float)
+    if len(frame) &lt; 2:
+        raise ValueError(&quot;Need at least two complete daily observations.&quot;)
+    if not np.isfinite(prices).all() or (prices &lt;= 0).any():
+        raise ValueError(&quot;Prices must be finite and positive.&quot;)
+    return frame
 
 
 if __name__ == &quot;__main__&quot;:
     import sys
 
-    prices = _load_prices(sys.argv[1] if len(sys.argv) &gt; 1 else &quot;SPY&quot;)
+    try:
+        prices = _load_prices(sys.argv[1] if len(sys.argv) &gt; 1 else &quot;SPY&quot;)
+    except (OSError, TypeError, ValueError) as error:
+        raise SystemExit(&quot;Input error: &quot; + str(error)) from error
     close = prices[&quot;Close&quot;]
     signal_input = prices if STRATEGY.get(&quot;input&quot;) == &quot;ohlc&quot; else close
     position = generate_signals(signal_input).reindex(close.index).ffill().fillna(0.0)
     daily = close.pct_change().fillna(0.0) * position.shift(1).fillna(0.0)
     equity = (1 + daily).cumprod()
-    years = (close.index[-1] - close.index[0]).days / 365.25
+    years = (close.index[-1].date() - close.index[0].date()).days / 365.25
     print(STRATEGY[&quot;id&quot;], STRATEGY[&quot;name&quot;], &quot;|&quot;, close.index[0].date(), &quot;to&quot;, close.index[-1].date())
     print(&quot;Total return   {:+.1%}&quot;.format(equity.iloc[-1] - 1))
     print(&quot;CAGR           {:+.1%}&quot;.format(equity.iloc[-1] ** (1 / years) - 1))
@@ -244,13 +280,12 @@ if __name__ == &quot;__main__&quot;:
     print(&quot;Days in market {:.0%}&quot;.format((position != 0).mean()))
     print(&quot;Buy and hold   {:+.1%}&quot;.format(close.iloc[-1] / close.iloc[0] - 1))
 </code></pre></section>
-      <section class="static-section"><h2 id="pine">TradingView Pine 脚本（v5）</h2><p class="muted small-note">由上面的 Python 人工改写而来，我们没有在 TradingView 里实际编译过。如果编译失败或表现不一致，请以 Python 文件为准。</p><pre class="code-block" tabindex="0"><code>//@version=5
+      <section class="static-section"><h2 id="pine">TradingView Pine 脚本（v5）</h2><p class="muted small-note">已于 2026-11-17 在 TradingView 用默认参数编译并运行 SPY 日线回测。行情、成交和结果可能与本站 Python 回测不同。</p><pre class="code-block" tabindex="0"><code>//@version=5
 // MOM-10 Accelerating Momentum — Quant Arena (https://quantarenas.com/code/)
 // Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
-// Converted by hand from Python and not compiled in TradingView by us: please report problems.
-// Fractional position: the Python returns weights 0 / 0.5 / 0.75 / 1.0. This script resizes the long position with
-// strategy.order to that fraction of equity whenever the target weight changes (no rebalance while the weight is unchanged).
-// Python uses returns[21] for the short-term check; here that is Period 1 (default 21).
+// See the strategy download page for this version&#x27;s TradingView test status.
+// The target fraction is 0 / 0.5 / 0.75 / 1.0 and is applied to current equity at each confirmed close.
+// Use the shortest configured period for the short-term check.
 strategy(&quot;MOM-10 Accelerating Momentum&quot;, overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
 
 p1 = input.int(21, &quot;Period 1 (1M)&quot;, minval=1)
@@ -273,7 +308,8 @@ composite = w1 * normMom(p1) + w2 * normMom(p2) + w3 * normMom(p3) + w4 * normMo
 
 // positive-return count uses the un-filled returns (na counts as not positive)
 cnt = (close / close[p1] - 1 &gt; 0 ? 1 : 0) + (close / close[p2] - 1 &gt; 0 ? 1 : 0) + (close / close[p3] - 1 &gt; 0 ? 1 : 0) + (close / close[p4] - 1 &gt; 0 ? 1 : 0)
-shortRet = nz(close / close[p1] - 1)
+shortPeriod = math.min(math.min(p1, p2), math.min(p3, p4))
+shortRet = nz(close / close[shortPeriod] - 1)
 
 warmup = math.max(math.max(p1, p2), math.max(p3, p4)) + 63
 
@@ -294,20 +330,21 @@ plot(composite, &quot;Composite score&quot;, color=color.blue)
 hline(0, &quot;Zero&quot;, color=color.gray)
 plot(sig, &quot;Target weight&quot;, color=color.orange)
 
-var float lastW = 0.0
-if sig != lastW
+if barstate.isconfirmed
     if sig &lt;= 0
-        strategy.close_all()
-    else
-        targetQty = strategy.equity * sig / close
+        if strategy.position_size != 0
+            strategy.close_all()
+    else if close &gt; 0 and syminfo.pointvalue &gt; 0
+        targetValue = strategy.convert_to_symbol(math.max(strategy.equity, 0.0) * sig)
+        targetQty = targetValue / (close * syminfo.pointvalue)
         delta = targetQty - strategy.position_size
-        if math.abs(delta) &gt; 0
-            strategy.order(&quot;Long&quot;, delta &gt; 0 ? strategy.long : strategy.short, qty=math.abs(delta))
-    lastW := sig
+        if math.abs(delta) &gt; 1e-9
+            strategy.order(&quot;Rebalance&quot;, delta &gt; 0 ? strategy.long : strategy.short, qty=math.abs(delta))
 </code></pre><p class="code-partner"><a class="button ghost" href="https://www.tradingview.com/?aff_id=1174512" target="_blank" rel="sponsored nofollow noopener" data-partner="charting">打开 TradingView 运行这个脚本</a><span class="muted small-note">推广链接：我们可能获得佣金，你不会多花钱。</span></p></section>
       <section class="static-section"><h2>自己跑一遍</h2><pre class="code-block code-block--short"><code>pip install pandas numpy yfinance
 python MOM-10.py SPY
 python MOM-10.py my_prices.csv</code></pre>
+        <p class="muted small-note">本示例使用当前行情和默认参数，不复现网站的滚动前推结果。策略证据下载包含归档源码，可回放已发布回测中记录的运算。重新计算策略决策需要精确的原始输入，这些输入可能不公开。组合默认使用声明的资产池（未声明时使用网站配置的市场）；自定义代码和 CSV 保留资产顺序，仅使用各资产都有数据的日期，不填补缺失价格。请提供足够覆盖策略回看期和预热期的历史数据。</p>
         <p class="muted small-note">可自由使用和修改。按现状提供，仅供研究和学习。历史回测不代表未来收益，不构成投资建议。</p></section>
       <section class="static-section"><h2>更多策略源码</h2><div class="recent-list"><a class="recent-item" href="/zh/code/mom-11-momentum-crash-protection/"><span class="recent-text"><span class="recent-kind">MOM-11</span><span class="recent-title">动量崩溃保护</span></span></a><a class="recent-item" href="/zh/code/mr-01-rsi-mean-reversion/"><span class="recent-text"><span class="recent-kind">MR-01</span><span class="recent-title">RSI 均值回归</span></span></a><a class="recent-item" href="/zh/code/mr-02-bollinger-band-reversion/"><span class="recent-text"><span class="recent-kind">MR-02</span><span class="recent-title">布林带回归</span></span></a><a class="recent-item" href="/zh/code/mr-03-kalman-filter-mean-reversion/"><span class="recent-text"><span class="recent-kind">MR-03</span><span class="recent-title">卡尔曼滤波均值回归</span></span></a></div>
         <p><a href="/zh/code/">全部策略源码 →</a></p></section>
@@ -335,6 +372,7 @@ python MOM-10.py my_prices.csv</code></pre>
           <div class="footer-heading">了解</div>
           <a href="/zh/research/">研究</a>
           <a href="/?page=ea-ranking&lang=zh" rel="nofollow">EA 排行榜</a>
+          <a href="/zh/mt5-comparison/">原生 MT5 对照</a>
           <a href="/?page=compare&lang=zh" rel="nofollow">对比</a>
           <a href="/zh/methodology/">方法论</a>
           <a href="/zh/evidence/">策略证据</a>

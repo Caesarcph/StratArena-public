@@ -91,23 +91,22 @@
       <header class="static-hero">
         <div class="eyebrow">源码 · COMBO-03</div>
         <h1>背离策略：Python 策略源码</h1>
-        <p class="static-lead">本站 背离策略 回测背后的那份 Python 文件。</p>
+        <p class="static-lead">背离策略 的当前 Python 实现，附使用默认参数的示例运行器。</p>
         <div class="hero-actions"><a class="button primary" href="/code/combo-03-divergence-strategy/COMBO-03.py" download>下载 Python（.py）</a><a class="button ghost" href="/zh/strategy/combo-03-divergence-strategy/">查看回测结果</a></div>
       </header>
-      <section class="static-section"><h2>这段代码做了什么</h2><p>识别价格创出新高（或新低）、但指标没有同步创出新高（或新低）的背离信号。</p></section>
+      <section class="static-section"><h2>这段代码做了什么</h2><p>价格低点抬高、附近 RSI 或 MACD 低点降低时做多；价格高点降低、附近指标高点抬高时离场。极值两侧各需 order 条价格记录，只有右侧记录齐全的确认日收盘后才改变目标仓位，其间保持原仓位。</p></section>
       <aside class="qa-ad" data-ad-slot="native" aria-label="广告"><span class="qa-ad-label">广告</span><div id="container-961cf17850b0984e5f4ca32744cb54b5"></div></aside>
     <script>(function(){var el=document.getElementById("container-961cf17850b0984e5f4ca32744cb54b5");if(!el)return;function load(){var s=document.createElement("script");s.async=true;s.setAttribute("data-cfasync","false");s.src="https://bauval.org/21/961cf17850b0984e5f4ca32744cb54b5";document.body.appendChild(s);if("MutationObserver" in window){var mo=new MutationObserver(function(){if(el.childNodes.length){el.parentNode.classList.add("is-filled");mo.disconnect();}});mo.observe(el,{childList:true});}else{el.parentNode.classList.add("is-filled");}}if("IntersectionObserver" in window){var io=new IntersectionObserver(function(e){if(e[0].isIntersecting){io.disconnect();load();}},{rootMargin:"600px"});io.observe(el.parentNode);}else{load();}})();</script>
       <section class="static-section"><h2 id="python">Python</h2>
-        <p class="muted small-note">共 202 行。运行方式：<code>python COMBO-03.py SPY</code></p>
-        <pre class="code-block" tabindex="0"><code>&quot;&quot;&quot;
-Divergence Strategy - COMBO-03
-Detects price-indicator divergences where price makes new highs/lows 
-but the indicator (like RSI or MACD) does not confirm with corresponding 
-new highs/lows. This is a reversal signal.
+        <p class="muted small-note">共 193 行。运行方式：<code>python COMBO-03.py SPY</code></p>
+        <pre class="code-block" tabindex="0"><code>&quot;&quot;&quot;COMBO-03: confirmed hidden divergence, with long/flat targets.
 
-Logic:
-- Price makes new low but indicator does not make new low = bullish divergence (buy signal)
-- Price makes new high but indicator does not make new high = bearish divergence (sell signal)
+Preserve the original implemented inequalities: a higher price low paired with
+a lower indicator low enters long; a lower price high paired with a higher
+indicator high exits. These are hidden divergences, not the regular reversal
+divergences described by the old prose. A pivot needs ``order`` observations
+on either side and can change the target only at its confirmation close.
+The shared engine applies its separate one-observation execution lag.
 &quot;&quot;&quot;
 
 import numpy as np
@@ -116,150 +115,108 @@ from scipy.signal import argrelextrema
 
 
 def calculate_rsi(prices, window=14):
-    &quot;&quot;&quot;Calculate RSI indicator&quot;&quot;&quot;
+    &quot;&quot;&quot;Calculate the existing simple-mean RSI, retaining its smoothing rule.&quot;&quot;&quot;
     delta = prices.diff()
-    gain = (delta.where(delta &gt; 0, 0)).rolling(window=window).mean()
+    gain = delta.where(delta &gt; 0, 0).rolling(window=window).mean()
     loss = (-delta.where(delta &lt; 0, 0)).rolling(window=window).mean()
     rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
+    return 100 - (100 / (1 + rs))
 
 
 def calculate_macd(prices, fast=12, slow=26, signal=9):
-    &quot;&quot;&quot;Calculate MACD indicator&quot;&quot;&quot;
+    &quot;&quot;&quot;Return the MACD line; the legacy ``signal`` argument is not used.&quot;&quot;&quot;
     exp1 = prices.ewm(span=fast, adjust=False).mean()
     exp2 = prices.ewm(span=slow, adjust=False).mean()
-    macd = exp1 - exp2
-    return macd
+    return exp1 - exp2
 
 
 def find_extrema(data, order=5):
-    &quot;&quot;&quot;Find local extrema in data&quot;&quot;&quot;
-    # Find local maxima
+    &quot;&quot;&quot;Strict pivots with complete neighbors; pivot p is known only at p+order.&quot;&quot;&quot;
     local_max_idx = argrelextrema(data.values, np.greater, order=order)[0]
-    # Find local minima
     local_min_idx = argrelextrema(data.values, np.less, order=order)[0]
-
-    # Create series with extremum values, NaN elsewhere
+    # scipy clips boundaries by default. Reject edge candidates whose full
+    # left/right confirmation window is not actually present.
+    local_max_idx = local_max_idx[(local_max_idx &gt;= order) &amp; (local_max_idx + order &lt; len(data))]
+    local_min_idx = local_min_idx[(local_min_idx &gt;= order) &amp; (local_min_idx + order &lt; len(data))]
     extrema = pd.Series(index=data.index, dtype=float)
     extrema.iloc[local_max_idx] = data.iloc[local_max_idx]
     extrema.iloc[local_min_idx] = data.iloc[local_min_idx]
-
     return extrema, local_max_idx, local_min_idx
 
 
 def generate_signals(prices, config=None):
-    &quot;&quot;&quot;
-    Generate signals based on price-indicator divergence
+    &quot;&quot;&quot;Return causal, held long/flat targets on the supplied observations.
 
-    Parameters:
-    - prices: price series
-    - config: dict with optional keys: lookback, indicator_type, indicator_period, order
+    ``lookback`` keeps the old recent-pair bounds, now relative to each
+    confirmation close: the newer pivot must be within the last lookback
+    observations, and the preceding same-side pivot within twice that span.
+    Thus lookback &lt;= order cannot produce a signal. ``indicator_type`` is RSI
+    or MACD; ``indicator_period`` is the RSI window or MACD fast EMA (slow=26).
+    The nearby indicator extrema retain the old [pivot-order, pivot+order)
+    window. Every value in it is known by the confirmation close.
     &quot;&quot;&quot;
-    if config is None:
-        config = {}
-    lookback        = config.get(&quot;lookback&quot;,         10)
-    indicator_type  = config.get(&quot;indicator_type&quot;,  &quot;RSI&quot;)
+    config = config or {}
+    lookback = config.get(&quot;lookback&quot;, 10)
+    indicator_type = config.get(&quot;indicator_type&quot;, &quot;RSI&quot;)
     indicator_period = config.get(&quot;indicator_period&quot;, 14)
-    order           = config.get(&quot;order&quot;,             5)
+    order = config.get(&quot;order&quot;, 5)
+    for name, value in ((&quot;lookback&quot;, lookback), (&quot;indicator_period&quot;, indicator_period), (&quot;order&quot;, order)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value &lt; 1:
+            raise ValueError(f&quot;{name} must be a positive integer&quot;)
 
-    # Calculate the selected indicator
-    if indicator_type == &#x27;RSI&#x27;:
+    if indicator_type == &quot;RSI&quot;:
         indicator = calculate_rsi(prices, window=indicator_period)
-    elif indicator_type == &#x27;MACD&#x27;:
+    elif indicator_type == &quot;MACD&quot;:
         indicator = calculate_macd(prices, fast=indicator_period, slow=26, signal=9)
     else:
         raise ValueError(&quot;Indicator type must be &#x27;RSI&#x27; or &#x27;MACD&#x27;&quot;)
-
-    # Forward fill to handle NaN values
     indicator = indicator.ffill()
-
-    # Find extrema in both price and indicator
-    price_extrema, price_max_idx, price_min_idx = find_extrema(prices, order=order)
-    ind_extrema, ind_max_idx, ind_min_idx = find_extrema(indicator, order=order)
-
-    # Initialize signals
-    signals = pd.Series(0.0, index=prices.index)
-
-    # Detect bullish divergences (higher low in price, lower low in indicator)
-    for i in range(len(price_min_idx)):
-        if i &gt; 0:  # Need at least two lows to compare
-            price_low_1_idx = price_min_idx[i-1]
-            price_low_2_idx = price_min_idx[i]
-
-            # Ensure we&#x27;re looking at recent lows within lookback period
-            if (price_low_1_idx &gt;= len(prices) - lookback*2 and 
-                price_low_2_idx &gt;= len(prices) - lookback):
-
-                price_low_1_val = prices.iloc[price_low_1_idx]
-                price_low_2_val = prices.iloc[price_low_2_idx]
-
-                # Find corresponding indicator lows
-                closest_ind_low_1_idx = min(ind_max_idx, key=lambda x: abs(x - price_low_1_idx)) if len(ind_max_idx) &gt; 0 else price_low_1_idx
-                closest_ind_low_2_idx = min(ind_max_idx, key=lambda x: abs(x - price_low_2_idx)) if len(ind_max_idx) &gt; 0 else price_low_2_idx
-
-                # Adjust to find actual nearby minimums for indicator
-                ind_low_1_range_start = max(0, price_low_1_idx - order)
-                ind_low_1_range_end = min(len(indicator), price_low_1_idx + order)
-                ind_low_2_range_start = max(0, price_low_2_idx - order)
-                ind_low_2_range_end = min(len(indicator), price_low_2_idx + order)
-
-                if ind_low_1_range_end &gt; ind_low_1_range_start and ind_low_2_range_end &gt; ind_low_2_range_start:
-                    ind_low_1_val = indicator.iloc[ind_low_1_range_start:ind_low_1_range_end].min()
-                    ind_low_2_val = indicator.iloc[ind_low_2_range_start:ind_low_2_range_end].min()
-
-                    # Check for bullish divergence: lower low in indicator, higher low in price
-                    if price_low_2_val &gt; price_low_1_val and ind_low_2_val &lt; ind_low_1_val:
-                        signals.iloc[price_low_2_idx] = 1.0  # Buy signal
-
-    # Detect bearish divergences (lower high in price, higher high in indicator)
-    for i in range(len(price_max_idx)):
-        if i &gt; 0:  # Need at least two highs to compare
-            price_high_1_idx = price_max_idx[i-1]
-            price_high_2_idx = price_max_idx[i]
-
-            # Ensure we&#x27;re looking at recent highs within lookback period
-            if (price_high_1_idx &gt;= len(prices) - lookback*2 and 
-                price_high_2_idx &gt;= len(prices) - lookback):
-
-                price_high_1_val = prices.iloc[price_high_1_idx]
-                price_high_2_val = prices.iloc[price_high_2_idx]
-
-                # Find corresponding indicator highs
-                ind_high_1_range_start = max(0, price_high_1_idx - order)
-                ind_high_1_range_end = min(len(indicator), price_high_1_idx + order)
-                ind_high_2_range_start = max(0, price_high_2_idx - order)
-                ind_high_2_range_end = min(len(indicator), price_high_2_idx + order)
-
-                if ind_high_1_range_end &gt; ind_high_1_range_start and ind_high_2_range_end &gt; ind_high_2_range_start:
-                    ind_high_1_val = indicator.iloc[ind_high_1_range_start:ind_high_1_range_end].max()
-                    ind_high_2_val = indicator.iloc[ind_high_2_range_start:ind_high_2_range_end].max()
-
-                    # Check for bearish divergence: higher high in indicator, lower high in price
-                    if price_high_2_val &lt; price_high_1_val and ind_high_2_val &gt; ind_high_1_val:
-                        signals.iloc[price_high_2_idx] = 0.0  # Sell signal (exit long)
-
-    # Forward fill to maintain positions between signals
-    signals = signals.ffill()
-
-    # Return the signal series
-    return signals.fillna(0.0)
+    _, highs, lows = find_extrema(prices, order=order)
+    # NaN means no new event, so a target persists until the next confirmed
+    # opposite event. The old all-zero initialization defeated forward filling.
+    signals = pd.Series(np.nan, index=prices.index, dtype=float)
+    for pivots, target in ((lows, 1.0), (highs, 0.0)):
+        for previous, pivot in zip(pivots[:-1], pivots[1:]):
+            confirmed = pivot + order
+            observed = confirmed + 1
+            if previous &lt; observed - 2 * lookback or pivot &lt; observed - lookback:
+                continue
+            prior_window = indicator.iloc[previous - order:previous + order]
+            current_window = indicator.iloc[pivot - order:pivot + order]
+            if target == 1.0:
+                divergence = (prices.iloc[pivot] &gt; prices.iloc[previous]
+                              and current_window.min() &lt; prior_window.min())
+            else:
+                divergence = (prices.iloc[pivot] &lt; prices.iloc[previous]
+                              and current_window.max() &gt; prior_window.max())
+            if divergence:
+                signals.iloc[confirmed] = target
+    return signals.ffill().fillna(0.0)
 
 
-# Define strategy metadata
 STRATEGY = {
     &quot;name&quot;: &quot;Divergence Strategy&quot;,
     &quot;category&quot;: &quot;Combo&quot;,
     &quot;subcategory&quot;: &quot;Technical Combos&quot;,
     &quot;id&quot;: &quot;COMBO-03&quot;,
-    &quot;description&quot;: &quot;Detects price-indicator divergences where price makes new highs/lows but the indicator does not confirm with corresponding new highs/lows.&quot;,
+    &quot;ruleVersion&quot;: &quot;confirmed-hidden-divergence-v2&quot;,
+    &quot;corrections&quot;: [&quot;causal-pivot-confirmation&quot;, &quot;remove-end-of-history-filter&quot;, &quot;preserve-held-targets&quot;],
+    &quot;targetTiming&quot;: &quot;Target changes at pivot confirmation close after order right-hand observations; engine applies one-row lag.&quot;,
+    &quot;summary&quot;: &quot;Hold long between confirmed bullish and bearish hidden divergences.&quot;,
+    &quot;description&quot;: &quot;A higher price low with a lower nearby RSI/MACD low enters long; a lower price high with a higher nearby indicator high exits. Pivots require order observations on each side; targets change only at confirmation and persist between events.&quot;,
     &quot;parameters&quot;: {
         &quot;lookback&quot;: 10,
         &quot;indicator_type&quot;: &quot;RSI&quot;,
         &quot;indicator_period&quot;: 14,
-        &quot;order&quot;: 5
+        &quot;order&quot;: 5,
     },
-    &quot;tags&quot;: [&quot;divergence&quot;, &quot;rsi&quot;, &quot;macd&quot;, &quot;reversal&quot;, &quot;technical&quot;]
+    &quot;notes&quot;: [
+        &quot;Version 2 preserves the implemented hidden-divergence direction, rather than the old regular-divergence description.&quot;,
+        &quot;At confirmation, the latest pivot must be within lookback observations and the preceding pivot within 2 * lookback; lookback must exceed order for events.&quot;,
+        &quot;RSI uses simple rolling means; MACD uses indicator_period for its fast EMA and 26 for its slow EMA.&quot;,
+        &quot;Version 1 revised historical signals and did not hold between events; its results are not comparable to version 2.&quot;,
+    ],
+    &quot;tags&quot;: [&quot;divergence&quot;, &quot;hidden-divergence&quot;, &quot;rsi&quot;, &quot;macd&quot;, &quot;technical&quot;],
 }
 
 
@@ -268,32 +225,66 @@ STRATEGY = {
 #
 #   pip install pandas numpy yfinance
 #   python COMBO-03.py SPY              # downloads daily prices with yfinance
-#   python COMBO-03.py prices.csv       # or a CSV with Date, Open, High, Low, Close columns
+#   python COMBO-03.py prices.csv       # daily Date and Close; include Open, High, Low for OHLC rules
 #
+# This default-parameter example does not replay the site&#x27;s walk-forward fits
+# or archived data. Evidence downloads replay the published run&#x27;s recorded
+# arithmetic and include archived source. Recomputing strategy decisions needs
+# the exact original inputs, which may not be public.
 # Convention, same as the site: the position decided at the close of day t earns
 # the return of day t+1. Results are before trading costs. Not investment advice.
 # ---------------------------------------------------------------------------
 def _load_prices(source):
+    import numpy as np
+
     if source.lower().endswith(&quot;.csv&quot;):
         frame = pd.read_csv(source, index_col=0, parse_dates=True)
     else:
         import yfinance as yf
-        frame = yf.download(source, start=&quot;2010-01-01&quot;, auto_adjust=True, progress=False)
+        try:
+            frame = yf.download(source, start=&quot;2010-01-01&quot;, auto_adjust=True, progress=False)
+        except Exception as error:
+            raise ValueError(&quot;Could not download daily prices: &quot; + str(error)) from error
+        if not isinstance(frame, pd.DataFrame):
+            raise ValueError(&quot;Expected a table of daily prices for one ticker.&quot;)
         if isinstance(frame.columns, pd.MultiIndex):
-            frame.columns = frame.columns.get_level_values(0)
-    return frame.sort_index().dropna(subset=[&quot;Close&quot;])
+            levels = [level for level in range(frame.columns.nlevels)
+                      if &quot;Close&quot; in frame.columns.get_level_values(level)]
+            if len(levels) != 1:
+                raise ValueError(&quot;Expected daily prices for one ticker.&quot;)
+            frame.columns = frame.columns.get_level_values(levels[0])
+    required = [&quot;Open&quot;, &quot;High&quot;, &quot;Low&quot;, &quot;Close&quot;] if STRATEGY.get(&quot;input&quot;) == &quot;ohlc&quot; else [&quot;Close&quot;]
+    if frame.columns.has_duplicates:
+        raise ValueError(&quot;Expected one column per price field for one ticker.&quot;)
+    missing = [name for name in required if name not in frame.columns]
+    if missing:
+        raise ValueError(&quot;Missing price columns: &quot; + &quot;, &quot;.join(missing))
+    if not isinstance(frame.index, pd.DatetimeIndex) or frame.index.hasnans or frame.index.normalize().has_duplicates:
+        raise ValueError(&quot;Prices need one row per valid calendar date.&quot;)
+    frame = frame.copy()
+    frame[required] = frame[required].apply(pd.to_numeric, errors=&quot;raise&quot;)
+    frame = frame.sort_index().dropna(subset=required)
+    prices = frame[required].to_numpy(dtype=float)
+    if len(frame) &lt; 2:
+        raise ValueError(&quot;Need at least two complete daily observations.&quot;)
+    if not np.isfinite(prices).all() or (prices &lt;= 0).any():
+        raise ValueError(&quot;Prices must be finite and positive.&quot;)
+    return frame
 
 
 if __name__ == &quot;__main__&quot;:
     import sys
 
-    prices = _load_prices(sys.argv[1] if len(sys.argv) &gt; 1 else &quot;SPY&quot;)
+    try:
+        prices = _load_prices(sys.argv[1] if len(sys.argv) &gt; 1 else &quot;SPY&quot;)
+    except (OSError, TypeError, ValueError) as error:
+        raise SystemExit(&quot;Input error: &quot; + str(error)) from error
     close = prices[&quot;Close&quot;]
     signal_input = prices if STRATEGY.get(&quot;input&quot;) == &quot;ohlc&quot; else close
     position = generate_signals(signal_input).reindex(close.index).ffill().fillna(0.0)
     daily = close.pct_change().fillna(0.0) * position.shift(1).fillna(0.0)
     equity = (1 + daily).cumprod()
-    years = (close.index[-1] - close.index[0]).days / 365.25
+    years = (close.index[-1].date() - close.index[0].date()).days / 365.25
     print(STRATEGY[&quot;id&quot;], STRATEGY[&quot;name&quot;], &quot;|&quot;, close.index[0].date(), &quot;to&quot;, close.index[-1].date())
     print(&quot;Total return   {:+.1%}&quot;.format(equity.iloc[-1] - 1))
     print(&quot;CAGR           {:+.1%}&quot;.format(equity.iloc[-1] ** (1 / years) - 1))
@@ -306,6 +297,7 @@ if __name__ == &quot;__main__&quot;:
       <section class="static-section"><h2>自己跑一遍</h2><pre class="code-block code-block--short"><code>pip install pandas numpy yfinance
 python COMBO-03.py SPY
 python COMBO-03.py my_prices.csv</code></pre>
+        <p class="muted small-note">本示例使用当前行情和默认参数，不复现网站的滚动前推结果。策略证据下载包含归档源码，可回放已发布回测中记录的运算。重新计算策略决策需要精确的原始输入，这些输入可能不公开。组合默认使用声明的资产池（未声明时使用网站配置的市场）；自定义代码和 CSV 保留资产顺序，仅使用各资产都有数据的日期，不填补缺失价格。请提供足够覆盖策略回看期和预热期的历史数据。</p>
         <p class="muted small-note">可自由使用和修改。按现状提供，仅供研究和学习。历史回测不代表未来收益，不构成投资建议。</p></section>
       <section class="static-section"><h2>更多策略源码</h2><div class="recent-list"><a class="recent-item" href="/zh/code/combo-04-trend-mean-reversion-hybrid/"><span class="recent-text"><span class="recent-kind">COMBO-04</span><span class="recent-title">趋势 + 均值回归混合</span></span></a><a class="recent-item" href="/zh/code/cs-01-cross-sectional-momentum/"><span class="recent-text"><span class="recent-kind">CS-01</span><span class="recent-title">横截面动量</span></span></a><a class="recent-item" href="/zh/code/cs-02-low-volatility-rotation/"><span class="recent-text"><span class="recent-kind">CS-02</span><span class="recent-title">低波动轮动</span></span></a><a class="recent-item" href="/zh/code/event-01-trend-macro-filter/"><span class="recent-text"><span class="recent-kind">EVENT-01</span><span class="recent-title">趋势 + 宏观事件过滤</span></span></a></div>
         <p><a href="/zh/code/">全部策略源码 →</a></p></section>
@@ -333,6 +325,7 @@ python COMBO-03.py my_prices.csv</code></pre>
           <div class="footer-heading">了解</div>
           <a href="/zh/research/">研究</a>
           <a href="/?page=ea-ranking&lang=zh" rel="nofollow">EA 排行榜</a>
+          <a href="/zh/mt5-comparison/">原生 MT5 对照</a>
           <a href="/?page=compare&lang=zh" rel="nofollow">对比</a>
           <a href="/zh/methodology/">方法论</a>
           <a href="/zh/evidence/">策略证据</a>

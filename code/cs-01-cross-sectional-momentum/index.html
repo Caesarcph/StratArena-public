@@ -91,14 +91,14 @@
       <header class="static-hero">
         <div class="eyebrow">Source code · CS-01</div>
         <h1>Cross-Sectional Momentum: Python Strategy Code</h1>
-        <p class="static-lead">The exact Python file behind the Cross-Sectional Momentum backtests on this site.</p>
+        <p class="static-lead">The current Python implementation of Cross-Sectional Momentum, with an illustrative default-parameter runner.</p>
         <div class="hero-actions"><a class="button primary" href="/code/cs-01-cross-sectional-momentum/CS-01.py" download>Download Python (.py)</a><a class="button ghost" href="/strategy/cs-01-cross-sectional-momentum/">See backtest results</a></div>
       </header>
-      <section class="static-section"><h2>What the code does</h2><p>Rank assets by 12-month total return and hold the top names each month.</p><div class="code-rules"><div class="code-rule"><h3>Inputs</h3><ul><li>Lookback = 252</li><li>TopN = 2</li></ul></div><div class="code-rule"><h3>Indicators</h3><ul><li>12M total return</li></ul></div><div class="code-rule"><h3>Exit</h3><ul><li>Monthly rebalance</li></ul></div></div></section>
+      <section class="static-section"><h2>What the code does</h2><p>Each month, rank the four assets by trailing closing-price return. Allocate more to the lower-volatility asset among the selected names.</p><div class="code-rules"><div class="code-rule"><h3>Inputs</h3><ul><li>Default return lookback 252 sessions, volatility lookback 60 returns, top 2 assets.</li></ul></div><div class="code-rule"><h3>Indicators</h3><ul><li>Calculate each asset&#x27;s 252-session closing-price return and sample standard deviation of 60 daily returns.</li></ul></div><div class="code-rule"><h3>Entry</h3><ul><li>Pick the highest two available returns, regardless of sign.</li></ul></div><div class="code-rule"><h3>Exit</h3><ul><li>Clear dropped assets at rebalance. Go to cash if no selected asset has usable positive volatility.</li></ul></div></div></section>
       <aside class="qa-ad" data-ad-slot="native" aria-label="Advertisement"><span class="qa-ad-label">Advertisement</span><div id="container-961cf17850b0984e5f4ca32744cb54b5"></div></aside>
     <script>(function(){var el=document.getElementById("container-961cf17850b0984e5f4ca32744cb54b5");if(!el)return;function load(){var s=document.createElement("script");s.async=true;s.setAttribute("data-cfasync","false");s.src="https://bauval.org/21/961cf17850b0984e5f4ca32744cb54b5";document.body.appendChild(s);if("MutationObserver" in window){var mo=new MutationObserver(function(){if(el.childNodes.length){el.parentNode.classList.add("is-filled");mo.disconnect();}});mo.observe(el,{childList:true});}else{el.parentNode.classList.add("is-filled");}}if("IntersectionObserver" in window){var io=new IntersectionObserver(function(e){if(e[0].isIntersecting){io.disconnect();load();}},{rootMargin:"600px"});io.observe(el.parentNode);}else{load();}})();</script>
       <section class="static-section"><h2 id="python">Python</h2>
-        <p class="muted small-note">101 lines. Run it with: <code>python CS-01.py</code></p>
+        <p class="muted small-note">147 lines. Run it with: <code>python CS-01.py</code></p>
         <pre class="code-block" tabindex="0"><code>import pandas as pd
 
 STRATEGY = {
@@ -171,31 +171,77 @@ def generate_portfolio(prices, config=None):
 # Runner added by Quant Arena (https://quantarenas.com/code/) so this file works on its own.
 #
 #   pip install pandas numpy yfinance
-#   python CS-01.py                      # uses the default basket below
+#   python CS-01.py                      # uses STRATEGY.universe, or the site&#x27;s configured markets
 #   python CS-01.py SPY GLD USO          # or your own symbols
 #   python CS-01.py closes.csv           # or a CSV: Date column plus one close column per asset
 #
+# This default-parameter example does not replay the site&#x27;s walk-forward fits
+# or archived data. Evidence downloads replay the published run&#x27;s recorded
+# arithmetic and include archived source. Recomputing strategy decisions needs
+# the exact original inputs, which may not be public.
 # Convention, same as the site: weights decided at the close of day t earn the
 # returns of day t+1. Results are before trading costs. Not investment advice.
 # ---------------------------------------------------------------------------
+DEFAULT_UNIVERSE = [&#x27;SPY&#x27;, &#x27;GLD&#x27;, &#x27;USO&#x27;, &#x27;EURUSD=X&#x27;, &#x27;DBC&#x27;, &#x27;SLV&#x27;, &#x27;DBA&#x27;, &#x27;UNG&#x27;, &#x27;BTC-USD&#x27;, &#x27;ETH-USD&#x27;]
+
+
 def _load_closes(sources):
     if len(sources) == 1 and sources[0].lower().endswith(&quot;.csv&quot;):
-        return pd.read_csv(sources[0], index_col=0, parse_dates=True).sort_index().dropna(how=&quot;all&quot;)
-    import yfinance as yf
-    frame = yf.download(list(sources), start=&quot;2010-01-01&quot;, auto_adjust=True, progress=False)[&quot;Close&quot;]
-    return frame.sort_index().dropna(how=&quot;all&quot;).ffill().dropna()
+        frame = pd.read_csv(sources[0], index_col=0, parse_dates=True)
+    else:
+        if len(sources) &lt; 2 or len(set(sources)) != len(sources):
+            raise ValueError(&quot;A basket needs at least two distinct symbols (or one CSV file).&quot;)
+        import yfinance as yf
+        try:
+            downloaded = yf.download(list(sources), start=&quot;2010-01-01&quot;, auto_adjust=True, progress=False)
+        except Exception as error:
+            raise ValueError(&quot;Could not download daily closes: &quot; + str(error)) from error
+        if not isinstance(downloaded, pd.DataFrame) or not isinstance(downloaded.columns, pd.MultiIndex):
+            raise ValueError(&quot;Expected daily Close columns for each requested symbol.&quot;)
+        levels = [level for level in range(downloaded.columns.nlevels)
+                  if &quot;Close&quot; in downloaded.columns.get_level_values(level)]
+        if len(levels) != 1:
+            raise ValueError(&quot;Expected daily Close columns for each requested symbol.&quot;)
+        frame = downloaded.xs(&quot;Close&quot;, axis=1, level=levels[0])
+        missing = [symbol for symbol in sources if symbol not in frame.columns or frame[symbol].dropna().empty]
+        if missing:
+            raise ValueError(&quot;Missing close data: &quot; + &quot;, &quot;.join(missing))
+        # Pair strategies use column positions. Providers may sort ticker names.
+        frame = frame.loc[:, list(sources)]
+    if isinstance(frame.columns, pd.MultiIndex) or frame.columns.has_duplicates or len(frame.columns) &lt; 2:
+        raise ValueError(&quot;A basket needs at least two distinct asset columns.&quot;)
+    if not isinstance(frame.index, pd.DatetimeIndex) or frame.index.hasnans or frame.index.has_duplicates:
+        raise ValueError(&quot;Prices need unique, valid dates in the first column.&quot;)
+    try:
+        frame = frame.apply(pd.to_numeric, errors=&quot;raise&quot;)
+    except (TypeError, ValueError) as error:
+        raise ValueError(&quot;Close prices must be numeric.&quot;) from error
+    import numpy as np
+    present = frame.notna()
+    if ((~np.isfinite(frame) | (frame &lt;= 0)) &amp; present).any().any():
+        raise ValueError(&quot;Close prices must be finite and positive.&quot;)
+    # Keep common observations; do not invent prices for closed or missing markets.
+    frame = frame.sort_index().dropna()
+    if len(frame) &lt; 2:
+        raise ValueError(&quot;Need at least two common dated observations for every asset.&quot;)
+    return frame
 
 
 if __name__ == &quot;__main__&quot;:
     import sys
 
-    closes = _load_closes(sys.argv[1:] or list(STRATEGY.get(&quot;instruments&quot;) or [&quot;SPY&quot;, &quot;GLD&quot;, &quot;USO&quot;, &quot;DBC&quot;]))
+    try:
+        closes = _load_closes(sys.argv[1:] or list(STRATEGY.get(&quot;universe&quot;, DEFAULT_UNIVERSE)))
+    except (ValueError, OSError) as error:
+        sys.exit(&quot;Cannot run example: &quot; + str(error))
     weights = generate_portfolio(closes).reindex(closes.index).ffill().fillna(0.0)
     daily = (closes.pct_change().fillna(0.0) * weights.shift(1)).sum(axis=1)
     equity = (1 + daily).cumprod()
     years = (closes.index[-1] - closes.index[0]).days / 365.25
     print(STRATEGY[&quot;id&quot;], STRATEGY[&quot;name&quot;], &quot;|&quot;, closes.index[0].date(), &quot;to&quot;, closes.index[-1].date())
     print(&quot;Assets         &quot; + &quot;, &quot;.join(map(str, closes.columns)))
+    if not weights.ne(0).any().any():
+        print(&quot;No positions generated. The sample may be shorter than the strategy&#x27;s lookback/warmup, or no rule triggered.&quot;)
     print(&quot;Total return   {:+.1%}&quot;.format(equity.iloc[-1] - 1))
     print(&quot;CAGR           {:+.1%}&quot;.format(equity.iloc[-1] ** (1 / years) - 1))
     print(&quot;Sharpe         {:.2f}&quot;.format(daily.mean() / daily.std() * 252 ** 0.5 if daily.std() else 0.0))
@@ -205,6 +251,7 @@ if __name__ == &quot;__main__&quot;:
       <section class="static-section"><h2>Run it yourself</h2><pre class="code-block code-block--short"><code>pip install pandas numpy yfinance
 python CS-01.py
 python CS-01.py SPY GLD USO</code></pre>
+        <p class="muted small-note">This example uses current prices and default parameters; it does not reproduce the site&#x27;s walk-forward results. Evidence downloads include archived source and replay the published run&#x27;s recorded arithmetic. Recomputing strategy decisions requires the exact original inputs, which may not be public. Baskets use the declared universe (or the site&#x27;s configured markets); custom symbols and CSV columns keep their order. Only common observations are used, without filling missing prices. Provide enough history for the strategy&#x27;s lookback and warmup.</p>
         <p class="muted small-note">Free to use and modify. Provided as is, for research and education. Historical backtests do not predict future returns. Not investment advice.</p></section>
       <section class="static-section"><h2>More strategy code</h2><div class="recent-list"><a class="recent-item" href="/code/cs-02-low-volatility-rotation/"><span class="recent-text"><span class="recent-kind">CS-02</span><span class="recent-title">Low Volatility Rotation</span></span></a><a class="recent-item" href="/code/event-01-trend-macro-filter/"><span class="recent-text"><span class="recent-kind">EVENT-01</span><span class="recent-title">Trend + Macro Filter</span></span></a><a class="recent-item" href="/code/factor-05-multi-factor-composite/"><span class="recent-text"><span class="recent-kind">FACTOR-05</span><span class="recent-title">Multi-Factor Composite</span></span></a><a class="recent-item" href="/code/hma-01-hma-crossover/"><span class="recent-text"><span class="recent-kind">HMA-01</span><span class="recent-title">HMA Crossover</span></span></a></div>
         <p><a href="/code/">All strategy code →</a></p></section>
@@ -232,6 +279,7 @@ python CS-01.py SPY GLD USO</code></pre>
           <div class="footer-heading">Learn</div>
           <a href="/research/">Research</a>
           <a href="/?page=ea-ranking" rel="nofollow">EA Ranking</a>
+          <a href="/mt5-comparison/">Native MT5 comparison</a>
           <a href="/?page=compare" rel="nofollow">Compare</a>
           <a href="/methodology/">Methodology</a>
           <a href="/evidence/">Strategy evidence</a>
