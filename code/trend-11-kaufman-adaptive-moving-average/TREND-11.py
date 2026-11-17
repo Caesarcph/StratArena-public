@@ -1,38 +1,33 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "TREND-11",
-    "name": "Kaufman Adaptive Moving Average",
-    "mode": "single",
-    "tags": ["Trend", "Adaptive", "MA"],
-    "summary": "Moving average that adapts to market efficiency.",
-    "description": "Perry Kaufman's Adaptive Moving Average (KAMA). Uses Efficiency Ratio to dynamically adjust smoothing. Fast in trends, slow in chop. Reduces whipsaws compared to fixed MAs.",
-    "bestOn": "Markets with varying trend strength",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["ER_Period = 10", "Fast = 2", "Slow = 30"],
-        "Indicators": [
-            "Efficiency Ratio = |Price Change| / Sum of |Daily Changes|",
-            "Smoothing Constant = (ER * (Fast - Slow) + Slow)^2",
-            "KAMA = KAMA[-1] + SC * (Price - KAMA[-1])",
-        ],
-        "Entry": ["Buy when Price > KAMA and KAMA rising"],
-        "Exit": ["Sell when Price < KAMA"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Adaptive nature reduces false signals"],
-    },
-    "notes": [
-        "Perry Kaufman's Trading Systems and Methods",
-        "Efficiency Ratio measures trend vs noise",
-        "ER = 1 means perfect trend, ER = 0 means pure noise",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'TREND-11',
+ 'name': 'Kaufman Adaptive Moving Average',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Adaptive', 'MA'],
+ 'summary': 'Uses a rising Kaufman adaptive average to confirm long entries.',
+ 'description': 'The smoothing rate adapts to the ratio of absolute net price change to the '
+                "total absolute change. Price relative to KAMA and the average's five-bar "
+                'slope drive the target.',
+ 'bestOn': 'Markets with varying trend strength',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After er_period + slope_period bars, set long when the close '
+                          'exceeds KAMA and KAMA is higher than slope_period bars before.'],
+                'Exit': ['Set cash when price is at or below KAMA. Otherwise, if price is '
+                         'above but the slope is nonpositive, carry the prior target.'],
+                'Indicators': ['ER is absolute price change over er_period divided by the sum '
+                               'of absolute changes. A zero denominator gives ER = 0.',
+                               'Let f = 2/(fast + 1), s = 2/(slow + 1). Add [ER × (f − s) + '
+                               's]² times (current close − previous KAMA) to the previous '
+                               'KAMA.'],
+                'Inputs': ['er_period = 10, fast = 2, slow = 30, slope_period = 5.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Seed KAMA with the close at the end of the first er_period-bar window.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_kama(prices, er_period=10, fast_period=2, slow_period=30):

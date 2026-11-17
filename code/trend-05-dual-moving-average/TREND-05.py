@@ -1,28 +1,28 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "TREND-05",
-    "name": "Dual Moving Average",
-    "tags": ["Trend", "Momentum"],
-    "summary": "Follow the 50/200 cross and stay aligned with regime.",
-    "description": "A dual moving average system with a risk-off filter to avoid flat markets.",
-    "bestOn": "SPY 5Y Sharpe Top5",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["SPY", "GLD", "EURUSD=X", "USO"],
-    "pseudocode": {
-        "Inputs": ["FastMA = 50", "SlowMA = 200", "Risk = 1%"],
-        "Indicators": ["SMA(50)", "SMA(200)", "ATR(14)"],
-        "Entry": ["Go long when SMA(50) > SMA(200)"],
-        "Exit": ["Exit when SMA(50) < SMA(200)"],
-        "Position sizing": ["Position = Risk / ATR"],
-        "Risk controls": ["Hold cash when volatility spikes"],
-    },
-    "notes": ["Best in long trends", "Late exits in sharp reversals"],
-    "updated": "2025-02-21",
-    "recommendedCompare": ["SPY", "GLD", "EURUSD=X"],
-}
+STRATEGY = {'id': 'TREND-05',
+ 'name': 'Dual Moving Average',
+ 'tags': ['Trend', 'Momentum'],
+ 'summary': 'Holds long while the 50-day closing SMA is above the 200-day SMA.',
+ 'description': 'This fixed two-average rule sets a fully long target whenever the 50-day '
+                'simple moving average exceeds the 200-day average. All other bars target '
+                'cash.',
+ 'bestOn': 'SPY 5Y Sharpe Top5',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['SPY', 'GLD', 'EURUSD=X', 'USO'],
+ 'pseudocode': {'Entry': ['Set the target to 100% long while the 50-day average exceeds the '
+                          '200-day average.'],
+                'Exit': ['Use cash when the averages are equal, the fast average is below the '
+                         'slow average or the averages are unavailable.'],
+                'Indicators': ['Calculate simple moving averages of the daily close over both '
+                               'windows.'],
+                'Inputs': ['Fixed closing-price SMA windows of 50 and 200 days.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['The slow average first becomes available after 200 complete closes.'],
+ 'updated': '2025-02-21',
+ 'recommendedCompare': ['SPY', 'GLD', 'EURUSD=X']}
 
 
 def generate_signals(prices, config=None):

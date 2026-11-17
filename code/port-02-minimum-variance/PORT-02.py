@@ -1,39 +1,45 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "PORT-02",
-    "name": "Minimum Variance",
-    "mode": "portfolio",
-    "ruleVersion": "monthly-prior-observation-v2",
-    "corrections": ["causal-monthly-decision", "preserve-zero-targets"],
-    "targetTiming": "First observed session of a new month, using the prior observation; engine applies one-row lag.",
-    "tags": ["Portfolio", "Optimization", "Low Volatility"],
-    "summary": "Minimize portfolio variance without return forecasts.",
-    "description": "Minimum Variance portfolio minimizes total portfolio risk (variance) without requiring return predictions. Only uses the covariance matrix for optimization.",
-    "bestOn": "Risk-averse allocation",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Months",
-    "instruments": ["MIN-VAR"],
-    "universe": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "portfolioSymbol": "MIN-VAR",
-    "portfolioName": "Minimum Variance",
-    "pseudocode": {
-        "Inputs": ["Lookback = 60"],
-        "Indicators": ["Covariance matrix"],
-        "Entry": ["Solve min w'Σw s.t. sum(w)=1, w>=0"],
-        "Exit": ["Monthly rebalance"],
-        "Risk": ["Minimum achievable portfolio variance"],
-    },
-    "notes": [
-        "No return forecasts needed",
-        "Often outperforms due to low volatility anomaly",
-        "Tends to concentrate in low-vol assets",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'PORT-02',
+ 'name': 'Minimum Variance',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'monthly-prior-observation-v2',
+ 'corrections': ['causal-monthly-decision', 'preserve-zero-targets'],
+ 'targetTiming': 'First observed session of a new month, using the prior observation; engine '
+                 'applies one-row lag.',
+ 'tags': ['Portfolio', 'Optimization', 'Low Volatility'],
+ 'summary': 'Uses a covariance-based approximation to long-only minimum variance.',
+ 'description': 'First calculate the fully invested minimum-variance solution that permits '
+                'negative weights. The default then clips negative weights and rescales the '
+                'remaining positions, so the long-only result can differ from the constrained '
+                'optimum.',
+ 'bestOn': 'Comparisons of covariance-based low-variance allocations',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Months',
+ 'instruments': ['MIN-VAR'],
+ 'universe': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'portfolioSymbol': 'MIN-VAR',
+ 'portfolioName': 'Minimum Variance',
+ 'pseudocode': {'Entry': ['Multiply its inverse by the all-ones vector and scale the result '
+                          'to sum to one.'],
+                'Exit': ['Recompute at the next eligible monthly decision. Zero weights clear '
+                         'former positions.'],
+                'Indicators': ['Annualize the sample covariance matrix and add 0.000001 to '
+                               'each diagonal entry.'],
+                'Inputs': ['Default lookback 60 daily returns, allow_short disabled and '
+                           'diagonal regularization 0.000001.'],
+                'Position sizing': ['By default, clip negative weights to zero and normalize '
+                                    'again.']},
+ 'notes': ['The basket uses the common completed sessions of SPY, GLD, USO and EURUSD=X.',
+           'Set targets on the first common session observed in a new month using the '
+           'preceding completed session. The target takes effect on the next available return '
+           'interval.',
+           'The optional allow_short setting keeps negative weights. The rule uses equal '
+           'weights if covariance is unusable or inversion fails.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def min_variance_weights(cov_matrix, allow_short=False):

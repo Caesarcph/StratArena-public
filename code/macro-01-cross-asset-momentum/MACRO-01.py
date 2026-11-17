@@ -1,40 +1,39 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MACRO-01",
-    "name": "Cross-Asset Momentum",
-    "mode": "portfolio",
-    "ruleVersion": "named-risk-indicators-v2",
-    "corrections": ["select-spy-signal-by-symbol"],
-    "tags": ["Macro", "Cross-Asset", "Leading Indicator"],
-    "summary": "Use one asset's momentum to trade another.",
-    "description": "Exploits lead-lag relationships between asset classes. Equity momentum can predict commodities; safe haven momentum signals risk appetite. Allocates based on cross-asset signals rather than own-asset momentum.",
-    "bestOn": "Diverse asset pool with economic linkages",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Lookback = 21", "Lag = 5", "Threshold = 0"],
-        "Indicators": [
-            "SPY momentum -> predicts risk assets",
-            "GLD momentum -> signals risk aversion",
-            "Cross-correlations with lag",
-        ],
-        "Entry": ["SPY momentum positive -> long risk assets", "GLD momentum positive -> defensive"],
-        "Exit": ["Signals reverse"],
-        "Position sizing": ["Based on signal strength"],
-        "Risk controls": ["Volatility adjustment"],
-    },
-    "notes": [
-        "Equity often leads commodities",
-        "Gold leads risk-off moves",
-        "Lag captures predictive relationship",
-    ],
-    "updated": "2026-01-11",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MACRO-01',
+ 'name': 'Cross-Asset Momentum',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'named-risk-indicators-v2',
+ 'corrections': ['select-spy-signal-by-symbol'],
+ 'tags': ['Macro', 'Cross-Asset', 'Leading Indicator'],
+ 'summary': 'Tilts basket weights according to lagged SPY and GLD momentum.',
+ 'description': 'A daily score combines the recent mean returns of SPY and GLD with opposite '
+                'signs. Its sign changes the relative weights of SPY, USO and GLD.',
+ 'bestOn': 'Cross-asset allocation with directional risk tilts',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Multiply inverse volatility for SPY and USO by 1.5 for a positive '
+                          'score and 0.3 otherwise. Multiply GLD by 1.5 for a negative score '
+                          'and 0.5 otherwise.'],
+                'Exit': ['Recompute targets daily after 36 observed rows of warmup.'],
+                'Indicators': ['Compute 100 × mean SPY return minus 50 × mean GLD return from '
+                               'the lagged history. Use current 20-return annualized sample '
+                               'volatility and substitute 15% if the estimate is unavailable '
+                               'or below 1%.'],
+                'Inputs': ['Default momentum lookback 21 daily returns, signal lag 5 '
+                           'sessions, volatility lookback 20 returns.'],
+                'Position sizing': ['All other assets use 0.5 times inverse volatility. '
+                                    'Normalize the whole basket to 100% long.']},
+ 'notes': ['The site backtest aligns SPY, GLD, USO, EURUSD=X, DBC, SLV, DBA, UNG, BTC-USD and '
+           'ETH-USD on their common completed sessions. Its SPY display label identifies the '
+           'basket.',
+           'The sign of the score determines the tilt. The site applies the daily target to '
+           'the next common return interval.'],
+ 'updated': '2026-01-11',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_portfolio(prices, config=None):

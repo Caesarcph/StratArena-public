@@ -1,32 +1,37 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "STAT-01",
-    "name": "SPY-GLD Pair",
-    "mode": "portfolio",
-    "tags": ["Stat Arb", "Pairs"],
-    "summary": "Mean-revert the SPY/GLD spread using z-score.",
-    "description": "Pairs trading on SPY and GLD with a 60-day spread z-score.",
-    "bestOn": "SPY-GLD 1Y Sharpe Top5",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY-GLD"],
-    "universe": ["SPY", "GLD"],
-    "portfolioSymbol": "SPY-GLD",
-    "portfolioName": "SPY-GLD Pair",
-    "pseudocode": {
-        "Inputs": ["Lookback = 60", "EntryZ = 2", "ExitZ = 0"],
-        "Indicators": ["Price spread Z-score"],
-        "Entry": ["If Z > 2: short spread", "If Z < -2: long spread"],
-        "Exit": ["Z returns to 0"],
-        "Risk": ["Max holding 20 days"],
-    },
-    "notes": ["Dollar-neutral spread positions."],
-    "updated": "2025-03-02",
-    "recommendedCompare": ["SPY-GLD"],
-}
+STRATEGY = {'id': 'STAT-01',
+ 'name': 'SPY-GLD Pair',
+ 'mode': 'portfolio',
+ 'tags': ['Stat Arb', 'Pairs'],
+ 'summary': 'Trades extremes in the rolling z-score of the SPY/GLD log price ratio.',
+ 'description': 'This fixed pair uses equal-dollar long and short legs. It enters on extreme '
+                'z-scores and holds until the configured exit condition or holding limit is '
+                'reached.',
+ 'bestOn': 'Research on mean reversion in the SPY–GLD spread',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY-GLD'],
+ 'universe': ['SPY', 'GLD'],
+ 'portfolioSymbol': 'SPY-GLD',
+ 'portfolioName': 'SPY-GLD Pair',
+ 'pseudocode': {'Entry': ['When flat, z below −2 opens long SPY and short GLD. z above +2 '
+                          'opens short SPY and long GLD.'],
+                'Exit': ['Close when absolute z is at or below the exit band or the holding '
+                         'count reaches 20. A default zero-width band requires z to equal '
+                         'zero. A sign change can leave the trade open.'],
+                'Indicators': ['Compute log(SPY) − log(GLD) and standardize it using its '
+                               'rolling sample mean and standard deviation.'],
+                'Inputs': ['Default lookback 60 sessions, entry z-score 2, exit band 0 and '
+                           'maximum holding count 20 observations.'],
+                'Position sizing': ['Each leg is 50% of equity in opposite directions, for '
+                                    'zero net dollar exposure and 100% gross.']},
+ 'notes': ['The basket uses the common completed sessions of SPY and GLD. The site applies '
+           'each daily target to the next common return interval.'],
+ 'updated': '2025-03-02',
+ 'recommendedCompare': ['SPY-GLD']}
 
 
 def generate_portfolio(prices, config=None):

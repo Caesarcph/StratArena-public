@@ -1,34 +1,35 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "RISK-03",
-    "name": "Stop Loss Overlay",
-    "mode": "single",
-    "tags": ["Risk Management", "Stop Loss"],
-    "summary": "Universal stop loss with cooldown period.",
-    "description": "Overlays a stop loss on a base trend strategy. When price drops below entry by stop percentage, exit and wait for cooldown period before re-entering. Protects gains and limits losses.",
-    "bestOn": "Any trending market",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["MA_Period = 50", "Stop_Pct = 5%", "Cooldown = 5 days"],
-        "Indicators": ["SMA for trend", "Entry price tracking"],
-        "Entry": ["Base signal: Price > SMA", "Only if not in cooldown"],
-        "Exit": ["Price drops Stop_Pct from entry", "Or base signal exits"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Hard stop loss", "Cooldown prevents whipsaws"],
-    },
-    "notes": [
-        "Stop loss is essential risk management",
-        "Cooldown period prevents re-entry whipsaws",
-        "Can be overlaid on any strategy",
-    ],
-    "updated": "2026-01-11",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'RISK-03',
+ 'name': 'Stop Loss Overlay',
+ 'mode': 'single',
+ 'tags': ['Risk Management', 'Stop Loss'],
+ 'summary': 'Runs a closing-price trend rule with an entry-relative stop and stop-only '
+            'cooldown.',
+ 'description': 'The base signal is the close above a simple moving average. A separate stop '
+                'compares the current close with the entry close, and a stop-triggered exit '
+                'starts the cooldown.',
+ 'bestOn': 'Any trending market',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After ma_period bars, enter from cash when the close exceeds the '
+                          'SMA and the cooldown has expired.'],
+                'Exit': ['Exit first if the close-to-entry return is strictly below '
+                         '−stop_pct. This starts cooldown. Otherwise exit when close is at or '
+                         'below SMA without cooldown.'],
+                'Indicators': ['Compute SMA(ma_period) from closes. Keep the close that '
+                               'established the long target as the stop reference.'],
+                'Inputs': ['ma_period = 50, stop_pct = 0.05, cooldown = 5.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['After a stop on bar t, entry can resume on bar t + cooldown if the trend '
+           'condition passes.',
+           'The stop is evaluated at the close. The threshold is a signal level and losses '
+           'can exceed it.'],
+ 'updated': '2026-01-11',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

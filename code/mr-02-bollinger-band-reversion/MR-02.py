@@ -1,34 +1,31 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MR-02",
-    "name": "Bollinger Band Reversion",
-    "mode": "single",
-    "tags": ["Mean Reversion", "Volatility"],
-    "summary": "Buy at lower band, exit at middle band with bandwidth filter.",
-    "description": "Classic mean reversion using Bollinger Bands. Enters long when price touches the lower band (oversold) and exits when price reverts to the middle band. Includes bandwidth filter to trade only during volatility expansion.",
-    "bestOn": "Range-bound markets",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Period = 20", "Num_Std = 2.0", "Max_Hold = 10"],
-        "Indicators": ["SMA(20)", "StdDev(20)", "Upper/Lower Bands", "Bandwidth"],
-        "Entry": ["Buy when Close <= Lower Band and Bandwidth expanding"],
-        "Exit": ["Exit when Close >= Middle Band", "Or max holding period reached"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Stop loss at 3% below lower band", "Max hold 10 days"],
-    },
-    "notes": [
-        "Based on John Bollinger's 1980s indicator",
-        "Assumes ~95% of prices fall within 2 standard deviations",
-        "Best in sideways markets, underperforms in strong trends",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MR-02',
+ 'name': 'Bollinger Band Reversion',
+ 'mode': 'single',
+ 'tags': ['Mean Reversion', 'Volatility'],
+ 'summary': 'Buy a lower-band touch when bandwidth is above its recent average.',
+ 'description': 'Uses closing-price Bollinger bands and a bandwidth filter. The stop follows '
+                'the current lower band; it is not a fixed loss from the entry price.',
+ 'bestOn': 'Range-bound markets',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Close≤lower band AND bandwidth>its moving average.'],
+                'Exit': ['Close≥middle, holding age≥10 observations, or close<0.97×current '
+                         'lower band.'],
+                'Indicators': ['SMA20 ±2 sample standard deviations; '
+                               'bandwidth=(upper−lower)/middle, compared with its 20-row '
+                               'SMA.'],
+                'Inputs': ['period=20, num_std=2, max_hold=10; decisions start at row40 with '
+                           'defaults.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Above-average bandwidth need not be rising. Two-standard-deviation bands do not '
+           'guarantee95% price coverage.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

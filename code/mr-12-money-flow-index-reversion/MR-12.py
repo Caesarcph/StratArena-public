@@ -1,38 +1,30 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MR-12",
-    "name": "Money Flow Index Reversion",
-    "mode": "single",
-    "tags": ["Mean Reversion", "Volume", "Oscillator"],
-    "summary": "Buy oversold MFI, exit at neutral.",
-    "description": "Uses Money Flow Index (volume-weighted RSI) to identify oversold conditions. MFI < 20 indicates oversold with volume confirmation. Exit when MFI recovers to neutral.",
-    "bestOn": "Range-bound markets with volume data",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO"],
-    "pseudocode": {
-        "Inputs": ["Period = 14", "Oversold = 30", "Exit = 50"],
-        "Indicators": [
-            "Typical Price = (High + Low + Close) / 3",
-            "Raw Money Flow = Typical Price * Volume",
-            "MFI = 100 - 100 / (1 + Positive MF / Negative MF)",
-        ],
-        "Entry": ["Buy when MFI < 30 (oversold)"],
-        "Exit": ["Exit when MFI > 50 (neutral)"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Max hold period of 15 days"],
-    },
-    "notes": [
-        "Also known as volume-weighted RSI",
-        "Combines price and volume for stronger signals",
-        "More reliable than pure price oscillators",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MR-12',
+ 'name': 'Money Flow Index Reversion',
+ 'mode': 'single',
+ 'tags': ['Mean Reversion', 'Oscillator'],
+ 'summary': 'Buys oversold readings on an SMA-based RSI computed from closing prices.',
+ 'description': 'Money Flow Index Reversion is the historical name. The backtest uses a '
+                'price-only RSI variant calculated from simple averages of closing-price '
+                'gains and losses.',
+ 'bestOn': 'Markets with recurring short-term reversals',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO'],
+ 'pseudocode': {'Entry': ['Go long when the oscillator is below 30.'],
+                'Exit': ['Exit when it rises above 50 or 15 bars have elapsed since entry.'],
+                'Indicators': ['Use simple averages of positive and negative closing-price '
+                               'changes over period bars. The oscillator is 100 − 100 ÷ (1 + '
+                               'average gain ÷ (average loss + ε)).'],
+                'Inputs': ['Default: period = 14, oversold = 30, exit_level = 50, max_hold = '
+                           '15.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Volume plays no part in the indicator or the entry and exit rules.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

@@ -1,34 +1,32 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "RISK-04",
-    "name": "Trailing Stop Strategy",
-    "mode": "single",
-    "tags": ["Risk Management", "Trend", "Stop Loss"],
-    "summary": "ATR-based trailing stop locks in profits.",
-    "description": "Uses ATR-based trailing stop that follows price higher. Stop is set at highest high minus ATR multiplier. Locks in gains during uptrends while allowing room for normal volatility.",
-    "bestOn": "Trending markets",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["ATR_Period = 14", "Multiplier = 2.5", "Entry_MA = 20"],
-        "Indicators": ["ATR for stop distance", "Trailing high", "MA for entry"],
-        "Entry": ["Price > MA (trend confirmation)"],
-        "Exit": ["Price < Trailing Stop (Highest High - ATR * Mult)"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Trailing stop protects gains"],
-    },
-    "notes": [
-        "Stop only moves up, never down",
-        "ATR adapts to market volatility",
-        "Captures big moves while protecting profits",
-    ],
-    "updated": "2026-01-11",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'RISK-04',
+ 'name': 'Trailing Stop Strategy',
+ 'mode': 'single',
+ 'tags': ['Risk Management', 'Trend', 'Stop Loss'],
+ 'summary': 'Trails the highest close since entry with a volatility-sensitive stop that can '
+            'only rise.',
+ 'description': 'The strategy enters above a closing-price moving average. Its trailing stop '
+                'uses the highest close since entry and an ATR approximation based on '
+                'absolute changes between successive closes.',
+ 'bestOn': 'Trending markets',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['When flat, go long if the close is above the entry SMA. Initialize '
+                          'the stop using the entry close.'],
+                'Exit': ['Go to cash if the close is below the updated stop.'],
+                'Indicators': ['Entry SMA from 20 closes. The range proxy is the 14-day '
+                               'simple average of absolute close-to-close price changes.',
+                               'Stop: the maximum of the previous stop and highest close '
+                               'since entry minus 2.5 times the range proxy.'],
+                'Inputs': ['Default: atr_period = 14, multiplier = 2.5, entry_ma = 20.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['The stop is evaluated at the close. It can rise or stay in place during a hold.'],
+ 'updated': '2026-01-11',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

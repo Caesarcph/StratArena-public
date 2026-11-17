@@ -1,34 +1,30 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MR-03",
-    "name": "Kalman Filter Mean Reversion",
-    "mode": "single",
-    "tags": ["Mean Reversion", "Statistical"],
-    "summary": "Trade deviations from Kalman-estimated fair value.",
-    "description": "Uses Kalman Filter to dynamically estimate the 'fair value' of an asset. Enters long when price deviates significantly below the estimated value, expecting reversion. The filter adapts to changing market conditions.",
-    "bestOn": "Assets with mean-reverting characteristics",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Q = 0.001 (process noise)", "R = 1.0 (observation noise)", "Entry_Z = 2.0", "Exit_Z = 0.5"],
-        "Indicators": ["Kalman state estimate", "Standardized residual (z-score)"],
-        "Entry": ["Buy when z-score < -Entry_Z (price undervalued)"],
-        "Exit": ["Exit when |z-score| < Exit_Z"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Adaptive Q based on recent volatility"],
-    },
-    "notes": [
-        "Rudolf Kalman's 1960 optimal state estimation algorithm",
-        "Provides optimal linear estimate under Gaussian assumptions",
-        "Q/R ratio controls smoothness vs responsiveness tradeoff",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MR-03',
+ 'name': 'Kalman Filter Mean Reversion',
+ 'mode': 'single',
+ 'tags': ['Mean Reversion', 'Statistical'],
+ 'summary': 'Buy negative deviations from an adaptive Kalman estimate.',
+ 'description': 'The current close updates the estimate. A one-sided recovery threshold '
+                'closes the position, including recovery that overshoots zero.',
+ 'bestOn': 'Assets with mean-reverting characteristics',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['When flat, enter if z<−entry_z.'],
+                'Exit': ['When held, exit if z>−exit_z; otherwise retain the position.'],
+                'Indicators': ['After 20 observations, Q adapts to the population standard '
+                               'deviation of the prior 20 log returns. Divide '
+                               'price-minus-estimate by the 20-row residual sample standard '
+                               'deviation, floored at 1e-8.'],
+                'Inputs': ['Q=.001, R=1, entry_z=2, exit_z=.5;20-observation warmup.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['There is no maximum holding period or independent stop-loss. The estimate is '
+           'model-dependent, not verified intrinsic value.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

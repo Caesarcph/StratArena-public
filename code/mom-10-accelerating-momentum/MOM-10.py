@@ -1,41 +1,39 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "MOM-10",
-    "name": "Accelerating Momentum",
-    "mode": "single",
-    "ruleVersion": "configurable-momentum-periods-v2",
-    "corrections": ["use-configured-short-momentum-period"],
-    "tags": ["Momentum", "Multi-Timeframe", "Trend"],
-    "summary": "Multi-period momentum with short-term emphasis.",
-    "description": "Combines momentum across multiple timeframes (1M, 3M, 6M, 12M) with higher weights on recent periods. Captures accelerating trends where short-term momentum aligns with longer-term direction.",
-    "bestOn": "Trending markets with persistent momentum",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Weeks to months",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Periods = [21, 63, 126, 252]", "Weights = [0.4, 0.3, 0.2, 0.1]"],
-        "Indicators": [
-            "1M return (21 days)",
-            "3M return (63 days)",
-            "6M return (126 days)",
-            "12M return (252 days)",
-            "Weighted composite score",
-        ],
-        "Entry": ["Composite score > 0", "All periods positive (confirmation)"],
-        "Exit": ["Composite score < 0", "Or short-term momentum turns negative"],
-        "Position sizing": ["Based on momentum strength"],
-        "Risk controls": ["Reduce position if acceleration slows"],
-    },
-    "notes": [
-        "Short-term momentum predicts near-term returns",
-        "Multi-period confirmation reduces whipsaws",
-        "Weights emphasize recent performance",
-    ],
-    "updated": "2026-01-11",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MOM-10',
+ 'name': 'Accelerating Momentum',
+ 'mode': 'single',
+ 'ruleVersion': 'configurable-momentum-periods-v2',
+ 'corrections': ['use-configured-short-momentum-period'],
+ 'tags': ['Momentum', 'Multi-Timeframe', 'Trend'],
+ 'summary': 'Uses four standardized momentum horizons to set graduated long exposure.',
+ 'description': 'Recent periods get more weight in the composite. A positive composite can '
+                'produce a partial position even when one of the shorter horizons is '
+                'negative.',
+ 'bestOn': 'Single-asset trend measurements across multiple horizons',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks to months',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After warming up, a score above the strong-entry threshold and '
+                          'three positive periods sets 75%. Four positive periods and a '
+                          'positive shortest return set 100% in that same branch. Otherwise a '
+                          'positive score with at least two positive periods sets 50%.'],
+                'Exit': ['If neither entry branch applies, a negative composite or at most '
+                         'one positive period sets zero. Otherwise retain the previous '
+                         'target.'],
+                'Indicators': ['Divide each period return by its own trailing 63-row sample '
+                               'standard deviation plus a small constant. Weight these ratios '
+                               'and count the periods with positive returns.'],
+                'Inputs': ['Default periods 21, 63, 126 and 252 sessions. Corresponding '
+                           'weights 0.4, 0.3, 0.2 and 0.1. Strong-entry threshold 0.'],
+                'Position sizing': ['Targets are cash or 50%, 75% or 100% long.']},
+ 'notes': ['The site evaluates each instrument separately and applies the daily target to the '
+           'next available return interval.',
+           'The Pine example attempts to rebalance each confirmed close. Symbol lot sizes and '
+           'simulated fills can affect the realized weight.'],
+ 'updated': '2026-01-11',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

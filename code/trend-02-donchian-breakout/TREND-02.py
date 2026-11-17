@@ -1,28 +1,28 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "TREND-02",
-    "name": "Donchian Breakout",
-    "tags": ["Trend", "Breakout"],
-    "summary": "Ride multi-month highs and exit on fast lows.",
-    "description": "A classic trend system that enters on 55-day highs and exits on 20-day lows with ATR sizing.",
-    "bestOn": "Gold 3Y Calmar Top3",
-    "frequency": "Daily",
-    "assetClasses": ["Commodity", "Index", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["GLD", "SPY", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["BreakoutLookback = 55", "ExitLookback = 20", "Risk = 1%"],
-        "Indicators": ["DonchianHigh", "DonchianLow", "ATR(20)"],
-        "Entry": ["If close > DonchianHigh then enter long"],
-        "Exit": ["If close < DonchianLow then exit"],
-        "Position sizing": ["Position = Risk / ATR"],
-        "Risk controls": ["Max 3 concurrent trades", "Trailing stop at 2x ATR"],
-    },
-    "notes": ["Strong in persistent trends", "Choppy ranges can whipsaw signals"],
-    "updated": "2025-02-28",
-    "recommendedCompare": ["GLD", "USO", "SPY"],
-}
+STRATEGY = {'id': 'TREND-02',
+ 'name': 'Donchian Breakout',
+ 'tags': ['Trend', 'Breakout'],
+ 'summary': 'Buys above the prior 55-session closing high and exits below the prior '
+            '20-session closing low.',
+ 'description': 'A close-based Donchian rule with fixed windows. A breakout above the long '
+                'window establishes full long exposure. A break below the short window moves '
+                'to cash.',
+ 'bestOn': 'Gold 3Y Calmar Top3',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Commodity', 'Index', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['GLD', 'SPY', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Go long when the close strictly exceeds the upper channel.'],
+                'Exit': ['Go to cash when the close is strictly below the lower channel.'],
+                'Indicators': ['Highest close of the previous 55 sessions and lowest close of '
+                               'the previous 20 sessions.'],
+                'Inputs': ['Fixed: breakout lookback = 55, exit lookback = 20.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Both channels exclude the current close. Between the two trigger levels or at '
+           'equality, the previous target carries forward.'],
+ 'updated': '2025-02-28',
+ 'recommendedCompare': ['GLD', 'USO', 'SPY']}
 
 
 def generate_signals(prices, config=None):

@@ -1,38 +1,39 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MACRO-03",
-    "name": "Flight to Quality",
-    "mode": "portfolio",
-    "tags": ["Macro", "Risk Management", "Safe Haven"],
-    "summary": "Switch to safe havens during equity stress.",
-    "description": "Monitors equity market stress via drawdown and volatility. During normal times, holds risk assets. When stress indicators trigger, shifts allocation to safe haven assets like gold. Dynamic equity-to-safe-haven allocation.",
-    "bestOn": "Mixed risk/safe-haven asset pool",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["DD_Trigger = 0.05", "Vol_Trigger = 0.25", "Recovery_Days = 10"],
-        "Indicators": [
-            "Equity drawdown",
-            "Realized volatility",
-            "Stress indicator",
-        ],
-        "Entry": ["Normal: risk assets", "Stress: safe haven"],
-        "Exit": ["Stress subsides after recovery period"],
-        "Position sizing": ["100% allocation to chosen regime"],
-        "Risk controls": ["Gradual transition back to risk"],
-    },
-    "notes": [
-        "Fast exit from risk during stress",
-        "Slow re-entry to avoid whipsaws",
-        "Gold typically rallies in crises",
-    ],
-    "updated": "2026-01-12",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MACRO-03',
+ 'name': 'Flight to Quality',
+ 'mode': 'portfolio',
+ 'tags': ['Macro', 'Risk Management', 'Safe Haven'],
+ 'summary': 'Switches fully into gold when SPY drawdown or volatility signals stress.',
+ 'description': 'The daily rule holds an equal-weight basket outside stress and switches to '
+                'GLD when either SPY stress measure triggers. It waits for a sustained clear '
+                'period before restoring the risk basket.',
+ 'bestOn': 'Equity stress rules with a dedicated gold allocation',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After the 30-row warmup, set the target to 100% GLD when either '
+                          'threshold is exceeded.'],
+                'Exit': ['Start the recovery timer on the first clear observation and return '
+                         'to the risk basket 10 observations later if stress stays clear. A '
+                         'new trigger resets the timer.'],
+                'Indicators': ["Measure drawdown from SPY's highest closing price observed so "
+                               'far. Use the sample standard deviation of 20 daily returns '
+                               'multiplied by √252 for annualized volatility.'],
+                'Inputs': ['Default drawdown threshold 5%, annualized volatility threshold '
+                           '25%, volatility lookback 20 daily returns, recovery timer 10 row '
+                           'intervals.'],
+                'Position sizing': ['Use 100% GLD under stress and equal weights across the '
+                                    'nine other assets outside stress.']},
+ 'notes': ['The site backtest aligns SPY, GLD, USO, EURUSD=X, DBC, SLV, DBA, UNG, BTC-USD and '
+           'ETH-USD on their common completed sessions. Its SPY display label identifies the '
+           'basket.',
+           'The risk basket includes all nine non-GLD assets. The site applies the daily '
+           'target to the next common return interval.'],
+ 'updated': '2026-01-12',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_portfolio(prices, config=None):

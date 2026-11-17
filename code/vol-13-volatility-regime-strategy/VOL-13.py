@@ -1,39 +1,40 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "VOL-13",
-    "name": "Volatility Regime Strategy",
-    "mode": "single",
-    "tags": ["Volatility", "Regime", "Adaptive"],
-    "summary": "Switch strategy style based on volatility regime.",
-    "description": "Dynamically switches between trend following in low volatility regimes and mean reversion in high volatility regimes. Low vol environments favor trends; high vol environments favor mean reversion as prices overshoot.",
-    "bestOn": "Markets with distinct volatility regimes",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Vol_Lookback = 20", "Vol_Percentile_Window = 252", "Low_Vol_Pct = 40", "High_Vol_Pct = 70"],
-        "Indicators": [
-            "Realized volatility",
-            "Volatility percentile",
-            "Trend MA for low vol",
-            "RSI for high vol",
-        ],
-        "Entry": ["Low vol: trend following (price > MA)", "High vol: mean reversion (RSI oversold)"],
-        "Exit": ["Regime change or signal reversal"],
-        "Position sizing": ["Full position in clear regimes"],
-        "Risk controls": ["Reduce size in transition zones"],
-    },
-    "notes": [
-        "Low vol = trending markets",
-        "High vol = mean reverting markets",
-        "Adaptive approach captures both",
-    ],
-    "updated": "2026-01-12",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'VOL-13',
+ 'name': 'Volatility Regime Strategy',
+ 'mode': 'single',
+ 'tags': ['Volatility', 'Regime', 'Adaptive'],
+ 'summary': 'Uses trend signals in low and middle volatility and RSI reversion in high '
+            'volatility.',
+ 'description': 'This daily rule calculates a realized-volatility rank, then applies either '
+                'the price trend or a stateful RSI trade. The middle regime can hold half '
+                'exposure.',
+ 'bestOn': 'Markets with distinct volatility regimes',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Below rank 40, set 100% if the trend test passes. In ranks 40 '
+                          'through 70, set 50% if it passes.',
+                          'Above rank 70, enter a 100% long when RSI falls below 30 while the '
+                          'high-regime RSI trade is inactive.'],
+                'Exit': ['Low and middle ranks target cash if the trend test fails. Above '
+                         'rank 70, remain in cash if the RSI entry condition fails, and exit '
+                         'an active RSI long only when RSI exceeds 50.'],
+                'Indicators': ['Volatility is the annualized sample standard deviation of '
+                               'daily returns. Rank is the share of the current pct_window '
+                               'volatilities strictly lower than the current value.',
+                               'Trend test is close > SMA50. The RSI uses simple averages of '
+                               'closing-price gains and losses.'],
+                'Inputs': ['vol_lookback = 20, pct_window = 252, low_vol_pct = 40, '
+                           'high_vol_pct = 70, trend_ma = 50, rsi_period = 14, rsi_oversold = '
+                           '30, rsi_exit = 50.'],
+                'Position sizing': ['0%, 50% or 100% long.']},
+ 'notes': ['A low or middle regime resets the high-volatility trade state. Unavailable '
+           'indicators carry the prior target.'],
+ 'updated': '2026-01-12',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_rsi(prices, period=14):

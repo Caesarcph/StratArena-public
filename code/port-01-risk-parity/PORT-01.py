@@ -1,39 +1,44 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "PORT-01",
-    "name": "Risk Parity",
-    "mode": "portfolio",
-    "ruleVersion": "monthly-prior-observation-v2",
-    "corrections": ["causal-monthly-decision"],
-    "targetTiming": "First observed session of a new month, using the prior observation; engine applies one-row lag.",
-    "tags": ["Portfolio", "Risk Parity", "Optimization"],
-    "summary": "Equal risk contribution from each asset.",
-    "description": "Risk Parity allocates weights so each asset contributes equally to total portfolio risk. Uses inverse volatility as a simple approximation, with optional covariance adjustment.",
-    "bestOn": "Multi-asset diversification",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Months",
-    "instruments": ["RISK-PARITY"],
-    "universe": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "portfolioSymbol": "RISK-PARITY",
-    "portfolioName": "Risk Parity",
-    "pseudocode": {
-        "Inputs": ["Lookback = 60", "Rebalance = Monthly"],
-        "Indicators": ["Rolling volatility", "Correlation matrix"],
-        "Entry": ["Weight proportional to 1/volatility", "Normalize to sum to 1"],
-        "Exit": ["Monthly rebalance"],
-        "Risk": ["Equal risk contribution target"],
-    },
-    "notes": [
-        "Classic risk parity uses inverse volatility",
-        "More sophisticated versions use covariance matrix",
-        "Popularized by Bridgewater's All Weather",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'PORT-01',
+ 'name': 'Risk Parity',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'monthly-prior-observation-v2',
+ 'corrections': ['causal-monthly-decision'],
+ 'targetTiming': 'First observed session of a new month, using the prior observation; engine '
+                 'applies one-row lag.',
+ 'tags': ['Portfolio', 'Risk Parity', 'Optimization'],
+ 'summary': 'Weights the portfolio by inverse volatility by default.',
+ 'description': "The default is an approximation to equal risk budgeting. Each asset's "
+                'trailing volatility determines its weight, and correlations can still affect '
+                'the actual risk contributions.',
+ 'bestOn': 'Multi-asset inverse-volatility allocation',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Months',
+ 'instruments': ['RISK-PARITY'],
+ 'universe': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'portfolioSymbol': 'RISK-PARITY',
+ 'portfolioName': 'Risk Parity',
+ 'pseudocode': {'Entry': ["At the monthly decision, divide by each asset's volatility and "
+                          'normalize the available weights.'],
+                'Exit': ['Refresh the target at the next eligible monthly decision.'],
+                'Indicators': ['Estimate annualized volatility from sample return standard '
+                               'deviations. In the default branch substitute the average of '
+                               'available volatility estimates for zero or missing estimates '
+                               'when that average is usable.'],
+                'Inputs': ['Default lookback 60 daily returns, full_optimization disabled.'],
+                'Position sizing': ['The default allocation gives larger weights to less '
+                                    'volatile assets.']},
+ 'notes': ['The basket uses the common completed sessions of SPY, GLD, USO and EURUSD=X.',
+           'Set targets on the first common session observed in a new month using the '
+           'preceding completed session. The target takes effect on the next available return '
+           'interval.',
+           'The optional covariance-based iteration is disabled by default. Its result can '
+           'include short weights and can miss equal risk contributions.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_risk_contribution(weights, cov_matrix):

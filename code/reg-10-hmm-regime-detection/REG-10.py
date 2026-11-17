@@ -1,38 +1,41 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "REG-10",
-    "name": "HMM Regime Detection",
-    "mode": "single",
-    "tags": ["Regime", "Machine Learning", "Statistical"],
-    "summary": "Use Hidden Markov Model to detect market regimes.",
-    "description": "Hidden Markov Model identifies latent market states (bull/bear). Uses Gaussian emissions and Baum-Welch for parameter estimation. Trades based on inferred regime.",
-    "bestOn": "Markets with distinct regimes",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["N_States = 2", "Lookback = 252"],
-        "Indicators": [
-            "Returns as observations",
-            "HMM with Gaussian emissions",
-            "Infer most likely state sequence",
-        ],
-        "Entry": ["Buy when in bullish regime (higher mean state)"],
-        "Exit": ["Sell when in bearish regime"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Regime probability threshold"],
-    },
-    "notes": [
-        "Simplified HMM without external libraries",
-        "Uses rolling window for regime detection",
-        "Bull regime = positive mean returns, Bear = negative",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'REG-10',
+ 'name': 'HMM Regime Detection',
+ 'mode': 'single',
+ 'tags': ['Regime', 'Statistical'],
+ 'summary': 'Classifies recent returns using two Gaussian distributions fitted to past '
+            'returns.',
+ 'description': 'HMM Regime Detection is the historical name. The backtest sorts a trailing '
+                'return sample, fits separate Gaussian distributions to the two halves and '
+                'classifies the recent mean return by their relative likelihoods.',
+ 'bestOn': 'Markets with distinct return regimes',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After warm-up, go long if the likelihood comparison selects the '
+                          'higher-mean group.'],
+                'Exit': ['Set the target to cash when the comparison selects the lower-mean '
+                         'group.'],
+                'Indicators': ['Sort the prior lookback daily returns. Estimate the mean and '
+                               'population standard deviation of each half, flooring the '
+                               'standard deviation at 0.000001.',
+                               'Score the mean of the recent min(smooth_window, 20) returns '
+                               'under both Gaussian distributions. Exclude the current bar '
+                               'from both windows.'],
+                'Inputs': ['Default: lookback = 252, smooth_window = 20 (capped at 20), two '
+                           'groups.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['There is no transition model. Classification uses the higher-mean group, '
+           'irrespective of whether its mean is positive.',
+           'The source reads n_states but always uses two groups. The recent mean uses at '
+           'most 20 bars.',
+           'After warm-up, an estimation window with fewer than 50 valid returns defaults to '
+           'a long target.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def estimate_hmm_params(returns, n_states=2):

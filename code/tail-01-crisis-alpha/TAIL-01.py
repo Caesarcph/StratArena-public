@@ -1,25 +1,30 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "TAIL-01",
-    "name": "Crisis Alpha",
-    "mode": "single",
-    "tags": ["Tail Risk", "Defensive"],
-    "summary": "Defensive exposure when volatility spikes.",
-    "description": "Risk-off stance triggered by volatility regimes.",
-    "bestOn": "SPY Crisis Windows Top3",
-    "frequency": "Daily",
-    "assetClasses": ["Index"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY"],
-    "pseudocode": {
-        "Logic": ["When VIX > threshold: long volatility proxy / cash", "Else: cash"],
-    },
-    "notes": ["Volatility trigger uses realized vol proxy on SPY."],
-    "updated": "2025-03-02",
-    "recommendedCompare": ["SPY"],
-}
+STRATEGY = {'id': 'TAIL-01',
+ 'name': 'Crisis Alpha',
+ 'mode': 'single',
+ 'tags': ['Tail Risk', 'Defensive'],
+ 'summary': 'Shorts the tested market when its realized volatility exceeds a threshold.',
+ 'description': 'The rule measures annualized volatility from daily returns of the instrument '
+                'being tested. It targets a short position above the threshold and holds cash '
+                'otherwise.',
+ 'bestOn': 'SPY Crisis Windows Top3',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY'],
+ 'pseudocode': {'Entry': ['Set the target to short when annualized volatility is above 30%.'],
+                'Exit': ['Go to cash when volatility is at or below the threshold or '
+                         'unavailable.'],
+                'Indicators': ['Realized volatility: rolling sample standard deviation of '
+                               'daily returns multiplied by √252.'],
+                'Inputs': ['Default: lookback = 20, threshold = 0.30.'],
+                'Position sizing': ['100% short or cash.']},
+ 'notes': ['The volatility signal comes from the tested instrument. Short exposure can lose '
+           'money in a volatile rally.'],
+ 'updated': '2025-03-02',
+ 'recommendedCompare': ['SPY']}
 
 
 def generate_signals(prices, config=None):

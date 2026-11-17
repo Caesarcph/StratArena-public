@@ -1,35 +1,33 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MR-04",
-    "ruleVersion": "ou-centered-ols-v2",
-    "name": "Ornstein-Uhlenbeck Mean Reversion",
-    "mode": "single",
-    "tags": ["Mean Reversion", "Statistical"],
-    "summary": "Trade based on OU process parameter estimation and half-life.",
-    "description": "Models price as an Ornstein-Uhlenbeck process and trades when price deviates from estimated long-term mean. Uses half-life to filter for tradeable mean-reversion speed.",
-    "bestOn": "Assets with stable mean-reversion characteristics",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Lookback = 60", "Entry_Std = 1.5", "Exit_Std = 0.5", "Min/Max Halflife = 1-30"],
-        "Indicators": ["OU parameters (mu, theta, sigma)", "Half-life", "Z-score"],
-        "Entry": ["Buy when z < -Entry_Std and halflife in valid range"],
-        "Exit": ["Exit when |z| < Exit_Std"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Only trade when half-life between 1-30 days"],
-    },
-    "notes": [
-        "Based on OU stochastic differential equation: dX = theta*(mu-X)*dt + sigma*dW",
-        "Half-life provides guidance on expected holding period",
-        "Parameter estimation via OLS regression",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MR-04',
+ 'ruleVersion': 'ou-centered-ols-v2',
+ 'name': 'Ornstein-Uhlenbeck Mean Reversion',
+ 'mode': 'single',
+ 'tags': ['Mean Reversion', 'Statistical'],
+ 'summary': 'Use a fitted mean-reversion half-life to gate OU deviation trades.',
+ 'description': 'Fit an intercept and lag coefficient to the previous 60 closes, excluding '
+                'the decision close. Only a valid mean-reverting fit with an eligible '
+                'half-life can hold a position.',
+ 'bestOn': 'Assets with stable mean-reversion characteristics',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Valid fit, half-life within inclusive[1,30], and current z<−1.5.'],
+                'Exit': ['Exit if z>−.5, the fit becomes invalid, or its half-life leaves the '
+                         'allowed range.'],
+                'Indicators': ['OLS slope uses matched covariance/variance normalization. '
+                               'For0<b<1, theta=−log(b), mu=a/(1−b), half-life=log(2)/theta; '
+                               'z uses fitted equilibrium volatility.'],
+                'Inputs': ['lookback=60, entry_std=1.5, exit_std=.5, min_halflife=1, '
+                           'max_halflife=30.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['The corrected OLS normalization changes prior estimates; historical evidence must '
+           'identify its actual rule version. No fixed holding-time stop is implemented.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def estimate_ou_parameters(series):

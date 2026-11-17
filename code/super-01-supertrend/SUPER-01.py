@@ -1,29 +1,35 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "SUPER-01",
-    "name": "Supertrend",
-    "mode": "single",
-    "input": "ohlc",
-    "tags": ["Trend", "ATR", "Stop"],
-    "summary": "ATR-based trailing trend system.",
-    "description": "Supertrend flips direction when price crosses the ATR band.",
-    "bestOn": "GLD 3Y Trend Score Top5",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["ATR_Period = 10", "Multiplier = 2.5"],
-        "Indicators": ["Smoothed ATR", "Trailing Upper/Lower Bands"],
-        "Entry": ["Price breaks above upper band: go long", "Price breaks below lower band: exit"],
-        "Exit": ["Band flip triggers direction change"],
-    },
-    "notes": ["Long-only by default; set allow_short to enable shorts."],
-    "updated": "2026-01-09",
-    "recommendedCompare": ["GLD", "SPY", "USO"],
-}
+STRATEGY = {'id': 'SUPER-01',
+ 'name': 'Supertrend',
+ 'mode': 'single',
+ 'input': 'ohlc',
+ 'tags': ['Trend', 'ATR', 'Stop'],
+ 'summary': 'Sets trend direction from trailing bands built with EMA-smoothed true range.',
+ 'description': 'The backtest uses OHLC bars and measures the bands from the high–low '
+                'midpoint. Full long exposure follows the uptrend state.',
+ 'bestOn': 'GLD 3Y Trend Score Top5',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After atr_period + 3 bars, initialize as an uptrend if the close '
+                          'exceeds (high + low)/2, else as a downtrend. Later a close above '
+                          'the upper trailing band turns a downtrend upward.'],
+                'Exit': ['A close below the lower trailing band turns an uptrend downward. '
+                         'Otherwise preserve direction.'],
+                'Indicators': ['ATR is an EMA of OHLC true range with span atr_period. Raw '
+                               'bands are (high + low)/2 ± multiplier × ATR.',
+                               'Trail or reset the bands with the previous trailing bands and '
+                               'previous close.'],
+                'Inputs': ['atr_period = 10, multiplier = 2.5, allow_short = false.'],
+                'Position sizing': ['100% long or cash by default. Optional short target '
+                                    '−100%.']},
+ 'notes': ['The production backtest uses the OHLC branch. The Python helper also has a '
+           'separate close-only approximation.'],
+ 'updated': '2026-01-09',
+ 'recommendedCompare': ['GLD', 'SPY', 'USO']}
 
 
 def generate_signals(prices, config=None):

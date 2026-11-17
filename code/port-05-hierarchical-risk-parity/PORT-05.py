@@ -3,43 +3,46 @@ import numpy as np
 from scipy.cluster.hierarchy import linkage, leaves_list
 from scipy.spatial.distance import squareform
 
-STRATEGY = {
-    "id": "PORT-05",
-    "name": "Hierarchical Risk Parity",
-    "mode": "portfolio",
-    "ruleVersion": "hrp-asset-alignment-v3",
-    "corrections": ["causal-monthly-decision", "preserve-asset-weight-alignment", "finite-weight-fallback"],
-    "targetTiming": "First observed session of a new month, using the prior observation; engine applies one-row lag.",
-    "tags": ["Portfolio", "Risk Parity", "Machine Learning"],
-    "summary": "Risk parity using hierarchical clustering.",
-    "description": "HRP by Marcos Lopez de Prado. Uses hierarchical clustering on correlation matrix to build a tree structure, then allocates weights recursively. Avoids covariance matrix inversion.",
-    "bestOn": "Robust portfolio allocation",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Months",
-    "instruments": ["HRP"],
-    "universe": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "portfolioSymbol": "HRP",
-    "portfolioName": "Hierarchical Risk Parity",
-    "pseudocode": {
-        "Inputs": ["Lookback = 60", "Linkage = single"],
-        "Indicators": ["Correlation matrix", "Hierarchical clustering"],
-        "Entry": [
-            "1. Cluster assets by correlation distance",
-            "2. Quasi-diagonalize covariance matrix",
-            "3. Recursive bisection for weights",
-        ],
-        "Exit": ["Monthly rebalance"],
-        "Risk": ["No matrix inversion needed"],
-    },
-    "notes": [
-        "Marcos Lopez de Prado (2016)",
-        "More stable than mean-variance optimization",
-        "Uses inverse variance at leaf level",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'PORT-05',
+ 'name': 'Hierarchical Risk Parity',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'hrp-asset-alignment-v3',
+ 'corrections': ['causal-monthly-decision',
+                 'preserve-asset-weight-alignment',
+                 'finite-weight-fallback'],
+ 'targetTiming': 'First observed session of a new month, using the prior observation; engine '
+                 'applies one-row lag.',
+ 'tags': ['Portfolio', 'Risk Parity', 'Machine Learning'],
+ 'summary': 'Clusters assets by return correlation and distributes weight by cluster '
+            'variance.',
+ 'description': 'Hierarchical Risk Parity sorts assets by the clustering tree and divides the '
+                'sorted list recursively. Each split gives more weight to the lower-variance '
+                'subcluster.',
+ 'bestOn': 'Multi-asset allocation based on hierarchical clustering',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Months',
+ 'instruments': ['HRP'],
+ 'universe': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'portfolioSymbol': 'HRP',
+ 'portfolioName': 'Hierarchical Risk Parity',
+ 'pseudocode': {'Entry': ['Split the ordered asset list in half recursively and allocate each '
+                          'split inversely to the estimated subcluster variances.'],
+                'Exit': ['Recompute targets at the next eligible monthly decision.'],
+                'Indicators': ['Convert return correlations into distances and cluster '
+                               'assets. Estimate subcluster variance using its internal '
+                               'inverse-variance weights.'],
+                'Inputs': ['Default lookback 60 daily returns and single linkage.'],
+                'Position sizing': ['Return a fully invested allocation with each result '
+                                    'assigned to its original asset.']},
+ 'notes': ['The basket uses the common completed sessions of SPY, GLD, USO and EURUSD=X.',
+           'Set targets on the first common session observed in a new month using the '
+           'preceding completed session. The target takes effect on the next available return '
+           'interval.',
+           'The backtest uses equal weights when covariance is unusable, any asset variance '
+           'is zero, or clustering or weight calculation fails.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def get_cluster_var(cov, cluster_items):

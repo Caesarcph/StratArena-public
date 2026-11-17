@@ -1,29 +1,35 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "ADX-01",
-    "name": "ADX Trend Filter",
-    "mode": "single",
-    "input": "ohlc",
-    "tags": ["Trend", "Filter", "Indicator"],
-    "summary": "Trade only when ADX confirms trend strength.",
-    "description": "Uses ADX and DI to stay with strong trends and avoid chop.",
-    "bestOn": "SPY 5Y Trend Score Top5",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Period = 14", "ADX_Threshold = 25", "Exit_Threshold = 20"],
-        "Indicators": ["ADX", "+DI", "-DI"],
-        "Entry": ["ADX > 25 and +DI > -DI: long", "ADX > 25 and -DI > +DI: short"],
-        "Exit": ["ADX < 20 or DI cross"],
-    },
-    "notes": ["Long-only by default; set allow_short to enable shorts."],
-    "updated": "2026-01-09",
-    "recommendedCompare": ["SPY", "GLD", "USO"],
-}
+STRATEGY = {'id': 'ADX-01',
+ 'name': 'ADX Trend Filter',
+ 'mode': 'single',
+ 'input': 'ohlc',
+ 'tags': ['Trend', 'Filter', 'Indicator'],
+ 'summary': 'Uses ADX and directional indicators to set exposure each day.',
+ 'description': 'This OHLC-based filter takes a long position when ADX exceeds 25 and +DI '
+                'leads −DI. It recomputes the target at every close.',
+ 'bestOn': 'SPY 5Y Trend Score Top5',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Set a long target when ADX is above adx_threshold and +DI exceeds '
+                          '−DI. With allow_short enabled, set a short target if ADX passes '
+                          'and −DI exceeds +DI.'],
+                'Exit': ['Go flat if the relevant direction or entry-strength condition '
+                         'fails, or if ADX is below exit_threshold.'],
+                'Indicators': ['Smooth true range and directional movement with an '
+                               'exponentially weighted mean (alpha = 1/period). Apply the '
+                               'same smoothing to DX to obtain ADX.'],
+                'Inputs': ['period = 14, adx_threshold = 25, exit_threshold = 20, allow_short '
+                           '= false.'],
+                'Position sizing': ['100% long or cash by default. With shorts enabled, the '
+                                    'short target is −100%.']},
+ 'notes': ['The default exit_threshold of 20 adds no independent exit condition because a '
+           'position already requires ADX above 25.'],
+ 'updated': '2026-01-09',
+ 'recommendedCompare': ['SPY', 'GLD', 'USO']}
 
 
 def generate_signals(prices, config=None):

@@ -1,40 +1,40 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MOM-05",
-    "name": "Faber TAA",
-    "mode": "portfolio",
-    "ruleVersion": "monthly-prior-observation-v2",
-    "corrections": ["causal-monthly-decision", "preserve-zero-targets"],
-    "targetTiming": "First observed session of a new month, using the prior observation; engine applies one-row lag.",
-    "tags": ["Momentum", "Tactical", "Trend"],
-    "summary": "Hold assets above 10-month moving average, cash otherwise.",
-    "description": "Meb Faber's Tactical Asset Allocation from 2007 paper. Simple rule: hold an asset only when price is above its 10-month (200-day) moving average. Equal weight across all assets in uptrend.",
-    "bestOn": "Multi-asset portfolios",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Months",
-    "instruments": ["FABER-TAA"],
-    "universe": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "portfolioSymbol": "FABER-TAA",
-    "portfolioName": "Faber TAA",
-    "pseudocode": {
-        "Inputs": ["MA_Period = 200 (10 months)"],
-        "Indicators": ["200-day SMA for each asset"],
-        "Entry": ["Hold asset if Price > SMA(200)"],
-        "Exit": ["Exit asset if Price <= SMA(200)"],
-        "Position sizing": ["Equal weight across assets in uptrend"],
-        "Risk controls": ["Full cash position when all assets below MA"],
-    },
-    "notes": [
-        "From Meb Faber's 2007 SSRN paper",
-        "Extremely simple trend-following rule",
-        "Monthly rebalancing for practical implementation",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MOM-05',
+ 'name': 'Faber TAA',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'monthly-prior-observation-v2',
+ 'corrections': ['causal-monthly-decision', 'preserve-zero-targets'],
+ 'targetTiming': 'First observed session of a new month, using the prior observation; engine '
+                 'applies one-row lag.',
+ 'tags': ['Momentum', 'Tactical', 'Trend'],
+ 'summary': 'Holds each 25% asset sleeve only when its close exceeds its 200-session SMA.',
+ 'description': 'This implementation applies a Faber-style trend rule to fixed equal sleeves. '
+                'Each sleeve stays in cash while its asset fails the moving-average test.',
+ 'bestOn': 'Multi-asset trend allocation with fixed sleeves',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Months',
+ 'instruments': ['FABER-TAA'],
+ 'universe': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'portfolioSymbol': 'FABER-TAA',
+ 'portfolioName': 'Faber TAA',
+ 'pseudocode': {'Entry': ["At a monthly decision, activate an asset's sleeve if its latest "
+                          'completed close is above its SMA.'],
+                'Exit': ['Move the sleeve to cash when the close is at or below its SMA.'],
+                'Indicators': ["Take the simple moving average of each asset's closing "
+                               'prices.'],
+                'Inputs': ['Default SMA window 200 trading sessions, used as a daily-data '
+                           'approximation of the 10-month trend rule.'],
+                'Position sizing': ['The four assets get one 25% sleeve each. When one asset '
+                                    'qualifies, 25% is invested and the other 75% is cash.']},
+ 'notes': ['The basket uses the common completed sessions of SPY, GLD, USO and EURUSD=X.',
+           'Set targets on the first common session observed in a new month using the '
+           'preceding completed session. The target takes effect on the next available return '
+           'interval.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_portfolio(prices, config=None):

@@ -1,30 +1,29 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "TREND-15",
-    "name": "Darvas Box",
-    "mode": "single",
-    "tags": ["Trend", "Breakout"],
-    "summary": "Breakout trades based on Darvas boxes.",
-    "description": "Identifies a rolling price box using recent highs and lows. Goes long on a breakout above the box and exits when price falls below the box floor.",
-    "bestOn": "Assets with clean breakouts",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "input": "ohlc",
-    "pseudocode": {
-        "Inputs": ["Box_Period = 20"],
-        "Indicators": ["BoxHigh = rolling high", "BoxLow = rolling low"],
-        "Entry": ["Go long when close > BoxHigh"],
-        "Exit": ["Exit when close < BoxLow"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Uses recent range as stop reference"],
-    },
-    "notes": ["Classic box breakout system", "Works best after consolidation"],
-    "updated": "2026-01-13",
-    "recommendedCompare": ["SPY", "GLD", "USO"],
-}
+STRATEGY = {'id': 'TREND-15',
+ 'name': 'Darvas Box',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Breakout'],
+ 'summary': 'Buys a close above the previous rolling high and exits below the previous '
+            'rolling low.',
+ 'description': 'This Darvas-style rule uses a rolling OHLC price box. Its upper and lower '
+                'limits are the highest high and lowest low from the prior complete window.',
+ 'bestOn': 'Assets with clean breakouts',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'input': 'ohlc',
+ 'pseudocode': {'Entry': ['Go long if the close strictly exceeds the previous box high.'],
+                'Exit': ['Go flat if the close is strictly below the previous box low, '
+                         'otherwise keep the prior target.'],
+                'Indicators': ['Build the box from the previous box_period highs and lows. '
+                               'The current bar is outside the calculation window.'],
+                'Inputs': ['box_period = 20.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['The box updates each day while holding. Production tests use OHLC bars.'],
+ 'updated': '2026-01-13',
+ 'recommendedCompare': ['SPY', 'GLD', 'USO']}
 
 
 def generate_signals(prices, config=None):

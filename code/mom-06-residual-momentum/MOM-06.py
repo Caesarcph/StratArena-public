@@ -1,38 +1,32 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MOM-06",
-    "name": "Residual Momentum",
-    "mode": "single",
-    "tags": ["Momentum", "Statistical"],
-    "summary": "Trade momentum after removing market factor exposure.",
-    "description": "Based on Blitz et al. (2011). Calculates momentum from residual returns after regressing out market factor (SPY). Captures 'pure' idiosyncratic momentum rather than beta-driven returns.",
-    "bestOn": "Assets with distinct factor exposures",
-    "frequency": "Daily",
-    "assetClasses": ["Commodity", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Beta_Window = 252", "Momentum_Lookback = 252", "Skip_Period = 21"],
-        "Indicators": [
-            "Rolling beta to SPY",
-            "Residual return = Actual - Beta * Market",
-            "Cumulative residual momentum",
-        ],
-        "Entry": ["Buy when residual momentum > 0 (positive alpha)"],
-        "Exit": ["Exit when residual momentum <= 0"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Skip most recent month to avoid reversal"],
-    },
-    "notes": [
-        "Based on Blitz, Huij & Martens (2011) research",
-        "Removes systematic risk, captures idiosyncratic momentum",
-        "Uses simplified CAPM residual (SPY as market proxy)",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["GLD", "USO"],
-}
+STRATEGY = {'id': 'MOM-06',
+ 'name': 'Residual Momentum',
+ 'mode': 'single',
+ 'tags': ['Momentum', 'Statistical'],
+ 'summary': 'Trade momentum of returns demeaned by their own trailing average.',
+ 'description': 'Residual Momentum is the historical label. This single-series rule does not '
+                'load SPY or estimate beta: it subtracts a 60-observation mean from each '
+                'return, then sums earlier demeaned returns.',
+ 'bestOn': 'Assets with distinct factor exposures',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Long when the residual sum is positive and indicator history is '
+                          'available.'],
+                'Exit': ['Cash when the sum is nonpositive or unavailable.'],
+                'Indicators': ['r=one-row close return; residual=r−SMA60(r). Sum '
+                               'momentum_lookback−skip_period residuals after shifting them '
+                               'skip_period rows.'],
+                'Inputs': ['momentum_lookback=252, skip_period=21; trailing mean fixed60; '
+                           'beta_window=252 is accepted but unused.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Default full indicator history first exists at zero-based row311. This proxy does '
+           'not remove market exposure or establish alpha.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['GLD', 'USO']}
 
 
 def generate_signals(prices, config=None):

@@ -1,29 +1,36 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "KC-01",
-    "name": "Keltner Channel Breakout",
-    "mode": "single",
-    "input": "ohlc",
-    "tags": ["Trend", "Breakout", "Channel"],
-    "summary": "Breakouts from an ATR-based channel.",
-    "description": "EMA midline with ATR bands; trades trigger on channel breaks.",
-    "bestOn": "SPY 3Y Trend Score Top5",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["EMA_Period = 20", "ATR_Period = 20", "Multiplier = 2.0"],
-        "Indicators": ["EMA(Close)", "ATR"],
-        "Entry": ["Close > UpperBand: long", "Close < LowerBand: short (optional)"],
-        "Exit": ["Close back to middle band", "Or reverse signal"],
-    },
-    "notes": ["Long-only by default; set allow_short to enable shorts."],
-    "updated": "2026-01-09",
-    "recommendedCompare": ["SPY", "GLD", "USO"],
-}
+STRATEGY = {'id': 'KC-01',
+ 'name': 'Keltner Channel Breakout',
+ 'mode': 'single',
+ 'input': 'ohlc',
+ 'tags': ['Trend', 'Breakout', 'Channel'],
+ 'summary': 'Trades closing-price breakouts from a Keltner channel and exits across its '
+            'midline.',
+ 'description': 'The channel centers on a closing-price EMA and uses a simple average of OHLC '
+                'true range for its width. Outside-band signals take precedence over midline '
+                'exits.',
+ 'bestOn': 'SPY 3Y Trend Score Top5',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Close above the upper band sets the long target. Below the lower '
+                          'band, set a short target if allow_short is enabled or go flat '
+                          'otherwise.'],
+                'Exit': ['Within the outer bands, exit a long below the EMA and exit a short '
+                         'above it. At the EMA the prior target carries forward.'],
+                'Indicators': ['Middle = EMA of closes. ATR = simple moving average of true '
+                               'range. Upper and lower bands = middle ± multiplier × ATR.'],
+                'Inputs': ['ema_period = 20, atr_period = 20, multiplier = 2, allow_short = '
+                           'false.'],
+                'Position sizing': ['100% long or cash by default. Optional short target '
+                                    '−100%.']},
+ 'notes': ['A close beyond the opposite outer band can directly reverse an enabled long/short '
+           'target.'],
+ 'updated': '2026-01-09',
+ 'recommendedCompare': ['SPY', 'GLD', 'USO']}
 
 
 def generate_signals(prices, config=None):

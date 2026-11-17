@@ -1,29 +1,30 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "REG-01",
-    "name": "Regime Switch",
-    "tags": ["Regime", "Defensive"],
-    "summary": "Switch between trend and cash based on volatility regime.",
-    "description": "Combines long-term trend filter with volatility regime detection.",
-    "bestOn": "Multi-Asset 3Y Arena Score Top3",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["SPY", "GLD", "EURUSD=X", "USO"],
-    "pseudocode": {
-        "Inputs": ["TrendMA = 200", "VolLookback = 60"],
-        "Indicators": ["SMA(200)", "Volatility(60)"],
-        "Entry": ["Go long when price > SMA and vol < threshold"],
-        "Exit": ["Exit when price < SMA or vol > threshold"],
-        "Position sizing": ["Scaled by volatility"],
-        "Risk controls": ["Cap max exposure at 80%"],
-    },
-    "notes": ["Defensive in stressed regimes", "May lag sudden recoveries"],
-    "updated": "2025-01-18",
-    "recommendedCompare": ["SPY", "GLD", "EURUSD=X"],
-}
+STRATEGY = {'id': 'REG-01',
+ 'name': 'Regime Switch',
+ 'tags': ['Regime', 'Defensive'],
+ 'summary': 'Holds the market when the long-term trend and volatility filters both pass.',
+ 'description': 'The close must exceed its 200-day simple moving average and annualized '
+                '60-day return volatility must be below 25%. The model moves between full '
+                'long exposure and cash.',
+ 'bestOn': 'Multi-Asset 3Y Arena Score Top3',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['SPY', 'GLD', 'EURUSD=X', 'USO'],
+ 'pseudocode': {'Entry': ['Go long when the close is above the SMA and annualized volatility '
+                          'is below 25%.'],
+                'Exit': ['Go to cash whenever either condition fails.'],
+                'Indicators': ['200-day closing-price SMA.',
+                               '60-day sample standard deviation of daily returns multiplied '
+                               'by √252.'],
+                'Inputs': ['Fixed: trend SMA = 200 days, volatility lookback = 60 days, '
+                           'volatility threshold = 25% annualized.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Both tests use strict inequalities. The rule goes to cash at either boundary.'],
+ 'updated': '2025-01-18',
+ 'recommendedCompare': ['SPY', 'GLD', 'EURUSD=X']}
 
 
 def generate_signals(prices, config=None):

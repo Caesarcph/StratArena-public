@@ -1,28 +1,30 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "HMA-01",
-    "name": "HMA Crossover",
-    "mode": "single",
-    "tags": ["Trend", "Momentum", "MA"],
-    "summary": "Fast/slow Hull MA crossover for trend direction.",
-    "description": "Low-lag Hull moving averages with optional long/short signals.",
-    "bestOn": "SPY 3Y Trend Score Top5",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Fast_Period = 9", "Slow_Period = 21"],
-        "Indicators": ["HMA Fast", "HMA Slow"],
-        "Entry": ["HMA fast > HMA slow: long", "HMA fast < HMA slow: short"],
-        "Exit": ["Crossover flip"],
-    },
-    "notes": ["Long-only by default; set allow_short to enable shorts."],
-    "updated": "2026-01-09",
-    "recommendedCompare": ["SPY", "GLD", "USO"],
-}
+STRATEGY = {'id': 'HMA-01',
+ 'name': 'HMA Crossover',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Momentum', 'MA'],
+ 'summary': 'Sets direction from the relative values of two Hull moving averages.',
+ 'description': 'The fast and slow Hull moving averages are calculated from closing prices '
+                'with integer-floor subwindows. The target is reassessed on every bar.',
+ 'bestOn': 'SPY 3Y Trend Score Top5',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Go long when the fast HMA is above the slow HMA. Go short when the '
+                          'fast HMA is below the slow HMA if allow_short is enabled.'],
+                'Exit': ['Go flat when the averages are equal or unavailable. With default '
+                         'settings, a fast HMA below the slow HMA also means cash.'],
+                'Indicators': ['HMA(n) is WMA(2 × WMA(close, floor(n/2)) − WMA(close, n), '
+                               'floor(√n)).'],
+                'Inputs': ['fast_period = 9, slow_period = 21, allow_short = false.'],
+                'Position sizing': ['100% long or cash by default. Optional short target '
+                                    '−100%.']},
+ 'notes': ['Use periods of at least 2 so the half-period has a valid length.'],
+ 'updated': '2026-01-09',
+ 'recommendedCompare': ['SPY', 'GLD', 'USO']}
 
 
 def wma(series, period):

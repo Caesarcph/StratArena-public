@@ -1,38 +1,34 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "VOL-10",
-    "name": "Volatility Risk Premium",
-    "mode": "single",
-    "tags": ["Volatility", "Risk Premium", "Statistical"],
-    "summary": "Harvest volatility risk premium when VRP is high.",
-    "description": "Volatility Risk Premium (VRP) is the difference between implied and realized volatility. When VRP is high (implied > realized), sell volatility by holding the underlying. When VRP is negative, stay out as markets may be turbulent.",
-    "bestOn": "Equity markets with VRP",
-    "frequency": "Daily",
-    "assetClasses": ["Index"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Realized_Lookback = 20", "VRP_Threshold = 0.02"],
-        "Indicators": [
-            "Realized Vol = Std(returns) * sqrt(252)",
-            "Implied Vol proxy = Recent vol range",
-            "VRP = Implied - Realized",
-        ],
-        "Entry": ["VRP > threshold (implied > realized)"],
-        "Exit": ["VRP < 0 (realized catching up)"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Exit when VRP turns negative"],
-    },
-    "notes": [
-        "VRP is typically positive (variance risk premium)",
-        "High VRP = market calm, good to hold",
-        "Negative VRP = turbulence ahead",
-    ],
-    "updated": "2026-01-11",
-    "recommendedCompare": ["SPY"],
-}
+STRATEGY = {'id': 'VOL-10',
+ 'name': 'Volatility Risk Premium',
+ 'mode': 'single',
+ 'tags': ['Volatility', 'Risk Premium', 'Statistical'],
+ 'summary': 'Times long exposure using the difference between longer- and shorter-window '
+            'realized volatility.',
+ 'description': 'Volatility Risk Premium is the historical name. The strategy uses two '
+                "realized-volatility windows from the tested instrument's daily returns to "
+                'set long or cash targets.',
+ 'bestOn': 'Single markets with changing short- and medium-term realized volatility',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After realized_lookback + 5 bars, set long when the spread exceeds '
+                          '2 percentage points and longer-window volatility is below 25%.'],
+                'Exit': ['Set cash when the spread is below −2 percentage points. Otherwise '
+                         'keep the last target.'],
+                'Indicators': ['For both windows use the sample standard deviation of daily '
+                               'returns × √252. The spread equals longer-window volatility '
+                               'minus shorter-window volatility.'],
+                'Inputs': ['realized_lookback = 20, implied_lookback = 5 (short realized '
+                           'window), vrp_threshold = 0.02.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['The 25% ceiling applies to setting a long target. An existing long can carry '
+           'through higher volatility when the spread does not trigger an exit.'],
+ 'updated': '2026-01-11',
+ 'recommendedCompare': ['SPY']}
 
 
 def generate_signals(prices, config=None):

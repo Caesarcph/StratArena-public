@@ -1,34 +1,32 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MR-06",
-    "name": "Z-Score Mean Reversion",
-    "mode": "single",
-    "tags": ["Mean Reversion", "Statistical"],
-    "summary": "Simple z-score reversion with volatility and trend filters.",
-    "description": "Basic mean reversion using price z-score with dual filters: volatility must be in reasonable range and price must be near 200-day MA (no strong trend). Trades only when conditions favor mean reversion.",
-    "bestOn": "Range-bound markets with moderate volatility",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Lookback = 20", "Entry_Z = 2.0", "Exit_Z = 0.5"],
-        "Indicators": ["Z-Score = (Close - SMA) / StdDev", "Annualized Volatility", "200-day MA distance"],
-        "Entry": ["Buy when Z < -Entry_Z", "Volatility between 10%-50% annualized", "Price within 10% of 200-day MA"],
-        "Exit": ["Exit when |Z| < Exit_Z"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Volatility filter", "Trend filter"],
-    },
-    "notes": [
-        "Most basic mean reversion approach",
-        "Filters significantly improve risk-adjusted returns",
-        "Works best when market lacks strong directional bias",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MR-06',
+ 'name': 'Z-Score Mean Reversion',
+ 'mode': 'single',
+ 'tags': ['Mean Reversion', 'Statistical'],
+ 'summary': 'Buy low price z-scores when entry volatility and trend filters allow.',
+ 'description': 'Both filters gate new entries only. Existing holdings persist until the '
+                'one-sided z-score recovery exit.',
+ 'bestOn': 'Range-bound markets with moderate volatility',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After 200 observations: z<−2, enabled volatility filter '
+                          'strictly.10<vol<.50, and enabled trend filter distance<.10.'],
+                'Exit': ['Exit when z>−.5; otherwise hold.'],
+                'Indicators': ['Price z uses sample standard deviation. Annualized return '
+                               'volatility uses sqrt252; trend distance is '
+                               'abs(close/SMA200−1).'],
+                'Inputs': ['lookback=20, entry_z=2, exit_z=.5; vol_filter=true, '
+                           'trend_filter=true, min_vol=.10, max_vol=.50, '
+                           'trend_threshold=.10.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['The200-row warmup remains even with filters disabled. There is no time stop, and '
+           'the filters do not guarantee improved returns.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

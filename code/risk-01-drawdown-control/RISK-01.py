@@ -1,37 +1,36 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "RISK-01",
-    "name": "Drawdown Control",
-    "mode": "single",
-    "tags": ["Risk Management", "Defensive", "Overlay"],
-    "summary": "Reduce exposure when drawdown exceeds threshold.",
-    "description": "Monitors portfolio drawdown in real-time. When drawdown exceeds threshold, reduces position proportionally. Similar to CPPI dynamic insurance. Can be used as overlay on any strategy.",
-    "bestOn": "Any underlying strategy",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Max_Drawdown = 0.10", "Scale = 0.5", "Recovery_Threshold = 0.5"],
-        "Indicators": ["Rolling maximum price", "Current drawdown"],
-        "Entry": [
-            "Full position when drawdown < threshold",
-            "Reduce by scale factor when drawdown exceeds",
-        ],
-        "Exit": ["Gradually restore as drawdown recovers"],
-        "Position sizing": ["Dynamic based on drawdown"],
-        "Risk controls": ["Hard drawdown limit"],
-    },
-    "notes": [
-        "Protects against tail risk",
-        "May reduce returns in V-shaped recoveries",
-        "Similar to constant proportion portfolio insurance",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'RISK-01',
+ 'name': 'Drawdown Control',
+ 'mode': 'single',
+ 'tags': ['Risk Management', 'Defensive', 'Overlay'],
+ 'summary': 'Reduces long exposure as the tested market falls from its rolling closing high.',
+ 'description': "The rule measures the tested instrument's drawdown from its rolling peak. "
+                'The daily long target decreases linearly above the drawdown threshold, '
+                'subject to a minimum allocation.',
+ 'bestOn': 'Single instruments with recurring price drawdowns',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['At d ≤ max_drawdown set the long target to 100%. Start the first '
+                          'bar fully long.'],
+                'Exit': ['At d > max_drawdown use max(min_position, 1 − (d − max_drawdown) × '
+                         'scale / max_drawdown). Recompute as the close or rolling high '
+                         'changes.'],
+                'Indicators': ["Drawdown d is the magnitude of the close's relative shortfall "
+                               'from the rolling maximum close. Early windows use the '
+                               'available closes.'],
+                'Inputs': ['max_drawdown = 0.10, scale = 0.5, lookback = 252, min_position = '
+                           '0.10.'],
+                'Position sizing': ['Long allocation ranges from 10% to 100% with the '
+                                    'defaults.']},
+ 'notes': ['The threshold governs allocation and is not a realized loss limit.',
+           'The Pine download attempts to rebalance each confirmed close. Symbol lot sizes '
+           'and simulated fills can affect the realized weight.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

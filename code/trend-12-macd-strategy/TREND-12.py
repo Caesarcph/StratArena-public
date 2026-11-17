@@ -1,38 +1,30 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "TREND-12",
-    "name": "MACD Strategy",
-    "mode": "single",
-    "tags": ["Trend", "Momentum"],
-    "summary": "Classic MACD crossover trend following.",
-    "description": "Uses MACD (Moving Average Convergence Divergence) line crossing the Signal line to identify trend changes. MACD above Signal indicates bullish momentum.",
-    "bestOn": "Trending markets",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Fast = 12", "Slow = 26", "Signal = 9"],
-        "Indicators": [
-            "MACD = EMA(12) - EMA(26)",
-            "Signal Line = EMA(MACD, 9)",
-            "Histogram = MACD - Signal",
-        ],
-        "Entry": ["Buy when MACD crosses above Signal line"],
-        "Exit": ["Sell when MACD crosses below Signal line"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["None - pure trend following"],
-    },
-    "notes": [
-        "Developed by Gerald Appel in the 1970s",
-        "Combines trend-following and momentum",
-        "Works best in trending markets, whipsaws in ranges",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'TREND-12',
+ 'name': 'MACD Strategy',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Momentum'],
+ 'summary': 'Holds long when MACD is above its signal line.',
+ 'description': 'The strategy uses the relative position of the closing-price MACD and its '
+                'signal line after the warm-up.',
+ 'bestOn': 'Trending markets',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['From zero-based bar slow + signal onward, set long whenever MACD '
+                          'exceeds its signal line.'],
+                'Exit': ['Use cash before warm-up or when MACD is at or below the signal '
+                         'line.'],
+                'Indicators': ['MACD = closing EMA(fast) − EMA(slow). Signal line = EMA(MACD, '
+                               'signal).'],
+                'Inputs': ['fast = 12, slow = 26, signal = 9.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['With defaults the first 35 bars remain flat. The rule can go long on its first '
+           'eligible bar.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

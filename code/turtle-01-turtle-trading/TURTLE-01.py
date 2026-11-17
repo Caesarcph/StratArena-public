@@ -1,28 +1,26 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "TURTLE-01",
-    "name": "Turtle Trading",
-    "tags": ["Trend", "Breakout"],
-    "summary": "Classic breakout system with trailing exit.",
-    "description": "A long-only Turtle Trading system using a 20-day breakout entry and 10-day low exit.",
-    "bestOn": "Multi-Asset 3Y Arena Score Top5",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["EntryLookback = 20", "ExitLookback = 10", "Risk = 1%"],
-        "Indicators": ["DonchianHigh(20)", "DonchianLow(10)", "ATR(20)"],
-        "Entry": ["Go long when close > prior 20-day high"],
-        "Exit": ["Exit when close < prior 10-day low"],
-        "Position sizing": ["Position = Risk / ATR (tracked externally)"],
-        "Risk controls": ["Trade only after breakout confirmation"],
-    },
-    "notes": ["Captures persistent trends", "Susceptible to whipsaws in ranges"],
-    "updated": "2025-03-01",
-    "recommendedCompare": ["SPY", "GLD", "USO"],
-}
+STRATEGY = {'id': 'TURTLE-01',
+ 'name': 'Turtle Trading',
+ 'tags': ['Trend', 'Breakout'],
+ 'summary': 'Uses a 20-bar closing-price breakout entry and a 10-bar closing-price exit.',
+ 'description': 'This Turtle-style variant runs one long-or-cash rule with separate entry and '
+                'exit lookbacks. It uses the prior windows of closes.',
+ 'bestOn': 'Multi-Asset 3Y Arena Score Top5',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ["Go long if today's close is strictly above the upper boundary."],
+                'Exit': ["Go to cash if today's close is strictly below the lower boundary. "
+                         'Otherwise keep the prior target.'],
+                'Indicators': ['Upper boundary = prior entry_window highest close. Lower '
+                               'boundary = prior exit_window lowest close.'],
+                'Inputs': ['entry_window = 20, exit_window = 10.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Targets are full long or cash. The rule calculates its signals at the close.'],
+ 'updated': '2025-03-01',
+ 'recommendedCompare': ['SPY', 'GLD', 'USO']}
 
 
 def generate_signals(prices, config=None):

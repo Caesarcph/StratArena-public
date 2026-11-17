@@ -1,38 +1,34 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "TREND-17",
-    "name": "Chandelier Exit",
-    "mode": "single",
-    "tags": ["Trend", "Volatility"],
-    "summary": "ATR-based trailing stop trend system.",
-    "description": "Uses ATR-based trailing stops from recent highs. Long stop = Highest High - 3*ATR. Stays in trend until volatility-adjusted stop is hit. Designed to ride trends and protect gains.",
-    "bestOn": "Trending markets with clear swings",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["ATR_Period = 22", "Multiplier = 3.0"],
-        "Indicators": [
-            "ATR = Average True Range over N periods",
-            "Long Stop = Highest High(22) - 3 * ATR",
-            "Short Stop = Lowest Low(22) + 3 * ATR",
-        ],
-        "Entry": ["Buy when price breaks above short stop (reversal)"],
-        "Exit": ["Sell when price falls below long stop"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["ATR-based dynamic stop loss"],
-    },
-    "notes": [
-        "Developed by Charles Le Beau",
-        "Named after chandelier hanging from ceiling (highest point)",
-        "Adapts to volatility - wider stops in volatile markets",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'TREND-17',
+ 'name': 'Chandelier Exit',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Volatility'],
+ 'summary': 'Uses closing-price Chandelier thresholds for long exits and re-entries.',
+ 'description': 'The thresholds start from a rolling highest and lowest close. Their '
+                'distances use an ATR approximation based on absolute changes between '
+                'successive closes.',
+ 'bestOn': 'Trending markets with clear swings',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['When flat after an exit, re-enter if the close is strictly above '
+                          'the re-entry threshold.'],
+                'Exit': ['In the uptrend state, go to cash when the close is strictly below '
+                         'the exit threshold. Otherwise target long.'],
+                'Indicators': ['Range proxy: the 22-bar simple average of absolute '
+                               'close-to-close changes.',
+                               'Exit threshold: 22-bar highest close minus 3 times the range '
+                               'proxy. Re-entry threshold: 22-bar lowest close plus 3 times '
+                               'the range proxy. The windows include the current close.'],
+                'Inputs': ['Default: atr_period = 22, multiplier = 3.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['After a warm-up of atr_period + 1 bars, the rule starts by checking the exit '
+           'threshold from an uptrend state.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_atr(prices, period=22):

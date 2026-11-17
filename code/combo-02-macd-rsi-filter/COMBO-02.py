@@ -1,38 +1,31 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "COMBO-02",
-    "name": "MACD + RSI Filter",
-    "mode": "single",
-    "tags": ["Technical", "Combo", "Momentum"],
-    "summary": "MACD crossover with RSI confirmation.",
-    "description": "Combines MACD momentum signal with RSI filter. Only takes MACD buy signals when RSI is not overbought, and MACD sell signals when RSI is not oversold. Double confirmation reduces false signals.",
-    "bestOn": "Trending markets with pullbacks",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["MACD_Fast = 12", "MACD_Slow = 26", "MACD_Signal = 9", "RSI_Period = 14", "RSI_OB = 70", "RSI_OS = 30"],
-        "Indicators": [
-            "MACD line and signal line",
-            "MACD histogram",
-            "RSI",
-        ],
-        "Entry": ["MACD crosses above signal", "AND RSI < 70 (not overbought)"],
-        "Exit": ["MACD crosses below signal", "OR RSI > 80 (extreme overbought)"],
-        "Position sizing": ["Full position on confirmed signals"],
-        "Risk controls": ["RSI filter prevents buying tops"],
-    },
-    "notes": [
-        "MACD for trend direction",
-        "RSI for overbought/oversold filter",
-        "Reduces whipsaws in choppy markets",
-    ],
-    "updated": "2026-01-12",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'COMBO-02',
+ 'name': 'MACD + RSI Filter',
+ 'mode': 'single',
+ 'tags': ['Technical', 'Combo', 'Momentum'],
+ 'summary': 'Combine MACD crossings or bullish pullbacks with EMA-based RSI.',
+ 'description': 'A bullish crossover below the RSI overbought level or an already-bullish '
+                'MACD with oversold RSI can enter. A bearish crossover exits without an '
+                'oversold veto.',
+ 'bestOn': 'Trending markets with pullbacks',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After 40 rows: bullish crossover AND RSI<70, OR MACD already above '
+                          'signal AND RSI<30.'],
+                'Exit': ['Bearish crossover, RSI>80, or MACD not above signal while RSI>70.'],
+                'Indicators': ['MACD uses recursive EMA12−EMA26 and EMA9 signal. RSI uses EMA '
+                               'span14 of gains/losses with denominator offset1e-10.'],
+                'Inputs': ['macd_fast=12, macd_slow=26, macd_signal=9, rsi_period=14, '
+                           'rsi_overbought=70, rsi_oversold=30, rsi_extreme=80.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['EMA-span RSI differs from Wilder RSI. There is no time stop or proven guarantee '
+           'of fewer false signals.'],
+ 'updated': '2026-01-12',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_macd(prices, fast=12, slow=26, signal=9):

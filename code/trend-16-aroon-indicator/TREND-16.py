@@ -1,37 +1,32 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "TREND-16",
-    "name": "Aroon Indicator",
-    "mode": "single",
-    "tags": ["Trend", "Technical"],
-    "summary": "Trend strength using time since highs/lows.",
-    "description": "Aroon indicator measures how long since the highest high and lowest low. Aroon Up > 70 with Aroon Down < 30 indicates strong uptrend. Captures trend emergence and strength.",
-    "bestOn": "Trending markets",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Period = 25", "Up_Threshold = 70", "Down_Threshold = 30"],
-        "Indicators": [
-            "Aroon Up = ((Period - Days since highest high) / Period) * 100",
-            "Aroon Down = ((Period - Days since lowest low) / Period) * 100",
-        ],
-        "Entry": ["Buy when Aroon Up > 70 and Aroon Down < 30"],
-        "Exit": ["Sell when Aroon Up < 50 or Aroon Down > 50"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Exit on trend weakness"],
-    },
-    "notes": [
-        "Developed by Tushar Chande in 1995",
-        "Name means 'dawn's early light' in Sanskrit",
-        "Measures trend strength and potential reversals",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'TREND-16',
+ 'name': 'Aroon Indicator',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Technical'],
+ 'summary': 'Measures trend from the recency of closing-price extremes.',
+ 'description': 'The rule tracks Aroon Up and Down over a window of closing prices. Separate '
+                'entry and exit thresholds let an established long position persist until the '
+                'indicators weaken.',
+ 'bestOn': 'Trending markets',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['From cash, set long when Aroon Up is above 70 and Aroon Down is '
+                          'below 30.'],
+                'Exit': ['While long, go flat if Aroon Up is below 50 or Aroon Down is above '
+                         '50. Otherwise hold.'],
+                'Indicators': ['Use the current close plus period prior closes. For each '
+                               'extreme, compute 100 × (period − bars since extreme)/period.',
+                               'Use the oldest occurrence when equal closes tie for an '
+                               'extreme.'],
+                'Inputs': ['period = 25, up_threshold = 70, down_threshold = 30.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['At the defaults the calculation uses 26 closes.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

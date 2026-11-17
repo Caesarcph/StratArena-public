@@ -1,30 +1,34 @@
 import numpy as np
 import pandas as pd
 
-STRATEGY = {
-    "id": "TREND-14",
-    "name": "Linear Regression Channel",
-    "mode": "single",
-    "tags": ["Trend", "Breakout"],
-    "summary": "Trade breakouts from a rolling regression channel.",
-    "description": "Fits a rolling linear regression to recent prices and trades breakouts beyond a standard deviation channel. Exits when price mean-reverts to the regression line.",
-    "bestOn": "Smooth trending markets",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Period = 50", "Std_Dev = 2.0"],
-        "Indicators": ["Regression line", "Upper/Lower channel"],
-        "Entry": ["Go long when price > upper channel", "Go short when price < lower channel"],
-        "Exit": ["Close long when price < regression line", "Close short when price > regression line"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Channel width adapts to volatility"],
-    },
-    "notes": ["Needs enough data for stable regression", "Choppy markets can whipsaw"],
-    "updated": "2026-01-13",
-    "recommendedCompare": ["SPY", "GLD", "USO"],
-}
+STRATEGY = {'id': 'TREND-14',
+ 'name': 'Linear Regression Channel',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Breakout'],
+ 'summary': 'Trades both directions against the previous rolling regression channel.',
+ 'description': 'The channel uses the fitted endpoint of a rolling linear regression and the '
+                'dispersion of its price residuals. Each close is evaluated against the '
+                "previous bar's channel.",
+ 'bestOn': 'Smooth trending markets',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Close strictly above the previous upper band sets long. Close '
+                          'strictly below the previous lower band sets short.'],
+                'Exit': ['Inside the outer bands, an existing long exits strictly below the '
+                         'previous fitted endpoint, and an existing short exits strictly '
+                         'above it. Otherwise hold.'],
+                'Indicators': ['Fit ordinary least squares to the last period closes. Channel '
+                               'bands are the fitted endpoint ± std_dev × population standard '
+                               'deviation of residuals.'],
+                'Inputs': ['period = 50, std_dev = 2.'],
+                'Position sizing': ['100% long, 100% short or cash.']},
+ 'notes': ['Outer-band breakouts take precedence and can reverse a position directly.',
+           'The Pine download defaults to both directions as in the Python targets. Disable '
+           'Allow short to test a long-only variant.'],
+ 'updated': '2026-01-13',
+ 'recommendedCompare': ['SPY', 'GLD', 'USO']}
 
 
 def rolling_slope(values):

@@ -1,29 +1,27 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "TREND-18",
-    "name": "Coppock Curve",
-    "mode": "single",
-    "tags": ["Trend", "Momentum"],
-    "summary": "Long-term trend timing with a smoothed momentum curve.",
-    "description": "Coppock Curve is a weighted moving average of two rate-of-change series. It is designed as a long-term trend indicator that turns positive near major bottoms.",
-    "bestOn": "Long-duration trend regimes",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Months",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["ROC1 = 14", "ROC2 = 11", "WMA = 10"],
-        "Indicators": ["ROC1 = (P / P[-ROC1]) - 1", "ROC2 = (P / P[-ROC2]) - 1", "Coppock = WMA(ROC1 + ROC2, WMA)"],
-        "Entry": ["Go long when Coppock > 0"],
-        "Exit": ["Exit when Coppock < 0"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Trend filter keeps exposure binary"],
-    },
-    "notes": ["Originally designed for monthly data", "Signals can be slow on daily bars"],
-    "updated": "2026-01-13",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'TREND-18',
+ 'name': 'Coppock Curve',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Momentum'],
+ 'summary': 'Holds long when the daily Coppock curve is positive.',
+ 'description': 'The daily implementation smooths the sum of two closing-price rates of '
+                'change with a linearly weighted moving average.',
+ 'bestOn': 'Long-duration trend regimes',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Months',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Set long whenever the curve is strictly positive.'],
+                'Exit': ['Use cash when the curve is zero, negative, or unavailable.'],
+                'Indicators': ['ROC(n) is close divided by the close n bars earlier minus 1. '
+                               'Smooth the sum with linear weights 1 through wma_window.'],
+                'Inputs': ['roc_fast = 14, roc_slow = 11, wma_window = 10.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['The original indicator was designed for monthly data. These lookbacks are in '
+           'daily bars.'],
+ 'updated': '2026-01-13',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def weighted_moving_average(series, window):

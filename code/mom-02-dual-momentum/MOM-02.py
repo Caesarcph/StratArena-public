@@ -1,43 +1,41 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MOM-02",
-    "name": "Dual Momentum",
-    "mode": "portfolio",
-    "ruleVersion": "monthly-prior-observation-v2",
-    "corrections": ["causal-monthly-decision", "preserve-zero-targets", "require-safe-asset"],
-    "targetTiming": "First observed session of a new month, using the prior observation; engine applies one-row lag.",
-    "tags": ["Momentum", "Tactical"],
-    "summary": "Combine relative and absolute momentum for asset selection.",
-    "description": "Gary Antonacci's Dual Momentum: select the asset with highest relative momentum, then apply absolute momentum filter. If selected asset has negative momentum, switch to safe asset.",
-    "bestOn": "Multi-asset tactical allocation",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Months",
-    "instruments": ["DUAL-MOM"],
-    "universe": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "portfolioSymbol": "DUAL-MOM",
-    "portfolioName": "Dual Momentum",
-    "pseudocode": {
-        "Inputs": ["Lookback = 252 (12 months)", "Safe_Asset = GLD"],
-        "Indicators": ["12-month return for each asset"],
-        "Entry": [
-            "1. Relative Momentum: Select asset with highest 12M return",
-            "2. Absolute Momentum: If selected return > 0, hold it",
-            "3. If selected return <= 0, hold safe asset (GLD)",
-        ],
-        "Exit": ["Monthly rebalance"],
-        "Risk": ["Absolute momentum filter avoids drawdowns"],
-    },
-    "notes": [
-        "Based on Gary Antonacci's 2014 book",
-        "Monthly decisions use prior-month data at the first observed new-month session",
-        "Uses GLD as safe asset proxy",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MOM-02',
+ 'name': 'Dual Momentum',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'monthly-prior-observation-v2',
+ 'corrections': ['causal-monthly-decision', 'preserve-zero-targets', 'require-safe-asset'],
+ 'targetTiming': 'First observed session of a new month, using the prior observation; engine '
+                 'applies one-row lag.',
+ 'tags': ['Momentum', 'Tactical'],
+ 'summary': 'Holds the strongest positive-momentum risk asset or switches to GLD.',
+ 'description': 'This dual-momentum variant ranks the risk assets by trailing return and '
+                'applies a zero-return test to the winner. GLD is the default fallback.',
+ 'bestOn': 'Tactical rotation among risk assets with a separate fallback',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Months',
+ 'instruments': ['DUAL-MOM'],
+ 'universe': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'portfolioSymbol': 'DUAL-MOM',
+ 'portfolioName': 'Dual Momentum',
+ 'pseudocode': {'Entry': ['If the highest available risk-asset return is strictly positive, '
+                          'set its target to 100%.'],
+                'Exit': ['Set the target to 100% GLD when that return is zero or negative. '
+                         'Carry the prior target if every risk-asset score is unavailable.'],
+                'Indicators': ['Calculate trailing closing-price returns for SPY, USO and '
+                               'EURUSD=X. GLD serves as the fallback and stays outside the '
+                               'ranking.'],
+                'Inputs': ['Default lookback 252 sessions and safe asset GLD.'],
+                'Position sizing': ['Hold one asset at a time after the first qualifying '
+                                    'monthly decision.']},
+ 'notes': ['The basket uses the common completed sessions of SPY, GLD, USO and EURUSD=X.',
+           'Set targets on the first common session observed in a new month using the '
+           'preceding completed session. The target takes effect on the next available return '
+           'interval.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_portfolio(prices, config=None):
