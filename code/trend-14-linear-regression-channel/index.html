@@ -91,14 +91,14 @@
       <header class="static-hero">
         <div class="eyebrow">Source code · TREND-14</div>
         <h1>Linear Regression Channel: Python and Pine Script Code</h1>
-        <p class="static-lead">The exact Python file behind the Linear Regression Channel backtests on this site, plus a TradingView Pine Script version.</p>
+        <p class="static-lead">The current Python implementation of Linear Regression Channel, with an illustrative default-parameter runner, plus a TradingView Pine Script version.</p>
         <div class="hero-actions"><a class="button primary" href="/code/trend-14-linear-regression-channel/TREND-14.py" download>Download Python (.py)</a><a class="button primary" href="/code/trend-14-linear-regression-channel/TREND-14.pine" download>Download Pine Script (.pine)</a><a class="button ghost" href="/strategy/trend-14-linear-regression-channel/">See backtest results</a></div>
       </header>
-      <section class="static-section"><h2>What the code does</h2><p>Fits a rolling linear regression to recent prices and trades breakouts beyond a standard deviation channel. Exits when price mean-reverts to the regression line.</p><div class="code-rules"><div class="code-rule"><h3>Inputs</h3><ul><li>Period = 50</li><li>Std_Dev = 2.0</li></ul></div><div class="code-rule"><h3>Indicators</h3><ul><li>Regression line</li><li>Upper/Lower channel</li></ul></div><div class="code-rule"><h3>Entry</h3><ul><li>Go long when price &gt; upper channel</li><li>Go short when price &lt; lower channel</li></ul></div><div class="code-rule"><h3>Exit</h3><ul><li>Close long when price &lt; regression line</li><li>Close short when price &gt; regression line</li></ul></div></div></section>
+      <section class="static-section"><h2>What the code does</h2><p>The channel uses the fitted endpoint of a rolling linear regression and the dispersion of its price residuals. Each close is evaluated against the previous bar&#x27;s channel.</p><div class="code-rules"><div class="code-rule"><h3>Inputs</h3><ul><li>period = 50, std_dev = 2.</li></ul></div><div class="code-rule"><h3>Indicators</h3><ul><li>Fit ordinary least squares to the last period closes. Channel bands are the fitted endpoint ± std_dev × population standard deviation of residuals.</li></ul></div><div class="code-rule"><h3>Entry</h3><ul><li>Close strictly above the previous upper band sets long. Close strictly below the previous lower band sets short.</li></ul></div><div class="code-rule"><h3>Exit</h3><ul><li>Inside the outer bands, an existing long exits strictly below the previous fitted endpoint, and an existing short exits strictly above it. Otherwise hold.</li></ul></div></div></section>
       <aside class="qa-ad" data-ad-slot="native" aria-label="Advertisement"><span class="qa-ad-label">Advertisement</span><div id="container-961cf17850b0984e5f4ca32744cb54b5"></div></aside>
     <script>(function(){var el=document.getElementById("container-961cf17850b0984e5f4ca32744cb54b5");if(!el)return;function load(){var s=document.createElement("script");s.async=true;s.setAttribute("data-cfasync","false");s.src="https://bauval.org/21/961cf17850b0984e5f4ca32744cb54b5";document.body.appendChild(s);if("MutationObserver" in window){var mo=new MutationObserver(function(){if(el.childNodes.length){el.parentNode.classList.add("is-filled");mo.disconnect();}});mo.observe(el,{childList:true});}else{el.parentNode.classList.add("is-filled");}}if("IntersectionObserver" in window){var io=new IntersectionObserver(function(e){if(e[0].isIntersecting){io.disconnect();load();}},{rootMargin:"600px"});io.observe(el.parentNode);}else{load();}})();</script>
       <section class="static-section"><h2 id="python">Python</h2>
-        <p class="muted small-note">140 lines. Run it with: <code>python TREND-14.py SPY</code></p>
+        <p class="muted small-note">174 lines. Run it with: <code>python TREND-14.py SPY</code></p>
         <pre class="code-block" tabindex="0"><code>import numpy as np
 import pandas as pd
 
@@ -206,32 +206,66 @@ def generate_signals(prices, config=None):
 #
 #   pip install pandas numpy yfinance
 #   python TREND-14.py SPY              # downloads daily prices with yfinance
-#   python TREND-14.py prices.csv       # or a CSV with Date, Open, High, Low, Close columns
+#   python TREND-14.py prices.csv       # daily Date and Close; include Open, High, Low for OHLC rules
 #
+# This default-parameter example does not replay the site&#x27;s walk-forward fits
+# or archived data. Evidence downloads replay the published run&#x27;s recorded
+# arithmetic and include archived source. Recomputing strategy decisions needs
+# the exact original inputs, which may not be public.
 # Convention, same as the site: the position decided at the close of day t earns
 # the return of day t+1. Results are before trading costs. Not investment advice.
 # ---------------------------------------------------------------------------
 def _load_prices(source):
+    import numpy as np
+
     if source.lower().endswith(&quot;.csv&quot;):
         frame = pd.read_csv(source, index_col=0, parse_dates=True)
     else:
         import yfinance as yf
-        frame = yf.download(source, start=&quot;2010-01-01&quot;, auto_adjust=True, progress=False)
+        try:
+            frame = yf.download(source, start=&quot;2010-01-01&quot;, auto_adjust=True, progress=False)
+        except Exception as error:
+            raise ValueError(&quot;Could not download daily prices: &quot; + str(error)) from error
+        if not isinstance(frame, pd.DataFrame):
+            raise ValueError(&quot;Expected a table of daily prices for one ticker.&quot;)
         if isinstance(frame.columns, pd.MultiIndex):
-            frame.columns = frame.columns.get_level_values(0)
-    return frame.sort_index().dropna(subset=[&quot;Close&quot;])
+            levels = [level for level in range(frame.columns.nlevels)
+                      if &quot;Close&quot; in frame.columns.get_level_values(level)]
+            if len(levels) != 1:
+                raise ValueError(&quot;Expected daily prices for one ticker.&quot;)
+            frame.columns = frame.columns.get_level_values(levels[0])
+    required = [&quot;Open&quot;, &quot;High&quot;, &quot;Low&quot;, &quot;Close&quot;] if STRATEGY.get(&quot;input&quot;) == &quot;ohlc&quot; else [&quot;Close&quot;]
+    if frame.columns.has_duplicates:
+        raise ValueError(&quot;Expected one column per price field for one ticker.&quot;)
+    missing = [name for name in required if name not in frame.columns]
+    if missing:
+        raise ValueError(&quot;Missing price columns: &quot; + &quot;, &quot;.join(missing))
+    if not isinstance(frame.index, pd.DatetimeIndex) or frame.index.hasnans or frame.index.normalize().has_duplicates:
+        raise ValueError(&quot;Prices need one row per valid calendar date.&quot;)
+    frame = frame.copy()
+    frame[required] = frame[required].apply(pd.to_numeric, errors=&quot;raise&quot;)
+    frame = frame.sort_index().dropna(subset=required)
+    prices = frame[required].to_numpy(dtype=float)
+    if len(frame) &lt; 2:
+        raise ValueError(&quot;Need at least two complete daily observations.&quot;)
+    if not np.isfinite(prices).all() or (prices &lt;= 0).any():
+        raise ValueError(&quot;Prices must be finite and positive.&quot;)
+    return frame
 
 
 if __name__ == &quot;__main__&quot;:
     import sys
 
-    prices = _load_prices(sys.argv[1] if len(sys.argv) &gt; 1 else &quot;SPY&quot;)
+    try:
+        prices = _load_prices(sys.argv[1] if len(sys.argv) &gt; 1 else &quot;SPY&quot;)
+    except (OSError, TypeError, ValueError) as error:
+        raise SystemExit(&quot;Input error: &quot; + str(error)) from error
     close = prices[&quot;Close&quot;]
     signal_input = prices if STRATEGY.get(&quot;input&quot;) == &quot;ohlc&quot; else close
     position = generate_signals(signal_input).reindex(close.index).ffill().fillna(0.0)
     daily = close.pct_change().fillna(0.0) * position.shift(1).fillna(0.0)
     equity = (1 + daily).cumprod()
-    years = (close.index[-1] - close.index[0]).days / 365.25
+    years = (close.index[-1].date() - close.index[0].date()).days / 365.25
     print(STRATEGY[&quot;id&quot;], STRATEGY[&quot;name&quot;], &quot;|&quot;, close.index[0].date(), &quot;to&quot;, close.index[-1].date())
     print(&quot;Total return   {:+.1%}&quot;.format(equity.iloc[-1] - 1))
     print(&quot;CAGR           {:+.1%}&quot;.format(equity.iloc[-1] ** (1 / years) - 1))
@@ -240,19 +274,18 @@ if __name__ == &quot;__main__&quot;:
     print(&quot;Days in market {:.0%}&quot;.format((position != 0).mean()))
     print(&quot;Buy and hold   {:+.1%}&quot;.format(close.iloc[-1] / close.iloc[0] - 1))
 </code></pre></section>
-      <section class="static-section"><h2 id="pine">TradingView Pine Script (v5)</h2><p class="muted small-note">Converted by hand from the Python above and not compiled by us in TradingView. If it fails to compile or behaves differently, the Python file is the reference.</p><pre class="code-block" tabindex="0"><code>//@version=5
+      <section class="static-section"><h2 id="pine">TradingView Pine Script (v5)</h2><p class="muted small-note">This Pine version has no current TradingView compilation check recorded. Use Python for the site&#x27;s backtest rules.</p><pre class="code-block" tabindex="0"><code>//@version=5
 // TREND-14 Linear Regression Channel — Quant Arena (https://quantarenas.com/code/)
 // Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
 // Converted by hand from Python and not compiled in TradingView by us: please report problems.
-// Note: the Python code emits -1 whenever price breaks below the lower band (no allow_short check inside
-// the strategy; the site engine decides whether shorts are used). Here shorts are gated by &quot;Allow short&quot;:
-// when off, -1 is treated as flat while the internal state machine still follows the Python logic.
+// The &quot;Allow short&quot; default follows the Python long/short targets. Disable it to study a long-only variant,
+// where a -1 target is treated as flat while the internal state machine continues to follow the rule.
 // Channel values are the regression endpoint +/- k * population residual std, compared on the NEXT bar.
 strategy(&quot;TREND-14 Linear Regression Channel&quot;, overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
 
 period     = input.int(50, &quot;Period&quot;, minval=2)
 stdDev     = input.float(2.0, &quot;Std dev&quot;, step=0.1)
-allowShort = input.bool(false, &quot;Allow short&quot;)
+allowShort = input.bool(true, &quot;Allow short&quot;)
 
 // regression line value at the last bar of the window (identical to intercept + slope * (period - 1))
 mid = ta.linreg(close, period, 0)
@@ -298,6 +331,7 @@ else
       <section class="static-section"><h2>Run it yourself</h2><pre class="code-block code-block--short"><code>pip install pandas numpy yfinance
 python TREND-14.py SPY
 python TREND-14.py my_prices.csv</code></pre>
+        <p class="muted small-note">This example uses current prices and default parameters; it does not reproduce the site&#x27;s walk-forward results. Evidence downloads include archived source and replay the published run&#x27;s recorded arithmetic. Recomputing strategy decisions requires the exact original inputs, which may not be public. Baskets use the declared universe (or the site&#x27;s configured markets); custom symbols and CSV columns keep their order. Only common observations are used, without filling missing prices. Provide enough history for the strategy&#x27;s lookback and warmup.</p>
         <p class="muted small-note">Free to use and modify. Provided as is, for research and education. Historical backtests do not predict future returns. Not investment advice.</p></section>
       <section class="static-section"><h2>More strategy code</h2><div class="recent-list"><a class="recent-item" href="/code/trend-15-darvas-box/"><span class="recent-text"><span class="recent-kind">TREND-15</span><span class="recent-title">Darvas Box</span></span></a><a class="recent-item" href="/code/trend-16-aroon-indicator/"><span class="recent-text"><span class="recent-kind">TREND-16</span><span class="recent-title">Aroon Indicator</span></span></a><a class="recent-item" href="/code/trend-17-chandelier-exit/"><span class="recent-text"><span class="recent-kind">TREND-17</span><span class="recent-title">Chandelier Exit</span></span></a><a class="recent-item" href="/code/trend-18-coppock-curve/"><span class="recent-text"><span class="recent-kind">TREND-18</span><span class="recent-title">Coppock Curve</span></span></a></div>
         <p><a href="/code/">All strategy code →</a></p></section>
@@ -325,6 +359,7 @@ python TREND-14.py my_prices.csv</code></pre>
           <div class="footer-heading">Learn</div>
           <a href="/research/">Research</a>
           <a href="/?page=ea-ranking" rel="nofollow">EA Ranking</a>
+          <a href="/mt5-comparison/">Native MT5 comparison</a>
           <a href="/?page=compare" rel="nofollow">Compare</a>
           <a href="/methodology/">Methodology</a>
           <a href="/evidence/">Strategy evidence</a>

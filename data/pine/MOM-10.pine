@@ -1,10 +1,9 @@
 //@version=5
 // MOM-10 Accelerating Momentum — Quant Arena (https://quantarenas.com/code/)
 // Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
-// Converted by hand from Python and not compiled in TradingView by us: please report problems.
-// Fractional position: the Python returns weights 0 / 0.5 / 0.75 / 1.0. This script resizes the long position with
-// strategy.order to that fraction of equity whenever the target weight changes (no rebalance while the weight is unchanged).
-// Python uses returns[21] for the short-term check; here that is Period 1 (default 21).
+// See the strategy download page for this version's TradingView test status.
+// The target fraction is 0 / 0.5 / 0.75 / 1.0 and is applied to current equity at each confirmed close.
+// Use the shortest configured period for the short-term check.
 strategy("MOM-10 Accelerating Momentum", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
 
 p1 = input.int(21, "Period 1 (1M)", minval=1)
@@ -27,7 +26,8 @@ composite = w1 * normMom(p1) + w2 * normMom(p2) + w3 * normMom(p3) + w4 * normMo
 
 // positive-return count uses the un-filled returns (na counts as not positive)
 cnt = (close / close[p1] - 1 > 0 ? 1 : 0) + (close / close[p2] - 1 > 0 ? 1 : 0) + (close / close[p3] - 1 > 0 ? 1 : 0) + (close / close[p4] - 1 > 0 ? 1 : 0)
-shortRet = nz(close / close[p1] - 1)
+shortPeriod = math.min(math.min(p1, p2), math.min(p3, p4))
+shortRet = nz(close / close[shortPeriod] - 1)
 
 warmup = math.max(math.max(p1, p2), math.max(p3, p4)) + 63
 
@@ -48,13 +48,13 @@ plot(composite, "Composite score", color=color.blue)
 hline(0, "Zero", color=color.gray)
 plot(sig, "Target weight", color=color.orange)
 
-var float lastW = 0.0
-if sig != lastW
+if barstate.isconfirmed
     if sig <= 0
-        strategy.close_all()
-    else
-        targetQty = strategy.equity * sig / close
+        if strategy.position_size != 0
+            strategy.close_all()
+    else if close > 0 and syminfo.pointvalue > 0
+        targetValue = strategy.convert_to_symbol(math.max(strategy.equity, 0.0) * sig)
+        targetQty = targetValue / (close * syminfo.pointvalue)
         delta = targetQty - strategy.position_size
-        if math.abs(delta) > 0
-            strategy.order("Long", delta > 0 ? strategy.long : strategy.short, qty=math.abs(delta))
-    lastW := sig
+        if math.abs(delta) > 1e-9
+            strategy.order("Rebalance", delta > 0 ? strategy.long : strategy.short, qty=math.abs(delta))

@@ -2,8 +2,8 @@
 // MR-04 Ornstein-Uhlenbeck Mean Reversion — Quant Arena (https://quantarenas.com/code/)
 // Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
 // Converted by hand from Python and not compiled in TradingView by us: please report problems.
-// Note: the OU fit uses the previous `lookback` closes (current bar excluded). To match the Python exactly,
-// b = sample covariance (n-1) / population variance (n) of the lagged series, residual std is population.
+// OU fit uses the previous `lookback` closes, excluding the current bar.
+// The slope is the ratio of centered cross-products to centered lag squares.
 strategy("MR-04 Ornstein-Uhlenbeck Mean Reversion", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0, process_orders_on_close=true)
 
 lookback    = input.int(60, "Lookback", minval=12)
@@ -32,7 +32,6 @@ if bar_index >= lookback
         dy = close[k] - meanY
         covSum += dx * dy
         varSum += dx * dx
-    covXY = covSum / (m - 1)
     varLag = varSum / m
 
     bool valid = false
@@ -41,7 +40,7 @@ if bar_index >= lookback
     float sigma = na
     float halflife = na
     if varLag >= 1e-10
-        b = covXY / varLag
+        b = covSum / varSum
         a = meanY - b * meanX
         if b > 0 and b < 1
             res = array.new_float(0)
@@ -52,7 +51,7 @@ if bar_index >= lookback
             mu := a / (1 - b)
             sigma := sigmaRes * math.sqrt(-2 * math.log(b) / (1 - b * b))
             halflife := math.log(2) / theta
-            valid := true
+            valid := sigmaRes > 0
 
     if not valid
         pos := 0.0

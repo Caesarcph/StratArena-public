@@ -1658,8 +1658,8 @@ const RESEARCH_ARTICLES = [
             "zh": "本文要回答的是：站内的规则型策略里，哪些在 2022 年带着盈利走了出来，它们有什么共同点，以及“2022 年的赢家”对 2023 年有没有预示作用。"
           },
           {
-            "en": "The test is calendar 2022: the return from the last close of 2021 to the last close of 2022, for 55 single-market strategies on each of ten markets, 550 strategy-market series in all. Divergence Strategy (COMBO-03) is left out because its code looks ahead. The 16 portfolio strategies, which trade baskets, are counted separately. Parameters come from walk-forward selection, positions are decided at the close and earn the next day's return, and everything is before trading costs. Data runs to 2026-11-11.",
-            "zh": "测试区间为 2022 日历年：从 2021 年最后一个收盘价到 2022 年最后一个收盘价。覆盖 10 个市场、每个市场 55 个单市场策略，共 550 条“策略-市场”序列。Divergence Strategy（COMBO-03）的代码存在前视问题，已排除。16 个投资组合类策略（交易一篮子资产）单独统计。参数由滚动前推优化选出，仓位在收盘时决定并赚取次日收益，所有结果均未扣交易成本。数据截至 2026-11-11。"
+            "en": "The test is calendar 2022: the return from the last close of 2021 to the last close of 2022, for 55 single-market strategies on each of ten markets, 550 strategy-market series in all. The original study excluded Divergence Strategy (COMBO-03) because that version used future bars. The figures retain the original sample. The 16 portfolio strategies, which trade baskets, are counted separately. Parameters come from walk-forward selection, positions are decided at the close and earn the next day's return, and everything is before trading costs. Data runs to 2026-11-11.",
+            "zh": "测试区间为 2022 日历年：从 2021 年最后一个收盘价到 2022 年最后一个收盘价。覆盖 10 个市场、每个市场 55 个单市场策略，共 550 条“策略-市场”序列。原研究排除了当时使用未来行情的 Divergence Strategy（COMBO-03）。文中数字沿用原样本。16 个投资组合类策略（交易一篮子资产）单独统计。参数由滚动前推优化选出，仓位在收盘时决定并赚取次日收益，所有结果均未扣交易成本。数据截至 2026-11-11。"
           }
         ]
       },
@@ -4654,8 +4654,8 @@ const RESEARCH_ARTICLES = [
             "zh": "站内事件库把新冠暴跌定义为 SPY 从 2020 年 2 月 19 日到 3 月 23 日的下跌。数据验证了这两个日期：SPY 在 23 个交易日里下跌 33.7%，单日最大跌幅出现在 3 月 16 日，为 -10.9%，是高点之后的第 18 个交易日。收盘价第一次比高点低 10% 是 2 月 27 日，只过了 6 个交易日。"
           },
           {
-            "en": "This article replays every strategy with SPY history over that window and asks four things: how many were already out before the worst of it, how deep each family's drawdown was, who was back in for the rebound, and what the same dates look like on gold and bitcoin. Results are walk-forward backtests on daily data, before trading costs. One strategy, COMBO-03, is left out because its code looks ahead, so the SPY sample is 61 strategies, not 62.",
-            "zh": "本文把有 SPY 历史的所有策略放进这个窗口回放，回答四个问题：有多少策略在最糟的阶段之前已经离场，各类策略的回撤有多深，谁在反弹时重新入场，以及同一时间窗口放到黄金和比特币上是什么样子。结果来自日线数据的滚动前推回测，未计交易成本。COMBO-03 的代码存在前视问题，所以被排除，SPY 样本是 61 个策略，而不是 62 个。"
+            "en": "This article replays every strategy with SPY history over that window and asks four things: how many were already out before the worst of it, how deep each family's drawdown was, who was back in for the rebound, and what the same dates look like on gold and bitcoin. Results are walk-forward backtests on daily data, before trading costs. The November 12 replay excluded COMBO-03 because that version used future bars. This article retains the original 61-strategy SPY sample and its results.",
+            "zh": "本文把有 SPY 历史的所有策略放进这个窗口回放，回答四个问题：有多少策略在最糟的阶段之前已经离场，各类策略的回撤有多深，谁在反弹时重新入场，以及同一时间窗口放到黄金和比特币上是什么样子。结果来自日线数据的滚动前推回测，未计交易成本。11 月 12 日的回放排除了当时使用未来行情的 COMBO-03。本文保留原先的 61 个 SPY 策略样本及其结果。"
           }
         ]
       },
@@ -5382,8 +5382,8 @@ const RESEARCH_ARTICLES = [
             "zh": "样本是站内所有主市场为美股、方向为下跌的人工整理事件：12 个，从 2010 年春季回调到 2025 年的关税抛售。窗口内市场平均下跌 15.0%（中位数 12.8%）。5 个事件跌幅超过 15%，7 个在 5% 到 15% 之间。最深的三个是 2020 年暴跌（-33.7%）、2022 年熊市（-24.5%）和 2018 年底下跌（-19.3%）。窗口从 6 到 195 个交易日不等，彼此没有重叠。正在进行中、由系统自动识别的那次下跌没有计入，其他市场的事件也没有计入。"
           },
           {
-            "en": "Families come from strategy tags, with each strategy placed in the first matching family in the order trend, momentum, mean reversion, volatility, other. That gives 24 trend strategies (288 strategy-event pairs) and 14 or 15 mean-reversion strategies per event (176 pairs). COMBO-03 is excluded because its code looks ahead. \"Already out\" is the engine's inference: the strategy's equity did not move on any of the last three sessions up to the window start. Results are walk-forward backtests on daily data, before trading costs.",
-            "zh": "策略类别来自策略标签，每个策略按趋势、动量、均值回归、波动率、其他的顺序归入第一个匹配的类别。每次事件里有 24 个趋势策略（共 288 个策略—事件对）和 14 或 15 个均值回归策略（共 176 对）。COMBO-03 因为代码存在前视而被排除。“已经离场”是引擎的推断：窗口起点之前最近三个交易日里策略净值都没有变动。结果来自日线数据的滚动前推回测，未计交易成本。"
+            "en": "Families come from strategy tags, with each strategy placed in the first matching family in the order trend, momentum, mean reversion, volatility, other. That gives 24 trend strategies (288 strategy-event pairs) and 14 or 15 mean-reversion strategies per event (176 pairs). The study excluded COMBO-03 because that version used future bars. \"Already out\" is the engine's inference: the strategy's equity did not move on any of the last three sessions up to the window start. Results are walk-forward backtests on daily data, before trading costs.",
+            "zh": "策略类别来自策略标签，每个策略按趋势、动量、均值回归、波动率、其他的顺序归入第一个匹配的类别。每次事件里有 24 个趋势策略（共 288 个策略—事件对）和 14 或 15 个均值回归策略（共 176 对）。当时的 COMBO-03 使用了未来行情，因此被排除。“已经离场”是引擎的推断：窗口起点之前最近三个交易日里策略净值都没有变动。结果来自日线数据的滚动前推回测，未计交易成本。"
           },
           {
             "en": "All averages below are simple means across the 12 events, with each event counting once, of the family's mean result in that event.",

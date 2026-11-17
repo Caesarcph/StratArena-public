@@ -1847,6 +1847,10 @@ function renderCorrelationMatrix(strategies, instrument, window) {
   `;
 }
 
+function strategyDisplay(strategy, field) {
+  return strategy.localizedCopy?.[getLang()]?.[field] ?? strategy[field];
+}
+
 function renderStrategies(route) {
   const state = strategiesState(route.params);
   const tags = uniqueTags(store.strategies);
@@ -1911,12 +1915,12 @@ function renderStrategies(route) {
             ${renderFavoriteButton(strategy.id, "card")}
             <div class="eyebrow">${strategy.id}</div>
             <h3>${strategy.name}</h3>
-            <p>${strategy.summary}</p>
+            <p>${escapeHtml(strategyDisplay(strategy, "summary") || "")}</p>
             <div class="tag-row">
               ${strategy.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
             </div>
             <div class="strategy-meta">
-              <span class="badge">${strategy.bestOn}</span>
+              <span class="badge">${escapeHtml(strategyDisplay(strategy, "bestOn") || "")}</span>
             </div>
             <div class="hero-actions">
               <a class="button ghost" href="?page=strategy&id=${strategy.id}">${t("common.view_strategy")}</a>
@@ -1959,12 +1963,12 @@ function renderFavorites(route) {
               ${renderFavoriteButton(strategy.id, "card")}
               <div class="eyebrow">${strategy.id}</div>
               <h3>${strategy.name}</h3>
-              <p>${strategy.summary}</p>
+              <p>${escapeHtml(strategyDisplay(strategy, "summary") || "")}</p>
               <div class="tag-row">
                 ${strategy.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
               </div>
               <div class="strategy-meta">
-                <span class="badge">${strategy.bestOn}</span>
+                <span class="badge">${escapeHtml(strategyDisplay(strategy, "bestOn") || "")}</span>
               </div>
               <div class="hero-actions">
                 <a class="button ghost" href="?page=strategy&id=${strategy.id}">${t("common.view_strategy")}</a>
@@ -2014,7 +2018,7 @@ function renderStrategyDetail(route) {
         <div>
           <div class="eyebrow">${strategy.id}</div>
           <h2>${strategy.name}</h2>
-          <p>${strategy.description}</p>
+          <p>${escapeHtml(strategyDisplay(strategy, "description") || "")}</p>
           <div class="tag-row">
             ${strategy.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
           </div>
@@ -2263,7 +2267,7 @@ function renderStrategyDetail(route) {
       <div class="section pseudocode">
         <details open>
           <summary>${t("strategy.pseudocode")}</summary>
-          <pre><code>${buildPseudocode(strategy)}</code></pre>
+          <pre><code>${escapeHtml(buildPseudocode({ pseudocode: strategyDisplay(strategy, "pseudocode") }))}</code></pre>
           <button class="copy-button" data-copy>${t("common.copy")}</button>
         </details>
       </div>
@@ -2272,7 +2276,7 @@ function renderStrategyDetail(route) {
 
       <div class="section note">
         <strong>${t("common.notes")}</strong>
-        <div>${strategy.notes.join(" ")}</div>
+        <div>${escapeHtml((strategyDisplay(strategy, "notes") || []).join(" "))}</div>
         <div>${t("common.last_updated", { date: strategy.updated })}</div>
       </div>
     </section>
@@ -2457,7 +2461,7 @@ function renderSimilarStrategies(strategy, instrument, window, benchmarkKey) {
               <div class="card">
                 <div class="eyebrow">${entry.strategy.id}</div>
                 <h3>${entry.strategy.name}</h3>
-                <p>${entry.strategy.summary}</p>
+                <p>${escapeHtml(strategyDisplay(entry.strategy, "summary") || "")}</p>
                 <div class="tag-row">${sharedTags}</div>
                 <div class="stat-grid similar-meta">
                   <div class="stat"><span>${t("strategy.tag_match")}</span><span>${tagPercent}%</span></div>

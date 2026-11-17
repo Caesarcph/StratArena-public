@@ -91,14 +91,14 @@
       <header class="static-hero">
         <div class="eyebrow">Source code · MR-05</div>
         <h1>CCI Mean Reversion: Python and Pine Script Code</h1>
-        <p class="static-lead">The exact Python file behind the CCI Mean Reversion backtests on this site, plus a TradingView Pine Script version.</p>
+        <p class="static-lead">The current Python implementation of CCI Mean Reversion, with an illustrative default-parameter runner, plus a TradingView Pine Script version.</p>
         <div class="hero-actions"><a class="button primary" href="/code/mr-05-cci-mean-reversion/MR-05.py" download>Download Python (.py)</a><a class="button primary" href="/code/mr-05-cci-mean-reversion/MR-05.pine" download>Download Pine Script (.pine)</a><a class="button ghost" href="/strategy/mr-05-cci-mean-reversion/">See backtest results</a></div>
       </header>
-      <section class="static-section"><h2>What the code does</h2><p>Uses Commodity Channel Index to identify oversold conditions. Enters long when CCI falls below -100 (oversold) and exits when CCI returns to neutral (0). Includes max holding period and extreme stop.</p><div class="code-rules"><div class="code-rule"><h3>Inputs</h3><ul><li>Period = 20</li><li>Oversold = -100</li><li>Exit_Level = 0</li><li>Max_Hold = 15</li></ul></div><div class="code-rule"><h3>Indicators</h3><ul><li>Typical Price = (H+L+C)/3</li><li>CCI = (TP - SMA) / (0.015 * Mean Deviation)</li></ul></div><div class="code-rule"><h3>Entry</h3><ul><li>Buy when CCI &lt; -100 (oversold)</li></ul></div><div class="code-rule"><h3>Exit</h3><ul><li>Exit when CCI &gt;= 0</li><li>Or max holding period reached</li><li>Or CCI &lt; -200 (extreme stop)</li></ul></div></div></section>
+      <section class="static-section"><h2>What the code does</h2><p>CCI uses closing price instead of classic OHLC typical price. Entry is a level test and does not require a new threshold crossing.</p><div class="code-rules"><div class="code-rule"><h3>Inputs</h3><ul><li>period=20, oversold=−100, exit_level=0, max_hold=15, extreme_stop=−200.</li></ul></div><div class="code-rule"><h3>Indicators</h3><ul><li>CCI=(close−SMA20)/(.015×20-row mean absolute deviation from that window mean).</li></ul></div><div class="code-rule"><h3>Entry</h3><ul><li>When flat, enter if CCI&lt;−100.</li></ul></div><div class="code-rule"><h3>Exit</h3><ul><li>While held, exit if CCI≥0, holding age≥15 observations, or CCI&lt;−200.</li></ul></div></div></section>
       <aside class="qa-ad" data-ad-slot="native" aria-label="Advertisement"><span class="qa-ad-label">Advertisement</span><div id="container-961cf17850b0984e5f4ca32744cb54b5"></div></aside>
     <script>(function(){var el=document.getElementById("container-961cf17850b0984e5f4ca32744cb54b5");if(!el)return;function load(){var s=document.createElement("script");s.async=true;s.setAttribute("data-cfasync","false");s.src="https://bauval.org/21/961cf17850b0984e5f4ca32744cb54b5";document.body.appendChild(s);if("MutationObserver" in window){var mo=new MutationObserver(function(){if(el.childNodes.length){el.parentNode.classList.add("is-filled");mo.disconnect();}});mo.observe(el,{childList:true});}else{el.parentNode.classList.add("is-filled");}}if("IntersectionObserver" in window){var io=new IntersectionObserver(function(e){if(e[0].isIntersecting){io.disconnect();load();}},{rootMargin:"600px"});io.observe(el.parentNode);}else{load();}})();</script>
       <section class="static-section"><h2 id="python">Python</h2>
-        <p class="muted small-note">134 lines. Run it with: <code>python MR-05.py SPY</code></p>
+        <p class="muted small-note">168 lines. Run it with: <code>python MR-05.py SPY</code></p>
         <pre class="code-block" tabindex="0"><code>import pandas as pd
 import numpy as np
 
@@ -200,32 +200,66 @@ def generate_signals(prices, config=None):
 #
 #   pip install pandas numpy yfinance
 #   python MR-05.py SPY              # downloads daily prices with yfinance
-#   python MR-05.py prices.csv       # or a CSV with Date, Open, High, Low, Close columns
+#   python MR-05.py prices.csv       # daily Date and Close; include Open, High, Low for OHLC rules
 #
+# This default-parameter example does not replay the site&#x27;s walk-forward fits
+# or archived data. Evidence downloads replay the published run&#x27;s recorded
+# arithmetic and include archived source. Recomputing strategy decisions needs
+# the exact original inputs, which may not be public.
 # Convention, same as the site: the position decided at the close of day t earns
 # the return of day t+1. Results are before trading costs. Not investment advice.
 # ---------------------------------------------------------------------------
 def _load_prices(source):
+    import numpy as np
+
     if source.lower().endswith(&quot;.csv&quot;):
         frame = pd.read_csv(source, index_col=0, parse_dates=True)
     else:
         import yfinance as yf
-        frame = yf.download(source, start=&quot;2010-01-01&quot;, auto_adjust=True, progress=False)
+        try:
+            frame = yf.download(source, start=&quot;2010-01-01&quot;, auto_adjust=True, progress=False)
+        except Exception as error:
+            raise ValueError(&quot;Could not download daily prices: &quot; + str(error)) from error
+        if not isinstance(frame, pd.DataFrame):
+            raise ValueError(&quot;Expected a table of daily prices for one ticker.&quot;)
         if isinstance(frame.columns, pd.MultiIndex):
-            frame.columns = frame.columns.get_level_values(0)
-    return frame.sort_index().dropna(subset=[&quot;Close&quot;])
+            levels = [level for level in range(frame.columns.nlevels)
+                      if &quot;Close&quot; in frame.columns.get_level_values(level)]
+            if len(levels) != 1:
+                raise ValueError(&quot;Expected daily prices for one ticker.&quot;)
+            frame.columns = frame.columns.get_level_values(levels[0])
+    required = [&quot;Open&quot;, &quot;High&quot;, &quot;Low&quot;, &quot;Close&quot;] if STRATEGY.get(&quot;input&quot;) == &quot;ohlc&quot; else [&quot;Close&quot;]
+    if frame.columns.has_duplicates:
+        raise ValueError(&quot;Expected one column per price field for one ticker.&quot;)
+    missing = [name for name in required if name not in frame.columns]
+    if missing:
+        raise ValueError(&quot;Missing price columns: &quot; + &quot;, &quot;.join(missing))
+    if not isinstance(frame.index, pd.DatetimeIndex) or frame.index.hasnans or frame.index.normalize().has_duplicates:
+        raise ValueError(&quot;Prices need one row per valid calendar date.&quot;)
+    frame = frame.copy()
+    frame[required] = frame[required].apply(pd.to_numeric, errors=&quot;raise&quot;)
+    frame = frame.sort_index().dropna(subset=required)
+    prices = frame[required].to_numpy(dtype=float)
+    if len(frame) &lt; 2:
+        raise ValueError(&quot;Need at least two complete daily observations.&quot;)
+    if not np.isfinite(prices).all() or (prices &lt;= 0).any():
+        raise ValueError(&quot;Prices must be finite and positive.&quot;)
+    return frame
 
 
 if __name__ == &quot;__main__&quot;:
     import sys
 
-    prices = _load_prices(sys.argv[1] if len(sys.argv) &gt; 1 else &quot;SPY&quot;)
+    try:
+        prices = _load_prices(sys.argv[1] if len(sys.argv) &gt; 1 else &quot;SPY&quot;)
+    except (OSError, TypeError, ValueError) as error:
+        raise SystemExit(&quot;Input error: &quot; + str(error)) from error
     close = prices[&quot;Close&quot;]
     signal_input = prices if STRATEGY.get(&quot;input&quot;) == &quot;ohlc&quot; else close
     position = generate_signals(signal_input).reindex(close.index).ffill().fillna(0.0)
     daily = close.pct_change().fillna(0.0) * position.shift(1).fillna(0.0)
     equity = (1 + daily).cumprod()
-    years = (close.index[-1] - close.index[0]).days / 365.25
+    years = (close.index[-1].date() - close.index[0].date()).days / 365.25
     print(STRATEGY[&quot;id&quot;], STRATEGY[&quot;name&quot;], &quot;|&quot;, close.index[0].date(), &quot;to&quot;, close.index[-1].date())
     print(&quot;Total return   {:+.1%}&quot;.format(equity.iloc[-1] - 1))
     print(&quot;CAGR           {:+.1%}&quot;.format(equity.iloc[-1] ** (1 / years) - 1))
@@ -234,7 +268,7 @@ if __name__ == &quot;__main__&quot;:
     print(&quot;Days in market {:.0%}&quot;.format((position != 0).mean()))
     print(&quot;Buy and hold   {:+.1%}&quot;.format(close.iloc[-1] / close.iloc[0] - 1))
 </code></pre></section>
-      <section class="static-section"><h2 id="pine">TradingView Pine Script (v5)</h2><p class="muted small-note">Converted by hand from the Python above and not compiled by us in TradingView. If it fails to compile or behaves differently, the Python file is the reference.</p><pre class="code-block" tabindex="0"><code>//@version=5
+      <section class="static-section"><h2 id="pine">TradingView Pine Script (v5)</h2><p class="muted small-note">This Pine version has no current TradingView compilation check recorded. Use Python for the site&#x27;s backtest rules.</p><pre class="code-block" tabindex="0"><code>//@version=5
 // MR-05 CCI Mean Reversion — Quant Arena (https://quantarenas.com/code/)
 // Converted from the Python implementation used on the site. Daily timeframe. Not investment advice.
 // Converted by hand from Python and not compiled in TradingView by us: please report problems.
@@ -279,6 +313,7 @@ else
       <section class="static-section"><h2>Run it yourself</h2><pre class="code-block code-block--short"><code>pip install pandas numpy yfinance
 python MR-05.py SPY
 python MR-05.py my_prices.csv</code></pre>
+        <p class="muted small-note">This example uses current prices and default parameters; it does not reproduce the site&#x27;s walk-forward results. Evidence downloads include archived source and replay the published run&#x27;s recorded arithmetic. Recomputing strategy decisions requires the exact original inputs, which may not be public. Baskets use the declared universe (or the site&#x27;s configured markets); custom symbols and CSV columns keep their order. Only common observations are used, without filling missing prices. Provide enough history for the strategy&#x27;s lookback and warmup.</p>
         <p class="muted small-note">Free to use and modify. Provided as is, for research and education. Historical backtests do not predict future returns. Not investment advice.</p></section>
       <section class="static-section"><h2>More strategy code</h2><div class="recent-list"><a class="recent-item" href="/code/mr-06-z-score-mean-reversion/"><span class="recent-text"><span class="recent-kind">MR-06</span><span class="recent-title">Z-Score Mean Reversion</span></span></a><a class="recent-item" href="/code/mr-07-hurst-filtered-mean-reversion/"><span class="recent-text"><span class="recent-kind">MR-07</span><span class="recent-title">Hurst-Filtered Mean Reversion</span></span></a><a class="recent-item" href="/code/mr-10-stochastic-oscillator-reversion/"><span class="recent-text"><span class="recent-kind">MR-10</span><span class="recent-title">Stochastic Oscillator Reversion</span></span></a><a class="recent-item" href="/code/mr-11-williams-r-reversion/"><span class="recent-text"><span class="recent-kind">MR-11</span><span class="recent-title">Williams %R Reversion</span></span></a></div>
         <p><a href="/code/">All strategy code →</a></p></section>
@@ -306,6 +341,7 @@ python MR-05.py my_prices.csv</code></pre>
           <div class="footer-heading">Learn</div>
           <a href="/research/">Research</a>
           <a href="/?page=ea-ranking" rel="nofollow">EA Ranking</a>
+          <a href="/mt5-comparison/">Native MT5 comparison</a>
           <a href="/?page=compare" rel="nofollow">Compare</a>
           <a href="/methodology/">Methodology</a>
           <a href="/evidence/">Strategy evidence</a>
