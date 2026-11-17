@@ -1,38 +1,42 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "STAT-10",
-    "name": "Dynamic Hedge Ratio Pairs",
-    "mode": "portfolio",
-    "tags": ["Pairs Trading", "Kalman Filter", "Statistical Arbitrage"],
-    "summary": "Pairs trading with adaptive hedge ratio.",
-    "description": "Uses Kalman Filter to dynamically estimate the hedge ratio between two assets. More adaptive than rolling OLS regression. Trades spread z-score with time-varying parameters.",
-    "bestOn": "Cointegrated or highly correlated asset pairs",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Q = 0.001 (process noise)", "R = 1.0 (measurement noise)", "Entry_Z = 1.5", "Exit_Z = 0.3"],
-        "Indicators": [
-            "Kalman-filtered hedge ratio",
-            "Dynamic spread",
-            "Spread z-score",
-        ],
-        "Entry": ["Z < -1.5: long spread (long Y, short X)", "Z > 1.5: short spread"],
-        "Exit": ["Z crosses 0 or reverses"],
-        "Position sizing": ["Equal dollar weights adjusted by hedge ratio"],
-        "Risk controls": ["Max holding period", "Hedge ratio stability check"],
-    },
-    "notes": [
-        "Kalman Filter adapts to structural changes",
-        "No need for fixed lookback window",
-        "More responsive than OLS-based pairs",
-    ],
-    "updated": "2026-01-11",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'STAT-10',
+ 'name': 'Dynamic Hedge Ratio Pairs',
+ 'mode': 'portfolio',
+ 'tags': ['Pairs Trading', 'Kalman Filter', 'Statistical Arbitrage'],
+ 'summary': 'Trades a SPY–GLD residual with a daily Kalman hedge ratio and rolling z-score.',
+ 'description': "A one-coefficient Kalman filter estimates SPY's relationship to GLD in log "
+                'prices. The strategy standardizes the fitted residual and updates the hedge '
+                'weight while a trade is open.',
+ 'bestOn': 'Research on pairs with an adaptive hedge ratio',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After the 110-row warmup, z below −1.5 opens a long residual. z '
+                          'above +1.5 opens a short residual.'],
+                'Exit': ['On valid signal rows, exit the long when z is above −0.3, or exit '
+                         'the short when z is below +0.3. The 20-observation holding limit '
+                         'also closes the position on a valid signal row.'],
+                'Indicators': ['After updating beta each session, compute log(SPY) − beta × '
+                               'log(GLD) and use the 60-session sample mean and standard '
+                               'deviation to calculate its z-score.'],
+                'Inputs': ['Default process noise Q 0.001, measurement noise R 1, z-score '
+                           'window 60, entry z-score 1.5, exit z-score 0.3 and holding limit '
+                           '20 observations.'],
+                'Position sizing': ['Normalize the signed weights [1, −beta] for long or [−1, '
+                                    'beta] for short to 100% gross exposure.']},
+ 'notes': ['The site backtest aligns SPY, GLD, USO, EURUSD=X, DBC, SLV, DBA, UNG, BTC-USD and '
+           'ETH-USD on their common completed sessions. Its SPY display label identifies the '
+           'basket.',
+           'The rule trades the first two aligned columns, SPY and GLD in the site '
+           'configuration. The eight other inputs affect the common calendar and carry zero '
+           'target weights.',
+           'Daily targets apply on the next common return interval. A missing z-score or '
+           'hedge ratio carries the previous target.'],
+ 'updated': '2026-01-11',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def kalman_filter_hedge_ratio(y, x, q=0.001, r=1.0):

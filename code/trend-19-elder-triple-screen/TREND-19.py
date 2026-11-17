@@ -1,40 +1,35 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "TREND-19",
-    "name": "Elder Triple Screen",
-    "mode": "single",
-    "tags": ["Trend", "Momentum"],
-    "summary": "Multi-filter trend system using MACD, pullbacks, and breakouts.",
-    "description": "Combines a trend filter (MACD + long EMA), a pullback filter (Force Index proxy), and a breakout trigger. Long-only implementation aligned with daily data.",
-    "bestOn": "Markets with orderly pullbacks",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": [
-            "MACD_Fast = 12",
-            "MACD_Slow = 26",
-            "MACD_Signal = 9",
-            "EMA_Long = 50",
-            "Force_EMA = 13",
-            "Entry_Lookback = 20",
-        ],
-        "Indicators": [
-            "MACD histogram for trend filter",
-            "Force Index proxy = close.diff()",
-            "Entry breakout = recent high",
-        ],
-        "Entry": ["Trend up AND Force Index < 0 AND close > recent high"],
-        "Exit": ["Trend filter turns down"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Requires pullback before breakout entry"],
-    },
-    "notes": ["Force Index uses price-change proxy (no volume)", "Simplified long-only version"],
-    "updated": "2026-01-13",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'TREND-19',
+ 'name': 'Elder Triple Screen',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Momentum'],
+ 'summary': 'A daily long-only rule requiring trend, pullback and breakout filters on the '
+            'same close.',
+ 'description': 'This daily adaptation of Elder Triple Screen goes long only when a positive '
+                'MACD histogram, a close above the long EMA, a negative smoothed price-change '
+                'proxy and a breakout above prior closes all hold on the same bar.',
+ 'bestOn': 'Markets with orderly pullbacks',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Enter long when trend is up, the pullback proxy is negative and '
+                          'the current close exceeds the breakout threshold on the same bar.'],
+                'Exit': ['Exit to cash when the trend filter fails. Otherwise hold the '
+                         'previous target unless a new entry triggers.'],
+                'Indicators': ['Trend is up when the MACD histogram is positive and the close '
+                               'is above its 50-bar EMA.',
+                               'The pullback proxy is the 13-bar EMA of close changes. The '
+                               'breakout threshold is the maximum close over the preceding 20 '
+                               'bars.'],
+                'Inputs': ['Default: MACD 12/26/9, long EMA 50, price-change EMA 13, breakout '
+                           'lookback 20.'],
+                'Position sizing': ['Target 100% long or cash.']},
+ 'notes': ['The pullback filter uses smoothed close changes without volume. The simultaneous '
+           'filters can leave the strategy in cash for long periods.'],
+ 'updated': '2026-01-13',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def ema(series, span):

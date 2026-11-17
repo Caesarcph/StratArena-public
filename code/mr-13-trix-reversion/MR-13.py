@@ -1,29 +1,27 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "MR-13",
-    "name": "TRIX Reversion",
-    "mode": "single",
-    "tags": ["Mean Reversion", "Oscillator"],
-    "summary": "Buy deep TRIX pullbacks and exit on mean reversion.",
-    "description": "TRIX is the rate of change of a triple-smoothed EMA. This strategy buys when TRIX is deeply negative and exits when momentum mean-reverts toward zero.",
-    "bestOn": "Range-bound markets with recoveries",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Period = 15", "Signal = 9", "Entry_Level = -0.5", "Exit_Level = 0.0"],
-        "Indicators": ["TRIX = ROC(EMA(EMA(EMA(close, Period))))", "Signal = EMA(TRIX, Signal)"],
-        "Entry": ["Go long when TRIX < Entry_Level"],
-        "Exit": ["Exit when TRIX > Exit_Level or TRIX > Signal"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Momentum filter avoids chasing peaks"],
-    },
-    "notes": ["TRIX is smoother than standard ROC", "Extremes are rare on daily data"],
-    "updated": "2026-01-13",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MR-13',
+ 'name': 'TRIX Reversion',
+ 'mode': 'single',
+ 'tags': ['Mean Reversion', 'Oscillator'],
+ 'summary': 'Buy deeply negative TRIX; exit above zero or its signal line.',
+ 'description': 'TRIX is the percentage rate of change of a triple-smoothed closing-price '
+                'EMA. Signal-line recovery can close a position before TRIX reaches zero.',
+ 'bestOn': 'Range-bound markets with recoveries',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['When flat, enter when TRIX<−.5%.'],
+                'Exit': ['When held, exit when TRIX>0 or TRIX>signal line.'],
+                'Indicators': ['Three recursive EMA15 filters; '
+                               'TRIX=100×(EMA3/previousEMA3−1); signal=EMA9(TRIX).'],
+                'Inputs': ['period=15, signal=9, entry_level=−.5, exit_level=0.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['EMAs initialize from available observations; there is no full45-row warmup or '
+           'maximum holding period.'],
+ 'updated': '2026-01-13',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

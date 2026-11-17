@@ -1,34 +1,31 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MR-05",
-    "name": "CCI Mean Reversion",
-    "mode": "single",
-    "tags": ["Mean Reversion", "Oscillator"],
-    "summary": "Buy oversold CCI readings, exit at neutral.",
-    "description": "Uses Commodity Channel Index to identify oversold conditions. Enters long when CCI falls below -100 (oversold) and exits when CCI returns to neutral (0). Includes max holding period and extreme stop.",
-    "bestOn": "Range-bound commodities and indices",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Period = 20", "Oversold = -100", "Exit_Level = 0", "Max_Hold = 15"],
-        "Indicators": ["Typical Price = (H+L+C)/3", "CCI = (TP - SMA) / (0.015 * Mean Deviation)"],
-        "Entry": ["Buy when CCI < -100 (oversold)"],
-        "Exit": ["Exit when CCI >= 0", "Or max holding period reached", "Or CCI < -200 (extreme stop)"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Stop at CCI < -200", "Max hold 15 days"],
-    },
-    "notes": [
-        "Donald Lambert's 1980 indicator",
-        "Constant 0.015 ensures ~70-80% of CCI values fall within [-100, +100]",
-        "Works best in sideways markets",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD", "USO"],
-}
+STRATEGY = {'id': 'MR-05',
+ 'name': 'CCI Mean Reversion',
+ 'mode': 'single',
+ 'tags': ['Mean Reversion', 'Oscillator'],
+ 'summary': 'Buy a close-only CCI below−100 and exit on recovery or limits.',
+ 'description': 'CCI uses closing price instead of classic OHLC typical price. Entry is a '
+                'level test and does not require a new threshold crossing.',
+ 'bestOn': 'Range-bound commodities and indices',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['When flat, enter if CCI<−100.'],
+                'Exit': ['While held, exit if CCI≥0, holding age≥15 observations, or '
+                         'CCI<−200.'],
+                'Indicators': ['CCI=(close−SMA20)/(.015×20-row mean absolute deviation from '
+                               'that window mean).'],
+                'Inputs': ['period=20, oversold=−100, exit_level=0, max_hold=15, '
+                           'extreme_stop=−200.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['The extreme stop is checked only while holding; the entry rule can accept a '
+           'reading already below−200. The.015 scale gives no guaranteed coverage '
+           'percentage.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD', 'USO']}
 
 
 def calculate_cci(prices_df, period=20):

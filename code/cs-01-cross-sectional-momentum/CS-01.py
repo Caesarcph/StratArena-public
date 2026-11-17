@@ -1,37 +1,41 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "CS-01",
-    "name": "Cross-Sectional Momentum",
-    "mode": "portfolio",
-    "ruleVersion": "monthly-prior-observation-v2",
-    "corrections": ["causal-monthly-decision", "carry-monthly-targets"],
-    "targetTiming": "First observed session of a new month, using the prior observation; engine applies one-row lag.",
-    "tags": ["Momentum", "Cross-Section"],
-    "summary": "Buy winners and rotate monthly.",
-    "description": "Rank assets by 12-month total return and hold the top names each month.",
-    "bestOn": "Cross-Section 3Y Arena Score Top3",
-    "frequency": "Monthly",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "1 Month",
-    "instruments": ["CS-UNIV"],
-    "universe": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "portfolioSymbol": "CS-UNIV",
-    "portfolioName": "Cross-Section Basket",
-    "pseudocode": {
-        "Inputs": ["Lookback = 252", "TopN = 2"],
-        "Indicators": ["12M total return"],
-        "At rebalance": [
-            "Rank assets by past 12M return",
-            "Long top N assets equally",
-        ],
-        "Exit": ["Monthly rebalance"],
-        "Risk": ["Volatility scaled weights"],
-    },
-    "notes": ["Universe: SPY/GLD/USO/EURUSD=X"],
-    "updated": "2025-03-02",
-    "recommendedCompare": ["CS-UNIV"],
-}
+STRATEGY = {'id': 'CS-01',
+ 'name': 'Cross-Sectional Momentum',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'monthly-prior-observation-v2',
+ 'corrections': ['causal-monthly-decision', 'carry-monthly-targets'],
+ 'targetTiming': 'First observed session of a new month, using the prior observation; engine '
+                 'applies one-row lag.',
+ 'tags': ['Momentum', 'Cross-Section'],
+ 'summary': 'Selects the two strongest trailing returns and weights them by inverse '
+            'volatility.',
+ 'description': 'Each month, rank the four assets by trailing closing-price return. Allocate '
+                'more to the lower-volatility asset among the selected names.',
+ 'bestOn': 'Cross-asset momentum rotation',
+ 'frequency': 'Monthly',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': '1 Month',
+ 'instruments': ['CS-UNIV'],
+ 'universe': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'portfolioSymbol': 'CS-UNIV',
+ 'portfolioName': 'Cross-Section Basket',
+ 'pseudocode': {'Entry': ['Pick the highest two available returns, regardless of sign.'],
+                'Exit': ['Clear dropped assets at rebalance. Go to cash if no selected asset '
+                         'has usable positive volatility.'],
+                'Indicators': ["Calculate each asset's 252-session closing-price return and "
+                               'sample standard deviation of 60 daily returns.'],
+                'Inputs': ['Default return lookback 252 sessions, volatility lookback 60 '
+                           'returns, top 2 assets.'],
+                'Position sizing': ['Assign the selected assets weights proportional to 1 / '
+                                    'volatility. Unavailable or zero estimates receive zero '
+                                    'weight.']},
+ 'notes': ['The basket uses the common completed sessions of SPY, GLD, USO and EURUSD=X.',
+           'Set targets on the first common session observed in a new month using the '
+           'preceding completed session. The target takes effect on the next available return '
+           'interval.'],
+ 'updated': '2025-03-02',
+ 'recommendedCompare': ['CS-UNIV']}
 
 
 def generate_portfolio(prices, config=None):

@@ -1,34 +1,28 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MOM-03",
-    "name": "52-Week High Momentum",
-    "mode": "single",
-    "tags": ["Momentum", "Technical"],
-    "summary": "Buy when price approaches 52-week high, exit on weakness.",
-    "description": "Based on George & Hwang (2004) research. Stocks near their 52-week highs tend to outperform due to investor underreaction (anchoring bias). Enter when price reaches 95% of 52-week high, exit when falling below 85%.",
-    "bestOn": "Trending markets",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Lookback = 252 (52 weeks)", "Entry_Threshold = 0.95", "Exit_Threshold = 0.85"],
-        "Indicators": ["52-week high", "High ratio = Price / 52W High"],
-        "Entry": ["Buy when high ratio >= 0.95 (near 52W high)"],
-        "Exit": ["Exit when high ratio < 0.85"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Exit on significant pullback from high"],
-    },
-    "notes": [
-        "Anchoring bias: investors underreact to prices near historical highs",
-        "George & Hwang (2004) academic research",
-        "Works best in uptrending markets",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MOM-03',
+ 'name': '52-Week High Momentum',
+ 'mode': 'single',
+ 'tags': ['Momentum', 'Technical'],
+ 'summary': 'Buy near a rolling closing-price high and hold until a deeper pullback.',
+ 'description': 'The52-week label uses252 observations of closing prices, not calendar weeks '
+                'or intraday highs. Entry and exit thresholds create a holding band.',
+ 'bestOn': 'Trending markets',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After 252 rows, when flat enter if ratio≥.95.'],
+                'Exit': ['When held, exit if ratio<.85; otherwise keep holding.'],
+                'Indicators': ['Ratio=current close/maximum close over the current252-row '
+                               'window.'],
+                'Inputs': ['lookback=252, entry_threshold=.95, exit_threshold=.85.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Research inspiration is not a replication of the cited cross-sectional stock '
+           'portfolio. There is no time stop.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

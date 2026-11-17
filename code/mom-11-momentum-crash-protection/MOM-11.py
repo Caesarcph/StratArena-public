@@ -1,38 +1,38 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MOM-11",
-    "name": "Momentum Crash Protection",
-    "mode": "single",
-    "tags": ["Momentum", "Risk Management", "Crash Protection"],
-    "summary": "Momentum with drawdown-based position scaling.",
-    "description": "Follows momentum but monitors the momentum factor's own drawdown. When momentum is experiencing a crash (reversal), reduces position size to protect against momentum crashes that historically cause severe losses.",
-    "bestOn": "Trending markets prone to reversals",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Weeks to months",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Mom_Lookback = 252", "DD_Threshold = 0.10", "Scale_Factor = 0.5"],
-        "Indicators": [
-            "12-month momentum",
-            "Momentum factor drawdown",
-            "Rolling high of momentum signal",
-        ],
-        "Entry": ["Momentum positive", "Scale by momentum drawdown"],
-        "Exit": ["Momentum negative or severe drawdown"],
-        "Position sizing": ["Full position if no drawdown", "Scaled if momentum crashing"],
-        "Risk controls": ["Exit completely if drawdown > 20%"],
-    },
-    "notes": [
-        "Momentum crashes are rare but severe",
-        "Protection during reversals",
-        "Re-enter after crash subsides",
-    ],
-    "updated": "2026-01-12",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MOM-11',
+ 'name': 'Momentum Crash Protection',
+ 'mode': 'single',
+ 'tags': ['Momentum', 'Risk Management', 'Crash Protection'],
+ 'summary': 'Reduces long exposure when the underlying momentum rule experiences a drawdown.',
+ 'description': 'The drawdown tracker follows a hypothetical long-or-cash momentum rule on '
+                'the same instrument. Its equity curve measures the stress of that baseline '
+                'for position sizing.',
+ 'bestOn': 'Single-asset momentum with exposure scaled by baseline losses',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks to months',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After the 272-row warmup, positive momentum and baseline drawdown '
+                          'of 10% or less set the target to 100%.'],
+                'Exit': ['Go to cash if current momentum is zero or negative, or if baseline '
+                         'drawdown is greater than 20%.'],
+                'Indicators': ["Accumulate the instrument's daily returns on rows where prior "
+                               'momentum was positive. Measure drawdown from that baseline '
+                               "equity curve's highest level so far."],
+                'Inputs': ['Default momentum lookback 252 sessions, first drawdown threshold '
+                           '10%, severe threshold 20% and lower exposure at the severe '
+                           'threshold 50%.'],
+                'Position sizing': ['For positive momentum and a drawdown above 10% through '
+                                    '20%, scale linearly from 100% to 50%.']},
+ 'notes': ['The site evaluates each instrument separately and applies the daily target to the '
+           'next available return interval.',
+           'The legacy recovery_pct setting has no effect. Exposure can rise again as the '
+           'same momentum and drawdown conditions improve.',
+           'The Pine example uses a 0.1% equity gap before rebalancing a nonzero target.'],
+ 'updated': '2026-01-12',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

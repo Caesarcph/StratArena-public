@@ -1,28 +1,36 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "RP-01",
-    "name": "Volatility Target",
-    "mode": "single",
-    "tags": ["Risk Parity", "Volatility"],
-    "summary": "Scale exposure to hit a 10% vol target.",
-    "description": "Target volatility overlay with a leverage cap.",
-    "bestOn": "SPY 3Y Vol Stability Top3",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Continuous",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["TargetVol = 10%"],
-        "Indicators": ["Rolling volatility"],
-        "Position": ["Size = TargetVol / RealizedVol"],
-        "Risk": ["Cap leverage at 1.5x"],
-    },
-    "notes": ["Applies a volatility targeting overlay to each asset."],
-    "updated": "2025-03-02",
-    "recommendedCompare": ["SPY", "GLD", "USO"],
-}
+STRATEGY = {'id': 'RP-01',
+ 'name': 'Volatility Target',
+ 'mode': 'single',
+ 'tags': ['Risk Parity', 'Volatility'],
+ 'summary': 'Scales long exposure toward a 10% annualized volatility target.',
+ 'description': 'Daily exposure increases when trailing realized volatility falls and '
+                'decreases when it rises. The rule caps the target weight and realized '
+                'volatility can differ from the target.',
+ 'bestOn': 'Single-asset volatility targeting with a leverage cap',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Continuous',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['On a positive volatility estimate, divide target volatility by '
+                          'realized volatility and clip to the range from zero to the cap.'],
+                'Exit': ['Set the target to cash if the volatility estimate is unavailable or '
+                         'zero.'],
+                'Indicators': ['Calculate sample standard deviation of daily close-to-close '
+                               'returns and annualize with √252. Missing returns, including '
+                               'the first, are treated as zero.'],
+                'Inputs': ['Default target volatility 10%, lookback 20 daily returns and cap '
+                           '1.5×.'],
+                'Position sizing': ['The default permits exposures above 100% up to the 150% '
+                                    'cap.']},
+ 'notes': ['The site evaluates each instrument separately and applies the daily target to the '
+           'next available return interval.',
+           'The backtest allows up to 150% synthetic long exposure. The Pine example uses '
+           'fractional orders and TradingView close-order settings.'],
+ 'updated': '2025-03-02',
+ 'recommendedCompare': ['SPY', 'GLD', 'USO']}
 
 
 def generate_signals(prices, config=None):

@@ -1,39 +1,40 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MACRO-02",
-    "name": "Risk-On/Risk-Off Switch",
-    "mode": "portfolio",
-    "tags": ["Macro", "Regime", "Risk Sentiment"],
-    "summary": "Switch between risk and safe-haven assets.",
-    "description": "Constructs a composite risk sentiment indicator from multiple signals (volatility, momentum, correlation). Risk-On regime favors equities and commodities. Risk-Off regime shifts to gold and reduces exposure. Dynamic allocation based on regime probability.",
-    "bestOn": "Multi-asset portfolio with risk diversification",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Vol_Lookback = 20", "Mom_Lookback = 63", "Vol_Threshold = 0.20"],
-        "Indicators": [
-            "Realized volatility percentile",
-            "Trend indicator (MA)",
-            "Momentum",
-            "Composite risk score",
-        ],
-        "Entry": ["Risk-On: SPY trend up + low vol", "Risk-Off: SPY trend down + high vol"],
-        "Exit": ["Regime switches"],
-        "Position sizing": ["100% risk assets or 100% safe haven"],
-        "Risk controls": ["Gradual transitions to avoid whipsaws"],
-    },
-    "notes": [
-        "Multi-signal approach is more robust",
-        "Volatility is key regime indicator",
-        "Safe haven allocation protects in crises",
-    ],
-    "updated": "2026-01-11",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MACRO-02',
+ 'name': 'Risk-On/Risk-Off Switch',
+ 'mode': 'portfolio',
+ 'tags': ['Macro', 'Regime', 'Risk Sentiment'],
+ 'summary': 'Switches among risk-on, balanced and gold allocations using three SPY signals.',
+ 'description': 'The rule averages scores from volatility percentile, the moving-average '
+                'trend and trailing momentum. It selects one of three daily allocations.',
+ 'bestOn': 'Multi-asset allocations with an explicit gold sleeve',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After the 262-row warmup, an average above 0.3 sets 100% to the '
+                          'risk group. An average below −0.3 sets 100% to GLD.'],
+                'Exit': ['Recalculate daily. Scores between those thresholds, including '
+                         'equality, split 50% risk and 50% GLD.'],
+                'Indicators': ['Volatility percentile below 30 adds 1 and above 70 subtracts '
+                               '1. A close above the SMA adds 1 and otherwise subtracts 1.',
+                               'Momentum above 0 adds 1 and below −5% subtracts 1. Average '
+                               'the available component scores.'],
+                'Inputs': ['Default volatility lookback 20 daily returns, volatility '
+                           'percentile lookback 252 estimates, trend SMA 50 sessions and '
+                           'momentum lookback 63 sessions.'],
+                'Position sizing': ['Divide the risk allocation equally among its nine '
+                                    'members.']},
+ 'notes': ['The site backtest aligns SPY, GLD, USO, EURUSD=X, DBC, SLV, DBA, UNG, BTC-USD and '
+           'ETH-USD on their common completed sessions. Its SPY display label identifies the '
+           'basket.',
+           'The risk group consists of every configured asset except GLD. The published '
+           'results apply targets to the next common return interval.',
+           'The legacy vol_threshold parameter has no effect. Volatility enters the score '
+           'through its percentile.'],
+ 'updated': '2026-01-11',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_portfolio(prices, config=None):

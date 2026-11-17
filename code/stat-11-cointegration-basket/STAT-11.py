@@ -1,40 +1,46 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "STAT-11",
-    "name": "Cointegration Basket",
-    "mode": "portfolio",
-    "ruleVersion": "rolling-residual-warmup-v2",
-    "corrections": ["exclude-synthetic-residuals-from-zscore"],
-    "tags": ["Statistical Arbitrage", "Cointegration", "Mean Reversion"],
-    "summary": "Trade mean-reverting spread across multiple assets.",
-    "description": "Constructs a stationary spread from multiple assets using rolling regression weights. The spread is tested for stationarity and traded when z-score reaches extremes. More robust than simple pairs trading.",
-    "bestOn": "Assets with economic linkages",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Lookback = 60", "Entry_Z = 2.0", "Exit_Z = 0.5", "Max_Hold = 20"],
-        "Indicators": [
-            "Rolling regression weights",
-            "Spread = weighted combination",
-            "Spread z-score",
-        ],
-        "Entry": ["Z < -2: long spread", "Z > 2: short spread"],
-        "Exit": ["Z crosses 0 or max hold reached"],
-        "Position sizing": ["Weights from regression"],
-        "Risk controls": ["Max holding period", "Stationarity check"],
-    },
-    "notes": [
-        "Multi-asset spread more stable than pairs",
-        "Rolling weights adapt to changing relationships",
-        "Mean reversion on stationary spread",
-    ],
-    "updated": "2026-01-12",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'STAT-11',
+ 'name': 'Cointegration Basket',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'rolling-residual-warmup-v2',
+ 'corrections': ['exclude-synthetic-residuals-from-zscore'],
+ 'tags': ['Statistical Arbitrage', 'Cointegration', 'Mean Reversion'],
+ 'summary': 'Trades extreme residuals from rolling multi-asset log-price regressions.',
+ 'description': 'Cointegration Basket is the strategy name. The rule fits a rolling OLS '
+                'regression of SPY against the rest of the configured basket and trades '
+                'standardized one-step residuals.',
+ 'bestOn': 'Research on multi-asset regression spreads',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After the 130-row warmup and with a valid residual window, z below '
+                          '−2 opens a long residual and z above +2 opens a short residual.'],
+                'Exit': ['On valid score rows, exit the long when z is above −0.5, or exit '
+                         'the short when z is below +0.5. The 20-observation holding limit '
+                         'also closes a trade on a valid score row.'],
+                'Indicators': ['On each eligible day fit OLS to the preceding 60 completed '
+                               'log-price rows. Evaluate the fit on the current row and '
+                               'standardize its residual against the rolling sample of real '
+                               'one-step residuals.'],
+                'Inputs': ['Default regression lookback 60 sessions, z-score lookback 60 '
+                           'earlier residuals plus the current residual, entry z-score 2, '
+                           'exit z-score 0.5 and holding limit 20 observations.'],
+                'Position sizing': ['For a long residual, take +1 in the target and the '
+                                    'negative of each fitted coefficient in the other assets. '
+                                    'Reverse the signs for a short residual and scale to 100% '
+                                    'gross.']},
+ 'notes': ['The site backtest aligns SPY, GLD, USO, EURUSD=X, DBC, SLV, DBA, UNG, BTC-USD and '
+           'ETH-USD on their common completed sessions. Its SPY display label identifies the '
+           'basket.',
+           'The published rule fits OLS with an intercept and has no formal stationarity '
+           'test.',
+           'Signal fits update daily. The hedge weights of an open trade remain at their '
+           'entry values, and daily targets take effect on the next common return interval.'],
+ 'updated': '2026-01-12',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def estimate_spread_weights(prices, target_idx=0):

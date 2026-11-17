@@ -1,37 +1,30 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "COMBO-04",
-    "name": "Trend + Mean Reversion Hybrid",
-    "mode": "single",
-    "tags": ["Hybrid", "Trend", "Mean Reversion"],
-    "summary": "Follow trend, buy pullbacks.",
-    "description": "Combines trend following with mean reversion. First confirms long-term trend direction, then enters on short-term oversold pullbacks within that trend. Captures trend moves at better entry points.",
-    "bestOn": "Trending markets with pullbacks",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Trend_MA = 200", "Short_MA = 20", "RSI_Period = 14", "RSI_Oversold = 35"],
-        "Indicators": [
-            "Long-term MA for trend",
-            "RSI for mean reversion",
-        ],
-        "Entry": ["Price > 200 MA (uptrend)", "AND RSI < 35 (pullback)"],
-        "Exit": ["RSI > 50 (recovered)", "OR Price < 200 MA (trend break)"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Only trade in direction of trend"],
-    },
-    "notes": [
-        "Buy the dip in an uptrend",
-        "Trend filter prevents fighting the market",
-        "Better entries than pure trend following",
-    ],
-    "updated": "2026-01-11",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'COMBO-04',
+ 'name': 'Trend + Mean Reversion Hybrid',
+ 'mode': 'single',
+ 'tags': ['Hybrid', 'Trend', 'Mean Reversion'],
+ 'summary': 'Buy an RSI pullback above the long moving average.',
+ 'description': 'The trend filter gates entry and exits holdings when the close reaches or '
+                'falls below the long average. A recovery threshold and time limit also close '
+                'positions.',
+ 'bestOn': 'Trending markets with pullbacks',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After 200 rows, close>SMA200 AND RSI<35.'],
+                'Exit': ['RSI>50, close≤SMA200, or holding age≥20 observations.'],
+                'Indicators': ['SMA200 of closes; RSI14 from simple mean gains/losses with '
+                               'denominator offset1e-10.'],
+                'Inputs': ['trend_ma=200, rsi_period=14, rsi_oversold=35, rsi_exit=50, '
+                           'max_hold=20.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['No separate Short_MA parameter is used; improved entry prices are not '
+           'guaranteed.'],
+ 'updated': '2026-01-11',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_rsi(prices, period=14):

@@ -1,28 +1,31 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "VOL-01",
-    "name": "Volatility Breakout",
-    "tags": ["Volatility", "Breakout"],
-    "summary": "Enter on large volatility bursts and exit on mean reversion.",
-    "description": "Captures volatility expansion while cutting exposure on reversal bars.",
-    "bestOn": "USO 3Y Total Return Top5",
-    "frequency": "Daily",
-    "assetClasses": ["Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["USO", "GLD", "EURUSD=X", "SPY"],
-    "pseudocode": {
-        "Inputs": ["Breakout = 1.5x ATR", "Lookback = 20"],
-        "Indicators": ["ATR(20)", "Close returns"],
-        "Entry": ["Go long when return > 1.5x ATR"],
-        "Exit": ["Exit when return < 0"],
-        "Position sizing": ["Reduce size in high vol"],
-        "Risk controls": ["Stop trading after 10% drawdown"],
-    },
-    "notes": ["Strong in macro shocks", "Needs disciplined exits"],
-    "updated": "2025-01-28",
-    "recommendedCompare": ["USO", "GLD", "EURUSD=X"],
-}
+STRATEGY = {'id': 'VOL-01',
+ 'name': 'Volatility Breakout',
+ 'tags': ['Volatility', 'Breakout'],
+ 'summary': 'Enters after an unusually positive daily return and exits on the first negative '
+            'return.',
+ 'description': "The breakout compares today's closing-price return with the sample standard "
+                'deviation of the last 20 daily returns. A return above 1.5 times that '
+                'standard deviation signals full long exposure.',
+ 'bestOn': 'USO 3Y Total Return Top5',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['USO', 'GLD', 'EURUSD=X', 'SPY'],
+ 'pseudocode': {'Entry': ["Go long when today's return exceeds 1.5 times its rolling standard "
+                          'deviation.'],
+                'Exit': ["Go to cash when today's return is negative. Otherwise keep the "
+                         'previous target if the entry condition does not trigger.'],
+                'Indicators': ['Daily close-to-close return and its 20-day rolling sample '
+                               'standard deviation.'],
+                'Inputs': ['Fixed: volatility lookback = 20 daily returns, entry multiplier = '
+                           '1.5.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ["The volatility estimate includes today's return. A zero return leaves the "
+           'previous target in place.'],
+ 'updated': '2025-01-28',
+ 'recommendedCompare': ['USO', 'GLD', 'EURUSD=X']}
 
 
 def generate_signals(prices, config=None):

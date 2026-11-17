@@ -1,43 +1,41 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MOM-04",
-    "name": "Asset Class Rotation",
-    "mode": "portfolio",
-    "ruleVersion": "monthly-prior-observation-v2",
-    "corrections": ["causal-monthly-decision", "preserve-zero-targets"],
-    "targetTiming": "First observed session of a new month, using the prior observation; engine applies one-row lag.",
-    "tags": ["Momentum", "Tactical", "Rotation"],
-    "summary": "Rotate into top-performing asset classes based on momentum.",
-    "description": "Classic momentum rotation strategy. Ranks assets by recent returns and allocates to the strongest performers. Uses multi-timeframe momentum and absolute momentum filter.",
-    "bestOn": "Diversified asset classes",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Months",
-    "instruments": ["ROTATION"],
-    "universe": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "portfolioSymbol": "ROTATION",
-    "portfolioName": "Asset Rotation",
-    "pseudocode": {
-        "Inputs": ["Lookback = 126 (6 months)", "Top_N = 2", "Absolute_Filter = True"],
-        "Indicators": ["N-month return for each asset"],
-        "Entry": [
-            "1. Rank assets by momentum",
-            "2. Select Top N with positive momentum",
-            "3. Equal weight allocation",
-        ],
-        "Exit": ["Monthly rebalance, drop assets with negative momentum"],
-        "Risk": ["Absolute momentum filter reduces drawdowns"],
-    },
-    "notes": [
-        "Adapts sector rotation concept to asset classes",
-        "Monthly target decisions; synthetic daily-target accounting is applied by the engine",
-        "Can go to cash if no positive momentum assets",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MOM-04',
+ 'name': 'Asset Class Rotation',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'monthly-prior-observation-v2',
+ 'corrections': ['causal-monthly-decision', 'preserve-zero-targets'],
+ 'targetTiming': 'First observed session of a new month, using the prior observation; engine '
+                 'applies one-row lag.',
+ 'tags': ['Momentum', 'Tactical', 'Rotation'],
+ 'summary': 'Rotates monthly into the top two assets with positive trailing returns.',
+ 'description': 'A single trailing-return window ranks the four asset classes. The default '
+                'absolute momentum filter keeps only winners above zero.',
+ 'bestOn': 'Cross-asset tactical momentum rotation',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Months',
+ 'instruments': ['ROTATION'],
+ 'universe': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'portfolioSymbol': 'ROTATION',
+ 'portfolioName': 'Asset Rotation',
+ 'pseudocode': {'Entry': ['Select the two highest available scores and keep those with '
+                          'returns above zero.'],
+                'Exit': ['Clear dropped assets at the monthly decision. Go to cash if no '
+                         'asset passes the filter.'],
+                'Indicators': ["Compute each asset's trailing closing-price return on the "
+                               'same 126-session window.'],
+                'Inputs': ['Default lookback 126 sessions, top 2 assets and positive-return '
+                           'filter enabled.'],
+                'Position sizing': ['Divide the full target equally among the assets that '
+                                    'pass.']},
+ 'notes': ['The basket uses the common completed sessions of SPY, GLD, USO and EURUSD=X.',
+           'Set targets on the first common session observed in a new month using the '
+           'preceding completed session. The target takes effect on the next available return '
+           'interval.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_portfolio(prices, config=None):

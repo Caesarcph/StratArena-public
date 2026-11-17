@@ -1,28 +1,37 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "SAR-01",
-    "name": "Parabolic SAR",
-    "mode": "single",
-    "input": "ohlc",
-    "tags": ["Trend", "Stop", "Reversal"],
-    "summary": "Stop-and-reverse trend system with acceleration.",
-    "description": "Tracks a parabolic stop that flips direction on cross.",
-    "bestOn": "USO 3Y Trend Score Top5",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["AF_Start = 0.02", "AF_Step = 0.02", "AF_Max = 0.20"],
-        "Entry": ["Price > SAR: long", "Price < SAR: short"],
-        "Exit": ["Flip on SAR cross"],
-    },
-    "notes": ["Long-only by default; set allow_short to enable shorts."],
-    "updated": "2026-01-09",
-    "recommendedCompare": ["USO", "SPY", "GLD"],
-}
+STRATEGY = {'id': 'SAR-01',
+ 'name': 'Parabolic SAR',
+ 'mode': 'single',
+ 'input': 'ohlc',
+ 'tags': ['Trend', 'Stop', 'Reversal'],
+ 'summary': "Uses each bar's high or low to update or reverse the Parabolic SAR trend.",
+ 'description': 'The OHLC rule begins in an uptrend. The SAR accelerates toward the current '
+                "trend extreme, with its value constrained by previous bars' lows or highs.",
+ 'bestOn': 'USO 3Y Trend Score Top5',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Target long from the first bar. In a downtrend, flip to long if '
+                          'the current high is strictly above SAR.'],
+                'Exit': ['In an uptrend, flip down if the current low is strictly below SAR. '
+                         'Default targets go to cash in a downtrend. A reversal resets the '
+                         'acceleration factor.'],
+                'Indicators': ['Seed SAR with the first low and the trend extreme with the '
+                               'first high.',
+                               'Advance SAR by the acceleration factor times the distance to '
+                               'the trend extreme, then constrain it with the prior two bar '
+                               'lows or highs.'],
+                'Inputs': ['af_start = 0.02, af_step = 0.02, af_max = 0.20, allow_short = '
+                           'false.'],
+                'Position sizing': ['100% long or cash by default. Optional short target '
+                                    '−100%.']},
+ 'notes': ["The bar's high or low can trigger a reversal even if the close finishes on the "
+           'other side of the reset SAR.'],
+ 'updated': '2026-01-09',
+ 'recommendedCompare': ['USO', 'SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

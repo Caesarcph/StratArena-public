@@ -1,43 +1,34 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MR-16",
-    "name": "Connors RSI",
-    "mode": "single",
-    "ruleVersion": "connors-rsi-boundaries-v2",
-    "corrections": ["positive-gains-without-losses-rsi-100"],
-    "tags": ["Mean Reversion", "Oscillator", "Connors RSI"],
-    "summary": "Composite RSI using price, streak, and rank.",
-    "description": "Connors RSI combines three components: RSI of price, RSI of streak duration, and Percentile Rank of returns. It is designed to be more robust and responsive than standard RSI. Enters long when CRSI is extremely low and exits when it recovers.",
-    "bestOn": "Mean reverting ETFs and FX",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": [
-            "Price_RSI_Period = 3",
-            "Streak_RSI_Period = 2",
-            "Rank_Period = 100",
-            "Entry_Threshold = 10",
-            "Exit_Threshold = 50",
-            "Max_Hold = 10"
-        ],
-        "Indicators": [
-            "Price RSI(3)",
-            "Streak RSI(2)",
-            "Percent Rank(100)",
-            "CRSI = (Price RSI + Streak RSI + Rank) / 3"
-        ],
-        "Entry": ["Buy when CRSI < 10"],
-        "Exit": ["Exit when CRSI > 50 or holding days >= 10"],
-        "Risk controls": ["None (time-based exit)"]
-    },
-    "notes": ["Short periods make it highly reactive.", "Streak RSI handles consecutive up/down days."],
-    "updated": "2026-02-04",
-    "recommendedCompare": ["SPY", "GLD", "USO"]
-}
+STRATEGY = {'id': 'MR-16',
+ 'name': 'Connors RSI',
+ 'mode': 'single',
+ 'ruleVersion': 'connors-rsi-boundaries-v2',
+ 'corrections': ['positive-gains-without-losses-rsi-100'],
+ 'tags': ['Mean Reversion', 'Oscillator', 'Connors RSI'],
+ 'summary': 'Combine SMA-based price/streak RSI with an inclusive return rank.',
+ 'description': 'This Connors-style variant averages price RSI, signed-streak RSI and return '
+                'rank. Corrected RSI maps positive gains without losses to100, losses without '
+                'gains to0, and flat or unavailable windows to50.',
+ 'bestOn': 'Mean reverting ETFs and FX',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After 100 observations, enter when CRSI<10.'],
+                'Exit': ['Exit when CRSI>50 or holding age≥10 observations.'],
+                'Indicators': ['Both RSIs use simple rolling mean gains/losses. Rank is the '
+                               'current one-row return within 100 returns including itself, '
+                               'with average ranks for ties. CRSI averages the three '
+                               'components.'],
+                'Inputs': ['price_rsi_period=3, streak_rsi_period=2, rank_period=100, '
+                           'entry_threshold=10, exit_threshold=50, max_hold=10.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['This is not Wilder-smoothed RSI. Boundary correction can change recovery exits; '
+           'evidence must identify the rule version.'],
+ 'updated': '2026-02-04',
+ 'recommendedCompare': ['SPY', 'GLD', 'USO']}
 
 
 def rsi(series, period):

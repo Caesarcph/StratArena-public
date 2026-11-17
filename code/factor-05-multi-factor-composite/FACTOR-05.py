@@ -1,44 +1,54 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "FACTOR-05",
-    "name": "Multi-Factor Composite",
-    "mode": "portfolio",
-    "ruleVersion": "monthly-prior-observation-v2",
-    "corrections": ["causal-monthly-decision", "remove-terminal-row-rebalance", "shift-trading-month-end-decision"],
-    "targetTiming": "First observed session of a new month, using the prior observation; engine applies one-row lag.",
-    "tags": ["Factor", "Multi-Factor", "Quantitative"],
-    "summary": "Combine value, momentum, and quality factors.",
-    "description": "Ranks assets across multiple factors: Value (price relative to long-term average), Momentum (recent returns), and Quality (low volatility, low drawdown). Combines factor scores with configurable weights to select top-ranked assets.",
-    "bestOn": "Diverse asset pool for factor diversification",
-    "frequency": "Monthly rebalance",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Months",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Value_Lookback = 252", "Mom_Lookback = 126", "Vol_Lookback = 60", "Weights = [0.3, 0.4, 0.3]"],
-        "Indicators": [
-            "Value: Price / 252-day MA (lower = better value)",
-            "Momentum: 6-month return",
-            "Quality: Inverse volatility + low drawdown",
-            "Composite z-score",
-        ],
-        "Entry": ["Allocate to assets with highest composite score"],
-        "Exit": ["Monthly rebalance based on updated scores"],
-        "Position sizing": ["Proportional to factor scores"],
-        "Risk controls": ["Volatility adjustment"],
-    },
-    "notes": [
-        "Monthly decisions use the preceding completed observation at the first observed new-month session; this changes trading month-end timing too.",
-        "Partial-month terminal rows do not trigger rebalancing; targets carry unchanged between monthly decisions.",
-        "Factor diversification reduces single-factor risk",
-        "Momentum tends to be strongest factor",
-        "Quality provides downside protection",
-    ],
-    "updated": "2026-11-06",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'FACTOR-05',
+ 'name': 'Multi-Factor Composite',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'monthly-prior-observation-v2',
+ 'corrections': ['causal-monthly-decision',
+                 'remove-terminal-row-rebalance',
+                 'shift-trading-month-end-decision'],
+ 'targetTiming': 'First observed session of a new month, using the prior observation; engine '
+                 'applies one-row lag.',
+ 'tags': ['Factor', 'Multi-Factor', 'Quantitative'],
+ 'summary': 'Weights the basket with a blend of price-to-average, momentum and quality '
+            'scores.',
+ 'description': 'The strategy standardizes each factor across assets, combines the scores and '
+                'gives every scored asset a positive target weight. Higher composite scores '
+                'get more weight.',
+ 'bestOn': 'Baskets with a range of momentum and risk profiles',
+ 'frequency': 'Monthly rebalance',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Months',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['At an eligible monthly decision, allocate to every asset with a '
+                          'composite score.'],
+                'Exit': ['Recalculate targets at each eligible rebalance. Carry the previous '
+                         'target while no composite scores are available.'],
+                'Indicators': ['Value is negative price divided by its SMA. Momentum is the '
+                               'trailing return.',
+                               'Quality averages negative annualized volatility and negative '
+                               'absolute maximum drawdown. Compute drawdowns from rolling '
+                               'price peaks and take the rolling worst drawdown.',
+                               'Compute cross-sectional sample z-scores before combining the '
+                               'factors.'],
+                'Inputs': ['Default value and drawdown lookbacks 252 sessions, momentum '
+                           'lookback 126 sessions, volatility lookback 60 returns, factor '
+                           'weights 30% / 40% / 30%.'],
+                'Position sizing': ['Subtract the smallest composite score, add 0.1 to each '
+                                    'scored asset and normalize. Assets without a score '
+                                    'receive zero weight.']},
+ 'notes': ['The site backtest aligns SPY, GLD, USO, EURUSD=X, DBC, SLV, DBA, UNG, BTC-USD and '
+           'ETH-USD on their common completed sessions. Its SPY display label identifies the '
+           'basket.',
+           'Set targets on the first common session observed in a new month using the '
+           'preceding completed session. The target takes effect on the next available return '
+           'interval.',
+           'The default drawdown calculation uses two rolling 252-session windows. It '
+           'provides its first value after 503 observations, including the first price '
+           'observation.'],
+ 'updated': '2026-11-06',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_value_score(prices, lookback=252):

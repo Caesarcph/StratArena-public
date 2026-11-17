@@ -1,42 +1,36 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "TREND-10",
-    "name": "Ichimoku Cloud",
-    "mode": "single",
-    "tags": ["Trend", "Technical", "Japanese"],
-    "summary": "Trade based on Ichimoku Cloud signals.",
-    "description": "Ichimoku Kinko Hyo (One Glance Equilibrium Chart). Uses multiple lines to identify trend, momentum, and support/resistance. Price above cloud is bullish, below is bearish.",
-    "bestOn": "Trending markets",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Tenkan = 9", "Kijun = 26", "Senkou = 52"],
-        "Indicators": [
-            "Tenkan-sen = (9-day high + 9-day low) / 2",
-            "Kijun-sen = (26-day high + 26-day low) / 2",
-            "Senkou Span A = (Tenkan + Kijun) / 2, shifted 26 days forward",
-            "Senkou Span B = (52-day high + 52-day low) / 2, shifted 26 days forward",
-        ],
-        "Entry": [
-            "Buy when price > Cloud AND Tenkan > Kijun",
-            "Strong signal if Chikou (lagging) also confirms",
-        ],
-        "Exit": ["Price falls below Cloud OR Tenkan < Kijun"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Cloud acts as support/resistance"],
-    },
-    "notes": [
-        "Developed by Goichi Hosoda in 1930s Japan",
-        "Cloud (Kumo) provides visual support/resistance",
-        "Multiple confirmation signals reduce false entries",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'TREND-10',
+ 'name': 'Ichimoku Cloud',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Technical', 'Japanese'],
+ 'summary': 'Uses a close-based Ichimoku cloud and Tenkan–Kijun confirmation.',
+ 'description': 'The backtest builds the Ichimoku lines from rolling closing-price extremes. '
+                'It goes long above the cloud when Tenkan is above Kijun and uses the lower '
+                'cloud boundary and line relationship to exit.',
+ 'bestOn': 'Trending markets',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Go long when the close is above the cloud top and Tenkan is above '
+                          'Kijun.'],
+                'Exit': ['Go to cash when the close is below the cloud bottom or Tenkan is at '
+                         'or below Kijun. Otherwise keep the previous target if the long '
+                         'condition does not trigger.'],
+                'Indicators': ['Tenkan and Kijun are midpoints between the highest and lowest '
+                               'closes in their windows.',
+                               'Span A is the midpoint of Tenkan and Kijun. Span B is the '
+                               'midpoint of highest and lowest closes over 52 bars. Both use '
+                               'values from kijun bars earlier to form the current cloud.'],
+                'Inputs': ['Default: tenkan = 9, kijun = 26, senkou = 52.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['The Chikou lagging line is calculated by the source helper. The trading rule uses '
+           'Tenkan, Kijun and the two cloud spans.',
+           'The first 78 bars are flat at the default settings.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_ichimoku(prices_df, tenkan_period=9, kijun_period=26, senkou_period=52):

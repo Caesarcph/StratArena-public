@@ -1,25 +1,27 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "EVENT-01",
-    "name": "Trend + Macro Filter",
-    "mode": "single",
-    "tags": ["Trend", "Macro"],
-    "summary": "Trend following with a macro event blackout.",
-    "description": "Dual moving average trend with trading disabled near macro events.",
-    "bestOn": "SPY 3Y Sharpe Top5",
-    "frequency": "Daily",
-    "assetClasses": ["Index"],
-    "holdingPeriod": "Weeks",
-    "instruments": ["SPY"],
-    "pseudocode": {
-        "Entry": ["Follow TREND-05"],
-        "Filter": ["Disable trades near FOMC / CPI"],
-    },
-    "notes": ["Event filter uses first 3 business days of each month as proxy."],
-    "updated": "2025-03-02",
-    "recommendedCompare": ["SPY"],
-}
+STRATEGY = {'id': 'EVENT-01',
+ 'name': 'Trend + Macro Filter',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Macro'],
+ 'summary': 'Trend timing with a blackout on the first observed rows of each month.',
+ 'description': 'This is an observed-row calendar proxy, not a FOMC or CPI event detector. '
+                'The blackout sets the whole target to cash, including existing holdings.',
+ 'bestOn': 'Calendar-blackout trend comparisons',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index'],
+ 'holdingPeriod': 'Weeks',
+ 'instruments': ['SPY'],
+ 'pseudocode': {'Entry': ['Long when fast average>slow average AND monthly row rank≥3.'],
+                'Exit': ['Cash when trend condition fails or monthly row rank<3.'],
+                'Indicators': ['SMA50 and SMA200 of close; zero-based observed-row rank '
+                               'within each input month.'],
+                'Inputs': ['fast_window=50, slow_window=200, event_days=3.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Rows are not necessarily business days. A partial first month counts from its '
+           'first available row. No real macro-event data is consumed.'],
+ 'updated': '2025-03-02',
+ 'recommendedCompare': ['SPY']}
 
 
 def generate_signals(prices, config=None):

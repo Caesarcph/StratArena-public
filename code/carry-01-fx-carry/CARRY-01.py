@@ -1,34 +1,44 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "CARRY-01",
-    "name": "FX Carry",
-    "mode": "portfolio",
-    "ruleVersion": "monthly-prior-observation-v2",
-    "corrections": ["causal-monthly-decision", "carry-monthly-targets"],
-    "targetTiming": "First observed session of a new month, using the prior observation; engine applies one-row lag.",
-    "tags": ["Carry", "FX"],
-    "summary": "Long high carry and rotate monthly.",
-    "description": "Carry proxy ranking with monthly rebalance and volatility filter.",
-    "bestOn": "FX 3Y CAGR Top5",
-    "frequency": "Monthly",
-    "assetClasses": ["FX"],
-    "holdingPeriod": "1 Month",
-    "instruments": ["FX-CARRY"],
-    "universe": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "portfolioSymbol": "FX-CARRY",
-    "portfolioName": "FX Carry Basket",
-    "pseudocode": {
-        "Inputs": ["Lookback = 20"],
-        "Indicators": ["Interest rate differential"],
-        "Entry": ["Long high yield currencies", "Short low yield currencies (or cash)"],
-        "Exit": ["Monthly rebalance"],
-        "Risk": ["Disable when vol spikes"],
-    },
-    "notes": ["Carry proxy uses 20d return ranking across the arena universe."],
-    "updated": "2025-03-02",
-    "recommendedCompare": ["FX-CARRY"],
-}
+STRATEGY = {'id': 'CARRY-01',
+ 'name': 'FX Carry',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'monthly-prior-observation-v2',
+ 'corrections': ['causal-monthly-decision', 'carry-monthly-targets'],
+ 'targetTiming': 'First observed session of a new month, using the prior observation; engine '
+                 'applies one-row lag.',
+ 'tags': ['Carry', 'FX'],
+ 'summary': 'Ranks recent price returns and holds the top two when basket volatility permits.',
+ 'description': 'FX Carry is the historical name. The basket uses trailing price returns as a '
+                'carry proxy across several asset classes. The rule uses closing prices and '
+                'long positions only.',
+ 'bestOn': 'Cross-asset rotation with a volatility filter',
+ 'frequency': 'Monthly',
+ 'assetClasses': ['FX'],
+ 'holdingPeriod': '1 Month',
+ 'instruments': ['FX-CARRY'],
+ 'universe': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'portfolioSymbol': 'FX-CARRY',
+ 'portfolioName': 'FX Carry Basket',
+ 'pseudocode': {'Entry': ['At rebalance, select the two highest available returns. Returns '
+                          'can be negative.'],
+                'Exit': ['At a monthly decision, go to cash if average annualized volatility '
+                         'exceeds 20% or there are no available ranking scores. Carry targets '
+                         'between monthly decisions.'],
+                'Indicators': ['Rank trailing 20-session closing-price returns. Average the '
+                               "assets' 60-return sample standard deviations annualized by "
+                               '√252.'],
+                'Inputs': ['Default lookback 20 sessions, top 2 assets, volatility lookback '
+                           '60 sessions, volatility threshold 20%.'],
+                'Position sizing': ['Equal long weights among selected assets.']},
+ 'notes': ['The basket uses the common completed sessions of SPY, GLD, USO and EURUSD=X.',
+           'Set targets on the first common session observed in a new month using the '
+           'preceding completed session. The target takes effect on the next available return '
+           'interval.',
+           'Ranking can start before the volatility history is available. The filter applies '
+           'when a basket-average estimate exists.'],
+ 'updated': '2025-03-02',
+ 'recommendedCompare': ['FX-CARRY']}
 
 
 def generate_portfolio(prices, config=None):

@@ -1,36 +1,30 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "TREND-20",
-    "name": "Vortex Indicator",
-    "mode": "single",
-    "tags": ["Trend", "Volatility"],
-    "summary": "Trend signals from vortex indicator crossovers.",
-    "description": "Calculates Vortex Indicator components based on true range. Go long when VI+ crosses above VI- and exit on the opposite crossover.",
-    "bestOn": "Markets with persistent directional moves",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "input": "ohlc",
-    "pseudocode": {
-        "Inputs": ["Period = 14"],
-        "Indicators": [
-            "VM+ = sum(abs(high - prev_low))",
-            "VM- = sum(abs(low - prev_high))",
-            "TR = sum(True Range)",
-            "VI+ = VM+ / TR",
-            "VI- = VM- / TR",
-        ],
-        "Entry": ["Go long when VI+ > VI-"],
-        "Exit": ["Exit when VI+ < VI-"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Uses true range normalization"],
-    },
-    "notes": ["Sensitive to volatility spikes", "Short version can be added later"],
-    "updated": "2026-01-13",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'TREND-20',
+ 'name': 'Vortex Indicator',
+ 'mode': 'single',
+ 'tags': ['Trend', 'Volatility'],
+ 'summary': 'Sets long exposure when the OHLC-based positive Vortex component leads.',
+ 'description': 'The two Vortex components use cross-bar distances between highs and lows, '
+                'normalized by true range.',
+ 'bestOn': 'Markets with persistent directional moves',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'input': 'ohlc',
+ 'pseudocode': {'Entry': ['Set the target to long when VI+ > VI−.'],
+                'Exit': ['Set the target to cash when VI+ < VI−. Carry the prior target if '
+                         'they tie or the comparison is unavailable.'],
+                'Indicators': ['VI+ = rolling sum of |high − prior low| divided by rolling '
+                               'true range sum. VI− uses |low − prior high| and the same '
+                               'denominator.'],
+                'Inputs': ['period = 14.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Use OHLC bars to reproduce the production rule. With close-only input both '
+           'components have identical numerators.'],
+ 'updated': '2026-01-13',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

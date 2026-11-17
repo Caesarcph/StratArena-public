@@ -1,42 +1,37 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "COMBO-01",
-    "name": "Bollinger-Keltner Squeeze",
-    "mode": "single",
-    "tags": ["Volatility", "Breakout", "Technical"],
-    "summary": "Trade volatility expansion after squeeze.",
-    "description": "When Bollinger Bands contract inside Keltner Channel, volatility is compressed (squeeze). When squeeze releases, trade in direction of momentum. Captures explosive moves.",
-    "bestOn": "Markets with volatility clustering",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["BB_Period = 20", "BB_Std = 2.0", "KC_Period = 20", "KC_Mult = 1.5"],
-        "Indicators": [
-            "Bollinger Bands = SMA ± 2*StdDev",
-            "Keltner Channel = EMA ± 1.5*ATR",
-            "Squeeze = BB inside KC",
-            "Momentum = Price - Average(High+Low+Close)/3",
-        ],
-        "Entry": [
-            "Squeeze releases (BB outside KC)",
-            "Buy if momentum positive, sell if negative",
-        ],
-        "Exit": ["Opposite signal or momentum fades"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Wait for confirmed squeeze release"],
-    },
-    "notes": [
-        "John Carter's TTM Squeeze concept",
-        "Low volatility precedes high volatility",
-        "Squeeze duration indicates potential move size",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'COMBO-01',
+ 'name': 'Bollinger-Keltner Squeeze',
+ 'mode': 'single',
+ 'tags': ['Volatility', 'Breakout', 'Technical'],
+ 'summary': 'Buys after a Bollinger bandwidth squeeze when closing-price momentum is '
+            'positive.',
+ 'description': 'Bollinger-Keltner Squeeze is the historical name. This implementation '
+                'detects a squeeze from Bollinger bandwidth relative to its own history and '
+                'waits for positive price momentum before going long.',
+ 'bestOn': 'Markets with volatility contractions and expansions',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Go long when a squeeze has been recorded, the current bar is out '
+                          'of the squeeze and momentum is positive.'],
+                'Exit': ['Exit when momentum is negative, the close is more than 5% below the '
+                         'entry close or the holding count exceeds 20 bars.'],
+                'Indicators': ['The Bollinger bands are the 20-bar closing-price SMA plus or '
+                               'minus 2 sample standard deviations. Divide their difference '
+                               'by the middle band plus a small offset to get bandwidth.',
+                               'A squeeze occurs at or below the current 50-bar 25th '
+                               'percentile of bandwidth. Momentum is close minus its 12-bar '
+                               'simple average.'],
+                'Inputs': ['Default: bb_period = 20, bb_std = 2, momentum_period = 12, '
+                           'squeeze_lookback = 50, squeeze_percentile = 25, max_hold = 20.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['A detected squeeze can arm an entry several sessions later, as long as the '
+           'current bar is out of the squeeze and momentum is positive.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_atr(prices, period=20):

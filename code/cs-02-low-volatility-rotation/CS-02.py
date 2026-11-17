@@ -1,34 +1,40 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "CS-02",
-    "name": "Low Volatility Rotation",
-    "mode": "portfolio",
-    "ruleVersion": "monthly-prior-observation-v2",
-    "corrections": ["causal-monthly-decision", "carry-monthly-targets"],
-    "targetTiming": "First observed session of a new month, using the prior observation; engine applies one-row lag.",
-    "tags": ["Volatility", "Cross-Section"],
-    "summary": "Defensive rotation into the lowest vol assets.",
-    "description": "Ranks assets by realized volatility and holds the lowest-risk names monthly.",
-    "bestOn": "Cross-Section 1Y MaxDD Top3",
-    "frequency": "Monthly",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "1 Month",
-    "instruments": ["CS-UNIV"],
-    "universe": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "portfolioSymbol": "CS-UNIV",
-    "portfolioName": "Cross-Section Basket",
-    "pseudocode": {
-        "Inputs": ["VolLookback = 60", "TopN = 2"],
-        "Indicators": ["Realized Volatility"],
-        "Entry": ["Rank assets by lowest volatility", "Long lowest N assets"],
-        "Rebalance": ["Monthly"],
-        "Risk": ["Equal risk contribution"],
-    },
-    "notes": ["Universe: SPY/GLD/USO/EURUSD=X"],
-    "updated": "2025-03-02",
-    "recommendedCompare": ["CS-UNIV"],
-}
+STRATEGY = {'id': 'CS-02',
+ 'name': 'Low Volatility Rotation',
+ 'mode': 'portfolio',
+ 'ruleVersion': 'monthly-prior-observation-v2',
+ 'corrections': ['causal-monthly-decision', 'carry-monthly-targets'],
+ 'targetTiming': 'First observed session of a new month, using the prior observation; engine '
+                 'applies one-row lag.',
+ 'tags': ['Volatility', 'Cross-Section'],
+ 'summary': 'Rotates into up to two low-volatility assets with inverse-volatility weights.',
+ 'description': 'Each month, rank the basket by realized volatility. The reciprocal of each '
+                "selected asset's positive volatility determines its share.",
+ 'bestOn': 'Cross-asset comparisons by realized volatility',
+ 'frequency': 'Monthly',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': '1 Month',
+ 'instruments': ['CS-UNIV'],
+ 'universe': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'portfolioSymbol': 'CS-UNIV',
+ 'portfolioName': 'Cross-Section Basket',
+ 'pseudocode': {'Entry': ['Select the two lowest available volatility estimates.'],
+                'Exit': ['Clear dropped assets at rebalance. Go to cash if there is no '
+                         'positive volatility among the selected assets.'],
+                'Indicators': ['Use the sample standard deviation of daily closing-price '
+                               'returns.'],
+                'Inputs': ['Default volatility lookback 60 daily returns and top 2 assets.'],
+                'Position sizing': ['Normalize inverse volatility across selected assets with '
+                                    'positive estimates.']},
+ 'notes': ['The basket uses the common completed sessions of SPY, GLD, USO and EURUSD=X.',
+           'Set targets on the first common session observed in a new month using the '
+           'preceding completed session. The target takes effect on the next available return '
+           'interval.',
+           'A zero-volatility estimate can occupy a ranking slot and receives zero weight. '
+           'The rule can therefore hold fewer than two assets.'],
+ 'updated': '2025-03-02',
+ 'recommendedCompare': ['CS-UNIV']}
 
 
 def generate_portfolio(prices, config=None):

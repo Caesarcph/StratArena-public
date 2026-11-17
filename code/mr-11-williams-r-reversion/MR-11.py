@@ -1,36 +1,26 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MR-11",
-    "name": "Williams %R Reversion",
-    "mode": "single",
-    "tags": ["Mean Reversion", "Oscillator"],
-    "summary": "Buy oversold Williams %R, exit at neutral.",
-    "description": "Uses Williams %R oscillator to identify oversold conditions. %R ranges from -100 to 0. Enter long when %R < -80 (oversold), exit when %R > -20 (overbought). Classic momentum oscillator reversion.",
-    "bestOn": "Range-bound markets",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Period = 14", "Oversold = -80", "Overbought = -20"],
-        "Indicators": [
-            "%R = (Highest High - Close) / (Highest High - Lowest Low) * -100",
-        ],
-        "Entry": ["Buy when %R < -80 (oversold)"],
-        "Exit": ["Exit when %R > -20 (overbought)"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Max hold period of 20 days"],
-    },
-    "notes": [
-        "Developed by Larry Williams",
-        "Similar to Stochastic but inverted scale",
-        "Ranges from -100 (oversold) to 0 (overbought)",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MR-11',
+ 'name': 'Williams %R Reversion',
+ 'mode': 'single',
+ 'tags': ['Mean Reversion', 'Oscillator'],
+ 'summary': 'Buy close-based Williams R below−80; exit above−20 or at 20 bars.',
+ 'description': 'Uses rolling closing-price extrema instead of OHLC highs and lows. The exit '
+                'threshold is the overbought zone, not neutral.',
+ 'bestOn': 'Range-bound markets',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After 14 observations, enter when R<−80.'],
+                'Exit': ['Exit when R>−20 or holding age≥20 observations.'],
+                'Indicators': ['R=−100×(highestClose−close)/(highestClose−lowestClose+1e-10).'],
+                'Inputs': ['period=14, oversold=−80, overbought=−20, max_hold=20.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Flat close ranges give R=0 and do not trigger oversold entries.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

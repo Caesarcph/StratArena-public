@@ -1,24 +1,27 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "SEAS-01",
-    "name": "Monthly Seasonality",
-    "mode": "single",
-    "tags": ["Seasonality", "Calendar"],
-    "summary": "Sell in May? Long Nov-Apr, cash May-Oct.",
-    "description": "Seasonal timing strategy based on the Nov-Apr effect.",
-    "bestOn": "SPY 5Y Calmar Top5",
-    "frequency": "Monthly",
-    "assetClasses": ["Index"],
-    "holdingPeriod": "6 Months",
-    "instruments": ["SPY"],
-    "pseudocode": {
-        "Logic": ["Only long SPY in Nov-Apr", "Stay in cash May-Oct"],
-    },
-    "notes": ["Seasonality pattern applied to SPY only."],
-    "updated": "2025-03-02",
-    "recommendedCompare": ["SPY"],
-}
+STRATEGY = {'id': 'SEAS-01',
+ 'name': 'Monthly Seasonality',
+ 'mode': 'single',
+ 'tags': ['Seasonality', 'Calendar'],
+ 'summary': 'Target long in November–April and cash in May–October.',
+ 'description': 'A fixed monthly seasonal rule evaluated on each observed close; the target '
+                'applies to the subsequent return interval.',
+ 'bestOn': 'Seasonal equity-index comparisons',
+ 'frequency': 'Monthly',
+ 'assetClasses': ['Index'],
+ 'holdingPeriod': '6 Months',
+ 'instruments': ['SPY'],
+ 'pseudocode': {'Entry': ['Set target1 when the observation is in an active month.'],
+                'Exit': ['Set target0 in all other months.'],
+                'Indicators': ['Month of the input date.'],
+                'Inputs': ['Fixed active months:11,12,1,2,3,4. No configurable numeric '
+                           'parameters.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['SPY is the intended catalogue instrument; the function itself accepts any '
+           'supplied single price series. No event calendar is used.'],
+ 'updated': '2025-03-02',
+ 'recommendedCompare': ['SPY']}
 
 
 def generate_signals(prices, config=None):

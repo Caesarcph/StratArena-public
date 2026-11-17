@@ -1,37 +1,36 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "REG-14",
-    "name": "Volatility Regime Switch",
-    "mode": "single",
-    "tags": ["Regime", "Volatility", "Adaptive"],
-    "summary": "Adapt position size to volatility regime.",
-    "description": "Identifies volatility regimes using historical percentiles. Low volatility regime = full position, high volatility regime = reduced or zero position. Protects capital during turbulent periods.",
-    "bestOn": "Markets with volatility clustering",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days to weeks",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Vol_Lookback = 20", "Percentile_Window = 252", "Low_Pct = 50", "High_Pct = 80"],
-        "Indicators": [
-            "Realized volatility",
-            "Volatility percentile rank",
-        ],
-        "Entry": ["Vol percentile < 50 (low vol regime): full position"],
-        "Exit": ["Vol percentile > 80 (high vol regime): exit"],
-        "Position sizing": ["Dynamic based on vol regime"],
-        "Risk controls": ["Auto de-risk in high vol"],
-    },
-    "notes": [
-        "Low volatility often precedes returns",
-        "High volatility = increased risk",
-        "Regime-based allocation is defensive",
-    ],
-    "updated": "2026-01-11",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'REG-14',
+ 'name': 'Volatility Regime Switch',
+ 'mode': 'single',
+ 'tags': ['Regime', 'Volatility', 'Adaptive'],
+ 'summary': 'Sizes positions from both realized-volatility rank and the 50-day price trend.',
+ 'description': 'This rule combines a realized-volatility percentile with a fixed '
+                'closing-price SMA. The volatility regime and trend jointly determine the '
+                'daily exposure.',
+ 'bestOn': 'Markets with volatility clustering',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days to weeks',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Below the low percentile, target 100% in an uptrend or 50% '
+                          'otherwise.',
+                          'Between thresholds, including equality, target 75% in an uptrend '
+                          'or 25% otherwise.'],
+                'Exit': ['Above the high percentile, target cash. Carry the prior target if '
+                         'volatility rank is missing.'],
+                'Indicators': ['Volatility is the sample standard deviation of vol_lookback '
+                               'daily returns multiplied by √252. Rank is the share of the '
+                               'rolling volatility window strictly below the current value.',
+                               'Trend is up when the close strictly exceeds the 50-day SMA.'],
+                'Inputs': ['vol_lookback = 20, percentile_window = 252, low_percentile = 50, '
+                           'high_percentile = 80. The trend SMA is fixed at 50 days.'],
+                'Position sizing': ['0%, 25%, 50%, 75% or 100% long.']},
+ 'notes': ['The rule can retain partial long exposure even when the trend test fails, '
+           'depending on the volatility rank.'],
+ 'updated': '2026-01-11',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

@@ -1,28 +1,25 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "MOM-01",
-    "name": "Time-Series Momentum",
-    "tags": ["Momentum", "Trend"],
-    "summary": "Stay long when 12-month momentum is positive.",
-    "description": "A simple time-series momentum model with monthly rebalancing.",
-    "bestOn": "EURUSD 5Y Sharpe Top5",
-    "frequency": "Daily",
-    "assetClasses": ["FX", "Index"],
-    "holdingPeriod": "Months",
-    "instruments": ["EURUSD=X", "SPY", "GLD", "USO"],
-    "pseudocode": {
-        "Inputs": ["Lookback = 252", "Rebalance = 21"],
-        "Indicators": ["12M momentum"],
-        "Entry": ["Go long when momentum > 0"],
-        "Exit": ["Exit when momentum < 0"],
-        "Position sizing": ["Equal weight"],
-        "Risk controls": ["Skip signals around major events"],
-    },
-    "notes": ["Robust in long trends", "Slow in turning points"],
-    "updated": "2025-01-05",
-    "recommendedCompare": ["EURUSD=X", "SPY", "GLD"],
-}
+STRATEGY = {'id': 'MOM-01',
+ 'name': 'Time-Series Momentum',
+ 'tags': ['Momentum', 'Trend'],
+ 'summary': 'Target long while the fixed252-observation return is positive.',
+ 'description': 'Re-evaluates momentum at every observed close. It has no21-row/monthly '
+                'rebalance scheduler or macro-event filter.',
+ 'bestOn': 'Long-horizon momentum comparisons',
+ 'frequency': 'Daily',
+ 'assetClasses': ['FX', 'Index'],
+ 'holdingPeriod': 'Months',
+ 'instruments': ['EURUSD=X', 'SPY', 'GLD', 'USO'],
+ 'pseudocode': {'Entry': ['Target1 when momentum>0.'],
+                'Exit': ['Target0 when momentum≤0 or unavailable.'],
+                'Indicators': ['Momentum=close/close252 observations earlier−1.'],
+                'Inputs': ['Fixed lookback252; config does not alter this rule.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['252 observations need not equal12 calendar months. No event skip or stateful '
+           'monthly holding is implemented.'],
+ 'updated': '2025-01-05',
+ 'recommendedCompare': ['EURUSD=X', 'SPY', 'GLD']}
 
 
 def generate_signals(prices, config=None):

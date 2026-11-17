@@ -1,28 +1,28 @@
 import pandas as pd
 
-STRATEGY = {
-    "id": "MR-01",
-    "name": "RSI Mean Reversion",
-    "tags": ["Mean Reversion", "Oscillator"],
-    "summary": "Buy oversold and fade overbought with a volatility cap.",
-    "description": "A short-term mean reversion model using RSI with volatility gating.",
-    "bestOn": "SPY 1Y Return Top3",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "FX", "Commodity"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["RSI = 14", "Oversold = 30", "Overbought = 70"],
-        "Indicators": ["RSI(14)", "Volatility(20)"],
-        "Entry": ["Buy when RSI < 30 and volatility < threshold"],
-        "Exit": ["Exit when RSI > 50"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Disable signals when volatility spikes"],
-    },
-    "notes": ["Works best in range-bound regimes", "Underperforms during trend spikes"],
-    "updated": "2025-02-10",
-    "recommendedCompare": ["SPY", "GLD", "USO"],
-}
+STRATEGY = {'id': 'MR-01',
+ 'name': 'RSI Mean Reversion',
+ 'tags': ['Mean Reversion', 'Oscillator'],
+ 'summary': 'Takes a long position only while the 14-day SMA-based RSI is below 30.',
+ 'description': 'Each close, the rule uses 14 daily changes in closing price to calculate RSI '
+                'from simple averages. An oversold reading sets the target for the next '
+                'return interval to fully long.',
+ 'bestOn': 'SPY 1Y Return Top3',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'FX', 'Commodity'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Set the long target whenever RSI is below 30.'],
+                'Exit': ['Set the target to cash whenever RSI is at least 30 or unavailable.'],
+                'Indicators': ['RSI from simple averages of positive and negative '
+                               'closing-price changes over 14 sessions.'],
+                'Inputs': ['Fixed: RSI window = 14, oversold threshold = 30.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['Consecutive oversold readings can keep the position open for multiple sessions.',
+           'A missing RSI reading, including when average loss is zero, produces a flat '
+           'target.'],
+ 'updated': '2025-02-10',
+ 'recommendedCompare': ['SPY', 'GLD', 'USO']}
 
 
 def rsi(series, period=14):

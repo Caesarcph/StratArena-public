@@ -1,37 +1,29 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MR-10",
-    "name": "Stochastic Oscillator Reversion",
-    "mode": "single",
-    "tags": ["Mean Reversion", "Oscillator"],
-    "summary": "Buy oversold stochastic, exit at neutral.",
-    "description": "Uses Stochastic Oscillator (%K and %D) to identify oversold conditions. Enter long when %K drops below 20, exit when rising above 50. Classic oscillator mean reversion.",
-    "bestOn": "Range-bound markets",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["K_Period = 14", "D_Period = 3", "Oversold = 20", "Exit = 50"],
-        "Indicators": [
-            "%K = (Close - Low14) / (High14 - Low14) * 100",
-            "%D = SMA(%K, 3)",
-        ],
-        "Entry": ["Buy when %K < 20 (oversold)"],
-        "Exit": ["Exit when %K > 50 (neutral)"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Max hold period optional"],
-    },
-    "notes": [
-        "George Lane's Stochastic Oscillator",
-        "Measures momentum relative to price range",
-        "Extreme readings suggest reversal potential",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MR-10',
+ 'name': 'Stochastic Oscillator Reversion',
+ 'mode': 'single',
+ 'tags': ['Mean Reversion', 'Oscillator'],
+ 'summary': 'Buy an oversold close-range stochastic K and exit above50 or at 20 bars.',
+ 'description': 'This is a close-only stochastic approximation. D is calculated but does not '
+                'confirm trades; its period contributes to warmup.',
+ 'bestOn': 'Range-bound markets',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['After k_period+d_period rows, enter when K<20.'],
+                'Exit': ['Exit when K>50 or holding age≥20 observations.'],
+                'Indicators': ['K=100×(close−rolling lowest close)/(rolling highest '
+                               'close−lowest close+1e-10); D=SMA3(K).'],
+                'Inputs': ['k_period=14, d_period=3, oversold=20, exit_level=50, '
+                           'max_hold=20.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['A zero close range gives K=0 and can trigger an entry; no OHLC highs/lows are '
+           'used.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_stochastic(prices, k_period=14, d_period=3):

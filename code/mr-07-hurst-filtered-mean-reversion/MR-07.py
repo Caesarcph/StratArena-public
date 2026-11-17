@@ -1,35 +1,36 @@
 import pandas as pd
 import numpy as np
 
-STRATEGY = {
-    "id": "MR-07",
-    "name": "Hurst-Filtered Mean Reversion",
-    "mode": "single",
-    "tags": ["Mean Reversion", "Statistical", "Adaptive"],
-    "summary": "Mean reversion only when Hurst exponent indicates mean-reverting regime.",
-    "description": "Uses Hurst exponent to detect mean-reverting regimes (H < 0.5) before applying z-score mean reversion. Only trades when statistical evidence supports mean reversion, avoiding trend-following periods.",
-    "bestOn": "Assets with alternating mean-reverting and trending regimes",
-    "frequency": "Daily",
-    "assetClasses": ["Index", "Commodity", "FX"],
-    "holdingPeriod": "Days",
-    "instruments": ["SPY", "GLD", "USO", "EURUSD=X"],
-    "pseudocode": {
-        "Inputs": ["Hurst_Window = 120", "Hurst_Threshold = 0.55", "Lookback = 40", "Entry_Z = 1.5"],
-        "Indicators": ["Hurst exponent via R/S analysis", "Z-score"],
-        "Entry": ["Only trade when H < 0.55 (mean-reverting)", "Buy when Z < -1.5"],
-        "Exit": ["Exit when Z > -0.3", "Or when trending and Z > 0"],
-        "Position sizing": ["Fixed 100% allocation"],
-        "Risk controls": ["Regime detection prevents trend-fighting"],
-    },
-    "notes": [
-        "H < 0.5: Mean reverting (anti-persistent)",
-        "H = 0.5: Random walk",
-        "H > 0.5: Trending (persistent)",
-        "R/S analysis for Hurst estimation",
-    ],
-    "updated": "2025-06-01",
-    "recommendedCompare": ["SPY", "GLD"],
-}
+STRATEGY = {'id': 'MR-07',
+ 'name': 'Hurst-Filtered Mean Reversion',
+ 'mode': 'single',
+ 'tags': ['Mean Reversion', 'Statistical', 'Adaptive'],
+ 'summary': 'Buys unusually low closes when recent volatility is below its own average.',
+ 'description': 'This strategy uses a low-volatility filter and a closing-price z-score. '
+                'Hurst-Filtered Mean Reversion is its historical name. The signal uses '
+                'realized volatility as the entry filter.',
+ 'bestOn': 'Markets with quiet periods and short-lived price dips',
+ 'frequency': 'Daily',
+ 'assetClasses': ['Index', 'Commodity', 'FX'],
+ 'holdingPeriod': 'Days',
+ 'instruments': ['SPY', 'GLD', 'USO', 'EURUSD=X'],
+ 'pseudocode': {'Entry': ['Go long when the z-score is below −1.5 and volatility is below its '
+                          'own moving average.'],
+                'Exit': ['Exit when the z-score rises above −0.3 or 15 bars have elapsed '
+                         'since entry.'],
+                'Indicators': ['Z-score: closing price minus its rolling average, divided by '
+                               'its rolling sample standard deviation plus a small offset.',
+                               'Annualized volatility: sample standard deviation of daily '
+                               'returns over vol_lookback sessions, multiplied by √252. '
+                               'Compare it with its lookback-session moving average.'],
+                'Inputs': ['Default: lookback = 40, vol_lookback = 20, entry_z = 1.5, exit_z '
+                           '= 0.3, max_hold = 15.'],
+                'Position sizing': ['100% long or cash.']},
+ 'notes': ['The filter applies only to new entries.',
+           'The archived source includes a Hurst calculation helper that the strategy does '
+           'not call.'],
+ 'updated': '2025-06-01',
+ 'recommendedCompare': ['SPY', 'GLD']}
 
 
 def calculate_hurst_exponent(series, max_lag=100):
