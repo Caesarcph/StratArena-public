@@ -323,7 +323,8 @@ function renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ra
         <div class="eyebrow">${getLang() === "zh" ? "MQL5 智能交易系统" : "MQL5 Expert Advisors"}</div>
         <h1>${getLang() === "zh" ? "EA 竞技场" : "EA Arena"}</h1>
         <p>${getLang() === "zh" ? `浏览、评估并比较 ${all.length} 个 MQL5 智能交易系统，其中 ${analyzedCount} 个附带详细分析。` : `Browse, evaluate, and compare ${all.length} MQL5 Expert Advisors. ${analyzedCount} with detailed analysis.`}
-          <a href="/ea-pages/${getLang() === "zh" ? "zh/" : ""}category/">${getLang() === "zh" ? "按类别浏览 →" : "Browse by category →"}</a></p>
+          <a href="/ea-pages/${getLang() === "zh" ? "zh/" : ""}category/">${getLang() === "zh" ? "按类别浏览 →" : "Browse by category →"}</a>
+          · <a href="/${getLang() === "zh" ? "zh/" : ""}mt5-comparison/">${getLang() === "zh" ? "15 个 EA 的原生 MT5 历史对照 →" : "Native MT5 comparison: 15 EAs →"}</a></p>
       </div>
       <div class="ea-toolbar">
         <input type="search" class="ea-search" placeholder="${getLang() === "zh" ? "按名称、ID 或作者搜索 EA…" : "Search EAs by name, ID, or author…"}" value="${s.search}" data-ea-search />
