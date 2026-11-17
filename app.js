@@ -134,6 +134,7 @@ const store = {
   eaBacktestIndex: {}
 };
 let favorites = new Set();
+let favoritesPersisted = true;
 let portfolioWeights = new Map();
 let portfolioChart = null;
 let portfolioRiskChart = null;
@@ -739,21 +740,24 @@ function initFavorites() {
 }
 
 function loadFavorites() {
-  const raw = localStorage.getItem(FAVORITES_KEY);
-  if (!raw) return [];
   try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       return parsed.filter((id) => typeof id === "string");
     }
   } catch (error) {
+    favoritesPersisted = false;
     return [];
   }
   return [];
 }
 
 function saveFavorites() {
-  localStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(favorites)));
+  try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(favorites))); favoritesPersisted = true; }
+  catch (_) { favoritesPersisted = false; }
+  window.ObservationUpdatesUI?.favoritesChanged(Array.from(favorites));
 }
 
 function isFavorite(strategyId) {
@@ -1945,10 +1949,15 @@ function renderStrategies(route) {
 }
 
 function renderFavorites(route) {
+  const updates = route.params.get("tab") === "updates", zh = getLang() === "zh";
+  const tabs = `<nav class="chip-group favorites-tabs" aria-label="${zh ? '收藏视图' : 'Favorites view'}" data-private-local>
+    <a class="chip ${updates ? '' : 'active'}" href="?page=favorites${zh ? '&lang=zh' : ''}">${zh ? '已收藏策略' : 'Saved strategies'}</a>
+    <a class="chip ${updates ? 'active' : ''}" href="?page=favorites&tab=updates${zh ? '&lang=zh' : ''}">${zh ? '更新' : 'Updates'}</a></nav>`;
+  if (updates) return tabs + ObservationUpdatesUI.render();
   const state = favoritesState(route.params);
   const saved = store.strategies.filter((strategy) => favorites.has(strategy.id));
 
-  return `
+  return tabs + `
     <section class="section">
       <div class="section-header">
         <div>
@@ -3233,6 +3242,16 @@ function bindStrategies(route) {
 }
 
 function bindFavorites(route) {
+  if (route.params.get("tab") === "updates") {
+    ObservationUpdatesUI.mount({favoriteIds: () => Array.from(favorites), catalog: store.strategies,
+      favoritePersistence: () => favoritesPersisted,
+      refreshFavorites: () => { favorites=new Set(loadFavorites());updateFavoriteCount(); },
+      evidenceHref: (id,symbol) => {
+        const strategy=store.strategies.find(s=>s.id===id);
+        return strategy ? `/${getLang()==='zh'?'zh/':''}evidence/${strategySlug(strategy)}/${symbol.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}/` : '/evidence/';
+      }});
+    return;
+  }
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       updateQuery({ page: "favorites", view: button.dataset.view });
