@@ -593,6 +593,7 @@ function renderEADetail(route) {
    <h2>${isZh ? "回测结果" : "Backtest Results"}</h2>
    ${tabsHtml}
    ${renderBacktestQualityNote(activeBt, isZh)}
+   ${renderEAMarketCurveNote(activeBt, isZh)}
    <div class="ea-bt-summary" id="ea-bt-summary"${isFailedConversion(activeBt) ? " hidden" : ""}>
     <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
      <span class="ea-bt-label">${isZh ? "总盈亏" : "Total P&L"}</span>
@@ -713,9 +714,8 @@ function bindEADetail(route) {
   const summary = document.getElementById("ea-bt-summary");
   const section = summary ? summary.closest(".ea-backtest-section") : null;
   if (section) {
-   const oldNote = section.querySelector(":scope > .data-notice");
-   if (oldNote) oldNote.remove();
-   const note = renderBacktestQualityNote(bt, isZh);
+   section.querySelectorAll(":scope > .data-notice, :scope > .ea-market-curve-note").forEach(note => note.remove());
+   const note = renderBacktestQualityNote(bt, isZh) + renderEAMarketCurveNote(bt, isZh);
    if (note) summary.insertAdjacentHTML("beforebegin", note);
   }
   const failed = isFailedConversion(bt);
@@ -837,6 +837,20 @@ const NO_TRADE_REASON_TEXT = {
   rare_filter: { en: "its entry needs a signal and an extreme oscillator reading on the same bar, which did not happen on one year of hourly data", zh: "开仓要求同一根 K 线上既出现信号、又出现极端的震荡指标读数，一年的小时线里一次都没碰上" }
 };
 
+function eaMarketCurveCount(result) {
+  const count = result?.same_market_curve_count;
+  return Number.isSafeInteger(count) && count > 1 ? count : 0;
+}
+
+function renderEAMarketCurveNote(result, isZh) {
+  const count = eaMarketCurveCount(result);
+  if (!count) return "";
+  const text = isZh
+    ? `此品种有 ${count} 个 EA 的留存权益曲线和交易笔数完全相同。原生策略行为仍需对照。`
+    : `${count} EAs share the same retained equity curve and trade count in this market. Native behavior still needs comparison.`;
+  return `<p class="small-note ea-market-curve-note" role="note">${text}</p>`;
+}
+
 function renderBacktestQualityNote(result, isZh) {
   const quality = result && result.quality;
   if (quality === "conversion_issue") {
@@ -850,9 +864,9 @@ function renderBacktestQualityNote(result, isZh) {
     const twins = (result.same_as || []).slice(0, 8)
       .map((id) => `<a href="?page=ea-detail&id=${encodeURIComponent(id)}">${id}</a>`).join(", ");
     const more = (result.same_as || []).length > 8 ? (isZh ? " 等" : " and others") : "";
-    return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "与其他 EA 结果相同：" : "Same backtest as other EAs:"}</strong> <span>${isZh
-      ? `这个 EA 在每个品种上的回测都和 ${twins}${more} 一模一样。几乎可以肯定是自动转换丢掉了它与众不同的部分（自定义指标、过滤条件或资金管理），所以这些结果不参与排名和统计。`
-      : `On every market this EA's backtest is identical to ${twins}${more}. The automatic conversion almost certainly lost what makes it different (a custom indicator, a filter or the money management), so these results are not ranked or counted.`}</span></div></div>`;
+    return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "回测摘要重复" : "Duplicate backtest summaries"}</strong> <span>${isZh
+      ? `在产生交易的品种上，这个 EA 与 ${twins}${more} 的已报告收益率和交易笔数相同。排名按重复结果处理。`
+      : `This EA shares the same reported return and trade count with ${twins}${more} across the markets it traded. The rankings treat these as duplicate summaries.`}</span></div></div>`;
   }
   if (quality === "ok" && (result.pnl_pct || 0) <= -89) {
     return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "账户爆仓：" : "Account stopped out:"}</strong> <span>${isZh
@@ -977,6 +991,7 @@ function renderEARanking(route) {
       annual_return: symData.annual_return || 0,
       max_drawdown_pct: symData.max_drawdown_pct || 0,
       total_trades: symData.total_trades || 0,
+      sameMarketCurveCount: eaMarketCurveCount(symData),
       recovery_factor: eaRecoveryFactor(symData),
       markets_profitable: markets.profitable + markets.reliable / 100,
       markets,
@@ -1016,9 +1031,14 @@ function renderEARanking(route) {
     const srClass = r.sharpe_ratio > 0 ? "ea-bt-profit" : r.sharpe_ratio < 0 ? "ea-bt-loss" : "";
     const ddClass = r.max_drawdown_pct > 20 ? "ea-bt-loss" : "";
     const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
+    const match = r.sameMarketCurveCount
+      ? `<br><small class="ea-market-curve-label">${isZh
+          ? `曲线相同（${r.sameMarketCurveCount} 个 EA）`
+          : `Matching curve (${r.sameMarketCurveCount} EAs)`}</small>`
+      : "";
     return `<tr class="ea-rank-row">
       <td class="ea-rank-num">${medal}</td>
-      <td class="ea-rank-id"><a href="?page=ea-detail&id=${r.id}">${r.id}</a></td>
+      <td class="ea-rank-id"><a href="?page=ea-detail&id=${r.id}">${r.id}</a>${match}</td>
       <td class="ea-rank-name"><a href="?page=ea-detail&id=${r.id}">${escapeHtml(r.name)}</a></td>
       <td>${eaCategoryBadge(r.category)}</td>
       <td>${r.blowup ? `<a href="?page=ea-detail&id=${r.id}#blow-up-risk">${eaBlowupBadge(r.blowup, "cell")}</a>` : "—"}</td>
@@ -1058,8 +1078,8 @@ function renderEARanking(route) {
       <div>
         <strong>${isZh ? "只排名有效回测。" : "Only reliable backtests are ranked."}</strong>
         <span>${isZh
-          ? `要求至少 ${EA_MIN_TRADES} 笔交易、有实际盈亏和回撤；夏普比率按权益曲线重新计算。本品种另有 ${excluded} 个结果因零交易、运行报错、数据异常或与其他 EA 结果完全相同而未参与排名。`
-          : `At least ${EA_MIN_TRADES} trades with real P&L and drawdown; Sharpe is recomputed from the equity curve. ${excluded} other results for this symbol were left out (no trades, run errors, flat data, or identical to another EA's).`}</span>
+          ? `要求至少 ${EA_MIN_TRADES} 笔交易、有实际盈亏和回撤。夏普比率按权益曲线重新计算。本品种另有 ${excluded} 个结果因零交易、运行报错、数据异常或回测摘要重复而未参与排名。`
+          : `At least ${EA_MIN_TRADES} trades with real P&L and drawdown. Sharpe is recomputed from the equity curve. ${excluded} other results for this symbol were left out (no trades, run errors, flat data, or duplicate summaries).`}</span>
       </div>
     </div>
 
