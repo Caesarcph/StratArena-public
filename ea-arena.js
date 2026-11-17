@@ -82,6 +82,7 @@ function getEACategoryLabel(value) {
 function getEABacktestStatus(value) {
   if (!value) return getLang() === "zh" ? "待定" : "Pending";
   if (String(value).toLowerCase() === "pending") return getLang() === "zh" ? "待定" : "Pending";
+  if (value === "unavailable") return getLang() === "zh" ? "暂无可用结果" : "No usable result";
   return value;
 }
 
@@ -594,6 +595,7 @@ function renderEADetail(route) {
    ${tabsHtml}
    ${renderBacktestQualityNote(activeBt, isZh)}
    ${renderEAMarketCurveNote(activeBt, isZh)}
+   ${renderEAHourlyClockNote(activeBt, isZh)}
    <div class="ea-bt-summary" id="ea-bt-summary"${isFailedConversion(activeBt) ? " hidden" : ""}>
     <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
      <span class="ea-bt-label">${isZh ? "总盈亏" : "Total P&L"}</span>
@@ -686,19 +688,23 @@ function bindEADetail(route) {
  const section = document.querySelector(".ea-backtest-section");
  if (!section) return;
  const defaultSymbol = section.dataset.btDefault || "";
+ let chartRequest = 0;
  function loadSymbol(symbol) {
+  const request = ++chartRequest;
+  const summary = isNested ? btRaw[symbol] : btRaw;
+  const canvas = section.querySelector("#equity-curve-chart");
+  if (!canvas) return;
+  canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
   const path = symbol
    ? `data/backtest-results/${symbol}/${id}.json`
    : `data/backtest-results/${id}.json`;
-  fetch(path)
-   .then(r => r.json())
+  fetch(path, { cache: "no-cache" })
+   .then(response => response.ok ? response.json() : null)
    .then(data => {
-    if (data.equity_curve && data.equity_curve.length > 0) {
-     setTimeout(() => drawEquityCurve(data.equity_curve, data.start_value), 100);
-    } else {
-     const canvas = document.getElementById("equity-curve-chart");
-     if (canvas) { const ctx = canvas.getContext("2d"); ctx.clearRect(0, 0, canvas.width, canvas.height); }
-    }
+    if (!matchesEACurve(summary, data)) return;
+    setTimeout(() => {
+     if (request === chartRequest && canvas.isConnected) drawEquityCurve(data.equity_curve, data.start_value);
+    }, 100);
    })
    .catch(() => {});
  }
@@ -714,8 +720,9 @@ function bindEADetail(route) {
   const summary = document.getElementById("ea-bt-summary");
   const section = summary ? summary.closest(".ea-backtest-section") : null;
   if (section) {
-   section.querySelectorAll(":scope > .data-notice, :scope > .ea-market-curve-note").forEach(note => note.remove());
-   const note = renderBacktestQualityNote(bt, isZh) + renderEAMarketCurveNote(bt, isZh);
+   section.querySelectorAll(":scope > .data-notice, :scope > .ea-market-curve-note, :scope > .ea-hourly-clock-note")
+    .forEach(note => note.remove());
+   const note = renderBacktestQualityNote(bt, isZh) + renderEAMarketCurveNote(bt, isZh) + renderEAHourlyClockNote(bt, isZh);
    if (note) summary.insertAdjacentHTML("beforebegin", note);
   }
   const failed = isFailedConversion(bt);
@@ -816,6 +823,21 @@ function bindEADetail(route) {
 }
 
 const EA_MIN_TRADES = 10;
+const EA_H1_CLOCK = "h1-raw-timestamps-v1";
+
+function matchesEACurve(summary, data) {
+  return !!summary && !!data && summary.bar_clock === data.bar_clock
+    && (!summary.bar_clock || !!summary.timestamp && summary.timestamp === data.timestamp)
+    && Array.isArray(data.equity_curve) && data.equity_curve.length > 0;
+}
+
+function renderEAHourlyClockNote(result, isZh) {
+  if (result?.bar_clock !== EA_H1_CLOCK) return "";
+  return `<p class="small-note ea-hourly-clock-note">${isZh
+    ? "Python 回测保留了输入小时线的原始时间。"
+    : "The Python backtest preserves the timestamps of the input hourly bars."}
+    <a href="/data/ea_backtest_cohort.json">${isZh ? "回测批次记录" : "Run record"}</a></p>`;
+}
 
 const BACKTEST_QUALITY_TEXT = {
   no_trades: { en: "This backtest produced no trades, so the numbers below say nothing about the strategy. The automatic MQL5-to-Python conversion most likely missed its entry logic.", zh: "这次回测没有产生任何交易，下面的数字不能说明策略好坏，多半是 MQL5 自动转换时漏掉了开仓逻辑。" },
@@ -992,6 +1014,7 @@ function renderEARanking(route) {
       max_drawdown_pct: symData.max_drawdown_pct || 0,
       total_trades: symData.total_trades || 0,
       sameMarketCurveCount: eaMarketCurveCount(symData),
+      bar_clock: symData.bar_clock,
       recovery_factor: eaRecoveryFactor(symData),
       markets_profitable: markets.profitable + markets.reliable / 100,
       markets,
@@ -1082,6 +1105,7 @@ function renderEARanking(route) {
           : `At least ${EA_MIN_TRADES} trades with real P&L and drawdown. Sharpe is recomputed from the equity curve. ${excluded} other results for this symbol were left out (no trades, run errors, flat data, or duplicate summaries).`}</span>
       </div>
     </div>
+    ${renderEAHourlyClockNote(rows[0], isZh)}
 
     <div class="ea-rank-controls">
       <div class="ea-bt-symbols">${symbolTabs}</div>
