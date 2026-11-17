@@ -85,10 +85,20 @@ function getEABacktestStatus(value) {
   return value;
 }
 
+// The EA was backtested but no market gave a reliable result (see the quality
+// labels in scripts/update_backtest_index.py). Shown on the card so a high
+// code-review score is not read as a good backtest.
+function eaNoBacktestBadge() {
+  const zh = getLang() === "zh";
+  const title = zh ? "所有品种的回测都不可靠（零交易、交易太少、与其他 EA 相同或转换失败），详情见 EA 页" : "No market gave a reliable backtest (no trades, too few trades, identical to another EA or a failed conversion); see the EA page";
+  return `<span class="ea-nobt-badge" title="${title}">${zh ? "无可靠回测" : "No reliable backtest"}</span>`;
+}
+
 function eaStars(rating) {
   if (!rating || rating <= 0) return `<span class="ea-rating-na">${t("common.na")}</span>`;
   const r = Math.min(5, Math.max(1, Math.round(rating)));
-  return `<span class="ea-rating-stars">${"★".repeat(r)}${"☆".repeat(5 - r)}</span>`;
+  const title = getLang() === "zh" ? `AI 代码分析评分 ${r}/5，不是回测成绩` : `AI code review score ${r}/5, not a backtest result`;
+  return `<span class="ea-rating-stars" title="${title}" aria-label="${title}">${"★".repeat(r)}${"☆".repeat(5 - r)}</span>`;
 }
 
 function eaRiskBadge(risk) {
@@ -210,7 +220,8 @@ function renderEAArena(route) {
       case "risk":
         return EA_RISK_LEVELS.indexOf(a.overall_risk) - EA_RISK_LEVELS.indexOf(b.overall_risk);
       case "rating":
-        return (b.rating || 0) - (a.rating || 0);
+        // Equal ratings: EAs with more markets of reliable backtests first.
+        return (b.rating || 0) - (a.rating || 0) || (b.bt || 0) - (a.bt || 0);
       default:
         return 0;
     }
@@ -295,6 +306,7 @@ function renderEACard(ea) {
           ${eaCategoryBadge(ea.category || "Unclassified")}
           ${eaRiskBadge(ea.overall_risk)}
           ${ea.blowup && ea.blowup !== "low" ? eaBlowupBadge(ea.blowup) : ""}
+          ${ea.bt === 0 ? eaNoBacktestBadge() : ""}
         </div>
         <div class="ea-card-footer">
           <span class="ea-card-author">${ea.author || t("common.unknown")}</span>
@@ -319,7 +331,7 @@ function renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ra
           <option value="name" ${s.sort === "name" ? "selected" : ""}>${getLang() === "zh" ? "名称 A-Z" : "Name A-Z"}</option>
           <option value="category" ${s.sort === "category" ? "selected" : ""}>${getLang() === "zh" ? "分类" : "Category"}</option>
           <option value="risk" ${s.sort === "risk" ? "selected" : ""}>${getLang() === "zh" ? "风险等级" : "Risk Level"}</option>
-          <option value="rating" ${s.sort === "rating" ? "selected" : ""}>${getLang() === "zh" ? "评分 ↓" : "Rating ↓"}</option>
+          <option value="rating" ${s.sort === "rating" ? "selected" : ""}>${getLang() === "zh" ? "代码评分 ↓" : "Code rating ↓"}</option>
         </select>
         <button class="ea-view-toggle" data-ea-view="${s.view === "grid" ? "list" : "grid"}" title="${getLang() === "zh" ? "切换视图" : "Toggle view"}">
           ${s.view === "grid" ? "☰" : "⊞"}
@@ -340,7 +352,7 @@ function renderEAArenaPage(s, all, items, analyzedCount, catChips, riskChips, ra
         <div class="ea-chips">${riskChips}</div>
       </div>
       ${blowupChips ? `<div class="ea-filter-row"><span class="ea-filter-label">${eaBlowupText().title}</span><div class="ea-chips">${blowupChips}</div></div>` : ""}
-      ${ratingChips ? `<div class="ea-filter-row"><span class="ea-filter-label">${getLang() === "zh" ? "评分" : "Rating"}</span><div class="ea-chips">${ratingChips}</div></div>` : ""}
+      ${ratingChips ? `<div class="ea-filter-row"><span class="ea-filter-label">${getLang() === "zh" ? "代码评分" : "Code rating"}</span><div class="ea-chips">${ratingChips}</div></div>` : ""}
     </div>
 
     <p class="ea-results-count">${getLang() === "zh" ? `显示 ${items.length} / ${all.length} 个 EA` : `${items.length} of ${all.length} EAs`}</p>
@@ -580,7 +592,7 @@ function renderEADetail(route) {
    <h2>${isZh ? "回测结果" : "Backtest Results"}</h2>
    ${tabsHtml}
    ${renderBacktestQualityNote(activeBt, isZh)}
-   <div class="ea-bt-summary" id="ea-bt-summary">
+   <div class="ea-bt-summary" id="ea-bt-summary"${isFailedConversion(activeBt) ? " hidden" : ""}>
     <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
      <span class="ea-bt-label">${isZh ? "总盈亏" : "Total P&L"}</span>
      <span class="ea-bt-value">${activeBt.pnl_pct > 0 ? "+" : ""}${activeBt.pnl_pct.toFixed(2)}%</span>
@@ -595,7 +607,7 @@ function renderEADetail(route) {
      <span class="ea-bt-value">$${activeBt.end_value ? activeBt.end_value.toLocaleString() : "—"}</span>
     </div>
    </div>
-   <div class="ea-bt-grid" id="ea-bt-grid">
+   <div class="ea-bt-grid" id="ea-bt-grid"${isFailedConversion(activeBt) ? " hidden" : ""}>
     <div class="ea-bt-metric">
      <span class="ea-bt-label">${isZh ? "总交易数" : "Total Trades"}</span>
      <span class="ea-bt-value">${activeBt.total_trades}</span>
@@ -631,7 +643,7 @@ function renderEADetail(route) {
     </div>
     ${activeBt.timestamp ? `<div class="ea-bt-metric"><span class="ea-bt-label">${isZh ? "回测时间" : "Backtest Time"}</span><span class="ea-bt-value ea-bt-small">${new Date(activeBt.timestamp).toLocaleDateString()}</span></div>` : ""}
    </div>
-   ${!hasTrades ? `<p class="ea-bt-note">${isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment."}</p>` : `<div class="ea-bt-chart-wrap"><canvas id="equity-curve-chart" class="ea-bt-chart"></canvas></div>`}
+   ${!hasTrades ? `<p class="ea-bt-note">${eaNoTradeNote(activeBt, isZh)}</p>` : `<div class="ea-bt-chart-wrap"><canvas id="equity-curve-chart" class="ea-bt-chart"></canvas></div>`}
   </div>`;
   }
  }
@@ -705,6 +717,8 @@ function bindEADetail(route) {
    const note = renderBacktestQualityNote(bt, isZh);
    if (note) summary.insertAdjacentHTML("beforebegin", note);
   }
+  const failed = isFailedConversion(bt);
+  if (summary) summary.hidden = failed;
   if (summary) {
    summary.innerHTML = `
     <div class="ea-bt-metric ea-bt-metric-main ${pnlClass}">
@@ -722,6 +736,7 @@ function bindEADetail(route) {
     </div>`;
   }
   const grid = document.getElementById("ea-bt-grid");
+  if (grid) grid.hidden = failed;
   if (grid) {
    grid.innerHTML = `
     <div class="ea-bt-metric">
@@ -763,10 +778,12 @@ function bindEADetail(route) {
   const chartWrap = section.querySelector(".ea-bt-chart-wrap");
   if (!hasTrades) {
    if (chartWrap) chartWrap.remove();
-   if (!noteEl) {
+   if (noteEl) {
+    noteEl.textContent = eaNoTradeNote(bt, isZh);
+   } else {
     const note = document.createElement("p");
     note.className = "ea-bt-note";
-    note.textContent = isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment.";
+    note.textContent = eaNoTradeNote(bt, isZh);
     section.appendChild(note);
    }
   } else {
@@ -850,6 +867,23 @@ function renderBacktestQualityNote(result, isZh) {
       : `This EA never traded because ${reason.en}. The rules may simply be very strict, or the conversion lost a setting.`}</span></div></div>`;
   }
   return `<div class="data-notice warn" role="note"><span class="data-notice-dot" aria-hidden="true"></span><div><strong>${isZh ? "结果不可靠：" : "Unreliable result:"}</strong> <span>${isZh ? text.zh : text.en}</span></div></div>`;
+}
+
+// Runs whose conversion did not reproduce the EA (no trades because the entry
+// logic was lost, replaced by a placeholder, or the run failed). Their 0.00%
+// figures describe the converter, not the EA, so the metric tiles are hidden.
+const EA_FAILED_CONVERSION = new Set(["error", "unsupported", "approximated", "conversion_issue"]);
+function isFailedConversion(result) {
+  return !!result && EA_FAILED_CONVERSION.has(result.quality) && !(result.total_trades > 0);
+}
+
+function eaNoTradeNote(result, isZh) {
+  if (isFailedConversion(result)) {
+    return isZh
+      ? "这里没有可参考的数字：问题出在自动转换，不代表 EA 本身。星级评分来自 AI 对代码的分析，不是回测成绩。"
+      : "There are no usable numbers here: the automatic conversion failed, which says nothing about the EA itself. The star rating comes from an AI review of the code, not from backtest results.";
+  }
+  return isZh ? "该策略在当前数据集上未产生交易信号。可能需要调整参数或更换数据周期。" : "No trades were generated on the current dataset. Parameters or timeframe may need adjustment.";
 }
 
 // Backtest results carry a "quality" label from scripts/update_backtest_index.py.
