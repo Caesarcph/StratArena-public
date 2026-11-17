@@ -657,6 +657,15 @@ function updatePageMeta(route, canonicalUrl) {
   }
   const descriptionTag = ensureMetaTag("description");
   descriptionTag.setAttribute("content", meta.description);
+  for (const [selector, value] of [
+    ['meta[property="og:title"]', meta.title],
+    ['meta[property="og:description"]', meta.description],
+    ['meta[name="twitter:title"]', meta.title],
+    ['meta[name="twitter:description"]', meta.description]
+  ]) {
+    const tag = document.querySelector(selector);
+    if (tag) tag.setAttribute("content", value);
+  }
   const canonicalTag = ensureCanonicalLink();
   canonicalTag.setAttribute("href", canonicalUrl || window.location.href);
   const robotsTag = ensureMetaTag("robots");
@@ -2538,9 +2547,9 @@ function getCorrelationScore(baseId, candidateId, instrument, window) {
 
 function getResearchArticles() {
   if (typeof RESEARCH_ARTICLES === "undefined" || !Array.isArray(RESEARCH_ARTICLES)) return [];
-  // Articles dated after the latest data build are scheduled. They appear with
-  // the build that also generates their static page (scripts/static_site.py).
-  const cutoff = (store.performance && store.performance.updated) || new Date().toISOString().slice(0, 10);
+  // Use the same UTC editorial cutoff as the static renderer. A frozen study
+  // can be published after its observation window without a new price build.
+  const cutoff = new Date().toISOString().slice(0, 10);
   return RESEARCH_ARTICLES.filter((article) => !article.date || article.date <= cutoff);
 }
 
@@ -2600,6 +2609,23 @@ function contentInline(text) {
 }
 
 function renderContentBlock(block) {
+  if (block && typeof block === "object" && !Array.isArray(block)) {
+    if (block.type === "resources") {
+      return `<ul class="research-resources">${(block.items || []).map((item) => {
+        if (!/^\/(?!\/)[A-Za-z0-9_./-]+$/.test(item.href || "") || item.href.split("/").includes("..")) throw new Error("Research resource must use a safe site path");
+        return `<li><a href="${escapeHtml(item.href)}">${contentInline(item.label)}</a></li>`;
+      }).join("")}</ul>`;
+    }
+    if (block.type === "table") {
+      const headers = block.headers || [];
+      const rows = block.rows || [];
+      if (!headers.length || rows.some((row) => row.length !== headers.length)) throw new Error("Research table dimensions do not match");
+      const hint = block.scrollHint ? `<p class="research-table-hint">${contentInline(block.scrollHint)}</p>` : "";
+      return `${hint}<div class="research-table-scroll" tabindex="0"><table><caption>${contentInline(block.caption)}</caption><thead><tr>${headers.map((cell) => `<th scope="col">${contentInline(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${contentInline(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+    }
+    if (block.type === "code") return `<pre><code>${escapeHtml(block.text || "")}</code></pre>`;
+    throw new Error("Unknown research content block");
+  }
   if (Array.isArray(block)) return `<ul>${block.map((item) => `<li>${contentInline(item)}</li>`).join("")}</ul>`;
   return `<p>${contentInline(block)}</p>`;
 }
