@@ -1,0 +1,161 @@
+# Daily data refresh and site publish, run from this public repository so it
+# uses GitHub's free hosted minutes (the private source repository has a
+# monthly minute allowance; this one does not).
+#
+# Needs the secret SOURCE_REPO_TOKEN: a fine-grained token with
+# "Contents: read and write" on Caesarcph/StratArena only.
+#
+# This repository is public, so its run logs are public too. The build and
+# publish steps therefore write their output to files instead of the log, and
+# every run's files are pushed to the private source repository on the
+# branch "refresh-logs" (one folder per run). The public log only shows
+# which step passed or failed.
+name: refresh-and-publish
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 9 * * 2-6"   # 09:41 UTC Tue–Sat, after the US close
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: refresh-and-publish
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: Caesarcph/StratArena
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Check out the source repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: main
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          path: source
+
+      - name: Check out this site
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: public-site
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -q -r source/scripts/requirements.txt > "$RUNNER_TEMP/pip.txt" 2>&1
+
+      - name: Git identity
+        run: |
+          git config --global user.name "Quant Arena Bot"
+          git config --global user.email "bot@quantarenas.com"
+
+      - name: Refresh data
+        working-directory: source
+        env:
+          GITHUB_TOKEN: ${{ github.token }}   # public GitHub API reads (frameworks, trending)
+        run: python scripts/daily_update.py --no-publish --no-push > "$RUNNER_TEMP/refresh.txt" 2>&1
+
+      - name: Push the refreshed source
+        id: source
+        working-directory: source
+        run: |
+          revision="$(git rev-parse HEAD)"
+          git push -q origin "$revision:refs/heads/main" > "$RUNNER_TEMP/push-source.txt" 2>&1
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Build the public package
+        id: package
+        working-directory: source
+        run: |
+          {
+            base="$(git -C ../public-site rev-parse HEAD)"
+            python scripts/publish_site.py --output ../public-site
+            cmp data/performance.json ../public-site/data/performance.json
+            python - <<'PY'
+          import json
+          import sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          from check_public_freshness import check_freshness
+          from daily_update import commit_paths
+          from publish_site import ASSETS
+
+          public = Path("../public-site").resolve()
+          payload = json.loads((public / "data/performance.json").read_bytes())
+          build_date, dates = check_freshness(payload, datetime.now(timezone.utc).date())
+          print(f"Build date {build_date}; market bars: {dates}")
+          commit_paths(public, ASSETS, f"[auto] {build_date}: site publish (data {build_date})", "public")
+          PY
+            # The publish must never touch this repository's own settings files.
+            git -C ../public-site diff --quiet "$base" HEAD -- .github CNAME README.md ads.txt
+            test -z "$(git -C ../public-site status --porcelain)"
+            echo "base=$base" >> "$GITHUB_OUTPUT"
+          } > "$RUNNER_TEMP/package.txt" 2>&1
+
+      - name: Push the site
+        working-directory: public-site
+        run: |
+          test "$BASE" = "$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ "$BASE" = "$(git rev-parse HEAD)" ]; then
+            echo "Nothing new to publish"
+            exit 0
+          fi
+          git push -q origin HEAD:refs/heads/main > "$RUNNER_TEMP/push-site.txt" 2>&1
+          # Pushes made with this workflow's token do not start other
+          # workflows, so ask Pages to build and IndexNow to submit directly.
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" --silent || true
+          gh workflow run indexnow.yml -R "$GITHUB_REPOSITORY" -f all=false || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ steps.package.outputs.base }}
+
+      - name: Wait for the website to serve the new data
+        working-directory: source
+        run: |
+          for attempt in $(seq 1 40); do
+            if python scripts/check_public_freshness.py ../public-site/data/performance.json > "$RUNNER_TEMP/live.txt" 2>&1; then
+              echo "Live site serves the new data"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "::error::The website has not served the new data after 20 minutes"
+          exit 1
+
+      - name: Save this run's files in the private repository
+        if: always()
+        env:
+          TOKEN: ${{ secrets.SOURCE_REPO_TOKEN }}
+          RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          dir="$(mktemp -d)"
+          cd "$dir"
+          git init -q
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+          remote="https://github.com/$SOURCE_REPO.git"
+          if git -c http.extraheader="$auth" fetch -q --depth 1 "$remote" refresh-logs 2>/dev/null; then
+            git checkout -q FETCH_HEAD
+          fi
+          mkdir -p "runs/$RUN"
+          cp "$RUNNER_TEMP"/*.txt "runs/$RUN/" 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE"/source/logs/daily_update_*.log "$GITHUB_WORKSPACE"/source/logs/last_run.json "runs/$RUN/" 2>/dev/null || true
+          git add -A
+          git commit -q -m "Run $RUN"
+          for attempt in 1 2 3; do
+            git -c http.extraheader="$auth" push -q "$remote" HEAD:refs/heads/refresh-logs && exit 0
+            sleep 10
+            git -c http.extraheader="$auth" fetch -q --depth 1 "$remote" refresh-logs && git rebase -q FETCH_HEAD
+          done
+          echo "::warning::Could not save the run files"
