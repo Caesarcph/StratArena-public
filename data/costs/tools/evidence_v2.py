@@ -13,6 +13,7 @@ import math
 import os
 from pathlib import Path, PurePosixPath
 import platform
+import re
 import shutil
 import tempfile
 
@@ -29,6 +30,8 @@ MODEL = {
     "wfo": "Candidate retains its own hypothetical state; first test return uses previous published target.",
 }
 MAX_OBJECT_BYTES = 128 * 1024 * 1024
+LOGICAL_OBJECT = re.compile(r"data/evidence/objects/([0-9a-f]{64})\.json\.gz")
+SOURCE_OBJECT_STORE = "data/evidence/object-store"
 
 
 def encode(value):
@@ -43,9 +46,19 @@ def safe_path(root, relative):
     path = PurePosixPath(relative)
     if path.is_absolute() or ".." in path.parts or "\\" in relative or ":" in relative:
         raise ValueError("Unsafe evidence path")
-    resolved = (Path(root) / path).resolve()
-    if not resolved.is_relative_to(Path(root).resolve()):
+    root = Path(root).resolve()
+    resolved = (root / path).resolve()
+    if not resolved.is_relative_to(root):
         raise ValueError("Evidence path escapes root")
+    # Source checkouts can store new objects by prefix. Manifests, public URLs,
+    # and standalone bundles still use their existing flat paths.
+    match = LOGICAL_OBJECT.fullmatch(relative)
+    store = root / SOURCE_OBJECT_STORE
+    if match and not resolved.exists() and store.is_dir():
+        identity = match[1]
+        resolved = (store / identity[:2] / path.name).resolve()
+        if not resolved.is_relative_to(store):
+            raise ValueError("Physical evidence object escapes its store")
     return resolved
 
 
@@ -97,7 +110,7 @@ def load_object(root, ref):
 def artifact_root(manifest_path):
     path = Path(manifest_path).resolve()
     for parent in path.parents:
-        if (parent / "data/evidence/objects").is_dir():
+        if (parent / "data/evidence/objects").is_dir() or (parent / SOURCE_OBJECT_STORE).is_dir():
             return parent
     raise ValueError("Shared evidence objects not found; materialize the bundle first")
 
@@ -310,7 +323,8 @@ def dependency_versions():
 def storage_report(data_dir):
     """Measure all immutable public files, including metadata and old snapshots."""
     evidence = Path(data_dir) / "evidence"
-    groups = {"objects": list((evidence / "objects").glob("*.json.gz")),
+    groups = {"objects": [*(evidence / "objects").glob("*.json.gz"),
+                          *(evidence / "object-store").glob("*/*.json.gz")],
               "manifests": list((evidence / "runs").glob("*/manifest.json")),
               "launchers": list((evidence / "tools").glob("*.py"))}
     return {"groups": {name: {"files": len(paths), "bytes": sum(p.stat().st_size for p in paths)}
